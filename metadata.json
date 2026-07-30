@@ -1,0 +1,8 @@
+{
+  "name": "Remix solmint.ir",
+  "description": "پلتفرم غیر متمرکز سولمینت (Solmint) | کیف پول غیرامانی سولانا، ساخت توکن SPL و میم‌کوین بدون کدنویسی، ضرب NFT و بازیابی کارمزد اجاره سولانا.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

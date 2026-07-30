@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #05050a;
+    color: #f1f5f9;
+    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Ultra-Clean Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #05050a;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e1e2d;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9945FF;
+}
+
+/* Solmint Premium Glassmorphism & Micro-Glows */
+.glass-panel {
+  background: rgba(13, 14, 24, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-interactive {
+  background: rgba(13, 14, 24, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-interactive:hover {
+  background: rgba(20, 22, 38, 0.85);
+  border-color: rgba(153, 69, 255, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 40px -12px rgba(153, 69, 255, 0.2);
+}
+
+.glass-card {
+  background: rgba(12, 13, 22, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glow-solana {
+  box-shadow: 0 0 50px -10px rgba(153, 69, 255, 0.25);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 50px -10px rgba(20, 241, 149, 0.25);
+}
+
+.text-gradient-solana {
+  background: linear-gradient(135deg, #14F195 0%, #9945FF 50%, #00C2FF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.btn-solana {
+  background: linear-gradient(135deg, #9945FF 0%, #14F195 100%);
+  color: #000000;
+  font-weight: 800;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-solana:hover {
+  opacity: 0.92;
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(153, 69, 255, 0.4);
+}
+
+/* Keyframe animations */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: floatSlow 6s ease-in-out infinite;
+}
+
