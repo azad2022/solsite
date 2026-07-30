@@ -457,6 +457,10 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [aiToast, setAiToast] = useState<string | null>(null);
   const [copiedBackup, setCopiedBackup] = useState(false);
 
+  // Auto Publish AI State
+  const [isAutoPublishing, setIsAutoPublishing] = useState(false);
+  const [autoPublishSuccess, setAutoPublishSuccess] = useState<string | null>(null);
+
   // Lockout countdown handler
   useEffect(() => {
     if (lockoutTimer > 0) {
@@ -773,9 +777,6 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   };
 
   // 100% AUTOMATIC ARTICLE GENERATION & PUBLISHING WITH DEEPSEEK
-  const [isAutoPublishing, setIsAutoPublishing] = useState(false);
-  const [autoPublishSuccess, setAutoPublishSuccess] = useState<string | null>(null);
-
   const handleAutoPublishAIArticle = async (customTopic?: string) => {
     setIsAutoPublishing(true);
     setAutoPublishSuccess(null);
