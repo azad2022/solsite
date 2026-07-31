@@ -4,6 +4,9 @@ export const ParticleCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    // Disable canvas particle animation loop on mobile screens (<768px) to maximize Mobile PageSpeed & TBT score
+    if (window.innerWidth < 768) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
