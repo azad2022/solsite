@@ -1,0 +1,16 @@
+# SolMint.ir Official Robots.txt
+User-agent: *
+Allow: /
+Allow: /solana-wallet
+Allow: /solana-token
+Allow: /solana-meme-coin
+Allow: /solana-nft
+Allow: /security
+Allow: /download
+Allow: /blog
+Allow: /faq
+
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://solmint.ir/sitemap.xml

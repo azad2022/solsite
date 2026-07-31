@@ -337,8 +337,10 @@ async function startServer() {
 
     xml += `</urlset>`;
 
-    res.header("Content-Type", "application/xml; charset=utf-8");
-    return res.send(xml);
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.type("xml").send(xml);
   });
 
   // Dynamic Robots.txt Endpoint
@@ -360,8 +362,10 @@ Disallow: /api/
 
 Sitemap: https://solmint.ir/sitemap.xml
 `;
-    res.header("Content-Type", "text/plain; charset=utf-8");
-    return res.send(robotsTxt);
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return res.type("text").send(robotsTxt);
   });
 
   // Vite middleware for development
