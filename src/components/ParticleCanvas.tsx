@@ -7,6 +7,9 @@ export const ParticleCanvas: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Accessibility check for reduced motion
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -22,8 +25,10 @@ export const ParticleCanvas: React.FC = () => {
 
     window.addEventListener('resize', handleResize);
 
-    const connectionDist = 115;
-    const particleCount = Math.min(Math.floor(window.innerWidth / 20), 65);
+    const connectionDist = 110;
+    // Lower count on smaller screens for performance
+    const isMobile = window.innerWidth < 768;
+    const particleCount = isMobile ? 22 : Math.min(Math.floor(window.innerWidth / 25), 45);
 
     class Particle {
       x: number;
@@ -36,13 +41,14 @@ export const ParticleCanvas: React.FC = () => {
       constructor() {
         this.x = Math.random() * w;
         this.y = Math.random() * h;
-        this.vx = (Math.random() - 0.5) * 0.4;
-        this.vy = (Math.random() - 0.5) * 0.4;
-        this.radius = Math.random() * 1.6 + 0.6;
-        this.color = Math.random() > 0.5 ? 'rgba(153,69,255,0.45)' : 'rgba(20,241,149,0.35)';
+        this.vx = (Math.random() - 0.5) * 0.35;
+        this.vy = (Math.random() - 0.5) * 0.35;
+        this.radius = Math.random() * 1.5 + 0.5;
+        this.color = Math.random() > 0.5 ? 'rgba(153,69,255,0.4)' : 'rgba(20,241,149,0.3)';
       }
 
       update() {
+        if (prefersReducedMotion) return;
         this.x += this.vx;
         this.y += this.vy;
         if (this.x < 0 || this.x > w) this.vx *= -1;
@@ -71,9 +77,9 @@ export const ParticleCanvas: React.FC = () => {
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (dist < connectionDist) {
-            const alpha = 0.05 * (1 - dist / connectionDist);
+            const alpha = 0.04 * (1 - dist / connectionDist);
             ctx.strokeStyle = `rgba(153,69,255,${alpha})`;
-            ctx.lineWidth = 0.6;
+            ctx.lineWidth = 0.5;
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
@@ -84,19 +90,38 @@ export const ParticleCanvas: React.FC = () => {
     };
 
     const render = () => {
+      // Pause loop if document tab is hidden
+      if (document.hidden) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
+
       ctx.clearRect(0, 0, w, h);
       particles.forEach((p) => {
         p.update();
         p.draw();
       });
       drawLines();
-      animationFrameId = requestAnimationFrame(render);
+
+      if (!prefersReducedMotion) {
+        animationFrameId = requestAnimationFrame(render);
+      }
     };
 
     render();
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden && !prefersReducedMotion) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = requestAnimationFrame(render);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);

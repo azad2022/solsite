@@ -29,8 +29,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExploreFeatures }) =
             </h1>
 
             {/* Description */}
-            <p className="text-slate-300 text-[13px] sm:text-[13px] max-w-2xl mx-auto leading-[32px] font-normal" style={{ fontSize: '13px', lineHeight: '32px' }}>
-              <strong>سولمینت (Solmint App)</strong> بهترین و امن ترین کیف پول غیرامانی سولانا و کیف پول ایرانی غیر متمرکز است.
+            <p className="text-slate-300 text-[13px] sm:text-[14px] max-w-2xl mx-auto leading-[32px] font-normal">
+              <strong>سولمینت (Solmint)</strong> پلتفرم و کیف پول غیرامانی سولانا برای سیستم‌عامل اندروید است. مدیریت کامل کلیدهای خصوصی محلی، ساخت توکن SPL بدون کدنویسی، راه‌اندازی میم کوین و بازیابی کارمزد اجاره حساب.
             </p>
 
             {/* CTA Buttons */}

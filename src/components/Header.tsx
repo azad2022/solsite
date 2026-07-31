@@ -37,31 +37,25 @@ export const SolanaLogoIcon: React.FC<{ className?: string }> = ({ className = "
 interface HeaderProps {
   solanaStatus: SolanaStatus;
   refreshStatus: () => void;
-  activeTab: 'home' | 'features' | 'blog' | 'admin';
-  setActiveTab: (tab: 'home' | 'features' | 'blog' | 'admin') => void;
+  currentPath: string;
+  onNavigate: (path: string) => void;
   openAdminModal: () => void;
   currentUser: UserAccount | null;
   onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  activeTab,
-  setActiveTab,
+  currentPath,
+  onNavigate,
   openAdminModal,
   currentUser,
   onLogout
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const scrollToSection = (id: string) => {
-    setActiveTab('home');
+  const handleNav = (path: string) => {
     setMobileMenuOpen(false);
-    setTimeout(() => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 100);
+    onNavigate(path);
   };
 
   return (
@@ -71,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
         
         {/* Brand Logo with Official Solana Icon */}
         <div 
-          onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+          onClick={() => handleNav('/')} 
           className="flex items-center gap-2.5 cursor-pointer group"
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#9945FF] via-[#14F195] to-[#00C2FF] p-0.5 shadow-lg shadow-[#9945FF]/20 group-hover:scale-105 transition-transform flex items-center justify-center">
@@ -89,29 +83,69 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Desktop Navigation Links */}
         <nav className="hidden lg:flex items-center gap-1 bg-white/[0.03] p-1 rounded-full border border-white/10">
           <button
-            onClick={() => scrollToSection('security-section')}
-            className="px-3.5 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+            onClick={() => handleNav('/')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              currentPath === '/' ? 'bg-white/10 text-white font-bold' : 'text-slate-300 hover:text-white'
+            }`}
           >
-            معماری و امنیت
+            صفحه اصلی
           </button>
 
           <button
-            onClick={() => scrollToSection('faq-section')}
-            className="px-3.5 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+            onClick={() => handleNav('/solana-wallet')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              currentPath === '/solana-wallet' ? 'bg-[#9945FF]/20 text-[#14F195] font-bold border border-[#9945FF]/40' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            کیف پول سولانا
+          </button>
+
+          <button
+            onClick={() => handleNav('/solana-token')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              currentPath === '/solana-token' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            ساخت توکن
+          </button>
+
+          <button
+            onClick={() => handleNav('/solana-meme-coin')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              currentPath === '/solana-meme-coin' ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            میم کوین
+          </button>
+
+          <button
+            onClick={() => handleNav('/security')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              currentPath === '/security' ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            امنیت
+          </button>
+
+          <button
+            onClick={() => handleNav('/faq')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              currentPath === '/faq' ? 'bg-slate-800 text-white font-bold' : 'text-slate-300 hover:text-white'
+            }`}
           >
             سوالات متداول
           </button>
 
           <button
-            onClick={() => setActiveTab('blog')}
+            onClick={() => handleNav('/blog')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'blog'
+              currentPath === '/blog'
                 ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black shadow-md'
                 : 'text-slate-300 hover:text-white'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>وبلاگ آموزشی</span>
+            <span>وبلاگ</span>
           </button>
         </nav>
 
@@ -165,48 +199,74 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-[#08080f]/95 border-b border-white/10 px-4 py-5 space-y-3 backdrop-blur-2xl">
+        <div className="lg:hidden bg-[#08080f]/95 border-b border-white/10 px-4 py-5 space-y-2 backdrop-blur-2xl">
           <button
-            onClick={() => { setActiveTab('home'); setMobileMenuOpen(false); }}
+            onClick={() => handleNav('/')}
             className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-bold ${
-              activeTab === 'home' ? 'bg-[#9945FF]/20 text-[#14F195] border border-[#9945FF]/40' : 'text-slate-300 bg-white/5'
+              currentPath === '/' ? 'bg-[#9945FF]/20 text-[#14F195] border border-[#9945FF]/40' : 'text-slate-300 bg-white/5'
             }`}
           >
-            معرفی اپلیکیشن سولمینت
+            صفحه اصلی
           </button>
 
           <button
-            onClick={() => scrollToSection('app-features')}
-            className="w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-white/5"
+            onClick={() => handleNav('/solana-wallet')}
+            className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold ${
+              currentPath === '/solana-wallet' ? 'bg-[#9945FF]/20 text-[#14F195] border border-[#9945FF]/40' : 'text-slate-300 bg-white/5'
+            }`}
           >
-            قابلیت‌ها و ابزارهای داخل اپ
+            کیف پول سولانا
           </button>
 
           <button
-            onClick={() => scrollToSection('security-section')}
-            className="w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-white/5"
+            onClick={() => handleNav('/solana-token')}
+            className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold ${
+              currentPath === '/solana-token' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-300 bg-white/5'
+            }`}
+          >
+            ساخت توکن
+          </button>
+
+          <button
+            onClick={() => handleNav('/solana-meme-coin')}
+            className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold ${
+              currentPath === '/solana-meme-coin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-300 bg-white/5'
+            }`}
+          >
+            ساخت میم کوین
+          </button>
+
+          <button
+            onClick={() => handleNav('/security')}
+            className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold ${
+              currentPath === '/security' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-300 bg-white/5'
+            }`}
           >
             معماری امنیتی غیرامانی
           </button>
 
           <button
-            onClick={() => scrollToSection('roadmap-section')}
-            className="w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-white/5"
+            onClick={() => handleNav('/download')}
+            className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold ${
+              currentPath === '/download' ? 'bg-[#14F195]/20 text-[#14F195] border border-[#14F195]/30' : 'text-slate-300 bg-white/5'
+            }`}
           >
-            نقشه راه توسعه
+            دانلود نسخه اندروید
           </button>
 
           <button
-            onClick={() => scrollToSection('faq-section')}
-            className="w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-white/5"
+            onClick={() => handleNav('/faq')}
+            className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold ${
+              currentPath === '/faq' ? 'bg-slate-800 text-white' : 'text-slate-300 bg-white/5'
+            }`}
           >
             سوالات متداول
           </button>
 
           <button
-            onClick={() => { setActiveTab('blog'); setMobileMenuOpen(false); }}
+            onClick={() => handleNav('/blog')}
             className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${
-              activeTab === 'blog' ? 'bg-[#9945FF]/20 text-[#14F195] border border-[#9945FF]/40' : 'text-slate-300 bg-white/5'
+              currentPath === '/blog' ? 'bg-[#9945FF]/20 text-[#14F195] border border-[#9945FF]/40' : 'text-slate-300 bg-white/5'
             }`}
           >
             <BookOpen className="w-4 h-4 text-[#14F195]" />

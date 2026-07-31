@@ -39,13 +39,32 @@ export interface RentAccount {
   selected: boolean;
 }
 
+export type AdminPermission = 
+  | 'articles' 
+  | 'editor' 
+  | 'comments' 
+  | 'media' 
+  | 'seo' 
+  | 'downloads' 
+  | 'deepseek' 
+  | 'chatbot' 
+  | 'database' 
+  | 'security' 
+  | 'users'
+  | 'audit'
+  | 'redirects';
+
 export interface UserAccount {
   id: string;
   username: string;
   fullName: string;
   passwordHash: string;
-  role: 'user' | 'admin';
+  role: 'superadmin' | 'admin' | 'editor' | 'writer' | 'user';
+  permissions?: AdminPermission[];
+  isActive?: boolean;
   createdAt: string;
+  createdAtJalali?: string;
+  lastLogin?: string;
 }
 
 export interface ArticleComment {

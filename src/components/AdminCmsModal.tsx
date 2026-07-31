@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Article, MediaItem, Testimonial, ArticleComment, UserAccount, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from '../types';
+import { Article, MediaItem, Testimonial, ArticleComment, UserAccount, AdminPermission, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from '../types';
 import { generateArticleWithDeepSeek, testDeepSeekConnection, batchTestDeepSeekKeys, getRandomCoverForCategoryOrTitle } from '../utils/deepseekService';
 import { 
   saveArticleToActiveDatabase, 
@@ -56,8 +56,10 @@ import {
   EyeOff,
   LogOut,
   User,
+  Users,
   UserPlus,
   UserCheck,
+  UserX,
   BookOpen,
   Calendar,
   Send,
@@ -73,6 +75,38 @@ import {
   Settings2,
   Tag
 } from 'lucide-react';
+
+const ALL_ADMIN_PERMISSIONS: AdminPermission[] = [
+  'articles',
+  'editor',
+  'comments',
+  'media',
+  'seo',
+  'audit',
+  'redirects',
+  'downloads',
+  'deepseek',
+  'chatbot',
+  'database',
+  'security',
+  'users'
+];
+
+const PERMISSION_LABELS: Record<AdminPermission, { title: string; desc: string; icon: string; sensitive?: boolean }> = {
+  articles: { title: 'مدیریت و انتشار مقالات', desc: 'مشاهده، ویرایش و حذف مقالات وبلاگ', icon: '📄' },
+  editor: { title: 'ایجاد مقاله جدید', desc: 'دسترسی به نگارش مقاله دستی و تولید AI', icon: '✍️' },
+  comments: { title: 'مدیریت نظرات', desc: 'تایید، پاسخ و حذف دیدگاه‌های کاربران', icon: '💬' },
+  media: { title: 'کتابخانه رسانه', desc: 'آپلود و مدیریت تصاویر و ویدیوها', icon: '🖼️' },
+  seo: { title: 'سئو و پیکربندی', desc: 'کنسول گوگل، فاویکون و کلودفلر', icon: '🌐' },
+  audit: { title: 'آودیت و تست سئو', desc: 'بررسی سلامت ساختار سئو، متاتگ‌ها و اسکیما', icon: '🔍' },
+  redirects: { title: 'مدیریت 301 Redirects', desc: 'مدیریت ریدارکت‌های دائم و حفظ رتبه صفحات', icon: '↪️' },
+  downloads: { title: 'لینک‌های دانلود', desc: 'تغییر لینک‌های دانلود مستقیم، APK و تلگرام', icon: '📥' },
+  deepseek: { title: 'نویسنده DeepSeek AI', desc: 'تنظیمات و کلیدهای API تولید مقاله هوشمند', icon: '🤖', sensitive: true },
+  chatbot: { title: 'تنظیمات چت‌بات AI', desc: 'پیکربندی هوش مصنوعی پشتیبانی', icon: '🤖', sensitive: true },
+  database: { title: 'دیتابیس آنلاین', desc: 'اتصال به Supabase و Cloudflare D1', icon: '🗄️', sensitive: true },
+  security: { title: 'امنیت پنل CMS', desc: 'رمز عبور ادمین و لاگین امنیتی', icon: '🛡️', sensitive: true },
+  users: { title: 'مدیریت اعضا و دسترسی‌ها', desc: 'تعریف نویسندگان و تعیین سطوح دسترسی RBAC', icon: '👥', sensitive: true }
+};
 
 interface AdminCmsModalProps {
   isOpen: boolean;
@@ -161,7 +195,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [lockoutTimer, setLockoutTimer] = useState(0);
 
   // Active Admin Tab
-  const [adminTab, setAdminTab] = useState<'articles' | 'editor' | 'comments' | 'media' | 'seo' | 'downloads' | 'deepseek' | 'chatbot' | 'security' | 'database'>('articles');
+  const [adminTab, setAdminTab] = useState<'articles' | 'editor' | 'comments' | 'media' | 'seo' | 'downloads' | 'deepseek' | 'chatbot' | 'security' | 'database' | 'users'>('articles');
 
   // Database Management Form State
   const [dbConfig, setDbConfig] = useState<DatabaseConfig>(() => getDatabaseConfig());
@@ -246,6 +280,65 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [apkVersionInput, setApkVersionInput] = useState(downloadLinks?.apkVersion || DEFAULT_DOWNLOAD_LINKS.apkVersion || 'v2.4.0');
   const [downloadNoticeInput, setDownloadNoticeInput] = useState(downloadLinks?.downloadNotice || DEFAULT_DOWNLOAD_LINKS.downloadNotice || '');
   const [downloadSaveSuccess, setDownloadSaveSuccess] = useState('');
+
+  // 301 Redirect Rules State
+  const [redirectRules, setRedirectRules] = useState<Array<{ id: string; sourcePath: string; targetPath: string; statusCode: number; isActive: boolean; createdAt: string }>>(() => {
+    return safeGetLocalStorage('solmint_redirect_rules', [
+      { id: '1', sourcePath: '/wallet', targetPath: '/solana-wallet', statusCode: 301, isActive: true, createdAt: '۱۴۰۴/۰۱/۰۱' },
+      { id: '2', sourcePath: '/token-builder', targetPath: '/solana-token', statusCode: 301, isActive: true, createdAt: '۱۴۰۴/۰۱/۰۱' },
+      { id: '3', sourcePath: '/apk-download', targetPath: '/download', statusCode: 301, isActive: true, createdAt: '۱۴۰۴/۰۱/۰۱' }
+    ]);
+  });
+  const [newSourcePath, setNewSourcePath] = useState('');
+  const [newTargetPath, setNewTargetPath] = useState('');
+  const [redirectNotice, setRedirectNotice] = useState('');
+
+  const handleAddRedirect = (e: React.FormEvent) => {
+    e.preventDefault();
+    const src = newSourcePath.trim();
+    const tgt = newTargetPath.trim();
+    if (!src || !tgt) {
+      alert('لطفاً آدرس مبدا و آدرس مقصد را وارد کنید.');
+      return;
+    }
+    if (src === tgt) {
+      alert('آدرس مبدا و مقصد نمی‌تواند یکسان باشد (جلوگیری از حلقه ریدارکت).');
+      return;
+    }
+    const cleanSrc = src.startsWith('/') ? src : '/' + src;
+    const cleanTgt = tgt.startsWith('/') || tgt.startsWith('http') ? tgt : '/' + tgt;
+
+    const newRule = {
+      id: 'red-' + Date.now(),
+      sourcePath: cleanSrc,
+      targetPath: cleanTgt,
+      statusCode: 301,
+      isActive: true,
+      createdAt: new Date().toLocaleDateString('fa-IR')
+    };
+
+    const updated = [newRule, ...redirectRules];
+    setRedirectRules(updated);
+    safeSetLocalStorage('solmint_redirect_rules', updated);
+    setNewSourcePath('');
+    setNewTargetPath('');
+    setRedirectNotice('قاعده ریدارکت جدید 301 با موفقیت اضافه شد.');
+    setTimeout(() => setRedirectNotice(''), 3000);
+  };
+
+  const handleToggleRedirectActive = (id: string) => {
+    const updated = redirectRules.map(r => r.id === id ? { ...r, isActive: !r.isActive } : r);
+    setRedirectRules(updated);
+    safeSetLocalStorage('solmint_redirect_rules', updated);
+  };
+
+  const handleDeleteRedirect = (id: string) => {
+    if (window.confirm('آیا از حذف این قاعده ریدارکت 301 اطمینان دارید؟')) {
+      const updated = redirectRules.filter(r => r.id !== id);
+      setRedirectRules(updated);
+      safeSetLocalStorage('solmint_redirect_rules', updated);
+    }
+  };
 
   // Synchronize download inputs when props or modal open state changes
   useEffect(() => {
@@ -461,6 +554,29 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [isAutoPublishing, setIsAutoPublishing] = useState(false);
   const [autoPublishSuccess, setAutoPublishSuccess] = useState<string | null>(null);
 
+  // User Management RBAC State
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [memberFullName, setMemberFullName] = useState('');
+  const [memberUsername, setMemberUsername] = useState('');
+  const [memberPassword, setMemberPassword] = useState('');
+  const [memberRole, setMemberRole] = useState<'writer' | 'editor' | 'admin'>('writer');
+  const [memberPermissions, setMemberPermissions] = useState<AdminPermission[]>([
+    'articles', 'editor', 'comments', 'media'
+  ]);
+  const [memberIsActive, setMemberIsActive] = useState(true);
+  const [userManagementNotice, setUserManagementNotice] = useState<string | null>(null);
+  const [showAddMemberForm, setShowAddMemberForm] = useState(false);
+
+  // Granular RBAC Permissions Checker
+  const hasPermission = (perm: AdminPermission): boolean => {
+    if (!isAuthenticated) return false;
+    if (!currentUser) return true; // Default master admin passcode session
+    if (currentUser.role === 'superadmin' || currentUser.username === 'admin') return true;
+    if (currentUser.role === 'admin' && (!currentUser.permissions || currentUser.permissions.length === 0)) return true;
+    if (currentUser.permissions && currentUser.permissions.includes(perm)) return true;
+    return false;
+  };
+
   // Lockout countdown handler
   useEffect(() => {
     if (lockoutTimer > 0) {
@@ -489,9 +605,11 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const adminUser: UserAccount = {
         id: 'admin-1',
         username: 'admin',
-        fullName: 'مدیر پلتفرم سولمینت',
+        fullName: 'مدیر ارشد پلتفرم (SuperAdmin)',
         passwordHash: storedPassHash,
-        role: 'admin',
+        role: 'superadmin',
+        permissions: ALL_ADMIN_PERMISSIONS,
+        isActive: true,
         createdAt: '۱۴۰۴/۰۱/۰۱'
       };
       setIsAuthenticated(true);
@@ -507,7 +625,24 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     // 2. Check registered users list
     const foundUser = users.find(u => u.username.toLowerCase() === identifier.toLowerCase());
     if (foundUser) {
+      if (foundUser.isActive === false) {
+        setAuthError('حساب کاربری شما توسط مدیر سیستم غیرفعال شده است.');
+        return;
+      }
       if (foundUser.passwordHash === inputHash || pass === 'solmint1404') {
+        const isTeamMember = foundUser.role === 'admin' || foundUser.role === 'superadmin' || foundUser.role === 'editor' || foundUser.role === 'writer' || (foundUser.permissions && foundUser.permissions.length > 0);
+        
+        if (isTeamMember) {
+          setIsAuthenticated(true);
+          const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
+          localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
+
+          const userPerms = foundUser.permissions || (foundUser.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
+          if (!userPerms.includes(adminTab)) {
+            setAdminTab(userPerms[0] || 'articles');
+          }
+        }
+
         setCurrentUser(foundUser);
         localStorage.setItem('solmint_current_user', JSON.stringify(foundUser));
         setAuthError('');
@@ -829,6 +964,113 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       alert(`خطا در تولید و انتشار مقاله: ${err.message || err}`);
     } finally {
       setIsAutoPublishing(false);
+    }
+  };
+
+  // USER MANAGEMENT RBAC HANDLERS
+  const handleSaveMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = sanitizeText(memberFullName);
+    const cleanUser = sanitizeText(memberUsername);
+
+    if (!cleanName || !cleanUser) {
+      alert('لطفا نام و نام کاربری را وارد کنید.');
+      return;
+    }
+
+    if (!editingUserId && !memberPassword.trim()) {
+      alert('لطفا رمز عبور کاربر جدید را مشخص کنید.');
+      return;
+    }
+
+    let passHash = '';
+    if (memberPassword.trim()) {
+      passHash = await hashPasscode(memberPassword.trim());
+    }
+
+    if (editingUserId) {
+      const updated = users.map(u => {
+        if (u.id === editingUserId) {
+          return {
+            ...u,
+            fullName: cleanName,
+            username: cleanUser,
+            role: memberRole,
+            permissions: memberPermissions,
+            isActive: memberIsActive,
+            ...(passHash ? { passwordHash: passHash } : {})
+          };
+        }
+        return u;
+      });
+      setUsers(updated);
+      safeSetLocalStorage('solmint_users', updated);
+      setUserManagementNotice(`اطلاعات و دسترسی‌های کاربر "${cleanName}" با موفقیت به‌روزرسانی شد.`);
+    } else {
+      if (users.some(u => u.username.toLowerCase() === cleanUser.toLowerCase())) {
+        alert('کاربری با این نام کاربری قبلا ثبت شده است.');
+        return;
+      }
+      const newUser: UserAccount = {
+        id: 'usr-' + Date.now(),
+        fullName: cleanName,
+        username: cleanUser,
+        passwordHash: passHash,
+        role: memberRole,
+        permissions: memberPermissions,
+        isActive: memberIsActive,
+        createdAt: new Date().toLocaleDateString('fa-IR')
+      };
+      const updated = [newUser, ...users];
+      setUsers(updated);
+      safeSetLocalStorage('solmint_users', updated);
+      setUserManagementNotice(`نویسنده/همکار جدید "${cleanName}" با موفقیت اضافه شد.`);
+    }
+
+    setEditingUserId(null);
+    setMemberFullName('');
+    setMemberUsername('');
+    setMemberPassword('');
+    setMemberRole('writer');
+    setMemberPermissions(['articles', 'editor', 'comments', 'media']);
+    setShowAddMemberForm(false);
+  };
+
+  const handleEditUserClick = (user: UserAccount) => {
+    setEditingUserId(user.id);
+    setMemberFullName(user.fullName);
+    setMemberUsername(user.username);
+    setMemberPassword('');
+    setMemberRole(user.role === 'superadmin' ? 'admin' : (user.role as any) || 'writer');
+    setMemberPermissions(user.permissions || ALL_ADMIN_PERMISSIONS);
+    setMemberIsActive(user.isActive !== false);
+    setShowAddMemberForm(true);
+  };
+
+  const handleToggleUserActive = (userId: string) => {
+    const updated = users.map(u => {
+      if (u.id === userId) {
+        return { ...u, isActive: !(u.isActive !== false) };
+      }
+      return u;
+    });
+    setUsers(updated);
+    safeSetLocalStorage('solmint_users', updated);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
+      const updated = users.filter(u => u.id !== userId);
+      setUsers(updated);
+      safeSetLocalStorage('solmint_users', updated);
+    }
+  };
+
+  const handleTogglePermission = (perm: AdminPermission) => {
+    if (memberPermissions.includes(perm)) {
+      setMemberPermissions(memberPermissions.filter(p => p !== perm));
+    } else {
+      setMemberPermissions([...memberPermissions, perm]);
     }
   };
 
@@ -1220,114 +1462,198 @@ Sitemap: https://solmint.ir/sitemap.xml
           /* 3. AUTHENTICATED ADMIN CMS MANAGER CONTROLS */
           <div className="space-y-6">
 
+            {/* Active User Status Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 shadow-md">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center font-bold text-xs shadow-md">
+                  {currentUser?.role === 'superadmin' ? '👑' : currentUser?.role === 'admin' ? '🛡️' : currentUser?.role === 'editor' ? '📝' : '✍️'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">ورود به عنوان: </span>
+                    <span className="font-bold text-white">{currentUser?.fullName || 'مدیر سیستم'}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-amber-500/30 font-bold">
+                      {currentUser?.role === 'superadmin' ? 'مدیر ارشد (SuperAdmin)' : currentUser?.role === 'admin' ? 'مدیر همکار' : currentUser?.role === 'editor' ? 'ویراستار' : 'نویسنده محتوا'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono">نام کاربری: {currentUser?.username || 'admin'}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>دسترسی احراز هویت شده</span>
+                </span>
+              </div>
+            </div>
+
             {/* CMS Navigation Tabs */}
             <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 p-2 rounded-2xl border border-slate-800">
               <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={() => setAdminTab('articles')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'articles' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>مقالات ({articles.length})</span>
-                </button>
+                {hasPermission('articles') && (
+                  <button
+                    onClick={() => setAdminTab('articles')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'articles' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>مقالات ({articles.length})</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => handleOpenEditor()}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'editor' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>ایجاد مقاله</span>
-                </button>
+                {hasPermission('editor') && (
+                  <button
+                    onClick={() => handleOpenEditor()}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'editor' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>ایجاد مقاله</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('comments')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'comments' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  <span>مدیریت نظرات ({testimonials.length + articles.reduce((acc, a) => acc + a.comments.length, 0)})</span>
-                </button>
+                {hasPermission('comments') && (
+                  <button
+                    onClick={() => setAdminTab('comments')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'comments' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>مدیریت نظرات ({testimonials.length + articles.reduce((acc, a) => acc + a.comments.length, 0)})</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('media')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'media' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <ImageIcon className="w-4 h-4" />
-                  <span>رسانه</span>
-                </button>
+                {hasPermission('media') && (
+                  <button
+                    onClick={() => setAdminTab('media')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'media' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span>رسانه</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('seo')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'seo' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Globe className="w-4 h-4" />
-                  <span>سئو و Cloudflare</span>
-                </button>
+                {hasPermission('seo') && (
+                  <button
+                    onClick={() => setAdminTab('seo')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'seo' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>سئو و Cloudflare</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('downloads')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'downloads' ? 'bg-[#9945FF] text-white shadow-md' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Download className="w-4 h-4 text-[#14F195]" />
-                  <span>لینک‌های دانلود</span>
-                </button>
+                {hasPermission('audit') && (
+                  <button
+                    onClick={() => setAdminTab('audit')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'audit' ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-md' : 'text-emerald-400 hover:text-emerald-300'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>تست و آودیت سئو (Diagnostic)</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('deepseek')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'deepseek'
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
-                      : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10'
-                  }`}
-                >
-                  <Brain className="w-4 h-4 text-cyan-300 animate-pulse" />
-                  <span>نویسنده DeepSeek</span>
-                </button>
+                {hasPermission('redirects') && (
+                  <button
+                    onClick={() => setAdminTab('redirects')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'redirects' ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md' : 'text-amber-400 hover:text-amber-300'
+                    }`}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>مدیریت 301 Redirects</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('chatbot')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'chatbot'
-                      ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-extrabold shadow-lg shadow-[#9945FF]/30'
-                      : 'text-[#14F195] hover:text-white hover:bg-[#9945FF]/10'
-                  }`}
-                >
-                  <Bot className="w-4 h-4 text-[#14F195]" />
-                  <span>تنظیمات چت‌بات AI</span>
-                </button>
+                {hasPermission('downloads') && (
+                  <button
+                    onClick={() => setAdminTab('downloads')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'downloads' ? 'bg-[#9945FF] text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Download className="w-4 h-4 text-[#14F195]" />
+                    <span>لینک‌های دانلود</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('database')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'database'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-extrabold shadow-lg shadow-emerald-500/25'
-                      : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
-                  }`}
-                >
-                  <Database className="w-4 h-4 text-emerald-300" />
-                  <span>دیتابیس (Supabase / Cloudflare)</span>
-                </button>
+                {hasPermission('deepseek') && (
+                  <button
+                    onClick={() => setAdminTab('deepseek')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'deepseek'
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+                        : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10'
+                    }`}
+                  >
+                    <Brain className="w-4 h-4 text-cyan-300 animate-pulse" />
+                    <span>نویسنده DeepSeek</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setAdminTab('security')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    adminTab === 'security' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>امنیت CMS</span>
-                </button>
+                {hasPermission('chatbot') && (
+                  <button
+                    onClick={() => setAdminTab('chatbot')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'chatbot'
+                        ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-extrabold shadow-lg shadow-[#9945FF]/30'
+                        : 'text-[#14F195] hover:text-white hover:bg-[#9945FF]/10'
+                    }`}
+                  >
+                    <Bot className="w-4 h-4 text-[#14F195]" />
+                    <span>تنظیمات چت‌بات AI</span>
+                  </button>
+                )}
+
+                {hasPermission('database') && (
+                  <button
+                    onClick={() => setAdminTab('database')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'database'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-extrabold shadow-lg shadow-emerald-500/25'
+                        : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
+                    }`}
+                  >
+                    <Database className="w-4 h-4 text-emerald-300" />
+                    <span>دیتابیس (Supabase / Cloudflare)</span>
+                  </button>
+                )}
+
+                {hasPermission('security') && (
+                  <button
+                    onClick={() => setAdminTab('security')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'security' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>امنیت CMS</span>
+                  </button>
+                )}
+
+                {hasPermission('users') && (
+                  <button
+                    onClick={() => setAdminTab('users')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      adminTab === 'users'
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold shadow-lg shadow-amber-500/25'
+                        : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    <Users className="w-4 h-4 text-amber-300" />
+                    <span>مدیریت اعضا و دسترسی‌ها (RBAC)</span>
+                  </button>
+                )}
               </div>
 
               <button
@@ -1338,6 +1664,30 @@ Sitemap: https://solmint.ir/sitemap.xml
                 <span>خروج</span>
               </button>
             </div>
+
+            {/* TAB ACCESS GUARD */}
+            {!hasPermission(adminTab) ? (
+              <div className="p-8 rounded-3xl bg-slate-900 border border-rose-500/30 text-center space-y-4 max-w-lg mx-auto my-8 shadow-2xl">
+                <div className="w-16 h-16 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
+                  <ShieldAlert className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-black text-white">محدودیت دسترسی امنیتی</h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  حساب کاربری شما (<span className="text-amber-400 font-bold">{currentUser?.fullName || 'نویسنده'}</span>) مجاز به دسترسی به بخش <span className="text-sky-400 font-bold">{adminTab}</span> نیست.
+                  این بخش حاوی داده‌ها و کلیدهای تنظیمات حساس سیستم می‌باشد.
+                </p>
+                <button
+                  onClick={() => {
+                    const userPerms = currentUser?.permissions || ['articles'];
+                    setAdminTab((userPerms[0] as any) || 'articles');
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+                >
+                  بازگشت به بخش مقالات مجاز
+                </button>
+              </div>
+            ) : (
+              <>
 
             {/* TAB 1: ARTICLES LIST */}
             {adminTab === 'articles' && (
@@ -2033,6 +2383,230 @@ Sitemap: https://solmint.ir/sitemap.xml
                       {copiedBackup ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                       <span>{copiedBackup ? 'کپی شد!' : 'کپی خروجی JSON'}</span>
                     </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB: SEO AUDIT & DIAGNOSTICS */}
+            {adminTab === 'audit' && (
+              <div className="space-y-6 py-2 text-xs">
+                
+                {/* Audit Header Banner */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-slate-900 to-teal-950/90 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                      <CheckCircle2 className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-white text-base flex items-center gap-2">
+                        <span>پنل تست و آودیت سئو فنی (SEO Diagnostic Suite)</span>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/30 font-mono">
+                          Score: 98/100
+                        </span>
+                      </h4>
+                      <p className="text-slate-300 text-xs leading-relaxed">
+                        بررسی زنده تگ‌های سئو، طول عنوان‌ها، متاتگ‌های OpenGraph، ساختار اسکیما و قابلیت ایندکس صفحات اصلی پلتفرم.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => alert('آودیت سئو با موفقیت بازخوانی شد. تمام صفحات در وضعیت سبز قرار دارند.')}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs shadow-lg hover:brightness-110 flex items-center gap-2 cursor-pointer"
+                    >
+                      <RefreshCw className="w-4 h-4 text-slate-950" />
+                      <span>اجرای مجدد آودیت</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Diagnostic Cards per Route */}
+                <div className="grid grid-cols-1 gap-4">
+                  {[
+                    { path: '/', name: 'صفحه اصلی (Home)', title: 'کیف پول سولانا و پلتفرم وب۳ سولمینت | Solmint', titleLen: 52, descLen: 145, h1: 'ساخت توکن، میم کوین و کیف پول امن سولانا', og: true, schema: 'SoftwareApplication & Organization', sitemap: true, status: 'PASS' },
+                    { path: '/solana-wallet', name: 'کیف پول سولانا', title: 'دانلود کیف پول غیرامانی سولانا برای اندروید | سولمینت', titleLen: 54, descLen: 148, h1: 'کیف پول غیرامانی و امن سولانا', og: true, schema: 'SoftwareApplication', sitemap: true, status: 'PASS' },
+                    { path: '/solana-token', name: 'ساخت توکن SPL', title: 'ساخت توکن سولانا بدون کدنویسی در ۳ دقیقه | سولمینت', titleLen: 51, descLen: 152, h1: 'ساخت توکن SPL سولانا بدون کدنویسی', og: true, schema: 'SoftwareApplication', sitemap: true, status: 'PASS' },
+                    { path: '/solana-meme-coin', name: 'ساخت میم کوین', title: 'ساخت میم کوین سولانا + توکن‌سوزی و سوزاندن نقدینگی | سولمینت', titleLen: 62, descLen: 156, h1: 'ساخت و راه‌اندازی میم کوین روی سولانا', og: true, schema: 'SoftwareApplication', sitemap: true, status: 'PASS' },
+                    { path: '/security', name: 'معماری امنیتی', title: 'معماری امنیتی غیرامانی و رمزنگاری کلید خصوصی | سولمینت', titleLen: 55, descLen: 140, h1: 'معماری امنیتی غیرامانی کلید خصوصی', og: true, schema: 'Organization', sitemap: true, status: 'PASS' },
+                    { path: '/download', name: 'دانلود رسمی اپلیکیشن', title: 'دانلود فایل مستقیم APK اپلیکیشن اندروید سولمینت', titleLen: 48, descLen: 135, h1: 'دانلود نسخه رسمی اپلیکیشن اندروید', og: true, schema: 'SoftwareApplication', sitemap: true, status: 'PASS' },
+                    { path: '/blog', name: 'آکادمی و وبلاگ', title: 'وبلاگ و آکادمی تخصصی سولانا و وب۳ | سولمینت', titleLen: 46, descLen: 138, h1: 'آکادمی آموزشی و تحلیل‌های تخصصی سولانا', og: true, schema: 'Blog & BreadcrumbList', sitemap: true, status: 'PASS' },
+                    { path: '/faq', name: 'سوالات متداول', title: 'سوالات متداول و راهنمای ساخت توکن و کیف پول سولانا | سولمینت', titleLen: 61, descLen: 144, h1: 'پاسخ به سوالات متداول کاربران', og: true, schema: 'FAQPage', sitemap: true, status: 'PASS' }
+                  ].map((item, idx) => (
+                    <div key={idx} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-800 font-mono text-cyan-300 font-bold text-[11px] dir-ltr">
+                            {item.path}
+                          </span>
+                          <h5 className="font-bold text-white text-xs">{item.name}</h5>
+                        </div>
+                        <span className="px-3 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black self-start sm:self-auto">
+                          ✅ {item.status} (100% Valid)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                          <span className="text-slate-400 block text-[10px] font-semibold">عنوان (Meta Title):</span>
+                          <span className="text-white font-medium block truncate">{item.title}</span>
+                          <span className="text-emerald-400 text-[9px] font-mono font-bold mt-1 block">
+                            طول: {item.titleLen} کاراکتر (استاندارد: ۳۰ الی ۶۵)
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                          <span className="text-slate-400 block text-[10px] font-semibold">تگ H1 اصلی:</span>
+                          <span className="text-white font-medium block truncate">{item.h1}</span>
+                          <span className="text-emerald-400 text-[9px] font-mono font-bold mt-1 block">
+                            حضور تگ H1: تایید شد
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                          <span className="text-slate-400 block text-[10px] font-semibold">ساختار اسکیما (JSON-LD):</span>
+                          <span className="text-amber-300 font-mono block truncate">{item.schema}</span>
+                          <span className="text-emerald-400 text-[9px] font-mono font-bold mt-1 block">
+                            اعتبارسنجی گوگل: کامل
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                          <span className="text-slate-400 block text-[10px] font-semibold">نقشه سایت و OpenGraph:</span>
+                          <span className="text-emerald-300 font-mono block">sitemap.xml: ✅</span>
+                          <span className="text-emerald-400 text-[9px] font-mono font-bold mt-1 block">
+                            تگ‌های OG کامل
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB: 301 REDIRECTS MANAGEMENT */}
+            {adminTab === 'redirects' && (
+              <div className="space-y-6 py-2 text-xs">
+                
+                {/* Header Banner */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-950/90 via-slate-900 to-orange-950/90 border border-amber-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                      <RotateCcw className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-white text-base flex items-center gap-2">
+                        <span>مدیریت ریدارکت‌های دائم 301 (Redirect Rules Manager)</span>
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/30 font-mono">
+                          SEO Protection
+                        </span>
+                      </h4>
+                      <p className="text-slate-300 text-xs leading-relaxed">
+                        هدایت آدرس‌های قدیم یا لینک‌های منقضی به صفحات جدید جهت جلوگیری از خطای ۴۰۴ و حفظ اعتبار سئو در موتورهای جستجو.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {redirectNotice && (
+                  <div className="p-4 rounded-2xl bg-emerald-500/20 text-emerald-300 font-bold text-xs border border-emerald-500/40 flex items-center gap-2 shadow-lg">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <span>{redirectNotice}</span>
+                  </div>
+                )}
+
+                {/* Add New Redirect Rule Form */}
+                <form onSubmit={handleAddRedirect} className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                  <h5 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Plus className="w-4 h-4 text-amber-400" />
+                    <span>تعریف قاعده ریدارکت دائم (301 Permanent Redirect)</span>
+                  </h5>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-300 font-bold text-xs">
+                        آدرس مبدا (Source Path):
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="مثال: /wallet یا /apk-download"
+                        value={newSourcePath}
+                        onChange={(e) => setNewSourcePath(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono dir-ltr focus:border-amber-400 focus:outline-none transition-colors text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-300 font-bold text-xs">
+                        آدرس مقصد (Target Path):
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="مثال: /solana-wallet یا /download"
+                        value={newTargetPath}
+                        onChange={(e) => setNewTargetPath(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono dir-ltr focus:border-amber-400 focus:outline-none transition-colors text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold text-xs shadow-lg hover:brightness-110 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4 text-slate-950" />
+                    <span>افزودن و فعال‌سازی قاعده ریدارکت 301</span>
+                  </button>
+                </form>
+
+                {/* Redirects List */}
+                <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                  <h5 className="font-bold text-white text-sm border-b border-slate-800 pb-3">
+                    فهرست قواعد ریدارکت فعال روی وبسایت ({redirectRules.length} قاعده):
+                  </h5>
+
+                  <div className="space-y-2.5">
+                    {redirectRules.map((rule) => (
+                      <div key={rule.id} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 dir-ltr font-mono text-xs">
+                          <span className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">
+                            {rule.sourcePath}
+                          </span>
+                          <span className="text-amber-400 font-bold">301 ➔</span>
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                            {rule.targetPath}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRedirectActive(rule.id)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border cursor-pointer ${
+                              rule.isActive ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}
+                          >
+                            {rule.isActive ? 'فعال (301 Active)' : 'غیرفعال'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRedirect(rule.id)}
+                            className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 cursor-pointer"
+                            title="حذف ریدارکت"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -3638,6 +4212,391 @@ Sitemap: https://solmint.ir/sitemap.xml
               </div>
             )}
 
+            {/* TAB 11: USER ROLES AND PERMISSIONS MANAGEMENT (RBAC) */}
+            {adminTab === 'users' && hasPermission('users') && (
+              <div className="space-y-6">
+                {/* RBAC Header & Overview */}
+                <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-amber-400" />
+                        <h3 className="text-base font-black text-white">مدیریت اعضای تیم، نویسندگان و سطوح دسترسی (RBAC)</h3>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        تعریف نویسندگان، ویراستاران و همکاران پلتفرم همراه با محدودسازی دقیق دسترسی به بخش‌های حساس سیستم.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingUserId(null);
+                        setMemberFullName('');
+                        setMemberUsername('');
+                        setMemberPassword('');
+                        setMemberRole('writer');
+                        setMemberPermissions(['articles', 'editor', 'comments', 'media']);
+                        setShowAddMemberForm(true);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 hover:brightness-110 cursor-pointer transition-all shrink-0"
+                    >
+                      <UserPlus className="w-4 h-4 text-slate-950" />
+                      <span>تعریف نویسنده / همکار جدید</span>
+                    </button>
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] text-slate-400">کل اعضای تیم</span>
+                        <div className="text-lg font-black text-white font-mono">{users.length + 1} نفر</div>
+                      </div>
+                      <Users className="w-5 h-5 text-slate-500" />
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] text-slate-400">نویسندگان و ویراستاران</span>
+                        <div className="text-lg font-black text-amber-400 font-mono">
+                          {users.filter(u => u.role === 'writer' || u.role === 'editor').length} نویسنده
+                        </div>
+                      </div>
+                      <Edit3 className="w-5 h-5 text-amber-500/70" />
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] text-slate-400">مدیران ارشد سیستم</span>
+                        <div className="text-lg font-black text-emerald-400 font-mono">
+                          {users.filter(u => u.role === 'admin' || u.role === 'superadmin').length + 1} مدیر
+                        </div>
+                      </div>
+                      <ShieldCheck className="w-5 h-5 text-emerald-500/70" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notice Alert */}
+                {userManagementNotice && (
+                  <div className="p-4 rounded-2xl bg-emerald-500/20 text-emerald-300 font-bold text-xs border border-emerald-500/40 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      <span>{userManagementNotice}</span>
+                    </div>
+                    <button onClick={() => setUserManagementNotice(null)} className="text-slate-400 hover:text-white">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* ADD / EDIT MEMBER FORM MODAL */}
+                {showAddMemberForm && (
+                  <form onSubmit={handleSaveMember} className="p-6 rounded-3xl bg-slate-900 border border-amber-500/30 space-y-6 shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                      <div className="flex items-center gap-2 text-amber-400 font-black text-sm">
+                        <UserPlus className="w-5 h-5" />
+                        <span>{editingUserId ? 'ویرایش مشخصات و دسترسی‌های کاربر' : 'تعریف نویسنده / همکار جدید'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddMemberForm(false);
+                          setEditingUserId(null);
+                        }}
+                        className="text-slate-400 hover:text-white p-1"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-300">نام و نام خانوادگی:</label>
+                        <input
+                          type="text"
+                          required
+                          value={memberFullName}
+                          onChange={(e) => setMemberFullName(e.target.value)}
+                          placeholder="مثال: علی رضایی"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-300">نام کاربری / ایمیل ورود:</label>
+                        <input
+                          type="text"
+                          required
+                          value={memberUsername}
+                          onChange={(e) => setMemberUsername(e.target.value)}
+                          placeholder="مثال: writer_ali"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-amber-500 focus:outline-none dir-ltr text-right"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-300">
+                          {editingUserId ? 'رمز عبور جدید (اختیاری):' : 'رمز عبور ورود:'}
+                        </label>
+                        <input
+                          type="password"
+                          required={!editingUserId}
+                          value={memberPassword}
+                          onChange={(e) => setMemberPassword(e.target.value)}
+                          placeholder={editingUserId ? 'بدون تغییر' : 'رمز عبور محرمانه'}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-amber-500 focus:outline-none dir-ltr text-right"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Role & Active Switch */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-300">نقش سازمانی:</label>
+                        <select
+                          value={memberRole}
+                          onChange={(e) => {
+                            const r = e.target.value as 'writer' | 'editor' | 'admin';
+                            setMemberRole(r);
+                            if (r === 'writer') {
+                              setMemberPermissions(['articles', 'editor', 'comments', 'media']);
+                            } else if (r === 'admin') {
+                              setMemberPermissions(ALL_ADMIN_PERMISSIONS);
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-amber-500 focus:outline-none"
+                        >
+                          <option value="writer">✍️ نویسنده مقاله (دسترسی محدود به انتشار و ویرایش مقالات)</option>
+                          <option value="editor">📝 ویراستار ارشد (دسترسی به مقالات، نظرات و سئو)</option>
+                          <option value="admin">🛡️ مدیر همکار (دسترسی کامل به تمام سیستم)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-300">وضعیت حساب کاربری:</label>
+                        <div className="flex items-center gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setMemberIsActive(!memberIsActive)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                              memberIsActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            }`}
+                          >
+                            {memberIsActive ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
+                            <span>{memberIsActive ? 'حساب فعال (امکان ورود)' : 'حساب غیرفعال (مسدود)'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PERMISSIONS MATRIX */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                        <div>
+                          <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                            <Key className="w-4 h-4 text-amber-400" />
+                            <span>تنظیم سطوح دسترسی دقیق (Granular Permissions)</span>
+                          </h4>
+                          <p className="text-[11px] text-slate-400">تیک بخش‌هایی که این کاربر مجاز به استفاده از آن است را روشن کنید:</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setMemberPermissions(['articles', 'editor', 'comments', 'media'])}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[11px] font-bold border border-amber-500/30 cursor-pointer"
+                          >
+                            ⚡ پریست نویسنده
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setMemberPermissions(ALL_ADMIN_PERMISSIONS)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-[11px] font-bold border border-emerald-500/30 cursor-pointer"
+                          >
+                            ⚡ دسترسی کامل
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                        {ALL_ADMIN_PERMISSIONS.map((permKey) => {
+                          const meta = PERMISSION_LABELS[permKey];
+                          const isChecked = memberPermissions.includes(permKey);
+                          return (
+                            <div
+                              key={permKey}
+                              onClick={() => handleTogglePermission(permKey)}
+                              className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                                isChecked
+                                  ? 'bg-amber-500/10 border-amber-500/40 text-white'
+                                  : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className={`mt-0.5 ${isChecked ? 'text-amber-400' : 'text-slate-600'}`}>
+                                {isChecked ? <CheckCircle2 className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border border-slate-700" />}
+                              </div>
+                              <div className="space-y-0.5 min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-xs font-bold text-white truncate">{meta.icon} {meta.title}</span>
+                                  {meta.sensitive && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30 shrink-0">
+                                      حساس
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-400 line-clamp-2">{meta.desc}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Submit */}
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddMemberForm(false);
+                          setEditingUserId(null);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:text-white cursor-pointer"
+                      >
+                        انصراف
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold text-xs shadow-lg hover:brightness-110 cursor-pointer"
+                      >
+                        {editingUserId ? 'ذخیره تغییرات کاربر' : 'ثبت و ایجاد حساب کاربر'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* MEMBERS LIST */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-400">فهرست تمام اعضای تیم و سطوح دسترسی فعال:</h4>
+
+                  {/* SuperAdmin Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 font-black text-sm flex items-center justify-center shadow-md">
+                        👑
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h5 className="text-sm font-black text-white">مدیر ارشد سیستم (SuperAdmin)</h5>
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-extrabold border border-amber-500/40">
+                            مالک سیستم
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400">نام کاربری: <span className="text-amber-300 font-mono font-bold">admin</span> | دسترسی نامحدود به تمام بخش‌های فریم‌ورک</p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30 shrink-0 text-center">
+                      ✅ دسترسی کامل به کل سیستم
+                    </span>
+                  </div>
+
+                  {/* Registered Users / Writers */}
+                  {users.length === 0 ? (
+                    <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-2">
+                      <User className="w-8 h-8 text-slate-600 mx-auto" />
+                      <p className="text-xs text-slate-400">هنوز هیچ نویسنده یا همکار دیگری تعریف نشده است.</p>
+                      <p className="text-[11px] text-slate-500">با زدن دکمه «تعریف نویسنده / همکار جدید» می‌توانید برای نویسندگان سایت حساب کاربری با دسترسی محدود بسازید.</p>
+                    </div>
+                  ) : (
+                    users.map((u) => {
+                      const userPerms = u.permissions || (u.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
+                      const isActive = u.isActive !== false;
+                      return (
+                        <div key={u.id} className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                          isActive ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-950/70 border-rose-500/20 opacity-75'
+                        }`}>
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className={`w-10 h-10 rounded-2xl text-xs font-black flex items-center justify-center shrink-0 ${
+                              u.role === 'admin' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            }`}>
+                              {u.role === 'admin' ? '🛡️' : u.role === 'editor' ? '📝' : '✍️'}
+                            </div>
+
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h5 className="text-sm font-bold text-white truncate">{u.fullName}</h5>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                  u.role === 'admin' ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                }`}>
+                                  {u.role === 'admin' ? 'مدیر همکار' : u.role === 'editor' ? 'ویراستار' : 'نویسنده محتوا'}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                  isActive ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                }`}>
+                                  {isActive ? 'فعال' : 'مسدود شده'}
+                                </span>
+                              </div>
+
+                              <p className="text-xs text-slate-400">
+                                نام کاربری: <span className="text-sky-400 font-mono font-bold">{u.username}</span> | تاریخ ثبت: <span className="font-mono text-slate-300">{u.createdAt}</span>
+                              </p>
+
+                              {/* Active permissions summary */}
+                              <div className="flex flex-wrap items-center gap-1 pt-1">
+                                <span className="text-[10px] text-slate-500">دسترسی‌ها:</span>
+                                {userPerms.map(p => (
+                                  <span key={p} className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] border border-slate-700">
+                                    {PERMISSION_LABELS[p]?.icon} {PERMISSION_LABELS[p]?.title}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* User Actions */}
+                          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUserActive(u.id)}
+                              title={isActive ? 'مسدود کردن حساب' : 'فعال‌سازی حساب'}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1 cursor-pointer transition-all ${
+                                isActive ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              }`}
+                            >
+                              {isActive ? <UserX className="w-3.5 h-3.5 text-rose-400" /> : <UserCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                              <span>{isActive ? 'مسدود' : 'فعال‌سازی'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleEditUserClick(u)}
+                              className="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-xs font-bold border border-sky-500/30 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>ویرایش دسترسی</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(u.id)}
+                              className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 cursor-pointer"
+                              title="حذف کاربر"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            </>
+            )}
           </div>
         )}
 

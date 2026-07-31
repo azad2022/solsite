@@ -16,8 +16,23 @@ import { AdminCmsModal } from './components/AdminCmsModal';
 import { DeepSeekChatbot } from './components/DeepSeekChatbot';
 import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
+import { updateRouteSeo } from './utils/seoManager';
+import { 
+  SolanaWalletPage, 
+  SolanaTokenPage, 
+  MemeCoinPage, 
+  NftPage, 
+  SecurityPage, 
+  OfficialDownloadPage, 
+  FaqPage 
+} from './components/landing/LandingPages';
 
 export default function App() {
+  // Current browser route path
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    return window.location.pathname || '/';
+  });
+
   // Current logged in user (normal user or admin)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     return safeGetLocalStorage<UserAccount | null>('solmint_current_user', null);
@@ -54,7 +69,6 @@ export default function App() {
     return saved;
   });
 
-
   // Live Solana Ticker State
   const [solanaStatus, setSolanaStatus] = useState<SolanaStatus>({
     price: 184.25,
@@ -79,11 +93,31 @@ export default function App() {
     return safeGetLocalStorage<Testimonial[]>('solmint_testimonials', INITIAL_TESTIMONIALS);
   });
 
-  // Active Navigation Tab
-  const [activeTab, setActiveTab] = useState<'home' | 'features' | 'blog' | 'admin'>('home');
-
   // Admin / Auth CMS Modal
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+
+  // Navigate handler with pushState and SEO head update
+  const handleNavigate = (path: string) => {
+    setCurrentPath(path);
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Popstate listener for browser forward/back buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname || '/');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Sync SEO metadata whenever route changes
+  useEffect(() => {
+    updateRouteSeo(currentPath);
+  }, [currentPath]);
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -91,7 +125,7 @@ export default function App() {
     localStorage.removeItem('solmint_admin_session');
   };
 
-  // Fetch articles from active database (Supabase / Cloudflare D1 / Local) on mount
+  // Fetch articles from active database on mount
   useEffect(() => {
     async function loadDatabaseArticles() {
       const dbArticles = await fetchArticlesFromActiveDatabase();
@@ -109,27 +143,16 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setSolanaStatus(data);
-      } else {
-        // Fallback simulation
-        setSolanaStatus(prev => ({
-          ...prev,
-          price: Number((184.25 + (Math.random() * 2 - 1)).toFixed(2)),
-          tps: 2800 + Math.floor(Math.random() * 200)
-        }));
       }
     } catch {
-      setSolanaStatus(prev => ({
-        ...prev,
-        price: Number((184.25 + (Math.random() * 2 - 1)).toFixed(2)),
-        tps: 2800 + Math.floor(Math.random() * 200)
-      }));
+      // Keep cached status safely
     }
   };
 
   useEffect(() => {
     const interval = setInterval(() => {
       refreshSolanaStatus();
-    }, 8000);
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -138,16 +161,16 @@ export default function App() {
   };
 
   const scrollToFeatures = () => {
-    setActiveTab('home');
-    const el = document.getElementById('app-features');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+    if (currentPath !== '/') {
+      handleNavigate('/');
+      setTimeout(() => {
+        const el = document.getElementById('app-features');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+    } else {
+      const el = document.getElementById('app-features');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
-  };
-
-  const goToBlogTab = () => {
-    setActiveTab('blog');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -156,12 +179,12 @@ export default function App() {
       {/* Background Particle Canvas */}
       <ParticleCanvas />
 
-      {/* Clean Top Header & Solana Ticker Bar */}
+      {/* Clean Top Header & Navigation */}
       <Header
         solanaStatus={solanaStatus}
         refreshStatus={refreshSolanaStatus}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        currentPath={currentPath}
+        onNavigate={handleNavigate}
         openAdminModal={openAdminModal}
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -169,7 +192,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 relative z-10">
-        {activeTab === 'home' && (
+        {currentPath === '/' && (
           <>
             <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
             <AppFeaturesSection />
@@ -179,12 +202,40 @@ export default function App() {
             <LatestArticlesSection
               articles={articles}
               setArticles={setArticles}
-              onGoToBlog={goToBlogTab}
+              onGoToBlog={() => handleNavigate('/blog')}
             />
           </>
         )}
 
-        {activeTab === 'blog' && (
+        {currentPath === '/solana-wallet' && (
+          <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/solana-token' && (
+          <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/solana-meme-coin' && (
+          <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/solana-nft' && (
+          <NftPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/security' && (
+          <SecurityPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/download' && (
+          <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/faq' && (
+          <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/blog' && (
           <div className="py-4">
             <BlogHub
               articles={articles}
@@ -214,7 +265,7 @@ export default function App() {
         setDeepseekSettings={setDeepseekSettings}
         chatbotSettings={chatbotSettings}
         setChatbotSettings={setChatbotSettings}
-        onGoToBlog={goToBlogTab}
+        onGoToBlog={() => handleNavigate('/blog')}
       />
 
       {/* Floating DeepSeek AI Chatbot */}
@@ -225,7 +276,7 @@ export default function App() {
       />
 
       {/* Footer */}
-      <Footer setActiveTab={setActiveTab} openAdminModal={openAdminModal} />
+      <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
 
     </div>
   );
