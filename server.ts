@@ -391,6 +391,28 @@ Sitemap: https://solmint.ir/sitemap.xml
         }
       }
     }));
+  }
+
+  // 404 Guard for missing static assets or source maps (prevents returning index.html for missing .map or .js files)
+  app.use((req, res, next) => {
+    if (
+      req.path.startsWith("/assets/") ||
+      req.path.endsWith(".map") ||
+      req.path.endsWith(".js") ||
+      req.path.endsWith(".css") ||
+      req.path.endsWith(".png") ||
+      req.path.endsWith(".jpg") ||
+      req.path.endsWith(".jpeg") ||
+      req.path.endsWith(".svg") ||
+      req.path.endsWith(".woff2")
+    ) {
+      return res.status(404).type("text/plain").send("Asset or source map not found");
+    }
+    next();
+  });
+
+  if (process.env.NODE_ENV === "production") {
+    const distPath = path.join(process.cwd(), "dist");
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
