@@ -1244,6 +1244,7 @@ Sitemap: https://solmint.ir/sitemap.xml
 
           <button
             onClick={onClose}
+            aria-label="بستن پنجره"
             className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
           >
             <X className="w-5 h-5" />

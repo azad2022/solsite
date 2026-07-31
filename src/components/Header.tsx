@@ -171,6 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onLogout}
                 title="خروج از حساب"
+                aria-label="خروج از حساب"
                 className="text-slate-400 hover:text-rose-400 transition-colors cursor-pointer p-0.5"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -180,6 +181,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={openAdminModal}
               title="ورود / ثبت‌نام"
+              aria-label="ورود / ثبت‌نام"
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 transition-colors cursor-pointer text-xs font-bold"
             >
               <User className="w-4 h-4 text-[#14F195]" />
@@ -191,6 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Mobile Menu Button */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label={mobileMenuOpen ? "بستن منوی اصلی" : "باز کردن منوی اصلی"}
           className="lg:hidden p-2 rounded-xl bg-white/5 text-slate-300 hover:text-white border border-white/10"
         >
           {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}

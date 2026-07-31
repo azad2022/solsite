@@ -160,6 +160,7 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({
           whileHover={{ scale: 1.12 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsOpen(true)}
+          aria-label="پشتیبان هوشمند سولمینت"
           className="relative group w-14 h-14 sm:w-15 sm:h-15 p-[2px] rounded-full shadow-[0_10px_30px_rgba(153,69,255,0.45)] cursor-pointer transition-all duration-300 flex items-center justify-center overflow-hidden"
           title="پشتیبان هوشمند سولمینت"
         >
@@ -247,6 +248,7 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setIsMinimized(!isMinimized)}
+                  aria-label={isMinimized ? 'بزرگ‌نمایی' : 'کوچک‌نمایی'}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                   title={isMinimized ? 'بزرگ‌نمایی' : 'کوچک‌نمایی'}
                 >
@@ -255,6 +257,7 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({
 
                 <button
                   onClick={handleClearHistory}
+                  aria-label="پاک کردن تاریخچه چت"
                   className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-white/5 transition-colors cursor-pointer"
                   title="پاک کردن تاریخچه چت"
                 >
@@ -263,6 +266,7 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({
 
                 <button
                   onClick={() => setIsOpen(false)}
+                  aria-label="بستن چت"
                   className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                   title="بستن چت"
                 >
@@ -376,6 +380,7 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({
                   <button
                     onClick={() => handleSendMessage()}
                     disabled={isLoading || !inputMessage.trim()}
+                    aria-label="ارسال پیام"
                     className="p-2.5 rounded-2xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 cursor-pointer transition-all shrink-0"
                     title="ارسال پیام"
                   >
