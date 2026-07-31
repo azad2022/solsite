@@ -15,6 +15,7 @@ export default defineConfig(() => {
       target: 'esnext',
       minify: 'esbuild' as const,
       cssCodeSplit: true,
+      sourcemap: true,
       chunkSizeWarningLimit: 1000,
     },
     server: {
