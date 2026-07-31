@@ -89,12 +89,21 @@ export const ParticleCanvas: React.FC = () => {
       }
     };
 
-    const render = () => {
+    let lastTime = 0;
+    const fpsInterval = isMobile ? 1000 / 30 : 1000 / 45; // Throttle to 30fps on mobile, 45fps on desktop to reduce TBT/CPU
+
+    const render = (time?: number) => {
       // Pause loop if document tab is hidden
       if (document.hidden) {
         animationFrameId = requestAnimationFrame(render);
         return;
       }
+
+      if (time && time - lastTime < fpsInterval) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
+      lastTime = time || 0;
 
       ctx.clearRect(0, 0, w, h);
       particles.forEach((p) => {
@@ -108,7 +117,10 @@ export const ParticleCanvas: React.FC = () => {
       }
     };
 
-    render();
+    // Defer start by 500ms to ensure LCP and initial paint complete smoothly without main-thread blocking
+    const startTimer = setTimeout(() => {
+      render();
+    }, 500);
 
     const handleVisibilityChange = () => {
       if (!document.hidden && !prefersReducedMotion) {
@@ -120,6 +132,7 @@ export const ParticleCanvas: React.FC = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      clearTimeout(startTimer);
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       cancelAnimationFrame(animationFrameId);
