@@ -24,18 +24,32 @@ interface BlogHubProps {
   setArticles: React.Dispatch<React.SetStateAction<Article[]>>;
   currentUser: UserAccount | null;
   openAuthModal: () => void;
+  initialArticleSlug?: string;
+  onNavigate?: (path: string) => void;
 }
 
 export const BlogHub: React.FC<BlogHubProps> = ({ 
   articles, 
   setArticles, 
   currentUser, 
-  openAuthModal 
+  openAuthModal,
+  initialArticleSlug,
+  onNavigate
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('همه');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
+
+  // Sync initial article slug from URL
+  React.useEffect(() => {
+    if (initialArticleSlug) {
+      const matched = articles.find(a => a.slug === initialArticleSlug);
+      if (matched) {
+        setReadingArticle(matched);
+      }
+    }
+  }, [initialArticleSlug, articles]);
 
   // New Comment Form state
   const [commentText, setCommentText] = useState('');
@@ -65,12 +79,30 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
   const handleOpenArticle = (art: Article) => {
     setReadingArticle(art);
+    const targetPath = `/article/${art.slug}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+    }
+    if (onNavigate) {
+      onNavigate(targetPath);
+    }
     // increment views
     setArticles(prev => {
       const updated = prev.map(a => a.id === art.id ? { ...a, viewsCount: a.viewsCount + 1 } : a);
       localStorage.setItem('solmint_articles', JSON.stringify(updated));
       return updated;
     });
+  };
+
+  const handleCloseArticle = () => {
+    setReadingArticle(null);
+    const targetPath = '/blog';
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+    }
+    if (onNavigate) {
+      onNavigate(targetPath);
+    }
   };
 
   const handleAddComment = (e: React.FormEvent) => {
@@ -107,7 +139,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
   };
 
   const handleCopyArticleLink = (slug: string) => {
-    const url = `https://solmint.ir/blog/${slug}`;
+    const url = `https://solmint.ir/article/${slug}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
@@ -356,7 +388,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
               </div>
 
               <button
-                onClick={() => setReadingArticle(null)}
+                onClick={handleCloseArticle}
                 className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -384,7 +416,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
               <div className="flex items-center gap-2">
                 <a
-                  href={`https://t.me/share/url?url=https://solmint.ir/blog/${readingArticle.slug}&text=${encodeURIComponent(readingArticle.title)}`}
+                  href={`https://t.me/share/url?url=https://solmint.ir/article/${readingArticle.slug}&text=${encodeURIComponent(readingArticle.title)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-xl bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 text-xs font-semibold flex items-center gap-1.5 border border-sky-500/30 transition-colors"

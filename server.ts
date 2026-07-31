@@ -1,8 +1,11 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import compression from "compression";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+import { INITIAL_ARTICLES } from "./src/data/initialBlogData";
+import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from "./src/utils/seoManager";
 
 async function startServer() {
   const app = express();
@@ -54,6 +57,141 @@ async function startServer() {
     }
     next();
   });
+
+  // Helper to generate pre-rendered HTML with full route-specific metadata
+  const renderSeoPage = (rawTemplate: string, reqPath: string): string => {
+    let cleanPath = reqPath.split("?")[0].toLowerCase();
+    let articleData = null;
+
+    if (cleanPath.startsWith("/article/") || cleanPath.startsWith("/blog/")) {
+      const slug = cleanPath.replace(/^\/(article|blog)\//, "").trim();
+      if (slug) {
+        const found = INITIAL_ARTICLES.find(a => a.slug === slug);
+        if (found) {
+          articleData = found;
+          cleanPath = `/article/${found.slug}`;
+        }
+      }
+    }
+
+    const info = getRouteSeoInfo(cleanPath, articleData || undefined);
+
+    let html = rawTemplate;
+
+    // 1. Replace <title>
+    html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${info.title}</title>`);
+
+    // 2. Replace or inject <meta name="description">
+    if (html.includes('name="description"')) {
+      html = html.replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${info.description}">`);
+    } else {
+      html = html.replace('</head>', `  <meta name="description" content="${info.description}">\n</head>`);
+    }
+
+    // 3. Replace or inject <link rel="canonical">
+    if (html.includes('rel="canonical"')) {
+      html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${info.canonical}">`);
+    } else {
+      html = html.replace('</head>', `  <link rel="canonical" href="${info.canonical}">\n</head>`);
+    }
+
+    // 4. Inject or update Open Graph & Twitter Cards
+    const ogTags = `
+    <!-- Open Graph & Social Cards -->
+    <meta property="og:title" content="${info.title}">
+    <meta property="og:description" content="${info.description}">
+    <meta property="og:url" content="${info.canonical}">
+    <meta property="og:type" content="${info.ogType || 'website'}">
+    <meta property="og:image" content="${info.ogImage || `${SITE_DOMAIN}/images/solmint-banner.jpg`}">
+    <meta property="og:site_name" content="سولمینت">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${info.title}">
+    <meta name="twitter:description" content="${info.description}">
+    <meta name="twitter:image" content="${info.ogImage || `${SITE_DOMAIN}/images/solmint-banner.jpg`}">
+    `;
+    html = html.replace('</head>', `${ogTags}\n</head>`);
+
+    // 5. Inject Article or Page Specific JSON-LD Schema
+    if (articleData) {
+      const articleJsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": articleData.title,
+        "description": articleData.summary,
+        "image": articleData.coverImage,
+        "author": {
+          "@type": "Person",
+          "name": articleData.author.name,
+          "jobTitle": articleData.author.role
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "سولمینت",
+          "url": "https://solmint.ir",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://solmint.ir/og-solmint.png"
+          }
+        },
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": info.canonical
+        },
+        "datePublished": articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\//g, "-") : "2025-07-27"
+      };
+
+      const schemaScript = `\n    <script type="application/ld+json">\n    ${JSON.stringify(articleJsonLd, null, 2)}\n    </script>`;
+      html = html.replace('</head>', `${schemaScript}\n</head>`);
+    }
+
+    // 6. Inject Pre-rendered SSR HTML into <div id="root"></div> for zero-JS crawlers
+    let ssrHtmlContent = "";
+    if (articleData) {
+      ssrHtmlContent = `
+        <main style="max-width:900px;margin:0 auto;padding:2rem 1rem;color:#f8fafc;font-family:system-ui,sans-serif;direction:rtl;text-align:right;">
+          <nav aria-label="Breadcrumb" style="font-size:0.875rem;color:#94a3b8;margin-bottom:1.5rem;">
+            <a href="/" style="color:#38bdf8;text-decoration:none;">خانه</a> &gt; 
+            <a href="/blog" style="color:#38bdf8;text-decoration:none;">وبلاگ</a> &gt; 
+            <span>${articleData.title}</span>
+          </nav>
+          <article>
+            <header style="margin-bottom:2rem;">
+              <span style="display:inline-block;padding:0.25rem 0.75rem;background:rgba(56,189,248,0.1);color:#38bdf8;border-radius:9999px;font-size:0.75rem;font-weight:bold;margin-bottom:0.75rem;">${articleData.category}</span>
+              <h1 style="font-size:2rem;font-weight:900;color:#ffffff;line-height:1.3;margin-bottom:1rem;">${articleData.title}</h1>
+              <p style="font-size:1rem;color:#cbd5e1;line-height:1.6;margin-bottom:1rem;">${articleData.summary}</p>
+              <div style="font-size:0.875rem;color:#94a3b8;">
+                نویسنده: <strong>${articleData.author.name}</strong> (${articleData.author.role}) | تاریخ انتشار: ${articleData.publishedAtJalali || articleData.publishedAt}
+              </div>
+            </header>
+            <hr style="border:0;border-top:1px solid #334155;margin:1.5rem 0;" />
+            <div style="font-size:1rem;line-height:1.8;color:#e2e8f0;white-space:pre-line;">
+              ${articleData.content}
+            </div>
+          </article>
+        </main>
+      `;
+    } else {
+      ssrHtmlContent = `
+        <main style="max-width:1100px;margin:0 auto;padding:2rem 1rem;color:#f8fafc;font-family:system-ui,sans-serif;direction:rtl;text-align:right;">
+          <nav aria-label="Breadcrumb" style="font-size:0.875rem;color:#94a3b8;margin-bottom:1.5rem;">
+            ${info.breadcrumbs.map(b => `<a href="${b.url.replace(SITE_DOMAIN, '')}" style="color:#38bdf8;text-decoration:none;">${b.name}</a>`).join(' &gt; ')}
+          </nav>
+          <section>
+            <h1 style="font-size:2.25rem;font-weight:900;color:#ffffff;margin-bottom:1rem;">${info.h1}</h1>
+            <p style="font-size:1.125rem;color:#cbd5e1;line-height:1.7;margin-bottom:2rem;">${info.description}</p>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:1.5rem;">
+              <a href="/download" style="display:inline-block;padding:0.75rem 1.5rem;background:#14F195;color:#000000;font-weight:bold;border-radius:0.75rem;text-decoration:none;">دانلود اپلیکیشن سولمینت اندروید</a>
+              <a href="/blog" style="color:#38bdf8;padding:0.75rem 1.5rem;border:1px solid #38bdf8;border-radius:0.75rem;text-decoration:none;">مشاهده مقالات آموزشی وبلاگ</a>
+            </div>
+          </section>
+        </main>
+      `;
+    }
+
+    html = html.replace('<div id="root"></div>', `<div id="root">${ssrHtmlContent}</div>`);
+
+    return html;
+  };
 
   // Gemini API client setup
   const getAiClient = () => {
@@ -330,12 +468,24 @@ async function startServer() {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
+    // Static primary pages
     staticRoutes.forEach(r => {
       xml += `  <url>\n`;
       xml += `    <loc>${baseUrl}${r.path}</loc>\n`;
       xml += `    <lastmod>${nowIso}</lastmod>\n`;
       xml += `    <changefreq>${r.changefreq}</changefreq>\n`;
       xml += `    <priority>${r.priority}</priority>\n`;
+      xml += `  </url>\n`;
+    });
+
+    // Dynamic Published Articles
+    INITIAL_ARTICLES.forEach(art => {
+      const artLastMod = art.publishedAtGregorian ? art.publishedAtGregorian.replace(/\//g, "-") : nowIso;
+      xml += `  <url>\n`;
+      xml += `    <loc>${baseUrl}/article/${art.slug}</loc>\n`;
+      xml += `    <lastmod>${artLastMod}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.8</priority>\n`;
       xml += `  </url>\n`;
     });
 
@@ -359,6 +509,7 @@ Allow: /solana-nft
 Allow: /security
 Allow: /download
 Allow: /blog
+Allow: /article/
 Allow: /faq
 
 Disallow: /admin
@@ -372,19 +523,21 @@ Sitemap: https://solmint.ir/sitemap.xml
     return res.type("text").send(robotsTxt);
   });
 
-  // Vite middleware for development
+  // Vite middleware or static serving
+  let viteServer: any = null;
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
+    viteServer = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-    app.use(vite.middlewares);
+    app.use(viteServer.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath, {
       maxAge: "1y",
       etag: true,
       immutable: true,
+      index: false,
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "no-cache, must-revalidate");
@@ -393,7 +546,7 @@ Sitemap: https://solmint.ir/sitemap.xml
     }));
   }
 
-  // 404 Guard for missing static assets or source maps (prevents returning index.html for missing .map or .js files)
+  // 404 Guard for missing static assets or source maps
   app.use((req, res, next) => {
     if (
       req.path.startsWith("/assets/") ||
@@ -411,12 +564,33 @@ Sitemap: https://solmint.ir/sitemap.xml
     next();
   });
 
-  if (process.env.NODE_ENV === "production") {
-    const distPath = path.join(process.cwd(), "dist");
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
+  // HTML Server-Side Pre-rendering & SEO Injection Handler for all page routes
+  app.get("*", async (req, res, next) => {
+    try {
+      if (process.env.NODE_ENV !== "production" && viteServer) {
+        const indexPath = path.join(process.cwd(), "index.html");
+        if (!fs.existsSync(indexPath)) return next();
+        let template = fs.readFileSync(indexPath, "utf-8");
+        template = await viteServer.transformIndexHtml(req.originalUrl, template);
+        const html = renderSeoPage(template, req.path);
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(200).send(html);
+      } else {
+        const distPath = path.join(process.cwd(), "dist");
+        const indexPath = path.join(distPath, "index.html");
+        if (fs.existsSync(indexPath)) {
+          const template = fs.readFileSync(indexPath, "utf-8");
+          const html = renderSeoPage(template, req.path);
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          return res.status(200).send(html);
+        }
+        return next();
+      }
+    } catch (err) {
+      console.error("Error in SSR rendering handler:", err);
+      return next();
+    }
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Solmint Server running on http://0.0.0.0:${PORT}`);

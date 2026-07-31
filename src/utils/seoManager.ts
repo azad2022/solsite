@@ -131,16 +131,16 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
 };
 
 /**
- * Updates browser DOM head metadata dynamically according to current route
+ * Returns structured RouteSeoInfo for a given URL path and optional article
  */
-export function updateRouteSeo(path: string, articleData?: { title: string; summary: string; slug: string; coverImage?: string }) {
+export function getRouteSeoInfo(path: string, articleData?: { title: string; summary: string; slug: string; coverImage?: string }): RouteSeoInfo {
   let info = ROUTES_SEO_MAP[path];
 
   if (!info) {
-    if (path.startsWith('/article/') && articleData) {
+    if ((path.startsWith('/article/') || path.startsWith('/blog/')) && articleData) {
       info = {
-        path,
-        title: `${articleData.title} | وبلاگ سولمینت`,
+        path: `/article/${articleData.slug}`,
+        title: `${articleData.title} | وبلاگ و آموزش سولمینت`,
         description: articleData.summary,
         canonical: `${SITE_DOMAIN}/article/${articleData.slug}`,
         ogType: 'article',
@@ -156,6 +156,17 @@ export function updateRouteSeo(path: string, articleData?: { title: string; summ
       info = ROUTES_SEO_MAP['/'];
     }
   }
+
+  return info;
+}
+
+/**
+ * Updates browser DOM head metadata dynamically according to current route
+ */
+export function updateRouteSeo(path: string, articleData?: { title: string; summary: string; slug: string; coverImage?: string }) {
+  if (typeof document === 'undefined') return;
+
+  const info = getRouteSeoInfo(path, articleData);
 
   // 1. Title
   document.title = info.title;

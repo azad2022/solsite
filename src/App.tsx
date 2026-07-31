@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { SolanaStatus, Article, MediaItem, Testimonial, UserAccount, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from './types';
 import { INITIAL_ARTICLES, INITIAL_MEDIA_ITEMS, INITIAL_TESTIMONIALS } from './data/initialBlogData';
 import { safeGetLocalStorage } from './utils/security';
@@ -120,10 +120,30 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Extract active article slug if on an article route
+  const activeArticleSlug = useMemo(() => {
+    if (currentPath.startsWith('/article/')) {
+      return currentPath.replace('/article/', '').trim();
+    }
+    if (currentPath.startsWith('/blog/')) {
+      return currentPath.replace('/blog/', '').trim();
+    }
+    return '';
+  }, [currentPath]);
+
+  const activeArticle = useMemo(() => {
+    if (!activeArticleSlug) return null;
+    return articles.find(a => a.slug === activeArticleSlug) || null;
+  }, [activeArticleSlug, articles]);
+
   // Sync SEO metadata whenever route changes
   useEffect(() => {
-    updateRouteSeo(currentPath);
-  }, [currentPath]);
+    if (activeArticle) {
+      updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
+    } else {
+      updateRouteSeo(currentPath);
+    }
+  }, [currentPath, activeArticle]);
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -242,13 +262,15 @@ export default function App() {
             <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
           )}
 
-          {currentPath === '/blog' && (
+          {(currentPath === '/blog' || currentPath.startsWith('/article/') || currentPath.startsWith('/blog/')) && (
             <div className="py-4">
               <BlogHub
                 articles={articles}
                 setArticles={setArticles}
                 currentUser={currentUser}
                 openAuthModal={openAdminModal}
+                initialArticleSlug={activeArticleSlug}
+                onNavigate={handleNavigate}
               />
             </div>
           )}
