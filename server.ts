@@ -4,8 +4,114 @@ import fs from "fs";
 import compression from "compression";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { INITIAL_ARTICLES } from "./src/data/initialBlogData";
 import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from "./src/utils/seoManager";
+
+// Initialize Supabase client for Server-Side Article Retrieval & Sitemap Generation
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://nvopkbiedorfshwbmyhn.supabase.co";
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt";
+
+let serverSupabase: SupabaseClient | null = null;
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  try {
+    serverSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (err) {
+    console.warn("⚠️ Could not initialize server-side Supabase client:", err);
+  }
+}
+
+/**
+ * Retrieves all published, public articles from Supabase database combined with baseline INITIAL_ARTICLES.
+ * Filters out drafts, private, or deleted articles.
+ */
+async function getAllPublishedArticles(): Promise<any[]> {
+  const articleMap = new Map<string, any>();
+
+  // 1. Baseline INITIAL_ARTICLES
+  for (const art of INITIAL_ARTICLES) {
+    if (!art.isDraft) {
+      articleMap.set(art.slug, art);
+    }
+  }
+
+  // 2. Fetch published articles from Supabase 'articles' table
+  if (serverSupabase) {
+    try {
+      const { data, error } = await serverSupabase
+        .from("articles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && data && Array.isArray(data) && data.length > 0) {
+        for (const item of data) {
+          const isDraft = item.is_draft === true || item.is_draft === 1 || item.is_draft === "true";
+          if (isDraft) {
+            articleMap.delete(item.slug);
+            continue;
+          }
+
+          const mappedArt = {
+            id: String(item.id),
+            title: item.title,
+            slug: item.slug,
+            category: item.category || "آموزش سولانا",
+            tags: item.tags || [],
+            summary: item.summary || "",
+            content: item.content || "",
+            coverImage: item.cover_image || "/images/blog-og.jpg",
+            videoUrl: item.video_url || null,
+            author: item.author || { name: "تیم سولمینت", role: "مدیریت", avatar: "⚡" },
+            publishedAt: item.published_at || item.created_at || "2025/07/27",
+            publishedAtJalali: item.published_at_jalali || "",
+            publishedAtGregorian: item.published_at_gregorian || "",
+            readTimeMinutes: item.read_time_minutes || 5,
+            viewsCount: item.views_count || 0,
+            comments: item.comments || [],
+            seoScore: item.seo_score || 90,
+            isDraft: false,
+            updatedAt: item.updated_at || item.created_at || null
+          };
+
+          articleMap.set(mappedArt.slug, mappedArt);
+        }
+      }
+    } catch (e) {
+      console.warn("⚠️ Error fetching articles from Supabase in server:", e);
+    }
+  }
+
+  return Array.from(articleMap.values());
+}
+
+/**
+ * Calculates accurate lastmod date for sitemap & JSON-LD
+ */
+function formatLastModDate(art: any): string {
+  const rawUpdated = art.updatedAt || art.updated_at || art.created_at;
+  if (rawUpdated && typeof rawUpdated === "string") {
+    const d = new Date(rawUpdated);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split("T")[0];
+    }
+  }
+
+  if (art.publishedAtGregorian && typeof art.publishedAtGregorian === "string") {
+    const formatted = art.publishedAtGregorian.replace(/\//g, "-").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(formatted)) {
+      return formatted;
+    }
+  }
+
+  if (art.publishedAt && typeof art.publishedAt === "string") {
+    const d = new Date(art.publishedAt);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split("T")[0];
+    }
+  }
+
+  return "2025-07-27";
+}
 
 async function startServer() {
   const app = express();
@@ -58,25 +164,60 @@ async function startServer() {
     next();
   });
 
-  // Helper to generate pre-rendered HTML with full route-specific metadata
-  const renderSeoPage = (rawTemplate: string, reqPath: string): string => {
+  // Helper to generate pre-rendered HTML with full route-specific metadata and 404 status detection
+  const renderSeoPage = async (rawTemplate: string, reqPath: string): Promise<{ html: string; status: number; isRedirect?: boolean; redirectUrl?: string }> => {
     let cleanPath = reqPath.split("?")[0].toLowerCase();
-    let articleData = null;
+    let articleData: any = null;
 
     if (cleanPath.startsWith("/article/") || cleanPath.startsWith("/blog/")) {
       const slug = cleanPath.replace(/^\/(article|blog)\//, "").trim();
       if (slug) {
-        const found = INITIAL_ARTICLES.find(a => a.slug === slug);
+        const allArticles = await getAllPublishedArticles();
+        const found = allArticles.find(a => a.slug === slug);
         if (found) {
           articleData = found;
+          // 301 Redirect legacy /blog/{slug} to canonical /article/{slug}
+          if (cleanPath.startsWith("/blog/")) {
+            return { html: "", status: 301, isRedirect: true, redirectUrl: `/article/${found.slug}` };
+          }
           cleanPath = `/article/${found.slug}`;
         }
       }
     }
 
     const info = getRouteSeoInfo(cleanPath, articleData || undefined);
-
     let html = rawTemplate;
+
+    // Handle 404 Not Found status for missing articles or unknown routes
+    if (info.is404) {
+      html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${info.title}</title>`);
+      
+      // Inject noindex meta tag to prevent soft-404 indexing issues
+      if (html.includes('name="description"')) {
+        html = html.replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${info.description}">\n  <meta name="robots" content="noindex, follow">`);
+      } else {
+        html = html.replace('</head>', `  <meta name="description" content="${info.description}">\n  <meta name="robots" content="noindex, follow">\n</head>`);
+      }
+
+      const ssr404Html = `
+        <main style="max-width:800px;margin:4rem auto;padding:2rem 1rem;color:#f8fafc;font-family:system-ui,sans-serif;direction:rtl;text-align:center;">
+          <nav aria-label="Breadcrumb" style="font-size:0.875rem;color:#94a3b8;margin-bottom:1.5rem;">
+            <a href="/" style="color:#38bdf8;text-decoration:none;">خانه</a> &gt; <a href="/blog" style="color:#38bdf8;text-decoration:none;">وبلاگ</a> &gt; <span>۴۰۴</span>
+          </nav>
+          <h1 style="font-size:2.25rem;font-weight:900;color:#ef4444;margin-bottom:1rem;">۴۰۴ - مقاله یا صفحه مورد نظر یافت نشد</h1>
+          <p style="font-size:1.125rem;color:#cbd5e1;line-height:1.7;margin-bottom:2rem;">
+            متأسفانه آدرسی که وارد کرده‌اید وجود ندارد یا ممکن است مقاله مربوطه منتقل یا حذف شده باشد.
+          </p>
+          <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+            <a href="/blog" style="display:inline-block;padding:0.75rem 1.5rem;background:#14F195;color:#000000;font-weight:bold;border-radius:0.75rem;text-decoration:none;">مشاهده تمام مقالات وبلاگ</a>
+            <a href="/" style="display:inline-block;padding:0.75rem 1.5rem;border:1px solid #38bdf8;color:#38bdf8;font-weight:bold;border-radius:0.75rem;text-decoration:none;">بازگشت به صفحه اصلی</a>
+          </div>
+        </main>
+      `;
+
+      html = html.replace('<div id="root"></div>', `<div id="root">${ssr404Html}</div>`);
+      return { html, status: 404 };
+    }
 
     // 1. Replace <title>
     html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${info.title}</title>`);
@@ -137,7 +278,8 @@ async function startServer() {
           "@type": "WebPage",
           "@id": info.canonical
         },
-        "datePublished": articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\//g, "-") : "2025-07-27"
+        "datePublished": articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\//g, "-") : "2025-07-27",
+        "dateModified": formatLastModDate(articleData)
       };
 
       const schemaScript = `\n    <script type="application/ld+json">\n    ${JSON.stringify(articleJsonLd, null, 2)}\n    </script>`;
@@ -189,8 +331,7 @@ async function startServer() {
     }
 
     html = html.replace('<div id="root"></div>', `<div id="root">${ssrHtmlContent}</div>`);
-
-    return html;
+    return { html, status: 200 };
   };
 
   // Gemini API client setup
@@ -448,13 +589,13 @@ async function startServer() {
     return res.json(cachedSolanaStatus);
   });
 
-  // Dynamic Sitemap XML Endpoint
-  app.get("/sitemap.xml", (req, res) => {
+  // Dynamic Sitemap XML Endpoint fetching from REAL article data source
+  app.get("/sitemap.xml", async (req, res) => {
     const baseUrl = "https://solmint.ir";
     const nowIso = new Date().toISOString().split("T")[0];
 
     const staticRoutes = [
-      { path: "/", priority: "1.0", changefreq: "daily" },
+      { path: "", priority: "1.0", changefreq: "daily" },
       { path: "/solana-wallet", priority: "0.9", changefreq: "weekly" },
       { path: "/solana-token", priority: "0.9", changefreq: "weekly" },
       { path: "/solana-meme-coin", priority: "0.9", changefreq: "weekly" },
@@ -478,9 +619,10 @@ async function startServer() {
       xml += `  </url>\n`;
     });
 
-    // Dynamic Published Articles
-    INITIAL_ARTICLES.forEach(art => {
-      const artLastMod = art.publishedAtGregorian ? art.publishedAtGregorian.replace(/\//g, "-") : nowIso;
+    // Dynamic Published Articles from REAL Database Data Source
+    const allArticles = await getAllPublishedArticles();
+    allArticles.forEach(art => {
+      const artLastMod = formatLastModDate(art);
       xml += `  <url>\n`;
       xml += `    <loc>${baseUrl}/article/${art.slug}</loc>\n`;
       xml += `    <lastmod>${artLastMod}</lastmod>\n`;
@@ -528,7 +670,7 @@ Sitemap: https://solmint.ir/sitemap.xml
   if (process.env.NODE_ENV !== "production") {
     viteServer = await createViteServer({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "custom",
     });
     app.use(viteServer.middlewares);
   } else {
@@ -572,17 +714,23 @@ Sitemap: https://solmint.ir/sitemap.xml
         if (!fs.existsSync(indexPath)) return next();
         let template = fs.readFileSync(indexPath, "utf-8");
         template = await viteServer.transformIndexHtml(req.originalUrl, template);
-        const html = renderSeoPage(template, req.path);
+        const { html, status, isRedirect, redirectUrl } = await renderSeoPage(template, req.path);
+        if (isRedirect && redirectUrl) {
+          return res.redirect(301, redirectUrl);
+        }
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        return res.status(200).send(html);
+        return res.status(status).send(html);
       } else {
         const distPath = path.join(process.cwd(), "dist");
         const indexPath = path.join(distPath, "index.html");
         if (fs.existsSync(indexPath)) {
           const template = fs.readFileSync(indexPath, "utf-8");
-          const html = renderSeoPage(template, req.path);
+          const { html, status, isRedirect, redirectUrl } = await renderSeoPage(template, req.path);
+          if (isRedirect && redirectUrl) {
+            return res.redirect(301, redirectUrl);
+          }
           res.setHeader("Content-Type", "text/html; charset=utf-8");
-          return res.status(200).send(html);
+          return res.status(status).send(html);
         }
         return next();
       }

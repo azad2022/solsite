@@ -7,6 +7,7 @@ export interface RouteSeoInfo {
   ogImage?: string;
   h1: string;
   breadcrumbs: { name: string; url: string }[];
+  is404?: boolean;
 }
 
 export const SITE_DOMAIN = 'https://solmint.ir';
@@ -137,23 +138,54 @@ export function getRouteSeoInfo(path: string, articleData?: { title: string; sum
   let info = ROUTES_SEO_MAP[path];
 
   if (!info) {
-    if ((path.startsWith('/article/') || path.startsWith('/blog/')) && articleData) {
+    if (path.startsWith('/article/') || path.startsWith('/blog/')) {
+      if (articleData) {
+        info = {
+          path: `/article/${articleData.slug}`,
+          title: `${articleData.title} | وبلاگ و آموزش سولمینت`,
+          description: articleData.summary,
+          canonical: `${SITE_DOMAIN}/article/${articleData.slug}`,
+          ogType: 'article',
+          ogImage: articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
+          h1: articleData.title,
+          breadcrumbs: [
+            { name: 'خانه', url: `${SITE_DOMAIN}/` },
+            { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
+            { name: articleData.title, url: `${SITE_DOMAIN}/article/${articleData.slug}` }
+          ]
+        };
+      } else {
+        info = {
+          path,
+          title: 'صفحه مورد نظر یافت نشد (۴۰۴) | سولمینت',
+          description: 'متأسفانه مقاله یا صفحه مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.',
+          canonical: `${SITE_DOMAIN}${path}`,
+          ogType: 'website',
+          ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+          h1: '۴۰۴ - مقاله مورد نظر یافت نشد',
+          breadcrumbs: [
+            { name: 'خانه', url: `${SITE_DOMAIN}/` },
+            { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
+            { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }
+          ],
+          is404: true
+        };
+      }
+    } else {
       info = {
-        path: `/article/${articleData.slug}`,
-        title: `${articleData.title} | وبلاگ و آموزش سولمینت`,
-        description: articleData.summary,
-        canonical: `${SITE_DOMAIN}/article/${articleData.slug}`,
-        ogType: 'article',
-        ogImage: articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
-        h1: articleData.title,
+        path,
+        title: 'صفحه مورد نظر یافت نشد (۴۰۴) | سولمینت',
+        description: 'متأسفانه صفحه مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.',
+        canonical: `${SITE_DOMAIN}${path}`,
+        ogType: 'website',
+        ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+        h1: '۴۰۴ - صفحه مورد نظر یافت نشد',
         breadcrumbs: [
           { name: 'خانه', url: `${SITE_DOMAIN}/` },
-          { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
-          { name: articleData.title, url: `${SITE_DOMAIN}/article/${articleData.slug}` }
-        ]
+          { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }
+        ],
+        is404: true
       };
-    } else {
-      info = ROUTES_SEO_MAP['/'];
     }
   }
 
