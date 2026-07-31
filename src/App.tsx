@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SolanaStatus, Article, MediaItem, Testimonial, UserAccount, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from './types';
 import { INITIAL_ARTICLES, INITIAL_MEDIA_ITEMS, INITIAL_TESTIMONIALS } from './data/initialBlogData';
 import { safeGetLocalStorage } from './utils/security';
@@ -10,22 +10,21 @@ import { SecuritySection } from './components/SecuritySection';
 import { RoadmapSection } from './components/RoadmapSection';
 import { FaqSection } from './components/FaqSection';
 import { LatestArticlesSection } from './components/LatestArticlesSection';
+import { BlogHub } from './components/BlogHub';
+import { AdminCmsModal } from './components/AdminCmsModal';
+import { DeepSeekChatbot } from './components/DeepSeekChatbot';
 import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { updateRouteSeo } from './utils/seoManager';
-
-// Lazy loaded heavy components for maximum initial page load performance
-const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
-const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
-const DeepSeekChatbot = lazy(() => import('./components/DeepSeekChatbot').then(m => ({ default: m.DeepSeekChatbot })));
-
-const SolanaWalletPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.SolanaWalletPage })));
-const SolanaTokenPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.SolanaTokenPage })));
-const MemeCoinPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.MemeCoinPage })));
-const NftPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.NftPage })));
-const SecurityPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.SecurityPage })));
-const OfficialDownloadPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.OfficialDownloadPage })));
-const FaqPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.FaqPage })));
+import { 
+  SolanaWalletPage, 
+  SolanaTokenPage, 
+  MemeCoinPage, 
+  NftPage, 
+  SecurityPage, 
+  OfficialDownloadPage, 
+  FaqPage 
+} from './components/landing/LandingPages';
 
 export default function App() {
   // Current browser route path
@@ -192,100 +191,90 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 relative z-10">
-        <Suspense fallback={
-          <div className="min-h-[50vh] flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin"></div>
+        {currentPath === '/' && (
+          <>
+            <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
+            <AppFeaturesSection />
+            <SecuritySection />
+            <RoadmapSection />
+            <FaqSection />
+            <LatestArticlesSection
+              articles={articles}
+              setArticles={setArticles}
+              onGoToBlog={() => handleNavigate('/blog')}
+            />
+          </>
+        )}
+
+        {currentPath === '/solana-wallet' && (
+          <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/solana-token' && (
+          <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/solana-meme-coin' && (
+          <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/solana-nft' && (
+          <NftPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/security' && (
+          <SecurityPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/download' && (
+          <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/faq' && (
+          <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
+        )}
+
+        {currentPath === '/blog' && (
+          <div className="py-4">
+            <BlogHub
+              articles={articles}
+              setArticles={setArticles}
+              currentUser={currentUser}
+              openAuthModal={openAdminModal}
+            />
           </div>
-        }>
-          {currentPath === '/' && (
-            <>
-              <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
-              <AppFeaturesSection />
-              <SecuritySection />
-              <RoadmapSection />
-              <FaqSection />
-              <LatestArticlesSection
-                articles={articles}
-                setArticles={setArticles}
-                onGoToBlog={() => handleNavigate('/blog')}
-              />
-            </>
-          )}
-
-          {currentPath === '/solana-wallet' && (
-            <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
-          )}
-
-          {currentPath === '/solana-token' && (
-            <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
-          )}
-
-          {currentPath === '/solana-meme-coin' && (
-            <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
-          )}
-
-          {currentPath === '/solana-nft' && (
-            <NftPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
-          )}
-
-          {currentPath === '/security' && (
-            <SecurityPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
-          )}
-
-          {currentPath === '/download' && (
-            <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
-          )}
-
-          {currentPath === '/faq' && (
-            <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />
-          )}
-
-          {currentPath === '/blog' && (
-            <div className="py-4">
-              <BlogHub
-                articles={articles}
-                setArticles={setArticles}
-                currentUser={currentUser}
-                openAuthModal={openAdminModal}
-              />
-            </div>
-          )}
-        </Suspense>
+        )}
       </main>
 
       {/* Admin / User Auth CMS Modal */}
-      <Suspense fallback={null}>
-        {isAdminModalOpen && (
-          <AdminCmsModal
-            isOpen={isAdminModalOpen}
-            onClose={() => setIsAdminModalOpen(false)}
-            articles={articles}
-            setArticles={setArticles}
-            mediaItems={mediaItems}
-            setMediaItems={setMediaItems}
-            testimonials={testimonials}
-            setTestimonials={setTestimonials}
-            currentUser={currentUser}
-            setCurrentUser={setCurrentUser}
-            downloadLinks={downloadLinks}
-            setDownloadLinks={setDownloadLinks}
-            deepseekSettings={deepseekSettings}
-            setDeepseekSettings={setDeepseekSettings}
-            chatbotSettings={chatbotSettings}
-            setChatbotSettings={setChatbotSettings}
-            onGoToBlog={() => handleNavigate('/blog')}
-          />
-        )}
-      </Suspense>
+      {isAdminModalOpen && (
+        <AdminCmsModal
+          isOpen={isAdminModalOpen}
+          onClose={() => setIsAdminModalOpen(false)}
+          articles={articles}
+          setArticles={setArticles}
+          mediaItems={mediaItems}
+          setMediaItems={setMediaItems}
+          testimonials={testimonials}
+          setTestimonials={setTestimonials}
+          currentUser={currentUser}
+          setCurrentUser={setCurrentUser}
+          downloadLinks={downloadLinks}
+          setDownloadLinks={setDownloadLinks}
+          deepseekSettings={deepseekSettings}
+          setDeepseekSettings={setDeepseekSettings}
+          chatbotSettings={chatbotSettings}
+          setChatbotSettings={setChatbotSettings}
+          onGoToBlog={() => handleNavigate('/blog')}
+        />
+      )}
 
       {/* Floating DeepSeek AI Chatbot */}
-      <Suspense fallback={null}>
-        <DeepSeekChatbot
-          chatbotSettings={chatbotSettings}
-          deepseekSettings={deepseekSettings}
-          openAdminModal={openAdminModal}
-        />
-      </Suspense>
+      <DeepSeekChatbot
+        chatbotSettings={chatbotSettings}
+        deepseekSettings={deepseekSettings}
+        openAdminModal={openAdminModal}
+      />
 
       {/* Footer */}
       <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
