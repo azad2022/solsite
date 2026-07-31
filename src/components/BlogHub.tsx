@@ -226,9 +226,15 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
         {/* Featured Hero Article */}
         {featuredArticle && !searchQuery && selectedCategory === 'همه' && !selectedTag && (
-          <div 
-            onClick={() => handleOpenArticle(featuredArticle)}
-            className="glass-card rounded-3xl overflow-hidden border border-slate-700/80 hover:border-sky-500/50 transition-all cursor-pointer grid grid-cols-1 lg:grid-cols-12 gap-0 group glow-sky"
+          <a 
+            href={`/article/${featuredArticle.slug}`}
+            onClick={(e) => {
+              if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                e.preventDefault();
+                handleOpenArticle(featuredArticle);
+              }
+            }}
+            className="glass-card rounded-3xl overflow-hidden border border-slate-700/80 hover:border-sky-500/50 transition-all cursor-pointer grid grid-cols-1 lg:grid-cols-12 gap-0 group glow-sky block text-right decoration-none"
           >
             <div className="lg:col-span-7 relative h-64 lg:h-auto overflow-hidden">
               <img
@@ -291,16 +297,22 @@ export const BlogHub: React.FC<BlogHubProps> = ({
                 </span>
               </div>
             </div>
-          </div>
+          </a>
         )}
 
         {/* Articles Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {gridArticles.map((art) => (
-            <div
+            <a
               key={art.id}
-              onClick={() => handleOpenArticle(art)}
-              className="glass-card rounded-2xl overflow-hidden border border-slate-800 hover:border-slate-700 glass-card-hover cursor-pointer flex flex-col justify-between"
+              href={`/article/${art.slug}`}
+              onClick={(e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                  e.preventDefault();
+                  handleOpenArticle(art);
+                }
+              }}
+              className="glass-card rounded-2xl overflow-hidden border border-slate-800 hover:border-slate-700 glass-card-hover cursor-pointer flex flex-col justify-between block text-right decoration-none group"
             >
               <div>
                 {/* Article Image */}
@@ -364,7 +376,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
                   {art.comments.length} دیدگاه
                 </span>
               </div>
-            </div>
+            </a>
           ))}
         </div>
 

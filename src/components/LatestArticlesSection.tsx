@@ -25,7 +25,7 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
   };
 
   const handleCopyArticleLink = (slug: string) => {
-    const url = `https://solmint.ir/blog/${slug}`;
+    const url = `https://solmint.ir/article/${slug}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
@@ -55,10 +55,16 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
         {/* 3 Featured Articles Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {latestArticles.map((art) => (
-            <div
+            <a
               key={art.id}
-              onClick={() => handleOpenArticle(art)}
-              className="bg-[#101020]/80 border border-white/10 rounded-3xl overflow-hidden hover:border-[#9945FF]/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer backdrop-blur-xl flex flex-col justify-between shadow-xl group"
+              href={`/article/${art.slug}`}
+              onClick={(e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                  e.preventDefault();
+                  handleOpenArticle(art);
+                }
+              }}
+              className="bg-[#101020]/80 border border-white/10 rounded-3xl overflow-hidden hover:border-[#9945FF]/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer backdrop-blur-xl flex flex-col justify-between shadow-xl group block text-right decoration-none"
             >
               <div>
                 {/* Image */}
@@ -92,7 +98,7 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
-                      <Eye className="w-3 h-3 text-slate-400" /> {art.viewsCount}
+                      <Eye className="w-3 h-3 text-[#14F195]" /> {art.viewsCount}
                     </span>
                   </div>
 
@@ -114,7 +120,7 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
                   <ArrowLeft className="w-3.5 h-3.5" />
                 </span>
               </div>
-            </div>
+            </a>
           ))}
         </div>
 
@@ -163,7 +169,7 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
 
               <div className="flex items-center gap-2">
                 <a
-                  href={`https://t.me/share/url?url=https://solmint.ir/blog/${readingArticle.slug}&text=${encodeURIComponent(readingArticle.title)}`}
+                  href={`https://t.me/share/url?url=https://solmint.ir/article/${readingArticle.slug}&text=${encodeURIComponent(readingArticle.title)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-xl bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 text-xs font-semibold flex items-center gap-1.5 border border-sky-500/30 transition-colors"

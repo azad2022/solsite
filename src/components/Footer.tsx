@@ -26,44 +26,49 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
             <span className="font-bold text-white text-base block">دسترسی سریع و صفحات رسمی</span>
             <ul className="flex flex-wrap items-center justify-center md:justify-start gap-4 sm:gap-6 text-slate-200">
               <li>
-                <button onClick={() => handleNav('/')} className="hover:text-[#14F195] transition-colors cursor-pointer">
+                <a href="/" onClick={(e) => { e.preventDefault(); handleNav('/'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none">
                   صفحه اصلی
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => handleNav('/solana-wallet')} className="hover:text-[#14F195] transition-colors cursor-pointer">
+                <a href="/solana-wallet" onClick={(e) => { e.preventDefault(); handleNav('/solana-wallet'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none">
                   کیف پول سولانا
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => handleNav('/solana-token')} className="hover:text-cyan-300 transition-colors cursor-pointer">
+                <a href="/solana-token" onClick={(e) => { e.preventDefault(); handleNav('/solana-token'); }} className="hover:text-cyan-300 transition-colors cursor-pointer text-inherit decoration-none">
                   ساخت توکن SPL
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => handleNav('/solana-meme-coin')} className="hover:text-amber-300 transition-colors cursor-pointer">
+                <a href="/solana-meme-coin" onClick={(e) => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className="hover:text-amber-300 transition-colors cursor-pointer text-inherit decoration-none">
                   ساخت میم کوین
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => handleNav('/security')} className="hover:text-emerald-400 transition-colors cursor-pointer">
+                <a href="/solana-nft" onClick={(e) => { e.preventDefault(); handleNav('/solana-nft'); }} className="hover:text-purple-300 transition-colors cursor-pointer text-inherit decoration-none">
+                  ساخت NFT سولانا
+                </a>
+              </li>
+              <li>
+                <a href="/security" onClick={(e) => { e.preventDefault(); handleNav('/security'); }} className="hover:text-emerald-400 transition-colors cursor-pointer text-inherit decoration-none">
                   معماری امنیتی غیرامانی
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => handleNav('/download')} className="hover:text-[#14F195] transition-colors cursor-pointer">
+                <a href="/download" onClick={(e) => { e.preventDefault(); handleNav('/download'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none">
                   دانلود اپلیکیشن اندروید
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => handleNav('/faq')} className="hover:text-sky-300 transition-colors cursor-pointer">
+                <a href="/faq" onClick={(e) => { e.preventDefault(); handleNav('/faq'); }} className="hover:text-sky-300 transition-colors cursor-pointer text-inherit decoration-none">
                   سوالات متداول
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => handleNav('/blog')} className="hover:text-[#14F195] transition-colors cursor-pointer">
+                <a href="/blog" onClick={(e) => { e.preventDefault(); handleNav('/blog'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none">
                   وبلاگ و آکادمی (solmint.ir)
-                </button>
+                </a>
               </li>
               <li>
                 <button onClick={openAdminModal} className="hover:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1">

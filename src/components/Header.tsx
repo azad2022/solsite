@@ -82,71 +82,78 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Desktop Navigation Links */}
         <nav className="hidden lg:flex items-center gap-1 bg-white/[0.03] p-1 rounded-full border border-white/10">
-          <button
-            onClick={() => handleNav('/')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+          <a
+            href="/"
+            onClick={(e) => { e.preventDefault(); handleNav('/'); }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${
               currentPath === '/' ? 'bg-white/10 text-white font-bold' : 'text-slate-300 hover:text-white'
             }`}
           >
             صفحه اصلی
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNav('/solana-wallet')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+          <a
+            href="/solana-wallet"
+            onClick={(e) => { e.preventDefault(); handleNav('/solana-wallet'); }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${
               currentPath === '/solana-wallet' ? 'bg-[#9945FF]/20 text-[#14F195] font-bold border border-[#9945FF]/40' : 'text-slate-300 hover:text-white'
             }`}
           >
             کیف پول سولانا
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNav('/solana-token')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+          <a
+            href="/solana-token"
+            onClick={(e) => { e.preventDefault(); handleNav('/solana-token'); }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${
               currentPath === '/solana-token' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30' : 'text-slate-300 hover:text-white'
             }`}
           >
             ساخت توکن
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNav('/solana-meme-coin')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+          <a
+            href="/solana-meme-coin"
+            onClick={(e) => { e.preventDefault(); handleNav('/solana-meme-coin'); }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${
               currentPath === '/solana-meme-coin' ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30' : 'text-slate-300 hover:text-white'
             }`}
           >
             میم کوین
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNav('/security')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+          <a
+            href="/security"
+            onClick={(e) => { e.preventDefault(); handleNav('/security'); }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${
               currentPath === '/security' ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30' : 'text-slate-300 hover:text-white'
             }`}
           >
             امنیت
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNav('/faq')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+          <a
+            href="/faq"
+            onClick={(e) => { e.preventDefault(); handleNav('/faq'); }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${
               currentPath === '/faq' ? 'bg-slate-800 text-white font-bold' : 'text-slate-300 hover:text-white'
             }`}
           >
             سوالات متداول
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNav('/blog')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentPath === '/blog'
+          <a
+            href="/blog"
+            onClick={(e) => { e.preventDefault(); handleNav('/blog'); }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 text-inherit decoration-none ${
+              currentPath === '/blog' || currentPath.startsWith('/article/')
                 ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black shadow-md'
                 : 'text-slate-300 hover:text-white'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
             <span>وبلاگ</span>
-          </button>
+          </a>
         </nav>
 
         {/* Header Actions */}
