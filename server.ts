@@ -1,11 +1,15 @@
 import express from "express";
 import path from "path";
+import compression from "compression";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Enable Gzip/Brotli response compression for max PageSpeed scores
+  app.use(compression());
 
   app.use(express.json({ limit: "10mb" }));
 
@@ -377,7 +381,16 @@ Sitemap: https://solmint.ir/sitemap.xml
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: "1y",
+      etag: true,
+      immutable: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, must-revalidate");
+        }
+      }
+    }));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
