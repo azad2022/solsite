@@ -14,3 +14,4 @@ Disallow: /admin
 Disallow: /api/
 
 Sitemap: https://solmint.ir/sitemap.xml
+# LLM Information File: https://solmint.ir/llms.txt
