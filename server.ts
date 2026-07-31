@@ -592,30 +592,26 @@ async function startServer() {
   // Dynamic Sitemap XML Endpoint fetching from REAL article data source
   app.get("/sitemap.xml", async (req, res) => {
     const baseUrl = "https://solmint.ir";
-    const nowIso = new Date().toISOString().split("T")[0];
 
     const staticRoutes = [
-      { path: "", priority: "1.0", changefreq: "daily" },
-      { path: "/solana-wallet", priority: "0.9", changefreq: "weekly" },
-      { path: "/solana-token", priority: "0.9", changefreq: "weekly" },
-      { path: "/solana-meme-coin", priority: "0.9", changefreq: "weekly" },
-      { path: "/solana-nft", priority: "0.8", changefreq: "weekly" },
-      { path: "/security", priority: "0.8", changefreq: "monthly" },
-      { path: "/download", priority: "0.9", changefreq: "weekly" },
-      { path: "/blog", priority: "0.9", changefreq: "daily" },
-      { path: "/faq", priority: "0.7", changefreq: "monthly" }
+      { path: "" },
+      { path: "/solana-wallet" },
+      { path: "/solana-token" },
+      { path: "/solana-meme-coin" },
+      { path: "/solana-nft" },
+      { path: "/security" },
+      { path: "/download" },
+      { path: "/blog" },
+      { path: "/faq" }
     ];
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-    // Static primary pages
+    // Static primary pages (no artificial lastmod, no priority, no changefreq)
     staticRoutes.forEach(r => {
       xml += `  <url>\n`;
       xml += `    <loc>${baseUrl}${r.path}</loc>\n`;
-      xml += `    <lastmod>${nowIso}</lastmod>\n`;
-      xml += `    <changefreq>${r.changefreq}</changefreq>\n`;
-      xml += `    <priority>${r.priority}</priority>\n`;
       xml += `  </url>\n`;
     });
 
@@ -625,9 +621,9 @@ async function startServer() {
       const artLastMod = formatLastModDate(art);
       xml += `  <url>\n`;
       xml += `    <loc>${baseUrl}/article/${art.slug}</loc>\n`;
-      xml += `    <lastmod>${artLastMod}</lastmod>\n`;
-      xml += `    <changefreq>weekly</changefreq>\n`;
-      xml += `    <priority>0.8</priority>\n`;
+      if (artLastMod) {
+        xml += `    <lastmod>${artLastMod}</lastmod>\n`;
+      }
       xml += `  </url>\n`;
     });
 
