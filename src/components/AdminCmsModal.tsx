@@ -16,7 +16,7 @@ import {
   MediaStorageConfig,
   DEFAULT_MEDIA_STORAGE_CONFIG
 } from '../types';
-import { generateArticleWithDeepSeek, testDeepSeekConnection, batchTestDeepSeekKeys, getRandomCoverForCategoryOrTitle } from '../utils/deepseekService';
+import { generateArticleWithDeepSeek, testDeepSeekConnection, batchTestDeepSeekKeys, getRandomCoverForCategoryOrTitle, cleanArticleTitle, cleanArticleContent } from '../utils/deepseekService';
 import { generateSlugFromTitle, DEFAULT_ARTICLE_AUTHOR } from '../utils/slugUtils';
 import {
   fetchCmsSettingsFromApi,
@@ -772,11 +772,11 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     try {
       const generated = await generateArticleWithDeepSeek(topicPrompt || customPromptTopic, deepseekState);
       
-      if (generated.title) setFormTitle(generated.title);
-      if (generated.slug) setFormSlug(generated.slug);
+      if (generated.title) setFormTitle(cleanArticleTitle(generated.title, topicPrompt || customPromptTopic));
+      if (generated.slug) setFormSlug(generateSlugFromTitle(generated.slug || generated.title || ''));
       if (generated.category) setFormCategory(generated.category as any);
-      if (generated.summary) setFormSummary(generated.summary);
-      if (generated.content) setFormContent(generated.content);
+      if (generated.summary) setFormSummary(cleanArticleContent(generated.summary));
+      if (generated.content) setFormContent(cleanArticleContent(generated.content));
       if (generated.coverImage) setFormCoverImage(generated.coverImage);
       if (generated.videoUrl) setFormVideoUrl(generated.videoUrl);
       if (generated.tags) setFormTags(generated.tags.join(', '));
@@ -1009,7 +1009,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     const newHash = await hashPasscode(newPassInput);
     setStoredPassHash(newHash);
     localStorage.setItem('solmint_admin_pass_hash', newHash);
-    setPassChangeSuccess('رمز عبور پنل مدیریت با موفقیت بروزرسانی و رمزنگاری شد.');
+    localStorage.setItem('solmint_admin_passcode', newPassInput);
+    await saveCmsSettingsToApi({ security: { adminPasscode: newPassInput } });
+    setPassChangeSuccess('رمز عبور پنل مدیریت با موفقیت در دیتابیس سرور بروزرسانی و رمزنگاری شد.');
     setCurrentPassInput('');
     setNewPassInput('');
     setConfirmPassInput('');
@@ -1184,7 +1186,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const finalPublishedAt = `${finalJalali} (${finalGregorian})`;
 
       const category = aiArticle.category || 'آموزش سولانا';
-      const title = aiArticle.title || 'مقاله تخصصی سولمینت';
+      const title = cleanArticleTitle(aiArticle.title || 'مقاله تخصصی سولمینت', customTopic);
       const slug = generateSlugFromTitle(aiArticle.slug || title);
       const coverImage = aiArticle.coverImage || getRandomCoverForCategoryOrTitle(category, title);
 
@@ -1194,8 +1196,8 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         slug: slug,
         category: category,
         tags: aiArticle.tags || ['سولانا', 'وب۳', 'کریپتو'],
-        summary: aiArticle.summary || '',
-        content: aiArticle.content || '',
+        summary: cleanArticleContent(aiArticle.summary || ''),
+        content: cleanArticleContent(aiArticle.content || ''),
         coverImage: coverImage,
         videoUrl: aiArticle.videoUrl || undefined,
         author: {

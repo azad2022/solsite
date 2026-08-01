@@ -174,6 +174,45 @@ export async function batchTestDeepSeekKeys(
   return results;
 }
 
+/**
+ * Clean article title from any AI chatter, unwanted prefixes like "مقاله سئو شده" or model names
+ */
+export function cleanArticleTitle(rawTitle: string, fallbackTopic?: string): string {
+  if (!rawTitle) return fallbackTopic || 'مقاله تخصصی سولمینت';
+  
+  let title = rawTitle
+    .replace(/^#+\s*/, '') // Remove heading symbols if any
+    .replace(/^\*+\s*|\*+$/g, '') // Remove markdown bold asterisks
+    .replace(/^["'«»“”]/, '').replace(/["'«»“”]$/, '') // Remove enclosing quotes
+    // Strips prefixes like "مقاله سئو شده", "آموزش سئو شده", "سئو شده", "عنوان:", "پاسخ:", "پیش‌نویس:", "عنوان مقاله:", "SEO Article:"
+    .replace(/^(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|عنوان\s*سئو\s*شده|سئو\s*شده|مقاله\s*سئوشده|آموزش\s*سئوشده|سئوشده|عنوان\s*مقاله|عنوان|پاسخ|پیش‌نویس|مقاله\s*جدید|پیش‌نویس\s*مقاله|SEO\s*Article|Title|Article)\s*[:：\-–—]?\s*/gi, '')
+    // Strips trailing parenthetical tags like "(مقاله سئو شده)", "(سئو شده)", "(آموزش سئو)"
+    .replace(/\s*\(?\s*(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|سئو\s*شده|سئوشده|آموزش\s*سئو)\s*\)?/gi, '')
+    // Strips model names like "DeepSeek", "دیپ سیک", "دیپ‌سیک", "هوش مصنوعی"
+    .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '')
+    // Strips leading/trailing punctuation or colons
+    .replace(/^[:：\-–—\s]+|[:：\-–—\s]+$/g, '')
+    .trim();
+
+  if (!title) title = fallbackTopic || 'مقاله تخصصی سولمینت';
+  return title;
+}
+
+/**
+ * Clean article content from any AI model names or artificial preamble lines
+ */
+export function cleanArticleContent(rawContent: string): string {
+  if (!rawContent) return '';
+  
+  let content = rawContent
+    .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, 'سولمینت')
+    // Strips leading artificial lines like "مقاله سئو شده:" or "این یک مقاله سئو شده است"
+    .replace(/^(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|مقاله\s*سئوشده|این\s*یک\s*مقاله\s*سئو\s*شده\s*است[^\n]*|در\s*ادامه\s*مقاله[^\n]*)\s*[:：\-–—]?\n*/gi, '')
+    .trim();
+
+  return content;
+}
+
 export async function generateArticleWithDeepSeek(
   customTopic: string,
   settings: DeepSeekAiSettings
@@ -261,20 +300,12 @@ export async function generateArticleWithDeepSeek(
           const images = COVER_IMAGES_BY_CATEGORY[category] || COVER_IMAGES_BY_CATEGORY['آموزش سولانا'];
           const coverImage = images[Math.floor(Math.random() * images.length)];
 
-          // Clean title from any unwanted AI prefixes or meta commentary
-          let cleanTitle = parsed.title || topic;
-          cleanTitle = cleanTitle
-            .replace(/^(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|عنوان\s*سئو\s*شده|سئو\s*شده|مقاله\s*سئوشده|آموزش\s*سئوشده)\s*[:：\-–—]?\s*/gi, '')
-            .replace(/\s*\(مقاله\s*سئو\s*شده\)/gi, '')
-            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '')
+          // Thoroughly clean title and content from any unwanted AI chatter, prefixes or "مقاله سئو شده"
+          let cleanTitle = cleanArticleTitle(parsed.title || topic, topic);
+          let cleanContent = cleanArticleContent(parsed.content || '');
+          let cleanSummary = cleanArticleContent(parsed.summary || '')
+            .replace(/^(خلاصه|خلاصه\s*مقاله)\s*[:：\-–—]?\s*/gi, '')
             .trim();
-
-          // Clean content from any DeepSeek or AI model references
-          let cleanContent = (parsed.content || '')
-            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, 'سولمینت');
-
-          let cleanSummary = (parsed.summary || '')
-            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, 'سولمینت');
 
           const cleanSlug = generateSlugFromTitle(cleanTitle);
 

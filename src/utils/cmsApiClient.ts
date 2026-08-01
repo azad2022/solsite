@@ -10,13 +10,29 @@ export interface CmsSettings {
 }
 
 /**
+ * Helper to safely parse JSON from a fetch Response without throwing 'Unexpected end of JSON input'
+ */
+async function safeFetchJson<T = any>(res: Response): Promise<{ ok: boolean; status: number; data: T | null }> {
+  try {
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return { ok: res.ok, status: res.status, data: null };
+    }
+    const parsed = JSON.parse(text) as T;
+    return { ok: res.ok, status: res.status, data: parsed };
+  } catch (err) {
+    return { ok: res.ok, status: res.status, data: null };
+  }
+}
+
+/**
  * Fetch all CMS Settings from real backend database
  */
 export async function fetchCmsSettingsFromApi(): Promise<CmsSettings | null> {
   try {
     const res = await fetch('/api/cms/settings');
-    if (!res.ok) return null;
-    const data = await res.json();
+    const { ok, data } = await safeFetchJson(res);
+    if (!ok || !data) return null;
     return data.settings || null;
   } catch (err) {
     console.warn('Error fetching CMS settings from API:', err);
@@ -56,8 +72,16 @@ export async function registerUserApi(payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    return data;
+    const { ok, data, status } = await safeFetchJson(res);
+    if (data) {
+      return data;
+    }
+    return { 
+      success: false, 
+      message: ok 
+        ? 'پاسخ معتبری از سرور دریافت نشد.' 
+        : `خطا در برقراری ارتباط با سرور (کد status: ${status})` 
+    };
   } catch (err: any) {
     return { success: false, message: `خطا در برقراری ارتباط با سرور: ${err.message || err}` };
   }
@@ -77,8 +101,16 @@ export async function loginUserApi(payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    return data;
+    const { ok, data, status } = await safeFetchJson(res);
+    if (data) {
+      return data;
+    }
+    return { 
+      success: false, 
+      message: ok 
+        ? 'پاسخ معتبری از سرور دریافت نشد.' 
+        : `خطا در اتصال به سرور (کد status: ${status})` 
+    };
   } catch (err: any) {
     return { success: false, message: `خطا در اتصال به سرور: ${err.message || err}` };
   }
@@ -90,8 +122,8 @@ export async function loginUserApi(payload: {
 export async function fetchUsersApi(): Promise<UserAccount[]> {
   try {
     const res = await fetch('/api/users');
-    if (!res.ok) return [];
-    const data = await res.json();
+    const { ok, data } = await safeFetchJson(res);
+    if (!ok || !data) return [];
     return data.users || [];
   } catch (err) {
     console.warn('Error fetching users:', err);
@@ -153,8 +185,11 @@ export async function addCommentApi(payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    return data;
+    const { ok, data, status } = await safeFetchJson(res);
+    if (data) {
+      return data;
+    }
+    return { success: false, message: `خطا در ثبت دیدگاه (کد status: ${status})` };
   } catch (err: any) {
     return { success: false, message: err.message || 'خطا در ثبت دیدگاه.' };
   }
@@ -183,8 +218,8 @@ export async function deleteCommentApi(commentId: string): Promise<boolean> {
 export async function fetchArticlesFromApi(): Promise<Article[] | null> {
   try {
     const res = await fetch('/api/articles');
-    if (!res.ok) return null;
-    const data = await res.json();
+    const { ok, data } = await safeFetchJson(res);
+    if (!ok || !data) return null;
     return data.articles || null;
   } catch (err) {
     console.warn('Error fetching articles from API:', err);
