@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Article, ArticleComment, UserAccount } from '../types';
 import { sanitizeText, safeSetLocalStorage } from '../utils/security';
+import { addCommentApi } from '../utils/cmsApiClient';
 import { 
   Search, 
   BookOpen, 
@@ -105,7 +106,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
     }
   };
 
-  const handleAddComment = (e: React.FormEvent) => {
+  const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
       openAuthModal();
@@ -114,9 +115,19 @@ export const BlogHub: React.FC<BlogHubProps> = ({
     const sanitizedText = sanitizeText(commentText);
     if (!sanitizedText || !readingArticle) return;
 
-    const newComment: ArticleComment = {
+    const authorName = sanitizeText(currentUser.fullName || currentUser.username);
+
+    // Call real backend server API
+    const result = await addCommentApi({
+      articleId: readingArticle.id,
+      userName: authorName,
+      userId: currentUser.id,
+      text: sanitizedText
+    });
+
+    const newComment: ArticleComment = result.comment || {
       id: 'comment-' + Date.now(),
-      userName: sanitizeText(currentUser.fullName || currentUser.username),
+      userName: authorName,
       userId: currentUser.id,
       text: sanitizedText,
       createdAt: 'همین الان'
@@ -126,7 +137,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
       if (a.id === readingArticle.id) {
         return {
           ...a,
-          comments: [newComment, ...a.comments]
+          comments: [newComment, ...(a.comments || [])]
         };
       }
       return a;
@@ -134,7 +145,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
     setArticles(updatedArticles);
     safeSetLocalStorage('solmint_articles', updatedArticles);
-    setReadingArticle(prev => prev ? { ...prev, comments: [newComment, ...prev.comments] } : null);
+    setReadingArticle(prev => prev ? { ...prev, comments: [newComment, ...(prev.comments || [])] } : null);
     setCommentText('');
   };
 

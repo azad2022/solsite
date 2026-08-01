@@ -13,6 +13,7 @@ import { LatestArticlesSection } from './components/LatestArticlesSection';
 import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { updateRouteSeo } from './utils/seoManager';
+import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 
 // Lazy-loaded heavy components & sub-routes to minimize initial JavaScript bundle size
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
@@ -151,15 +152,22 @@ export default function App() {
     localStorage.removeItem('solmint_admin_session');
   };
 
-  // Fetch articles from active database on mount
+  // Fetch articles & settings from active server database on mount
   useEffect(() => {
-    async function loadDatabaseArticles() {
+    async function loadInitialServerData() {
       const dbArticles = await fetchArticlesFromActiveDatabase();
       if (dbArticles && dbArticles.length > 0) {
         setArticles(dbArticles);
       }
+
+      const settings = await fetchCmsSettingsFromApi();
+      if (settings) {
+        if (settings.deepseek) setDeepseekSettings(settings.deepseek as any);
+        if (settings.chatbot) setChatbotSettings(settings.chatbot as any);
+        if (settings.downloads) setDownloadLinks(settings.downloads as any);
+      }
     }
-    loadDatabaseArticles();
+    loadInitialServerData();
   }, []);
 
   // Live status ticker auto-refresh

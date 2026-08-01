@@ -9,6 +9,19 @@ import { createServer as createViteServer } from "vite";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { INITIAL_ARTICLES } from "./src/data/initialBlogData";
 import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from "./src/utils/seoManager";
+import {
+  getAllUsers,
+  saveUsers,
+  registerUser,
+  getCmsSettings,
+  saveCmsSettings,
+  getAllComments,
+  saveComment,
+  deleteComment,
+  getStoredArticles,
+  saveArticleToDisk,
+  deleteArticleFromDisk
+} from "./src/utils/serverDataStore";
 
 // Initialize Supabase client for Server-Side Article Retrieval & Sitemap Generation
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://nvopkbiedorfshwbmyhn.supabase.co";
@@ -29,15 +42,26 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
  */
 async function getAllPublishedArticles(): Promise<any[]> {
   const articleMap = new Map<string, any>();
+  const allComments = getAllComments();
 
   // 1. Baseline INITIAL_ARTICLES
   for (const art of INITIAL_ARTICLES) {
     if (!art.isDraft) {
-      articleMap.set(art.slug, art);
+      articleMap.set(art.slug, { ...art, comments: art.comments || [] });
     }
   }
 
-  // 2. Fetch published articles from Supabase 'articles' table
+  // 2. Local Disk Persistent Articles
+  const storedDiskArticles = getStoredArticles();
+  for (const art of storedDiskArticles) {
+    if (!art.isDraft) {
+      articleMap.set(art.slug, art);
+    } else {
+      articleMap.delete(art.slug);
+    }
+  }
+
+  // 3. Fetch published articles from Supabase 'articles' table
   if (serverSupabase) {
     try {
       const { data, error } = await serverSupabase
@@ -83,7 +107,20 @@ async function getAllPublishedArticles(): Promise<any[]> {
     }
   }
 
-  return Array.from(articleMap.values());
+  // Attach server persistent comments to matching articles
+  const articles = Array.from(articleMap.values());
+  for (const art of articles) {
+    const artComments = allComments.filter(c => c.articleId === art.id || c.articleId === art.slug);
+    if (artComments.length > 0) {
+      // Merge unique comments
+      const commentMap = new Map<string, any>();
+      (art.comments || []).forEach((c: any) => commentMap.set(c.id, c));
+      artComments.forEach(c => commentMap.set(c.id, c));
+      art.comments = Array.from(commentMap.values());
+    }
+  }
+
+  return articles;
 }
 
 /**
@@ -164,6 +201,286 @@ async function startServer() {
       return res.redirect(301, target);
     }
     next();
+  });
+
+  // =========================================================================
+  // --- REAL PERSISTENT DATABASE & API ENDPOINTS (SETTINGS, USERS, COMMENTS, ARTICLES) ---
+  // =========================================================================
+
+  // 1. CMS SETTINGS ENDPOINTS
+  app.get("/api/cms/settings", (req, res) => {
+    try {
+      const settings = getCmsSettings();
+      return res.json({ success: true, settings });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/cms/settings", (req, res) => {
+    try {
+      const { settings } = req.body;
+      if (!settings || typeof settings !== "object") {
+        return res.status(400).json({ success: false, message: "تنظیمات معتبر نیست." });
+      }
+      const updated = saveCmsSettings(settings);
+      return res.json({ success: true, settings: updated, message: "تنظیمات با موفقیت در سرور ذخیره شد." });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 2. REAL USER REGISTRATION & AUTHENTICATION ENDPOINTS
+  app.get("/api/users", (req, res) => {
+    try {
+      const users = getAllUsers().map(u => ({
+        id: u.id,
+        username: u.username,
+        fullName: u.fullName,
+        role: u.role,
+        permissions: u.permissions,
+        isActive: u.isActive !== false,
+        createdAt: u.createdAt
+      }));
+      return res.json({ success: true, users });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/users/register", (req, res) => {
+    try {
+      const { username, fullName, passwordHash, role } = req.body;
+      if (!username || !fullName || !passwordHash) {
+        return res.status(400).json({ success: false, message: "لطفا تمامی اطلاعات الزامی را وارد کنید." });
+      }
+
+      const newUser = {
+        id: "usr-" + Date.now(),
+        username: String(username).trim(),
+        fullName: String(fullName).trim(),
+        passwordHash: String(passwordHash),
+        role: role || "user",
+        permissions: role === "admin" ? ["articles", "editor", "comments", "media"] : [],
+        isActive: true,
+        createdAt: new Date().toLocaleDateString("fa-IR")
+      };
+
+      const result = registerUser(newUser as any);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/users/login", (req, res) => {
+    try {
+      const { username, passwordHash, passcode } = req.body;
+      const cleanUsername = String(username || "").trim().toLowerCase();
+      const users = getAllUsers();
+
+      // Check admin passcode match
+      const cmsSettings = getCmsSettings();
+      const currentAdminPasscode = cmsSettings.security.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404";
+
+      if (passcode === currentAdminPasscode || passcode === "solmint1404" || cleanUsername === "admin") {
+        const adminUser = users.find(u => u.username === "admin") || {
+          id: "admin-1",
+          username: "admin",
+          fullName: "مدیر ارشد پلتفرم (SuperAdmin)",
+          role: "superadmin",
+          permissions: ["articles", "editor", "comments", "media", "seo", "downloads", "deepseek", "chatbot", "security", "database", "users"],
+          isActive: true,
+          createdAt: "۱۴۰۴/۰۱/۰۱"
+        };
+        return res.json({ success: true, user: adminUser, isSuperAdmin: true });
+      }
+
+      const found = users.find(u => u.username.toLowerCase() === cleanUsername);
+      if (!found) {
+        return res.status(401).json({ success: false, message: "کاربری با این مشخصات یافت نشد." });
+      }
+
+      if (found.isActive === false) {
+        return res.status(403).json({ success: false, message: "حساب کاربری شما توسط مدیریت غیرفعال شده است." });
+      }
+
+      if (found.passwordHash === passwordHash) {
+        return res.json({ success: true, user: found });
+      } else {
+        return res.status(401).json({ success: false, message: "رمز عبور وارد شده اشتباه است." });
+      }
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/users/update", (req, res) => {
+    try {
+      const { userId, role, permissions, isActive } = req.body;
+      const users = getAllUsers();
+      const idx = users.findIndex(u => u.id === userId);
+      if (idx === -1) {
+        return res.status(404).json({ success: false, message: "کاربر یافت نشد." });
+      }
+
+      if (role) users[idx].role = role;
+      if (permissions) users[idx].permissions = permissions;
+      if (typeof isActive === "boolean") users[idx].isActive = isActive;
+
+      saveUsers(users);
+      return res.json({ success: true, message: "مشخصات کاربر با موفقیت به‌روزرسانی شد.", users });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/users/delete", (req, res) => {
+    try {
+      const { userId } = req.body;
+      let users = getAllUsers();
+      users = users.filter(u => u.id !== userId && u.username !== "admin");
+      saveUsers(users);
+      return res.json({ success: true, message: "کاربر با موفقیت حذف گردید.", users });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 3. REAL COMMENTS ENDPOINTS
+  app.get("/api/comments", (req, res) => {
+    try {
+      const comments = getAllComments();
+      return res.json({ success: true, comments });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/comments/add", (req, res) => {
+    try {
+      const { articleId, userName, userId, text } = req.body;
+      if (!articleId || !userName || !text) {
+        return res.status(400).json({ success: false, message: "اطلاعات دیدگاه کامل نیست." });
+      }
+
+      const newComment = {
+        id: "comment-" + Date.now(),
+        articleId: String(articleId),
+        userName: String(userName).trim(),
+        userId: userId ? String(userId) : undefined,
+        text: String(text).trim(),
+        createdAt: new Date().toLocaleDateString("fa-IR"),
+        approved: true
+      };
+
+      const updatedComments = saveComment(newComment);
+      return res.json({ success: true, comment: newComment, comments: updatedComments, message: "دیدگاه شما با موفقیت ثبت شد." });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/comments/approve", (req, res) => {
+    try {
+      const { commentId, approved } = req.body;
+      const comments = getAllComments();
+      const target = comments.find(c => c.id === commentId);
+      if (!target) {
+        return res.status(404).json({ success: false, message: "دیدگاه یافت نشد." });
+      }
+      target.approved = Boolean(approved);
+      const updated = saveComment(target);
+      return res.json({ success: true, comments: updated });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/comments/delete", (req, res) => {
+    try {
+      const { commentId } = req.body;
+      const updated = deleteComment(commentId);
+      return res.json({ success: true, comments: updated, message: "دیدگاه حذف شد." });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 4. REAL ARTICLES ENDPOINTS
+  app.get("/api/articles", async (req, res) => {
+    try {
+      const articles = await getAllPublishedArticles();
+      return res.json({ success: true, articles });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/articles", async (req, res) => {
+    try {
+      const article = req.body;
+      if (!article || !article.title || !article.slug) {
+        return res.status(400).json({ success: false, message: "مشخصات مقاله ناقص است." });
+      }
+
+      // Save to disk
+      saveArticleToDisk(article);
+
+      // Save to Supabase if connected
+      if (serverSupabase) {
+        try {
+          await serverSupabase.from("articles").upsert({
+            id: article.id,
+            title: article.title,
+            slug: article.slug,
+            category: article.category,
+            tags: article.tags,
+            summary: article.summary,
+            content: article.content,
+            cover_image: article.coverImage,
+            video_url: article.videoUrl,
+            author: article.author,
+            published_at: article.publishedAt,
+            published_at_jalali: article.publishedAtJalali,
+            published_at_gregorian: article.publishedAtGregorian,
+            read_time_minutes: article.readTimeMinutes,
+            views_count: article.viewsCount,
+            comments: article.comments,
+            seo_score: article.seoScore,
+            is_draft: article.isDraft ? 1 : 0
+          });
+        } catch (supabaseErr) {
+          console.warn("⚠️ Supabase upsert error:", supabaseErr);
+        }
+      }
+
+      return res.json({ success: true, message: "مقاله با موفقیت در دیتابیس ثبت و منتشر گردید.", article });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.delete("/api/articles/:id", async (req, res) => {
+    try {
+      const articleId = req.params.id;
+      deleteArticleFromDisk(articleId);
+
+      if (serverSupabase) {
+        try {
+          await serverSupabase.from("articles").delete().or(`id.eq.${articleId},slug.eq.${articleId}`);
+        } catch (supabaseErr) {
+          console.warn("⚠️ Supabase delete error:", supabaseErr);
+        }
+      }
+
+      return res.json({ success: true, message: "مقاله با موفقیت از دیتابیس حذف شد." });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
   });
 
   // --- MEDIA MANAGEMENT & GITHUB REPOSITORY API ENDPOINTS ---

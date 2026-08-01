@@ -17,6 +17,20 @@ import {
   DEFAULT_MEDIA_STORAGE_CONFIG
 } from '../types';
 import { generateArticleWithDeepSeek, testDeepSeekConnection, batchTestDeepSeekKeys, getRandomCoverForCategoryOrTitle } from '../utils/deepseekService';
+import { generateSlugFromTitle, DEFAULT_ARTICLE_AUTHOR } from '../utils/slugUtils';
+import {
+  fetchCmsSettingsFromApi,
+  saveCmsSettingsToApi,
+  registerUserApi,
+  loginUserApi,
+  fetchUsersApi,
+  updateUserApi,
+  deleteUserApi,
+  deleteCommentApi,
+  saveArticleToApi,
+  deleteArticleFromApi,
+  fetchArticlesFromApi
+} from '../utils/cmsApiClient';
 import { 
   saveArticleToActiveDatabase, 
   deleteArticleFromActiveDatabase, 
@@ -275,7 +289,42 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
   const [formCoverImageAssetId, setFormCoverImageAssetId] = useState<string>('');
 
-  // Effect to load media assets & config and validate server session when modal opens
+  // Effect to sync users, settings, and articles from server database when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchUsersApi().then(serverUsers => {
+        if (serverUsers && serverUsers.length > 0) {
+          setUsers(serverUsers);
+        }
+      });
+      fetchCmsSettingsFromApi().then(settings => {
+        if (settings) {
+          if (settings.deepseek && setDeepseekSettings) {
+            setDeepseekState(settings.deepseek as any);
+            setDeepseekSettings(settings.deepseek as any);
+          }
+          if (settings.chatbot && setChatbotSettings) {
+            setChatbotState(settings.chatbot as any);
+            setChatbotSettings(settings.chatbot as any);
+          }
+          if (settings.downloads && setDownloadLinks) {
+            setDownloadLinks(settings.downloads as any);
+            setApkUrlInput(settings.downloads.apkUrl || '');
+            setTelegramUrlInput((settings.downloads as any).telegramUrl || '');
+            setGooglePlayUrlInput((settings.downloads as any).googlePlayUrl || '');
+            setWebAppUrlInput(settings.downloads.webAppUrl || '');
+            setApkVersionInput((settings.downloads as any).apkVersion || 'v2.4.0');
+            setDownloadNoticeInput((settings.downloads as any).downloadNotice || '');
+          }
+        }
+      });
+      fetchArticlesFromApi().then(arts => {
+        if (arts && arts.length > 0) {
+          setArticles(arts);
+        }
+      });
+    }
+  }, [isOpen]);
   useEffect(() => {
     if (isOpen && isAuthenticated) {
       // Validate server session auth
@@ -473,13 +522,14 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     }
   }, [chatbotSettings, isOpen]);
 
-  const handleSaveChatbotSettings = (e: React.FormEvent) => {
+  const handleSaveChatbotSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (setChatbotSettings) {
       setChatbotSettings(chatbotState);
     }
     localStorage.setItem('solmint_chatbot_settings', JSON.stringify(chatbotState));
-    setChatbotSaveNotice('تنظیمات چت‌بات آنلاین هوشمند با موفقیت ذخیره شد.');
+    await saveCmsSettingsToApi({ chatbot: chatbotState as any });
+    setChatbotSaveNotice('تنظیمات چت‌بات آنلاین هوشمند با موفقیت در دیتابیس سرور ذخیره شد.');
     setTimeout(() => setChatbotSaveNotice(''), 4000);
   };
 
@@ -579,7 +629,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     }
   }, [downloadLinks, isOpen]);
 
-  const handleSaveDownloadLinks = (e: React.FormEvent) => {
+  const handleSaveDownloadLinks = async (e: React.FormEvent) => {
     e.preventDefault();
     const updatedLinks: DownloadLinks = {
       apkUrl: apkUrlInput.trim(),
@@ -593,7 +643,8 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       setDownloadLinks(updatedLinks);
     }
     localStorage.setItem('solmint_download_links', JSON.stringify(updatedLinks));
-    setDownloadSaveSuccess('لینک‌های دانلود اپلیکیشن با موفقیت بروزرسانی و ذخیره شدند.');
+    await saveCmsSettingsToApi({ downloads: updatedLinks as any });
+    setDownloadSaveSuccess('لینک‌های دانلود اپلیکیشن با موفقیت در دیتابیس سرور بروزرسانی و ذخیره شدند.');
     setTimeout(() => setDownloadSaveSuccess(''), 4000);
   };
 
@@ -649,13 +700,14 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     }
   }, [deepseekSettings, isOpen]);
 
-  const handleSaveDeepseekSettings = (e?: React.FormEvent) => {
+  const handleSaveDeepseekSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (setDeepseekSettings) {
       setDeepseekSettings(deepseekState);
     }
     safeSetLocalStorage('solmint_deepseek_settings', deepseekState);
-    setDeepseekSaveNotice('تنظیمات هوش مصنوعی دیپ‌سیک (DeepSeek) با موفقیت ذخیره گردید.');
+    await saveCmsSettingsToApi({ deepseek: deepseekState as any });
+    setDeepseekSaveNotice('تنظیمات هوش مصنوعی و کلیدهای API با موفقیت در دیتابیس سرور ذخیره شد.');
     setTimeout(() => setDeepseekSaveNotice(''), 4000);
   };
 
@@ -827,57 +879,34 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
 
     const inputHash = await hashPasscode(pass || identifier);
 
-    // 1. Check if Admin Passcode
-    if (inputHash === storedPassHash || pass === 'solmint1404' || identifier === 'solmint1404') {
-      const adminUser: UserAccount = {
-        id: 'admin-1',
-        username: 'admin',
-        fullName: 'مدیر ارشد پلتفرم (SuperAdmin)',
-        passwordHash: storedPassHash,
-        role: 'superadmin',
-        permissions: ALL_ADMIN_PERMISSIONS,
-        isActive: true,
-        createdAt: '۱۴۰۴/۰۱/۰۱'
-      };
-      setIsAuthenticated(true);
-      setCurrentUser(adminUser);
-      localStorage.setItem('solmint_current_user', JSON.stringify(adminUser));
-      localStorage.setItem('solmint_admin_passcode', pass || 'solmint1404');
-      const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
-      localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
+    // Call real backend authentication API
+    const authRes = await loginUserApi({
+      username: identifier,
+      passwordHash: inputHash,
+      passcode: pass
+    });
+
+    if (authRes.success && authRes.user) {
+      const user = authRes.user;
+      const isTeamMember = user.role === 'admin' || user.role === 'superadmin' || user.role === 'editor' || user.role === 'writer' || (user.permissions && user.permissions.length > 0);
+
+      if (isTeamMember) {
+        setIsAuthenticated(true);
+        localStorage.setItem('solmint_admin_passcode', pass || 'solmint1404');
+        const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
+        localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
+
+        const userPerms = user.permissions || (user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
+        if (!userPerms.includes(adminTab)) {
+          setAdminTab(userPerms[0] || 'articles');
+        }
+      }
+
+      setCurrentUser(user);
+      localStorage.setItem('solmint_current_user', JSON.stringify(user));
       setAuthError('');
       setFailedAttempts(0);
       return;
-    }
-
-    // 2. Check registered users list
-    const foundUser = users.find(u => u.username.toLowerCase() === identifier.toLowerCase());
-    if (foundUser) {
-      if (foundUser.isActive === false) {
-        setAuthError('حساب کاربری شما توسط مدیر سیستم غیرفعال شده است.');
-        return;
-      }
-      if (foundUser.passwordHash === inputHash || pass === 'solmint1404') {
-        const isTeamMember = foundUser.role === 'admin' || foundUser.role === 'superadmin' || foundUser.role === 'editor' || foundUser.role === 'writer' || (foundUser.permissions && foundUser.permissions.length > 0);
-        
-        if (isTeamMember) {
-          setIsAuthenticated(true);
-          localStorage.setItem('solmint_admin_passcode', pass || 'solmint1404');
-          const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
-          localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
-
-          const userPerms = foundUser.permissions || (foundUser.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
-          if (!userPerms.includes(adminTab)) {
-            setAdminTab(userPerms[0] || 'articles');
-          }
-        }
-
-        setCurrentUser(foundUser);
-        localStorage.setItem('solmint_current_user', JSON.stringify(foundUser));
-        setAuthError('');
-        setFailedAttempts(0);
-        return;
-      }
     }
 
     // Failed attempt
@@ -887,7 +916,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       setLockoutTimer(60);
       setAuthError('تعداد تلاش‌های ناموفق بیش از حد مجاز است. سیستم برای ۶۰ ثانیه قفل شد.');
     } else {
-      setAuthError(`اطلاعات ورود نادرست است. (${3 - attempts} تلاش باقی مانده)`);
+      setAuthError(authRes.message || `اطلاعات ورود نادرست است. (${3 - attempts} تلاش باقی مانده)`);
     }
   };
 
@@ -919,22 +948,22 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       return;
     }
 
-    const existing = users.find(u => u.username.toLowerCase() === cleanUsername.toLowerCase());
-    if (existing) {
-      alert('کاربری با این نام کاربری یا ایمیل قبلاً ثبت‌نام کرده است.');
-      return;
-    }
-
     const passHash = await hashPasscode(regPassword.trim());
-    const newUser: UserAccount = {
-      id: 'usr-' + Date.now(),
+
+    // Register user in real server database
+    const regRes = await registerUserApi({
       username: cleanUsername,
       fullName: cleanFullName,
       passwordHash: passHash,
-      role: 'user',
-      createdAt: new Date().toLocaleDateString('fa-IR')
-    };
+      role: 'user'
+    });
 
+    if (!regRes.success || !regRes.user) {
+      alert(regRes.message || 'خطا در ثبت‌نام کاربر.');
+      return;
+    }
+
+    const newUser = regRes.user;
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     safeSetLocalStorage('solmint_users', updatedUsers);
@@ -948,6 +977,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     setRegUsername('');
     setRegPassword('');
     setRegConfirmPassword('');
+    alert('ثبت‌نام حساب کاربری شما با موفقیت در دیتابیس سرور انجام شد.');
   };
 
   const handleLogout = () => {
@@ -1076,6 +1106,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     // Automatically assign HD cover image if cover image URL is empty
     const finalCoverImage = formCoverImage.trim() || getRandomCoverForCategoryOrTitle(formCategory, formTitle);
 
+    const computedSlug = generateSlugFromTitle(formSlug || formTitle);
     let savedArticle: Article | null = null;
     let updatedList: Article[];
     if (editingArticleId) {
@@ -1084,7 +1115,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
           savedArticle = {
             ...a,
             title: formTitle,
-            slug: formSlug || formTitle.toLowerCase().replace(/\s+/g, '-'),
+            slug: computedSlug,
             category: formCategory,
             tags: tagArray,
             summary: formSummary,
@@ -1105,7 +1136,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const newArt: Article = {
         id: 'art-' + Date.now(),
         title: formTitle,
-        slug: formSlug || 'post-' + Date.now(),
+        slug: computedSlug,
         category: formCategory,
         tags: tagArray,
         summary: formSummary,
@@ -1113,8 +1144,8 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         coverImage: finalCoverImage,
         videoUrl: formVideoUrl || undefined,
         author: {
-          name: 'مدیر پلتفرم سولمینت',
-          role: 'CMS Admin',
+          name: currentUser?.fullName || 'تیم تحریریه سول‌مینت',
+          role: 'تحلیل‌گر ارشد وب۳ و کریپتو',
           avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
         },
         publishedAt: finalPublishedAt,
@@ -1153,13 +1184,14 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const finalPublishedAt = `${finalJalali} (${finalGregorian})`;
 
       const category = aiArticle.category || 'آموزش سولانا';
-      const title = aiArticle.title || 'مقاله هوشمند سولمینت';
+      const title = aiArticle.title || 'مقاله تخصصی سولمینت';
+      const slug = generateSlugFromTitle(aiArticle.slug || title);
       const coverImage = aiArticle.coverImage || getRandomCoverForCategoryOrTitle(category, title);
 
       const fullArticle: Article = {
         id: 'art-' + Date.now(),
         title: title,
-        slug: aiArticle.slug || `article-${Date.now()}`,
+        slug: slug,
         category: category,
         tags: aiArticle.tags || ['سولانا', 'وب۳', 'کریپتو'],
         summary: aiArticle.summary || '',
@@ -1167,9 +1199,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         coverImage: coverImage,
         videoUrl: aiArticle.videoUrl || undefined,
         author: {
-          name: 'دستیار هوشمند DeepSeek AI',
-          role: 'نویسنده و تحلیل‌گر ارشد سولمینت',
-          avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=200&q=80'
+          name: currentUser?.fullName || 'تیم تحریریه سول‌مینت',
+          role: 'تحلیل‌گر ارشد وب۳ و کریپتو',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
         },
         publishedAt: finalPublishedAt,
         publishedAtJalali: finalJalali,
@@ -1188,7 +1220,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       // Persist directly into connected database (Supabase / Cloudflare D1)
       await saveArticleToActiveDatabase(fullArticle);
 
-      setAutoPublishSuccess(`مقاله "${fullArticle.title}" با موفقیت توسط DeepSeek خلق شد و به صورت ۱۰۰٪ اتوماتیک همراه با کاور HD در دیتابیس آنلاین ثبت و منتشر گردید!`);
+      setAutoPublishSuccess(`مقاله "${fullArticle.title}" با موفقیت نگارش گردید و با لینک اختصاصی "/article/${fullArticle.slug}" به صورت رسمی منتشر شد!`);
     } catch (err: any) {
       alert(`خطا در تولید و انتشار مقاله: ${err.message || err}`);
     } finally {
@@ -1234,13 +1266,26 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       });
       setUsers(updated);
       safeSetLocalStorage('solmint_users', updated);
+      updateUserApi({
+        userId: editingUserId,
+        role: memberRole,
+        permissions: memberPermissions,
+        isActive: memberIsActive
+      });
       setUserManagementNotice(`اطلاعات و دسترسی‌های کاربر "${cleanName}" با موفقیت به‌روزرسانی شد.`);
     } else {
       if (users.some(u => u.username.toLowerCase() === cleanUser.toLowerCase())) {
         alert('کاربری با این نام کاربری قبلا ثبت شده است.');
         return;
       }
-      const newUser: UserAccount = {
+      const regRes = await registerUserApi({
+        username: cleanUser,
+        fullName: cleanName,
+        passwordHash: passHash,
+        role: memberRole
+      });
+
+      const newUser: UserAccount = regRes.user || {
         id: 'usr-' + Date.now(),
         fullName: cleanName,
         username: cleanUser,
@@ -1253,7 +1298,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const updated = [newUser, ...users];
       setUsers(updated);
       safeSetLocalStorage('solmint_users', updated);
-      setUserManagementNotice(`نویسنده/همکار جدید "${cleanName}" با موفقیت اضافه شد.`);
+      setUserManagementNotice(`نویسنده/همکار جدید "${cleanName}" با موفقیت در دیتابیس سرور اضافه شد.`);
     }
 
     setEditingUserId(null);
@@ -1277,14 +1322,17 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   };
 
   const handleToggleUserActive = (userId: string) => {
+    let nextState = false;
     const updated = users.map(u => {
       if (u.id === userId) {
-        return { ...u, isActive: !(u.isActive !== false) };
+        nextState = !(u.isActive !== false);
+        return { ...u, isActive: nextState };
       }
       return u;
     });
     setUsers(updated);
     safeSetLocalStorage('solmint_users', updated);
+    updateUserApi({ userId, isActive: nextState });
   };
 
   const handleDeleteUser = (userId: string) => {
@@ -1292,6 +1340,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const updated = users.filter(u => u.id !== userId);
       setUsers(updated);
       safeSetLocalStorage('solmint_users', updated);
+      deleteUserApi(userId);
     }
   };
 
@@ -1326,6 +1375,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     });
     setArticles(updated);
     localStorage.setItem('solmint_articles', JSON.stringify(updated));
+    deleteCommentApi(commentId);
   };
 
   const handleDeleteTestimonial = (testimonialId: string) => {
@@ -1420,7 +1470,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     <priority>0.9</priority>
   </url>
 ${articles.map(a => `  <url>
-    <loc>https://solmint.ir/blog/${a.slug}</loc>
+    <loc>https://solmint.ir/article/${a.slug}</loc>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
     <priority>0.8</priority>
   </url>`).join('\n')}
@@ -1983,7 +2033,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                           </div>
 
                           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
-                            <span className="text-sky-400 font-mono">/blog/{art.slug}</span>
+                            <span className="text-sky-400 font-mono">/article/{art.slug}</span>
                             <span>•</span>
                             <span className="font-mono text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60 flex items-center gap-1.5">
                               <Calendar className="w-3 h-3 text-sky-400" />
@@ -2154,19 +2204,32 @@ Sitemap: https://solmint.ir/sitemap.xml
                       type="text"
                       required
                       value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
+                      onChange={(e) => {
+                        const newTitle = e.target.value;
+                        setFormTitle(newTitle);
+                        setFormSlug(generateSlugFromTitle(newTitle));
+                      }}
                       placeholder="عنوان مقاله جذاب..."
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">نامک سئو (Slug):</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-slate-300 font-semibold">نامک سئو و لینک مقاله (Slug):</label>
+                      <button
+                        type="button"
+                        onClick={() => setFormSlug(generateSlugFromTitle(formTitle))}
+                        className="text-[11px] font-bold text-emerald-400 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        ⚡ تولید اتوماتیک URL
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={formSlug}
                       onChange={(e) => setFormSlug(e.target.value)}
-                      placeholder="مثال: solana-token-creation-guide"
+                      placeholder="مثال: custom-solana-memecoin-guide"
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200 font-mono dir-ltr"
                     />
                   </div>

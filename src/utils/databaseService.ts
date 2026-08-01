@@ -89,10 +89,23 @@ CREATE TABLE IF NOT EXISTS articles (
 `;
 
 /**
- * Universal Fetch Articles from whichever database provider is active
+ * Universal Fetch Articles from server database and active database provider
  */
 export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | null> {
   const config = getDatabaseConfig();
+
+  // Try server database endpoint first
+  try {
+    const res = await fetch('/api/articles');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.articles && Array.isArray(data.articles) && data.articles.length > 0) {
+        return data.articles;
+      }
+    }
+  } catch (err) {
+    console.warn('Error fetching from server API:', err);
+  }
 
   if (config.provider === 'supabase') {
     return await fetchArticlesFromSupabase();
@@ -123,9 +136,20 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
 }
 
 /**
- * Universal Save Article to active database
+ * Universal Save Article to active database and server storage
  */
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
+  // Always save to real server persistent database
+  try {
+    await fetch('/api/articles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(article)
+    });
+  } catch (err) {
+    console.warn('Error saving to server API:', err);
+  }
+
   const config = getDatabaseConfig();
 
   if (config.provider === 'supabase') {
@@ -154,9 +178,16 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
 }
 
 /**
- * Universal Delete Article from active database
+ * Universal Delete Article from active database and server storage
  */
 export async function deleteArticleFromActiveDatabase(articleId: string): Promise<boolean> {
+  // Always delete from real server persistent database
+  try {
+    await fetch(`/api/articles/${articleId}`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn('Error deleting from server API:', err);
+  }
+
   const config = getDatabaseConfig();
 
   if (config.provider === 'supabase') {

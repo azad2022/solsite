@@ -1,4 +1,5 @@
 import { Article, DeepSeekAiSettings, ChatbotSettings } from '../types';
+import { generateSlugFromTitle, DEFAULT_ARTICLE_AUTHOR } from './slugUtils';
 
 // Unsplash high-quality crypto, Solana & AI themed imagery options
 const COVER_IMAGES_BY_CATEGORY: Record<string, string[]> = {
@@ -265,19 +266,21 @@ export async function generateArticleWithDeepSeek(
           cleanTitle = cleanTitle
             .replace(/^(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|عنوان\s*سئو\s*شده|سئو\s*شده|مقاله\s*سئوشده|آموزش\s*سئوشده)\s*[:：\-–—]?\s*/gi, '')
             .replace(/\s*\(مقاله\s*سئو\s*شده\)/gi, '')
-            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, '')
+            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '')
             .trim();
 
-          // Clean content from any DeepSeek references
+          // Clean content from any DeepSeek or AI model references
           let cleanContent = (parsed.content || '')
             .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, 'سولمینت');
 
           let cleanSummary = (parsed.summary || '')
             .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, 'سولمینت');
 
+          const cleanSlug = generateSlugFromTitle(cleanTitle);
+
           return {
             title: cleanTitle,
-            slug: cleanTitle ? cleanTitle.toLowerCase().replace(/[^\w\u0600-\u06FF]+/g, '-').slice(0, 60) : `solmint-article-${Date.now()}`,
+            slug: cleanSlug,
             category: category,
             summary: cleanSummary,
             content: cleanContent,
@@ -310,8 +313,11 @@ function generateSmartFallbackArticle(topic: string, settings: DeepSeekAiSetting
   else if (isRent) category = 'توسعه وب۳';
   else if (isSecurity) category = 'امنیت';
 
-  const title = `${topic} [راهنمای جامع سال ۲۰۲۶]`;
-  const slug = `solmint-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+  const cleanTopic = topic
+    .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '')
+    .trim();
+  const title = cleanTopic ? `${cleanTopic}` : 'راهنمای کار با شبکه سولانا و اپلیکیشن سولمینت';
+  const slug = generateSlugFromTitle(title);
 
   const summary = `در این مقاله جامع آموزش داده می‌شود که چگونه با استفاده از اپلیکیشن سولمینت (Solmint App) و ابزارهای غیرامانی شبکه سولانا، فرایند ${topic} را با کمترین کارمزد و بالاترین سرعت انجام دهید.`;
 
