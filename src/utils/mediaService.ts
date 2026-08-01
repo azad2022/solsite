@@ -113,13 +113,30 @@ export async function optimizeImageFile(
   });
 }
 
+function getAdminAuthHeaders(): Record<string, string> {
+  try {
+    const passcode = localStorage.getItem('solmint_admin_passcode') || 'solmint1404';
+    return {
+      'Content-Type': 'application/json',
+      'x-admin-passcode': passcode
+    };
+  } catch {
+    return {
+      'Content-Type': 'application/json',
+      'x-admin-passcode': 'solmint1404'
+    };
+  }
+}
+
 /**
  * Fetch Media Storage Config from server or Supabase
  */
 export async function getMediaStorageConfig(): Promise<MediaStorageConfig> {
   // Try server API first
   try {
-    const res = await fetch('/api/media/config');
+    const res = await fetch('/api/media/config', {
+      headers: getAdminAuthHeaders()
+    });
     if (res.ok) {
       const data = await res.json();
       if (data && data.config) {
@@ -157,7 +174,7 @@ export async function saveMediaStorageConfig(config: MediaStorageConfig): Promis
   try {
     const res = await fetch('/api/media/config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify({ config })
     });
     return res.ok;
@@ -169,11 +186,11 @@ export async function saveMediaStorageConfig(config: MediaStorageConfig): Promis
 /**
  * Test Connection to GitHub Media Repository
  */
-export async function testMediaRepositoryConnection(config: MediaStorageConfig): Promise<{ success: boolean; message: string; details?: any }> {
+export async function testMediaRepositoryConnection(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; details?: any }> {
   try {
     const res = await fetch('/api/media/test-connection', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify(config)
     });
     const data = await res.json();
@@ -219,8 +236,9 @@ export async function uploadMediaAsset(
   file: File,
   customSeoName?: string,
   altText: string = '',
-  title: string = ''
-): Promise<{ success: boolean; asset?: MediaAsset; message: string }> {
+  title: string = '',
+  overwrite: boolean = false
+): Promise<{ success: boolean; asset?: MediaAsset; message: string; code?: string; existingSha?: string }> {
   try {
     // 1. Optimize Image
     const optimized = await optimizeImageFile(file);
@@ -234,7 +252,7 @@ export async function uploadMediaAsset(
     // 4. Send base64 to server API
     const res = await fetch('/api/media/upload', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify({
         base64: optimized.base64,
         filename: targetFilename,
@@ -244,11 +262,21 @@ export async function uploadMediaAsset(
         height: optimized.height,
         altText,
         title,
-        config
+        config,
+        overwrite
       })
     });
 
     const data = await res.json();
+
+    if (res.status === 409 && data.code === 'FILE_EXISTS') {
+      return {
+        success: false,
+        code: 'FILE_EXISTS',
+        existingSha: data.existingSha,
+        message: data.message || 'فایلی با این نام در مخزن گیت‌هاب وجود دارد.'
+      };
+    }
 
     if (!res.ok || !data.success || !data.asset) {
       return {
@@ -270,7 +298,7 @@ export async function uploadMediaAsset(
     return {
       success: true,
       asset,
-      message: 'تصویر با موفقیت در مخزن گیت‌هاب آپلود و ثبت گردید'
+      message: data.message || 'تصویر با موفقیت در مخزن گیت‌هاب آپلود و ثبت گردید'
     };
   } catch (err: any) {
     return {
@@ -281,26 +309,34 @@ export async function uploadMediaAsset(
 }
 
 /**
- * Delete MediaAsset from GitHub & DB
+ * Delete MediaAsset from GitHub & DB (Atomic)
  */
-export async function deleteMediaAsset(asset: MediaAsset): Promise<{ success: boolean; message: string }> {
+export async function deleteMediaAsset(asset: MediaAsset, force: boolean = false): Promise<{ success: boolean; message: string }> {
   try {
     const res = await fetch('/api/media/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify({
         assetId: asset.id,
         path: asset.path,
         sha: asset.sha,
         githubOwner: asset.githubOwner,
         githubRepository: asset.githubRepository,
-        branch: asset.branch
+        branch: asset.branch,
+        force
       })
     });
 
     const data = await res.json();
 
-    // Always delete from Supabase DB even if github deletion returns 404
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        message: data.message || 'حذف فایل تصویر از مخزن گیت‌هاب ناموفق بود.'
+      };
+    }
+
+    // Atomic: ONLY delete from Supabase DB after GitHub deletion is verified
     await deleteMediaAssetFromSupabase(asset.id);
 
     // Update local cache
@@ -332,7 +368,7 @@ export async function migrateMediaRepository(
 
     const res = await fetch('/api/media/migrate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify({
         sourceConfig,
         targetConfig,

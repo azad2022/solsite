@@ -134,7 +134,6 @@ export interface MediaStorageConfig {
   githubRepository: string;
   branch: string;
   basePath: string;
-  githubToken?: string;
   connectionStatus?: 'connected' | 'disconnected' | 'untested';
   lastTestAt?: string;
 }
@@ -145,7 +144,6 @@ export const DEFAULT_MEDIA_STORAGE_CONFIG: MediaStorageConfig = {
   githubRepository: 'solmint-media',
   branch: 'main',
   basePath: 'articles/',
-  githubToken: '',
   connectionStatus: 'untested'
 };
 
@@ -219,7 +217,7 @@ export interface DeepSeekAiSettings {
 }
 
 export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
-  apiKey: 'sk-PuEsFJPjyULk6CFpSUXGdN14CufHkAHwBaqv7hztyjhCtaRS',
+  apiKey: '',
   apiBaseUrl: 'https://api.gapgpt.app/v1',
   model: 'deepseek-chat',
   systemPrompt: `شما دستیار نویسنده ارشد وبسایت "سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
@@ -285,7 +283,7 @@ export interface ChatbotSettings {
 
 export const DEFAULT_CHATBOT_SETTINGS: ChatbotSettings = {
   enabled: true,
-  apiKey: 'sk-PuEsFJPjyULk6CFpSUXGdN14CufHkAHwBaqv7hztyjhCtaRS',
+  apiKey: '',
   apiBaseUrl: 'https://api.gapgpt.app/v1',
   botName: 'پشتیبان هوشمند سولمینت',
   botAvatar: '🤖',

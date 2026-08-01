@@ -285,7 +285,6 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         setConfigRepo(cfg.githubRepository);
         setConfigBranch(cfg.branch || 'main');
         setConfigBasePath(cfg.basePath || 'articles/');
-        if (cfg.githubToken) setConfigToken(cfg.githubToken);
       });
     }
   }, [isOpen, isAuthenticated]);
@@ -298,13 +297,13 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const handleTestMediaConnection = async () => {
     setIsTestingMediaConn(true);
     setMediaTestResult(null);
-    const testCfg: MediaStorageConfig = {
+    const testCfg = {
       ...mediaConfigState,
       githubOwner: configOwner.trim(),
       githubRepository: configRepo.trim(),
       branch: configBranch.trim(),
       basePath: configBasePath.trim(),
-      githubToken: configToken.trim()
+      githubToken: configToken.trim() || undefined
     };
     const res = await testMediaRepositoryConnection(testCfg);
     setMediaTestResult(res);
@@ -317,12 +316,16 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       githubOwner: configOwner.trim(),
       githubRepository: configRepo.trim(),
       branch: configBranch.trim(),
-      basePath: configBasePath.trim(),
-      githubToken: configToken.trim()
+      basePath: configBasePath.trim()
     };
-    await saveMediaStorageConfig(newCfg);
+    const savePayload = {
+      ...newCfg,
+      githubToken: configToken.trim() || undefined
+    };
+    await saveMediaStorageConfig(savePayload as any);
     setMediaConfigState(newCfg);
-    setMediaTestResult({ success: true, message: 'تنظیمات مخزن رسانه و توکن اتصال با موفقیت ذخیره گردید.' });
+    setConfigToken('');
+    setMediaTestResult({ success: true, message: 'تنظیمات مخزن رسانه با موفقیت ذخیره گردید.' });
   };
 
   const handleUploadNewMediaAsset = async (e: React.FormEvent) => {
@@ -817,6 +820,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       setIsAuthenticated(true);
       setCurrentUser(adminUser);
       localStorage.setItem('solmint_current_user', JSON.stringify(adminUser));
+      localStorage.setItem('solmint_admin_passcode', pass || 'solmint1404');
       const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
       localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
       setAuthError('');
@@ -836,6 +840,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         
         if (isTeamMember) {
           setIsAuthenticated(true);
+          localStorage.setItem('solmint_admin_passcode', pass || 'solmint1404');
           const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
           localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
 

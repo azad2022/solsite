@@ -172,27 +172,46 @@ async function startServer() {
     githubRepository: "solmint-media",
     branch: "main",
     basePath: "articles/",
-    githubToken: "",
     connectionStatus: "untested"
   };
 
-  const getGitHubToken = (overrideToken?: string): string => {
-    if (overrideToken && overrideToken.trim() !== "") {
-      return overrideToken.trim();
-    }
-    if (activeMediaConfig.githubToken && activeMediaConfig.githubToken.trim() !== "") {
-      return activeMediaConfig.githubToken.trim();
-    }
-    return (
-      process.env.GITHUB_MEDIA_TOKEN ||
-      process.env.GITHUB_TOKEN ||
-      process.env.VITE_GITHUB_TOKEN ||
-      ""
-    ).trim();
+  // Server-only GitHub token variable (NEVER sent to or stored in client)
+  let serverGitHubToken = (
+    process.env.GITHUB_MEDIA_TOKEN ||
+    process.env.GITHUB_TOKEN ||
+    process.env.VITE_GITHUB_TOKEN ||
+    ""
+  ).trim();
+
+  // Admin authentication check helper for sensitive API endpoints
+  const ADMIN_PASSCODE = (process.env.ADMIN_PASSCODE || "solmint1404").trim();
+
+  const isAuthorizedAdmin = (req: express.Request): boolean => {
+    const passcodeHeader = (req.headers["x-admin-passcode"] as string || "").trim();
+    const authHeader = (req.headers["authorization"] || "").trim();
+
+    if (passcodeHeader && passcodeHeader === ADMIN_PASSCODE) return true;
+    if (authHeader.startsWith("Bearer ") && authHeader.substring(7).trim() === ADMIN_PASSCODE) return true;
+
+    return false;
   };
 
-  const callGitHubApi = async (url: string, options: any = {}, overrideToken?: string) => {
-    const token = getGitHubToken(overrideToken);
+  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!isAuthorizedAdmin(req)) {
+      return res.status(401).json({
+        success: false,
+        message: "دسترسی غیرمجاز. برای انجام این عملیات باید به عنوان مدیر سیستم احراز هویت شده باشید."
+      });
+    }
+    next();
+  };
+
+  const getGitHubToken = (): string => {
+    return serverGitHubToken.trim();
+  };
+
+  const callGitHubApi = async (url: string, options: any = {}, customToken?: string) => {
+    const token = customToken || getGitHubToken();
     const headers: Record<string, string> = {
       "Accept": "application/vnd.github.v3+json",
       "User-Agent": "SolmintApp-Server-MediaService",
@@ -211,21 +230,27 @@ async function startServer() {
     return response;
   };
 
-  // 1. GET /api/media/config
-  app.get("/api/media/config", (req, res) => {
+  // 1. GET /api/media/config (Requires Admin Auth)
+  app.get("/api/media/config", requireAdminAuth, (req, res) => {
     const hasToken = Boolean(getGitHubToken());
     res.json({
       config: {
-        ...activeMediaConfig,
-        githubToken: activeMediaConfig.githubToken ? activeMediaConfig.githubToken.slice(0, 4) + "****" + activeMediaConfig.githubToken.slice(-4) : ""
+        provider: activeMediaConfig.provider,
+        githubOwner: activeMediaConfig.githubOwner,
+        githubRepository: activeMediaConfig.githubRepository,
+        branch: activeMediaConfig.branch,
+        basePath: activeMediaConfig.basePath,
+        connectionStatus: activeMediaConfig.connectionStatus
       },
       hasToken,
-      notice: hasToken ? "کلید دسترسی (GitHub Token) فعال و متصل است." : "توکن GITHUB_TOKEN هنوز تنظیم نشده است. لطفاً توکن خود را در کادر زیر یا .env وارد نمایید."
+      notice: hasToken
+        ? "کلید دسترسی (GitHub Token) در سرور فعال و متصل است."
+        : "توکن GITHUB_TOKEN هنوز تنظیم نشده است. می‌توانید آن را در متغیرهای محیطی سرور قرار دهید."
     });
   });
 
-  // 2. POST /api/media/config
-  app.post("/api/media/config", (req, res) => {
+  // 2. POST /api/media/config (Requires Admin Auth)
+  app.post("/api/media/config", requireAdminAuth, (req, res) => {
     const { config } = req.body;
     if (config && typeof config === "object") {
       activeMediaConfig = {
@@ -234,15 +259,30 @@ async function startServer() {
         githubRepository: (config.githubRepository || activeMediaConfig.githubRepository).trim(),
         branch: (config.branch || activeMediaConfig.branch).trim(),
         basePath: (config.basePath || activeMediaConfig.basePath).replace(/^\/+|\/+$/g, "") + "/",
-        ...(config.githubToken !== undefined && !config.githubToken.includes("****") ? { githubToken: config.githubToken.trim() } : {}),
         connectionStatus: config.connectionStatus || activeMediaConfig.connectionStatus
       };
+
+      if (config.githubToken && typeof config.githubToken === "string" && !config.githubToken.includes("****")) {
+        serverGitHubToken = config.githubToken.trim();
+      }
     }
-    res.json({ success: true, config: activeMediaConfig });
+
+    res.json({
+      success: true,
+      hasToken: Boolean(serverGitHubToken),
+      config: {
+        provider: activeMediaConfig.provider,
+        githubOwner: activeMediaConfig.githubOwner,
+        githubRepository: activeMediaConfig.githubRepository,
+        branch: activeMediaConfig.branch,
+        basePath: activeMediaConfig.basePath,
+        connectionStatus: activeMediaConfig.connectionStatus
+      }
+    });
   });
 
-  // 3. POST /api/media/test-connection
-  app.post("/api/media/test-connection", async (req, res) => {
+  // 3. POST /api/media/test-connection (Requires Admin Auth)
+  app.post("/api/media/test-connection", requireAdminAuth, async (req, res) => {
     try {
       const owner = (req.body.githubOwner || activeMediaConfig.githubOwner).trim();
       const repo = (req.body.githubRepository || activeMediaConfig.githubRepository).trim();
@@ -253,11 +293,15 @@ async function startServer() {
       const repoRes = await callGitHubApi(repoUrl, {}, customToken);
 
       if (!repoRes.ok) {
-        const errData = await repoRes.json().catch(() => ({}));
         activeMediaConfig.connectionStatus = "disconnected";
+        let userMsg = "مخزن یافت نشد یا کلید دسترسی فاقد مجوزهای لازم است.";
+        if (repoRes.status === 401) userMsg = "کلید دسترسی (Token) نامعتبر یا منقضی شده است.";
+        if (repoRes.status === 403) userMsg = "دسترسی به مخزن محدود شده یا سقف درخواست‌های GitHub تکمیل گردیده است.";
+        if (repoRes.status === 404) userMsg = `مخزن ${owner}/${repo} در گیت‌هاب یافت نشد.`;
+
         return res.status(repoRes.status).json({
           success: false,
-          message: `ارتباط برقرار نشد (${repoRes.status}): ${errData.message || "مخزن یافت نشد یا عدم دسترسی"}`,
+          message: `ارتباط برقرار نشد: ${userMsg}`,
           status: repoRes.status
         });
       }
@@ -279,24 +323,25 @@ async function startServer() {
       activeMediaConfig.connectionStatus = "disconnected";
       return res.status(500).json({
         success: false,
-        message: `خطای سرور در تست اتصال: ${err.message || "خطای غیرمنتظره"}`
+        message: "خطای داخلی سرور در تست اتصال."
       });
     }
   });
 
-  // 4. POST /api/media/upload
-  app.post("/api/media/upload", async (req, res) => {
+  // 4. POST /api/media/upload (Requires Admin Auth)
+  app.post("/api/media/upload", requireAdminAuth, async (req, res) => {
     try {
-      const { base64, filename, originalFilename, mimeType, width, height, altText, title, config } = req.body;
+      const { base64, filename, originalFilename, mimeType, width, height, altText, title, overwrite } = req.body;
 
       if (!base64 || !filename) {
         return res.status(400).json({ success: false, message: "اطلاعات فایل تصویر ناقص است." });
       }
 
-      const owner = (config?.githubOwner || activeMediaConfig.githubOwner).trim();
-      const repo = (config?.githubRepository || activeMediaConfig.githubRepository).trim();
-      const branch = (config?.branch || activeMediaConfig.branch).trim();
-      let basePath = (config?.basePath || activeMediaConfig.basePath).replace(/^\/+|\/+$/g, "");
+      // Enforce active server configuration (Client cannot specify arbitrary target)
+      const owner = activeMediaConfig.githubOwner.trim();
+      const repo = activeMediaConfig.githubRepository.trim();
+      const branch = activeMediaConfig.branch.trim();
+      let basePath = activeMediaConfig.basePath.replace(/^\/+|\/+$/g, "");
       if (basePath) basePath += "/";
 
       // Prevent Path Traversal
@@ -308,12 +353,62 @@ async function startServer() {
       const fullPath = `${basePath}${cleanFilename}`;
       const githubApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${fullPath}`;
 
-      // Check if file exists to get SHA for update
+      // Check if file already exists in repository
       let existingSha = "";
+      let existingSize = 0;
       const checkRes = await callGitHubApi(`${githubApiUrl}?ref=${branch}`);
+      let isDuplicateContent = false;
+
       if (checkRes.ok) {
         const checkData = await checkRes.json();
         existingSha = checkData.sha || "";
+        existingSize = checkData.size || 0;
+
+        const incomingSizeBytes = Math.round((base64.length * 3) / 4);
+
+        // Duplicate handling: If file exists and overwrite is false
+        if (!overwrite) {
+          if (incomingSizeBytes > 0 && Math.abs(incomingSizeBytes - existingSize) < 10) {
+            isDuplicateContent = true;
+          }
+
+          if (isDuplicateContent) {
+            const publicUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${fullPath}`;
+            const existingAsset = {
+              id: `asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              provider: "github",
+              githubOwner: owner,
+              githubRepository: repo,
+              branch,
+              path: fullPath,
+              filename: cleanFilename,
+              publicUrl,
+              mimeType: mimeType || "image/webp",
+              fileSize: existingSize || incomingSizeBytes,
+              width: width || 0,
+              height: height || 0,
+              sha: existingSha,
+              createdAt: new Date().toISOString(),
+              originalFilename: originalFilename || cleanFilename,
+              altText: altText || "",
+              title: title || cleanFilename
+            };
+
+            return res.json({
+              success: true,
+              isDuplicate: true,
+              asset: existingAsset,
+              message: "فایلی با همین نام و حجم در مخزن موجود بود و همان فایل استفاده شد."
+            });
+          }
+
+          return res.status(409).json({
+            success: false,
+            code: "FILE_EXISTS",
+            existingSha,
+            message: `فایلی با نام ${cleanFilename} در مخزن گیت‌هاب وجود دارد. آیا مایل به جایگزینی آن هستید؟`
+          });
+        }
       }
 
       const uploadPayload: any = {
@@ -332,10 +427,14 @@ async function startServer() {
       });
 
       if (!uploadRes.ok) {
-        const errJson = await uploadRes.json().catch(() => ({}));
+        let errorMsg = "خطا در بارگذاری تصویر به گیت‌هاب.";
+        if (uploadRes.status === 401) errorMsg = "کلید دسترسی گیت‌هاب معتبر نیست.";
+        if (uploadRes.status === 403) errorMsg = "دسترسی ایجاد فایل در این مخزن رد شد.";
+        if (uploadRes.status === 404) errorMsg = "مخزن یا مسیر مقصد در گیت‌هاب یافت نشد.";
+
         return res.status(uploadRes.status).json({
           success: false,
-          message: `خطا در آپلود گیت‌هاب: ${errJson.message || uploadRes.statusText}`
+          message: errorMsg
         });
       }
 
@@ -371,21 +470,42 @@ async function startServer() {
     } catch (err: any) {
       return res.status(500).json({
         success: false,
-        message: `خطای داخلی سرور در آپلود: ${err.message}`
+        message: "خطای داخلی سرور در آپلود."
       });
     }
   });
 
-  // 5. DELETE /api/media/delete
-  app.post("/api/media/delete", async (req, res) => {
+  // 5. DELETE /api/media/delete (Requires Admin Auth - Atomic & Consistent)
+  app.post("/api/media/delete", requireAdminAuth, async (req, res) => {
     try {
-      const { path: filePath, sha, githubOwner, githubRepository, branch } = req.body;
-      const owner = (githubOwner || activeMediaConfig.githubOwner).trim();
-      const repo = (githubRepository || activeMediaConfig.githubRepository).trim();
-      const branchName = (branch || activeMediaConfig.branch).trim();
+      const { path: filePath, sha, assetId, force } = req.body;
+      const owner = activeMediaConfig.githubOwner.trim();
+      const repo = activeMediaConfig.githubRepository.trim();
+      const branchName = activeMediaConfig.branch.trim();
 
       if (!filePath) {
         return res.status(400).json({ success: false, message: "مسیر فایل جهت حذف مشخص نشده است." });
+      }
+
+      // Check if Asset is referenced in published articles in Supabase
+      if (!force && serverSupabase) {
+        try {
+          const { data: articles } = await serverSupabase
+            .from("articles")
+            .select("id, title, cover_image, cover_image_asset_id")
+            .or(`cover_image_asset_id.eq.${assetId},cover_image.ilike.%${filePath}%`);
+
+          if (articles && articles.length > 0) {
+            return res.status(400).json({
+              success: false,
+              code: "ASSET_IN_USE",
+              message: `این رسانه در ${articles.length} مقاله در حال استفاده است و حذف آن ممکن است تصویر مقاله را خراب کند.`,
+              usedArticles: articles.map(a => ({ id: a.id, title: a.title }))
+            });
+          }
+        } catch {
+          // ignore check error if DB unreadable
+        }
       }
 
       let fileSha = sha;
@@ -409,29 +529,33 @@ async function startServer() {
           })
         });
 
+        // Fail-safe: If GitHub deletion fails (and isn't 404 already deleted), DO NOT delete metadata
         if (!deleteRes.ok && deleteRes.status !== 404) {
-          const errData = await deleteRes.json().catch(() => ({}));
+          let errText = "خطا در حذف فایل از مخزن گیت‌هاب.";
+          if (deleteRes.status === 401 || deleteRes.status === 403) {
+            errText = "عدم دسترسی به مخزن گیت‌هاب جهت حذف فایل.";
+          }
           return res.status(deleteRes.status).json({
             success: false,
-            message: `خطا در حذف از گیت‌هاب: ${errData.message || deleteRes.statusText}`
+            message: errText
           });
         }
       }
 
       return res.json({
         success: true,
-        message: "رسانه با موفقیت از مخزن و سیستم حذف گردید."
+        message: "رسانه با موفقیت از مخزن گیت‌هاب حذف گردید."
       });
     } catch (err: any) {
       return res.status(500).json({
         success: false,
-        message: `خطای سرور در حذف فایل: ${err.message}`
+        message: "خطای سرور در حذف فایل."
       });
     }
   });
 
-  // 6. POST /api/media/migrate
-  app.post("/api/media/migrate", async (req, res) => {
+  // 6. POST /api/media/migrate (Requires Admin Auth - Fail-Safe)
+  app.post("/api/media/migrate", requireAdminAuth, async (req, res) => {
     try {
       const { sourceConfig, targetConfig, assets } = req.body;
 
@@ -447,11 +571,12 @@ async function startServer() {
       const tgtRepo = targetConfig.githubRepository.trim();
       const tgtBranch = (targetConfig.branch || "main").trim();
 
+      // Verify access to target repository
       const testTgt = await callGitHubApi(`https://api.github.com/repos/${tgtOwner}/${tgtRepo}`);
       if (!testTgt.ok) {
         return res.status(400).json({
           success: false,
-          message: `دسترسی به مخزن مقصد (${tgtOwner}/${tgtRepo}) تایید نشد. لطفاً از وجود مخزن و توکن معتبر مطمئن شوید.`
+          message: `دسترسی به مخزن مقصد (${tgtOwner}/${tgtRepo}) تایید نشد. لطفاً از وجود مخزن و معتبر بودن کلید دسترسی مطمئن شوید.`
         });
       }
 
@@ -518,30 +643,39 @@ async function startServer() {
         }
       }
 
-      activeMediaConfig = {
-        ...activeMediaConfig,
-        githubOwner: tgtOwner,
-        githubRepository: tgtRepo,
-        branch: tgtBranch,
-        connectionStatus: "connected"
-      };
+      // CRITICAL FAIL-SAFE: Only switch activeMediaConfig if ZERO failures occurred
+      const isCompleteSuccess = failedCount === 0 && (successCount > 0 || assetList.length === 0);
+
+      if (isCompleteSuccess) {
+        activeMediaConfig = {
+          ...activeMediaConfig,
+          githubOwner: tgtOwner,
+          githubRepository: tgtRepo,
+          branch: tgtBranch,
+          connectionStatus: "connected"
+        };
+      }
 
       return res.json({
-        success: true,
-        message: `عملیات مهاجرت تکمیل گردید: ${successCount} موفق، ${failedCount} ناموفق، ${skippedCount} صرف‌نظر شده.`,
+        success: isCompleteSuccess,
+        partial: !isCompleteSuccess && successCount > 0,
+        message: isCompleteSuccess
+          ? `تمام ${successCount} فایل با موفقیت انتقال یافته و مخزن فعال به‌روزرسانی شد.`
+          : `مهاجرت به‌طور کامل انجام نشد (${successCount} موفق، ${failedCount} ناموفق). جهت جلوگیری از خرابی تصاویر، مخزن فعال قبلی دست‌نخورده باقی ماند.`,
         migratedAssets,
         results: {
           total: assetList.length,
           success: successCount,
           failed: failedCount,
           skipped: skippedCount,
-          activeRepo: `${tgtOwner}/${tgtRepo}`
+          switchedActiveRepo: isCompleteSuccess,
+          activeRepo: `${activeMediaConfig.githubOwner}/${activeMediaConfig.githubRepository}`
         }
       });
     } catch (err: any) {
       return res.status(500).json({
         success: false,
-        message: `خطای سرور در مهاجرت: ${err.message}`
+        message: "خطای داخلی سرور در فرآیند مهاجرت."
       });
     }
   });
