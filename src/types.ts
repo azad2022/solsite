@@ -88,6 +88,7 @@ export interface Article {
   summary: string;
   content: string;
   coverImage: string;
+  coverImageAssetId?: string;
   videoUrl?: string; // MP4 video URL
   author: {
     name: string;
@@ -103,6 +104,50 @@ export interface Article {
   seoScore?: number;
   isDraft?: boolean;
 }
+
+export interface MediaAsset {
+  id: string; // unique assetId
+  provider: 'github';
+  githubOwner: string;
+  githubRepository: string;
+  branch: string;
+  path: string;
+  filename: string;
+  publicUrl: string;
+  mimeType: string;
+  fileSize: number;
+  width?: number;
+  height?: number;
+  sha?: string;
+  createdAt: string;
+  updatedAt?: string;
+  originalFilename: string;
+  altText: string;
+  title?: string;
+  usageCount?: number;
+  usedInArticleSlugs?: string[];
+}
+
+export interface MediaStorageConfig {
+  provider: 'github';
+  githubOwner: string;
+  githubRepository: string;
+  branch: string;
+  basePath: string;
+  githubToken?: string;
+  connectionStatus?: 'connected' | 'disconnected' | 'untested';
+  lastTestAt?: string;
+}
+
+export const DEFAULT_MEDIA_STORAGE_CONFIG: MediaStorageConfig = {
+  provider: 'github',
+  githubOwner: 'azad2022',
+  githubRepository: 'solmint-media',
+  branch: 'main',
+  basePath: 'articles/',
+  githubToken: '',
+  connectionStatus: 'untested'
+};
 
 export interface MediaItem {
   id: string;
@@ -177,13 +222,14 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
   apiKey: 'sk-PuEsFJPjyULk6CFpSUXGdN14CufHkAHwBaqv7hztyjhCtaRS',
   apiBaseUrl: 'https://api.gapgpt.app/v1',
   model: 'deepseek-chat',
-  systemPrompt: `شما دستیار نویسنده ارشد هوش مصنوعی وبسایت "سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
+  systemPrompt: `شما دستیار نویسنده ارشد وبسایت "سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
 
 دستورالعمل‌های تولید مقاله:
-۱. مقاله باید کاملاً به زبان فارسی روان، جذاب، کاملاً سئو شده و آموزنده نوشته شود.
-۲. مقاله شامل یک ساختار کامل: عنوان جذاب و سئوشده، خلاصه مقاله (Meta Description)، متون اصلی با تیترهای H2 و H3 به صورت مارک‌داون، جدول یا نکات کلیدی، بخش سوالات متداول (FAQ) و دعوت به اقدام (CTA) جهت دانلود اپلیکیشن سولمینت باشد.
+۱. مقاله باید کاملاً به زبان فارسی روان، جذاب، کاربردی و آموزنده نوشته شود.
+۲. مقاله شامل یک ساختار کامل: عنوان جذاب و بدون عبارات اضافی، خلاصه مقاله (Meta Description)، متون اصلی با تیترهای H2 و H3 به صورت مارک‌داون، جدول یا نکات کلیدی، بخش سوالات متداول (FAQ) و دعوت به اقدام (CTA) جهت دانلود اپلیکیشن سولمینت باشد.
 ۳. حتماً از کلمات کلیدی سئو تعیین شده در طول متن به طور طبیعی استفاده کنید.
-۴. لحن مقاله روان و کاربردی برای علاقه مندان به بلاکچین، ارز دیجیتال و سولانا باشد.`,
+۴. لحن مقاله روان و کاربردی برای علاقه‌مندان به بلاکچین، ارز دیجیتال و سولانا باشد.
+۵. قوانین اکید عنوان و محتوا: به هیچ عنوان کلماتی نظیر "مقاله سئو شده"، "آموزش سئو شده"، "سئو شده" یا نام‌های هوش مصنوعی (مانند DeepSeek) را در عنوان مقاله یا متن یا به عنوان نویسنده یا لینک وارد نکنید. فقط عنوان اصلی مقاله درج شود.`,
   targetTopics: [
     'آموزش جامع ساخت توکن در شبکه‌ی سولانا بدون کدنویسی',
     'راهنمای ساخت میم کوین با سولمینت و افزودن نقدینگی',

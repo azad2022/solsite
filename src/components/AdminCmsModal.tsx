@@ -1,5 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Article, MediaItem, Testimonial, ArticleComment, UserAccount, AdminPermission, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from '../types';
+import { 
+  Article, 
+  MediaItem, 
+  Testimonial, 
+  ArticleComment, 
+  UserAccount, 
+  AdminPermission, 
+  DownloadLinks, 
+  DEFAULT_DOWNLOAD_LINKS, 
+  DeepSeekAiSettings, 
+  DEFAULT_DEEPSEEK_SETTINGS, 
+  ChatbotSettings, 
+  DEFAULT_CHATBOT_SETTINGS,
+  MediaAsset,
+  MediaStorageConfig,
+  DEFAULT_MEDIA_STORAGE_CONFIG
+} from '../types';
 import { generateArticleWithDeepSeek, testDeepSeekConnection, batchTestDeepSeekKeys, getRandomCoverForCategoryOrTitle } from '../utils/deepseekService';
 import { 
   saveArticleToActiveDatabase, 
@@ -11,6 +27,16 @@ import {
   DatabaseConfig,
   DatabaseProvider
 } from '../utils/databaseService';
+import { 
+  uploadMediaAsset, 
+  getAllMediaAssets, 
+  deleteMediaAsset, 
+  getMediaStorageConfig, 
+  saveMediaStorageConfig, 
+  testMediaRepositoryConnection, 
+  migrateMediaRepository,
+  generateSeoFilename
+} from '../utils/mediaService';
 import { SUPABASE_ARTICLES_TABLE_SQL } from '../utils/supabaseClient';
 import { SolanaLogoIcon } from './Header';
 import { 
@@ -73,7 +99,18 @@ import {
   Cpu,
   Sliders,
   Settings2,
-  Tag
+  Tag,
+  Upload,
+  FolderGit2,
+  Search,
+  Filter,
+  ExternalLink,
+  FolderSync,
+  Image,
+  FileImage,
+  Layers,
+  HardDrive,
+  AlertCircle
 } from 'lucide-react';
 
 const ALL_ADMIN_PERMISSIONS: AdminPermission[] = [
@@ -202,6 +239,171 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [isTestingDb, setIsTestingDb] = useState(false);
   const [dbTestResult, setDbTestResult] = useState<{ success?: boolean; message: string } | null>(null);
   const [copiedSql, setCopiedSql] = useState<'supabase' | 'cloudflare' | null>(null);
+
+  // Media Management & GitHub Storage State
+  const [githubMediaAssets, setGithubMediaAssets] = useState<MediaAsset[]>([]);
+  const [mediaConfigState, setMediaConfigState] = useState<MediaStorageConfig>(DEFAULT_MEDIA_STORAGE_CONFIG);
+  const [mediaSubTab, setMediaSubTab] = useState<'library' | 'upload' | 'config' | 'migrate'>('library');
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('');
+  
+  // Media Upload State
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [uploadAltText, setUploadAltText] = useState('');
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadSeoFilenameInput, setUploadSeoFilenameInput] = useState('');
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState<{ success?: boolean; message: string } | null>(null);
+
+  // Media Storage Config State
+  const [configOwner, setConfigOwner] = useState('azad2022');
+  const [configRepo, setConfigRepo] = useState('solmint-media');
+  const [configBranch, setConfigBranch] = useState('main');
+  const [configBasePath, setConfigBasePath] = useState('articles/');
+  const [configToken, setConfigToken] = useState('');
+  const [showGithubToken, setShowGithubToken] = useState(false);
+  const [isTestingMediaConn, setIsTestingMediaConn] = useState(false);
+  const [mediaTestResult, setMediaTestResult] = useState<{ success?: boolean; message: string; details?: any } | null>(null);
+
+  // Repository Migration State
+  const [migTargetOwner, setMigTargetOwner] = useState('');
+  const [migTargetRepo, setMigTargetRepo] = useState('');
+  const [migTargetBranch, setMigTargetBranch] = useState('main');
+  const [isMigratingMedia, setIsMigratingMedia] = useState(false);
+  const [migrationResultNotice, setMigrationResultNotice] = useState<{ success?: boolean; message: string; results?: any } | null>(null);
+
+  // Article Editor Cover Image Picker Modal State
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+  const [formCoverImageAssetId, setFormCoverImageAssetId] = useState<string>('');
+
+  // Effect to load media assets & config when modal opens
+  useEffect(() => {
+    if (isOpen && isAuthenticated) {
+      getAllMediaAssets().then(assets => setGithubMediaAssets(assets));
+      getMediaStorageConfig().then(cfg => {
+        setMediaConfigState(cfg);
+        setConfigOwner(cfg.githubOwner);
+        setConfigRepo(cfg.githubRepository);
+        setConfigBranch(cfg.branch || 'main');
+        setConfigBasePath(cfg.basePath || 'articles/');
+        if (cfg.githubToken) setConfigToken(cfg.githubToken);
+      });
+    }
+  }, [isOpen, isAuthenticated]);
+
+  const handleRefreshMediaAssets = async () => {
+    const assets = await getAllMediaAssets();
+    setGithubMediaAssets(assets);
+  };
+
+  const handleTestMediaConnection = async () => {
+    setIsTestingMediaConn(true);
+    setMediaTestResult(null);
+    const testCfg: MediaStorageConfig = {
+      ...mediaConfigState,
+      githubOwner: configOwner.trim(),
+      githubRepository: configRepo.trim(),
+      branch: configBranch.trim(),
+      basePath: configBasePath.trim(),
+      githubToken: configToken.trim()
+    };
+    const res = await testMediaRepositoryConnection(testCfg);
+    setMediaTestResult(res);
+    setIsTestingMediaConn(false);
+  };
+
+  const handleSaveMediaConfig = async () => {
+    const newCfg: MediaStorageConfig = {
+      ...mediaConfigState,
+      githubOwner: configOwner.trim(),
+      githubRepository: configRepo.trim(),
+      branch: configBranch.trim(),
+      basePath: configBasePath.trim(),
+      githubToken: configToken.trim()
+    };
+    await saveMediaStorageConfig(newCfg);
+    setMediaConfigState(newCfg);
+    setMediaTestResult({ success: true, message: 'تنظیمات مخزن رسانه و توکن اتصال با موفقیت ذخیره گردید.' });
+  };
+
+  const handleUploadNewMediaAsset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUploadFile) {
+      setUploadNotice({ success: false, message: 'لطفاً یک فایل تصویر جهت آپلود انتخاب نمایید.' });
+      return;
+    }
+    setIsUploadingMedia(true);
+    setUploadNotice(null);
+
+    const res = await uploadMediaAsset(
+      selectedUploadFile,
+      uploadSeoFilenameInput.trim() || selectedUploadFile.name,
+      uploadAltText.trim(),
+      uploadTitle.trim()
+    );
+
+    setIsUploadingMedia(false);
+    if (res.success && res.asset) {
+      setUploadNotice({ success: true, message: res.message });
+      setSelectedUploadFile(null);
+      setUploadAltText('');
+      setUploadTitle('');
+      setUploadSeoFilenameInput('');
+      await handleRefreshMediaAssets();
+      setMediaSubTab('library');
+    } else {
+      setUploadNotice({ success: false, message: res.message });
+    }
+  };
+
+  const handleDeleteMediaAsset = async (asset: MediaAsset) => {
+    const usedInArticles = articles.filter(a => a.coverImage === asset.publicUrl || a.coverImageAssetId === asset.id);
+    if (usedInArticles.length > 0) {
+      const titles = usedInArticles.map(a => `"${a.title}"`).join('، ');
+      if (!confirm(`هشدار: این تصویر در مقالات زیر استفاده شده است:\n${titles}\nآیا از حذف این تصویر مطمئن هستید؟`)) {
+        return;
+      }
+    } else {
+      if (!confirm(`آیا از حذف تصویر "${asset.filename}" از مخزن گیت‌هاب مطمئن هستید؟`)) {
+        return;
+      }
+    }
+
+    const res = await deleteMediaAsset(asset);
+    alert(res.message);
+    await handleRefreshMediaAssets();
+  };
+
+  const handleExecuteRepositoryMigration = async () => {
+    if (!migTargetOwner.trim() || !migTargetRepo.trim()) {
+      setMigrationResultNotice({ success: false, message: 'لطفاً نام مالک (Owner) و نام مخزن مقصد را وارد نمایید.' });
+      return;
+    }
+
+    if (!confirm(`آیا از شروع عملیات انتقال ${githubMediaAssets.length} تصویر به مخزن مقصد (${migTargetOwner}/${migTargetRepo}) اطمینان دارید؟`)) {
+      return;
+    }
+
+    setIsMigratingMedia(true);
+    setMigrationResultNotice(null);
+
+    const targetCfg: MediaStorageConfig = {
+      provider: 'github',
+      githubOwner: migTargetOwner.trim(),
+      githubRepository: migTargetRepo.trim(),
+      branch: migTargetBranch.trim() || 'main',
+      basePath: mediaConfigState.basePath || 'articles/',
+      connectionStatus: 'untested'
+    };
+
+    const res = await migrateMediaRepository(mediaConfigState, targetCfg);
+    setIsMigratingMedia(false);
+    setMigrationResultNotice(res);
+    if (res.success) {
+      await handleRefreshMediaAssets();
+      const newCfg = await getMediaStorageConfig();
+      setMediaConfigState(newCfg);
+    }
+  };
 
   const handleTestDatabaseConnection = async (provider: DatabaseProvider) => {
     setIsTestingDb(true);
@@ -1968,14 +2170,44 @@ Sitemap: https://solmint.ir/sitemap.xml
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">آدرس تصویر کاور (Cover Image URL):</label>
-                    <input
-                      type="url"
-                      required
-                      value={formCoverImage}
-                      onChange={(e) => setFormCoverImage(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200 font-mono dir-ltr"
-                    />
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-slate-300 font-semibold">آدرس تصویر کاور (Cover Image URL):</label>
+                      <button
+                        type="button"
+                        onClick={() => setIsMediaPickerOpen(true)}
+                        className="text-[11px] text-[#14F195] hover:underline flex items-center gap-1 cursor-pointer font-bold"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        انتخاب از کتابخانه رسانه
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        required
+                        value={formCoverImage}
+                        onChange={(e) => setFormCoverImage(e.target.value)}
+                        placeholder="https://raw.githubusercontent.com/... یا انتخاب از مخزن"
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200 font-mono text-xs dir-ltr"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsMediaPickerOpen(true)}
+                        className="px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 font-bold border border-purple-500/30 text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <ImageIcon className="w-4 h-4 text-purple-300" />
+                        <span>انتخاب تصویر</span>
+                      </button>
+                    </div>
+                    {formCoverImage && (
+                      <div className="mt-2 p-2 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-3">
+                        <img src={formCoverImage} alt="Cover Preview" className="w-16 h-12 object-cover rounded-lg border border-slate-700 shrink-0" />
+                        <div className="text-[11px] text-slate-300 overflow-hidden">
+                          <span className="block font-bold text-white">تصویر کاور انتخاب شده</span>
+                          <span className="block font-mono text-[10px] text-slate-400 truncate dir-ltr">{formCoverImage}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -2209,74 +2441,519 @@ Sitemap: https://solmint.ir/sitemap.xml
               </div>
             )}
 
-            {/* TAB 4: MEDIA LIBRARY */}
+            {/* TAB 4: GITHUB MEDIA MANAGEMENT */}
             {adminTab === 'media' && (
               <div className="space-y-6 text-xs">
                 
-                {/* Upload Form */}
-                <form onSubmit={handleAddMedia} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-                  <span className="font-bold text-white text-xs block">افزودن لینک تصویر یا ویدیو جدید به کتابخانه:</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input
-                      type="text"
-                      required
-                      placeholder="نام فایل (مثال: banner.jpg)..."
-                      value={newMediaName}
-                      onChange={(e) => setNewMediaName(e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-200"
-                    />
-
-                    <input
-                      type="url"
-                      required
-                      placeholder="آدرس URL کامل..."
-                      value={newMediaUrl}
-                      onChange={(e) => setNewMediaUrl(e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-200 font-mono dir-ltr"
-                    />
-
-                    <select
-                      value={newMediaType}
-                      onChange={(e) => setNewMediaType(e.target.value as any)}
-                      className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-200"
-                    >
-                      <option value="image">تصویر (Image)</option>
-                      <option value="video">ویدیو (MP4 Video)</option>
-                    </select>
+                {/* Header Banner & Connection Status */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-purple-500/20 border border-purple-500/30 text-purple-300">
+                      <FolderGit2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                        <span>مدیریت ذخیره‌سازی رسانه در گیت‌هاب (Media Repository)</span>
+                        <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/30 font-mono">
+                          {mediaConfigState.githubOwner}/{mediaConfigState.githubRepository}
+                        </span>
+                      </h4>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        متادیتا در Supabase نگهداری شده و فایل‌های تصویری مستقیماً در مخزن گیت‌هاب ذخیره و سرو می‌شوند.
+                      </p>
+                    </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    className="btn-gradient px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
-                  >
-                    افزودن به کتابخانه
-                  </button>
-                </form>
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <button
+                      onClick={handleRefreshMediaAssets}
+                      className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                      title="به‌روزرسانی لیست رسانه‌ها"
+                    >
+                      <RefreshCw className="w-4 h-4 text-purple-400" />
+                      <span>بازخوانی</span>
+                    </button>
+                  </div>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {mediaItems.map((media) => (
-                    <div key={media.id} className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
-                      {media.type === 'image' ? (
-                        <img src={media.url} alt={media.name} className="w-full h-32 object-cover rounded-xl border border-slate-700" />
-                      ) : (
-                        <video src={media.url} className="w-full h-32 object-cover rounded-xl bg-black" />
-                      )}
-                      <span className="font-mono text-[11px] text-white block truncate">{media.name}</span>
-                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
-                        <span>{media.uploadedAt}</span>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(media.url);
-                            alert('لینک تصویر کپی شد!');
-                          }}
-                          className="text-sky-400 hover:underline cursor-pointer"
-                        >
-                          کپی لینک
-                        </button>
+                {/* Sub-Tabs Navigation */}
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
+                  <button
+                    onClick={() => setMediaSubTab('library')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      mediaSubTab === 'library'
+                        ? 'bg-purple-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span>کتابخانه تصاویر ({githubMediaAssets.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaSubTab('upload')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      mediaSubTab === 'upload'
+                        ? 'bg-purple-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4 text-[#14F195]" />
+                    <span>آپلود تصویر جدید</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaSubTab('config')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      mediaSubTab === 'config'
+                        ? 'bg-purple-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    <FolderGit2 className="w-4 h-4 text-sky-400" />
+                    <span>تنظیمات مخزن</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaSubTab('migrate')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      mediaSubTab === 'migrate'
+                        ? 'bg-purple-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    <FolderSync className="w-4 h-4 text-amber-400" />
+                    <span>مهاجرت مخازن</span>
+                  </button>
+                </div>
+
+                {/* SUB-TAB 1: MEDIA LIBRARY GRID */}
+                {mediaSubTab === 'library' && (
+                  <div className="space-y-4">
+                    {/* Search Bar */}
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-1">
+                        <Search className="w-4 h-4 text-slate-500 absolute right-3 top-3" />
+                        <input
+                          type="text"
+                          value={mediaSearchQuery}
+                          onChange={(e) => setMediaSearchQuery(e.target.value)}
+                          placeholder="جستجو در تصاویر (نام فایل، عنوان یا متن جایگزین)..."
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-9 pl-3 py-2.5 text-slate-200 placeholder-slate-500"
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Assets Grid */}
+                    {githubMediaAssets.length === 0 ? (
+                      <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-3">
+                        <ImageIcon className="w-10 h-10 text-slate-600 mx-auto" />
+                        <h5 className="font-bold text-slate-300 text-sm">هنوز هیچ تصویری ثبت نشده است</h5>
+                        <p className="text-slate-400 text-xs">
+                          جهت افزودن اولین تصویر خود، به زبانه "آپلود تصویر جدید" مراجعه فرمایید.
+                        </p>
+                        <button
+                          onClick={() => setMediaSubTab('upload')}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          آپلود اولین تصویر
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        {githubMediaAssets
+                          .filter(asset => 
+                            !mediaSearchQuery || 
+                            asset.filename.toLowerCase().includes(mediaSearchQuery.toLowerCase()) ||
+                            asset.altText?.toLowerCase().includes(mediaSearchQuery.toLowerCase()) ||
+                            asset.title?.toLowerCase().includes(mediaSearchQuery.toLowerCase())
+                          )
+                          .map((asset) => {
+                            const isUsed = articles.some(a => a.coverImage === asset.publicUrl || a.coverImageAssetId === asset.id);
+                            return (
+                              <div key={asset.id} className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/40 transition-all space-y-3 flex flex-col justify-between">
+                                <div className="space-y-2">
+                                  {/* Image Container */}
+                                  <div className="relative group rounded-xl overflow-hidden bg-slate-950 border border-slate-800 h-36 flex items-center justify-center">
+                                    <img 
+                                      src={asset.publicUrl} 
+                                      alt={asset.altText || asset.filename} 
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                                      loading="lazy"
+                                    />
+                                    {isUsed && (
+                                      <span className="absolute top-2 right-2 bg-emerald-500/90 text-slate-950 text-[9px] font-extrabold px-2 py-0.5 rounded-md shadow-md">
+                                        استفاده شده در مقاله
+                                      </span>
+                                    )}
+                                    <span className="absolute bottom-2 left-2 bg-slate-950/80 text-slate-300 text-[9px] font-mono px-2 py-0.5 rounded-md backdrop-blur-sm border border-slate-700">
+                                      {asset.width && asset.height ? `${asset.width}x${asset.height}` : 'WebP'} • {Math.round(asset.fileSize / 1024)} KB
+                                    </span>
+                                  </div>
+
+                                  {/* Asset Info */}
+                                  <div>
+                                    <span className="font-mono text-xs font-bold text-white block truncate dir-ltr text-right" title={asset.filename}>
+                                      {asset.filename}
+                                    </span>
+                                    {asset.altText && (
+                                      <span className="text-[11px] text-slate-400 block truncate mt-0.5">
+                                        متن جایگزین: {asset.altText}
+                                      </span>
+                                    )}
+                                    <div className="flex items-center gap-1.5 mt-1.5">
+                                      <span className="text-[9px] font-mono bg-slate-800 text-purple-300 px-2 py-0.5 rounded-md border border-slate-700">
+                                        {asset.githubOwner}/{asset.githubRepository}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(asset.publicUrl);
+                                      alert('لینک مستقیم تصویر کپی شد!');
+                                    }}
+                                    className="flex-1 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer border border-slate-700"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>کپی لینک</span>
+                                  </button>
+
+                                  <a
+                                    href={asset.publicUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer border border-slate-700"
+                                    title="مشاهده مستقیم"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+
+                                  <button
+                                    onClick={() => handleDeleteMediaAsset(asset)}
+                                    className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 cursor-pointer border border-rose-500/30"
+                                    title="حذف رسانه"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* SUB-TAB 2: UPLOAD NEW IMAGE */}
+                {mediaSubTab === 'upload' && (
+                  <form onSubmit={handleUploadNewMediaAsset} className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <Upload className="w-5 h-5 text-[#14F195]" />
+                      <h4 className="font-bold text-white text-sm">آپلود و فشرده‌سازی خودکار تصویر در مخزن گیت‌هاب</h4>
+                    </div>
+
+                    {uploadNotice && (
+                      <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                        uploadNotice.success ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}>
+                        {uploadNotice.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                        <span>{uploadNotice.message}</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* File Selection Dropzone */}
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">انتخاب فایل تصویر از سیستم:</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            setSelectedUploadFile(file);
+                            if (file) {
+                              setUploadSeoFilenameInput(generateSeoFilename(file.name, 'webp'));
+                            }
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-200 text-xs file:ml-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-purple-600 file:text-white file:font-bold cursor-pointer"
+                        />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          تصویر ورودی به‌صورت هوشمند به فرمت بهینه WebP تبدیل شده و حداکثر ابعاد آن روی ۱۹۲۰ پیکسل تنظیم می‌گردد.
+                        </p>
+                      </div>
+
+                      {/* SEO Filename */}
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">نام فایل سئو شده (SEO Filename):</label>
+                        <input
+                          type="text"
+                          value={uploadSeoFilenameInput}
+                          onChange={(e) => setUploadSeoFilenameInput(e.target.value)}
+                          placeholder="مثال: tasvir-solana-wallet.webp"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sky-300 font-mono text-xs dir-ltr"
+                        />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          نام فایل به‌صورت انگلیسی استاندارد جهت سئو عالی تصویر
+                        </p>
+                      </div>
+
+                      {/* Alt Text */}
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">متن جایگزین سئو (Alt Text):</label>
+                        <input
+                          type="text"
+                          value={uploadAltText}
+                          onChange={(e) => setUploadAltText(e.target.value)}
+                          placeholder="مثال: تصویر کیف پول غیرامانی سولانا..."
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-200 text-xs"
+                        />
+                      </div>
+
+                      {/* Title */}
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">عنوان تصویر (Title):</label>
+                        <input
+                          type="text"
+                          value={uploadTitle}
+                          onChange={(e) => setUploadTitle(e.target.value)}
+                          placeholder="عنوان توضیحی تصویر..."
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-200 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={isUploadingMedia || !selectedUploadFile}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isUploadingMedia ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>در حال فشرده‌سازی و آپلود به گیت‌هاب...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            <span>فشرده‌سازی و آپلود به مخزن گیت‌هاب</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* SUB-TAB 3: CONFIGURATION */}
+                {mediaSubTab === 'config' && (
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <FolderGit2 className="w-5 h-5 text-sky-400" />
+                      <h4 className="font-bold text-white text-sm">پیکربندی مخزن ذخیره‌سازی رسانه‌ها در گیت‌هاب</h4>
+                    </div>
+
+                    {mediaTestResult && (
+                      <div className={`p-3 rounded-xl text-xs font-semibold flex flex-col gap-1 ${
+                        mediaTestResult.success ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {mediaTestResult.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                          <span>{mediaTestResult.message}</span>
+                        </div>
+                        {mediaTestResult.details && (
+                          <div className="mt-1 pt-1 border-t border-emerald-500/20 font-mono text-[10px] text-emerald-200 dir-ltr text-right">
+                            Full Name: {mediaTestResult.details.fullName} | Size: {mediaTestResult.details.sizeKb} KB
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">نام مالک / سازمان (GitHub Owner):</label>
+                        <input
+                          type="text"
+                          value={configOwner}
+                          onChange={(e) => setConfigOwner(e.target.value)}
+                          placeholder="azad2022"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sky-300 font-mono text-xs dir-ltr"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">نام مخزن رسانه‌ها (Repository Name):</label>
+                        <input
+                          type="text"
+                          value={configRepo}
+                          onChange={(e) => setConfigRepo(e.target.value)}
+                          placeholder="solmint-media"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sky-300 font-mono text-xs dir-ltr"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">شاخه گیت‌هاب (Branch):</label>
+                        <input
+                          type="text"
+                          value={configBranch}
+                          onChange={(e) => setConfigBranch(e.target.value)}
+                          placeholder="main"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sky-300 font-mono text-xs dir-ltr"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">مسیر ذخیره‌سازی پوشه (Base Path):</label>
+                        <input
+                          type="text"
+                          value={configBasePath}
+                          onChange={(e) => setConfigBasePath(e.target.value)}
+                          placeholder="articles/"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-sky-300 font-mono text-xs dir-ltr"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                          <span>کلید دسترسی گیتهاب (GitHub Token / PAT):</span>
+                          <span className="text-[11px] text-slate-400 font-normal">کلید با پیشوند ghp_ یا github_pat_</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showGithubToken ? "text" : "password"}
+                            value={configToken}
+                            onChange={(e) => setConfigToken(e.target.value)}
+                            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 pl-10 text-amber-300 font-mono text-xs dir-ltr"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowGithubToken(!showGithubToken)}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                            title={showGithubToken ? "مخفی کردن توکن" : "نمایش توکن"}
+                          >
+                            {showGithubToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                          جهت اتصال پنل مدیریت به مخزن گیتهاب و آپلود مستقیم تصاویر، توکن شخصی خود را (با دسترسی repo) در این کادر قرار دهید یا در متغیر محیطی <code className="text-sky-300 font-mono">GITHUB_TOKEN</code> قرار دهید.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-3">
+                      <button
+                        type="button"
+                        onClick={handleTestMediaConnection}
+                        disabled={isTestingMediaConn}
+                        className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-xs border border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {isTestingMediaConn ? (
+                          <RefreshCw className="w-4 h-4 animate-spin text-sky-300" />
+                        ) : (
+                          <ShieldCheck className="w-4 h-4 text-sky-300" />
+                        )}
+                        <span>تست و اعتبارسنجی اتصال</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveMediaConfig}
+                        className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>ذخیره تنظیمات</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* SUB-TAB 4: REPOSITORY MIGRATION */}
+                {mediaSubTab === 'migrate' && (
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <FolderSync className="w-5 h-5 text-amber-400" />
+                      <h4 className="font-bold text-white text-sm">مهاجرت و انتقال کامل تصاویر به مخزن جدید گیت‌هاب</h4>
+                    </div>
+
+                    <p className="text-slate-300 text-xs leading-relaxed">
+                      با استفاده از این بخش می‌توانید تمام {githubMediaAssets.length} تصویر موجود در مخزن فعلی (<code className="font-mono text-purple-300">{mediaConfigState.githubOwner}/{mediaConfigState.githubRepository}</code>) را به یک مخزن جدید انتقال داده و آدرس‌های جدید را در دیتابیس همگام‌سازی کنید.
+                    </p>
+
+                    {migrationResultNotice && (
+                      <div className={`p-3 rounded-xl text-xs font-semibold flex flex-col gap-1 ${
+                        migrationResultNotice.success ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {migrationResultNotice.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                          <span>{migrationResultNotice.message}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">مالک مخزن مقصد (Target Owner):</label>
+                        <input
+                          type="text"
+                          value={migTargetOwner}
+                          onChange={(e) => setMigTargetOwner(e.target.value)}
+                          placeholder="azad2022"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-amber-300 font-mono text-xs dir-ltr"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">نام مخزن مقصد (Target Repository):</label>
+                        <input
+                          type="text"
+                          value={migTargetRepo}
+                          onChange={(e) => setMigTargetRepo(e.target.value)}
+                          placeholder="solmint-media-v2"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-amber-300 font-mono text-xs dir-ltr"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">شاخه مقصد (Target Branch):</label>
+                        <input
+                          type="text"
+                          value={migTargetBranch}
+                          onChange={(e) => setMigTargetBranch(e.target.value)}
+                          placeholder="main"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-amber-300 font-mono text-xs dir-ltr"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={handleExecuteRepositoryMigration}
+                        disabled={isMigratingMedia || githubMediaAssets.length === 0}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-extrabold text-xs shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isMigratingMedia ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                            <span>در حال انتقال فایل‌ها به مخزن مقصد...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FolderSync className="w-4 h-4 text-slate-950" />
+                            <span>شروع انتقال خودکار و غیرمخرب تصاویر</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
@@ -4598,6 +5275,86 @@ Sitemap: https://solmint.ir/sitemap.xml
 
             </>
             )}
+          </div>
+        )}
+
+        {/* Media Picker Modal Overlay */}
+        {isMediaPickerOpen && (
+          <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-sm">انتخاب تصویر کاور از کتابخانه رسانه</h3>
+                    <p className="text-[11px] text-slate-400">تصویر مورد نظر را انتخاب کنید تا آدرس آن در فرم قرار گیرد.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsMediaPickerOpen(false)}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 overflow-y-auto space-y-4 flex-1">
+                {githubMediaAssets.length === 0 ? (
+                  <div className="p-8 text-center space-y-3">
+                    <ImageIcon className="w-10 h-10 text-slate-600 mx-auto" />
+                    <h5 className="font-bold text-slate-300 text-sm">هنوز تصویری در کتابخانه ثبت نشده است</h5>
+                    <p className="text-slate-400 text-xs">ابتدا در زبانه "مدیریت رسانه" تصاویر مورد نظر را آپلود نمایید.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {githubMediaAssets.map((asset) => (
+                      <div
+                        key={asset.id}
+                        onClick={() => {
+                          setFormCoverImage(asset.publicUrl);
+                          setIsMediaPickerOpen(false);
+                        }}
+                        className="group relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-[#14F195] cursor-pointer transition-all hover:scale-[1.02] flex flex-col"
+                      >
+                        <div className="h-28 w-full bg-slate-950 overflow-hidden relative">
+                          <img
+                            src={asset.publicUrl}
+                            alt={asset.altText || asset.filename}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-purple-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <span className="px-3 py-1 rounded-lg bg-[#14F195] text-slate-950 font-black text-xs shadow-lg">
+                              انتخاب این تصویر
+                            </span>
+                          </div>
+                        </div>
+                        <div className="p-2 bg-slate-900">
+                          <span className="font-mono text-[10px] font-bold text-slate-300 block truncate dir-ltr text-right">
+                            {asset.filename}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsMediaPickerOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer"
+                >
+                  انصراف
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

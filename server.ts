@@ -164,6 +164,389 @@ async function startServer() {
     next();
   });
 
+  // --- MEDIA MANAGEMENT & GITHUB REPOSITORY API ENDPOINTS ---
+
+  let activeMediaConfig = {
+    provider: "github",
+    githubOwner: "azad2022",
+    githubRepository: "solmint-media",
+    branch: "main",
+    basePath: "articles/",
+    githubToken: "",
+    connectionStatus: "untested"
+  };
+
+  const getGitHubToken = (overrideToken?: string): string => {
+    if (overrideToken && overrideToken.trim() !== "") {
+      return overrideToken.trim();
+    }
+    if (activeMediaConfig.githubToken && activeMediaConfig.githubToken.trim() !== "") {
+      return activeMediaConfig.githubToken.trim();
+    }
+    return (
+      process.env.GITHUB_MEDIA_TOKEN ||
+      process.env.GITHUB_TOKEN ||
+      process.env.VITE_GITHUB_TOKEN ||
+      ""
+    ).trim();
+  };
+
+  const callGitHubApi = async (url: string, options: any = {}, overrideToken?: string) => {
+    const token = getGitHubToken(overrideToken);
+    const headers: Record<string, string> = {
+      "Accept": "application/vnd.github.v3+json",
+      "User-Agent": "SolmintApp-Server-MediaService",
+      ...(options.headers || {})
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
+
+    return response;
+  };
+
+  // 1. GET /api/media/config
+  app.get("/api/media/config", (req, res) => {
+    const hasToken = Boolean(getGitHubToken());
+    res.json({
+      config: {
+        ...activeMediaConfig,
+        githubToken: activeMediaConfig.githubToken ? activeMediaConfig.githubToken.slice(0, 4) + "****" + activeMediaConfig.githubToken.slice(-4) : ""
+      },
+      hasToken,
+      notice: hasToken ? "کلید دسترسی (GitHub Token) فعال و متصل است." : "توکن GITHUB_TOKEN هنوز تنظیم نشده است. لطفاً توکن خود را در کادر زیر یا .env وارد نمایید."
+    });
+  });
+
+  // 2. POST /api/media/config
+  app.post("/api/media/config", (req, res) => {
+    const { config } = req.body;
+    if (config && typeof config === "object") {
+      activeMediaConfig = {
+        ...activeMediaConfig,
+        githubOwner: (config.githubOwner || activeMediaConfig.githubOwner).trim(),
+        githubRepository: (config.githubRepository || activeMediaConfig.githubRepository).trim(),
+        branch: (config.branch || activeMediaConfig.branch).trim(),
+        basePath: (config.basePath || activeMediaConfig.basePath).replace(/^\/+|\/+$/g, "") + "/",
+        ...(config.githubToken !== undefined && !config.githubToken.includes("****") ? { githubToken: config.githubToken.trim() } : {}),
+        connectionStatus: config.connectionStatus || activeMediaConfig.connectionStatus
+      };
+    }
+    res.json({ success: true, config: activeMediaConfig });
+  });
+
+  // 3. POST /api/media/test-connection
+  app.post("/api/media/test-connection", async (req, res) => {
+    try {
+      const owner = (req.body.githubOwner || activeMediaConfig.githubOwner).trim();
+      const repo = (req.body.githubRepository || activeMediaConfig.githubRepository).trim();
+      const branch = (req.body.branch || activeMediaConfig.branch).trim();
+      const customToken = req.body.githubToken && !req.body.githubToken.includes("****") ? req.body.githubToken.trim() : undefined;
+
+      const repoUrl = `https://api.github.com/repos/${owner}/${repo}`;
+      const repoRes = await callGitHubApi(repoUrl, {}, customToken);
+
+      if (!repoRes.ok) {
+        const errData = await repoRes.json().catch(() => ({}));
+        activeMediaConfig.connectionStatus = "disconnected";
+        return res.status(repoRes.status).json({
+          success: false,
+          message: `ارتباط برقرار نشد (${repoRes.status}): ${errData.message || "مخزن یافت نشد یا عدم دسترسی"}`,
+          status: repoRes.status
+        });
+      }
+
+      const repoData = await repoRes.json();
+      activeMediaConfig.connectionStatus = "connected";
+
+      return res.json({
+        success: true,
+        message: `اتصال به مخزن ${owner}/${repo} در شاخه ${branch} با موفقیت تایید شد.`,
+        details: {
+          fullName: repoData.full_name,
+          private: repoData.private,
+          defaultBranch: repoData.default_branch,
+          sizeKb: repoData.size
+        }
+      });
+    } catch (err: any) {
+      activeMediaConfig.connectionStatus = "disconnected";
+      return res.status(500).json({
+        success: false,
+        message: `خطای سرور در تست اتصال: ${err.message || "خطای غیرمنتظره"}`
+      });
+    }
+  });
+
+  // 4. POST /api/media/upload
+  app.post("/api/media/upload", async (req, res) => {
+    try {
+      const { base64, filename, originalFilename, mimeType, width, height, altText, title, config } = req.body;
+
+      if (!base64 || !filename) {
+        return res.status(400).json({ success: false, message: "اطلاعات فایل تصویر ناقص است." });
+      }
+
+      const owner = (config?.githubOwner || activeMediaConfig.githubOwner).trim();
+      const repo = (config?.githubRepository || activeMediaConfig.githubRepository).trim();
+      const branch = (config?.branch || activeMediaConfig.branch).trim();
+      let basePath = (config?.basePath || activeMediaConfig.basePath).replace(/^\/+|\/+$/g, "");
+      if (basePath) basePath += "/";
+
+      // Prevent Path Traversal
+      const cleanFilename = filename.replace(/[^a-zA-Z0-9\.\-_]/g, "");
+      if (!cleanFilename || cleanFilename.includes("..")) {
+        return res.status(400).json({ success: false, message: "نام فایل نامعتبر است." });
+      }
+
+      const fullPath = `${basePath}${cleanFilename}`;
+      const githubApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${fullPath}`;
+
+      // Check if file exists to get SHA for update
+      let existingSha = "";
+      const checkRes = await callGitHubApi(`${githubApiUrl}?ref=${branch}`);
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        existingSha = checkData.sha || "";
+      }
+
+      const uploadPayload: any = {
+        message: `Upload media asset: ${cleanFilename} via Solmint Admin`,
+        content: base64,
+        branch
+      };
+      if (existingSha) {
+        uploadPayload.sha = existingSha;
+      }
+
+      const uploadRes = await callGitHubApi(githubApiUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(uploadPayload)
+      });
+
+      if (!uploadRes.ok) {
+        const errJson = await uploadRes.json().catch(() => ({}));
+        return res.status(uploadRes.status).json({
+          success: false,
+          message: `خطا در آپلود گیت‌هاب: ${errJson.message || uploadRes.statusText}`
+        });
+      }
+
+      const uploadData = await uploadRes.json();
+      const publicUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${fullPath}`;
+      const fileSize = Math.round((base64.length * 3) / 4);
+
+      const asset = {
+        id: `asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        provider: "github",
+        githubOwner: owner,
+        githubRepository: repo,
+        branch,
+        path: fullPath,
+        filename: cleanFilename,
+        publicUrl,
+        mimeType: mimeType || "image/webp",
+        fileSize,
+        width: width || 0,
+        height: height || 0,
+        sha: uploadData.content?.sha || existingSha,
+        createdAt: new Date().toISOString(),
+        originalFilename: originalFilename || cleanFilename,
+        altText: altText || "",
+        title: title || cleanFilename
+      };
+
+      return res.json({
+        success: true,
+        asset,
+        message: "فایل تصویر با موفقیت در مخزن گیت‌هاب ثبت گردید."
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: `خطای داخلی سرور در آپلود: ${err.message}`
+      });
+    }
+  });
+
+  // 5. DELETE /api/media/delete
+  app.post("/api/media/delete", async (req, res) => {
+    try {
+      const { path: filePath, sha, githubOwner, githubRepository, branch } = req.body;
+      const owner = (githubOwner || activeMediaConfig.githubOwner).trim();
+      const repo = (githubRepository || activeMediaConfig.githubRepository).trim();
+      const branchName = (branch || activeMediaConfig.branch).trim();
+
+      if (!filePath) {
+        return res.status(400).json({ success: false, message: "مسیر فایل جهت حذف مشخص نشده است." });
+      }
+
+      let fileSha = sha;
+      const githubApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+      if (!fileSha) {
+        const checkRes = await callGitHubApi(`${githubApiUrl}?ref=${branchName}`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          fileSha = checkData.sha;
+        }
+      }
+
+      if (fileSha) {
+        const deleteRes = await callGitHubApi(githubApiUrl, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: `Delete media asset: ${filePath} via Solmint Admin`,
+            sha: fileSha,
+            branch: branchName
+          })
+        });
+
+        if (!deleteRes.ok && deleteRes.status !== 404) {
+          const errData = await deleteRes.json().catch(() => ({}));
+          return res.status(deleteRes.status).json({
+            success: false,
+            message: `خطا در حذف از گیت‌هاب: ${errData.message || deleteRes.statusText}`
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: "رسانه با موفقیت از مخزن و سیستم حذف گردید."
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: `خطای سرور در حذف فایل: ${err.message}`
+      });
+    }
+  });
+
+  // 6. POST /api/media/migrate
+  app.post("/api/media/migrate", async (req, res) => {
+    try {
+      const { sourceConfig, targetConfig, assets } = req.body;
+
+      if (!targetConfig || !targetConfig.githubOwner || !targetConfig.githubRepository) {
+        return res.status(400).json({ success: false, message: "اطلاعات مخزن مقصد معتبر نیست." });
+      }
+
+      const srcOwner = (sourceConfig?.githubOwner || activeMediaConfig.githubOwner).trim();
+      const srcRepo = (sourceConfig?.githubRepository || activeMediaConfig.githubRepository).trim();
+      const srcBranch = (sourceConfig?.branch || activeMediaConfig.branch).trim();
+
+      const tgtOwner = targetConfig.githubOwner.trim();
+      const tgtRepo = targetConfig.githubRepository.trim();
+      const tgtBranch = (targetConfig.branch || "main").trim();
+
+      const testTgt = await callGitHubApi(`https://api.github.com/repos/${tgtOwner}/${tgtRepo}`);
+      if (!testTgt.ok) {
+        return res.status(400).json({
+          success: false,
+          message: `دسترسی به مخزن مقصد (${tgtOwner}/${tgtRepo}) تایید نشد. لطفاً از وجود مخزن و توکن معتبر مطمئن شوید.`
+        });
+      }
+
+      const assetList = Array.isArray(assets) ? assets : [];
+      const migratedAssets: any[] = [];
+      let successCount = 0;
+      let failedCount = 0;
+      let skippedCount = 0;
+
+      for (const asset of assetList) {
+        try {
+          const rawUrl = asset.publicUrl || `https://raw.githubusercontent.com/${srcOwner}/${srcRepo}/${srcBranch}/${asset.path}`;
+          const fetchRes = await fetch(rawUrl);
+
+          if (!fetchRes.ok) {
+            failedCount++;
+            continue;
+          }
+
+          const arrayBuffer = await fetchRes.arrayBuffer();
+          const base64Content = Buffer.from(arrayBuffer).toString("base64");
+
+          const targetPath = asset.path;
+          const targetUrl = `https://api.github.com/repos/${tgtOwner}/${tgtRepo}/contents/${targetPath}`;
+
+          let tgtSha = "";
+          const checkTgt = await callGitHubApi(`${targetUrl}?ref=${tgtBranch}`);
+          if (checkTgt.ok) {
+            const checkTgtData = await checkTgt.json();
+            tgtSha = checkTgtData.sha;
+          }
+
+          const putRes = await callGitHubApi(targetUrl, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: `Migrated media asset: ${asset.filename} from ${srcOwner}/${srcRepo}`,
+              content: base64Content,
+              branch: tgtBranch,
+              ...(tgtSha ? { sha: tgtSha } : {})
+            })
+          });
+
+          if (putRes.ok) {
+            const putData = await putRes.json();
+            const newPublicUrl = `https://raw.githubusercontent.com/${tgtOwner}/${tgtRepo}/${tgtBranch}/${targetPath}`;
+
+            const updatedAsset = {
+              ...asset,
+              githubOwner: tgtOwner,
+              githubRepository: tgtRepo,
+              branch: tgtBranch,
+              publicUrl: newPublicUrl,
+              sha: putData.content?.sha || tgtSha
+            };
+
+            migratedAssets.push(updatedAsset);
+            successCount++;
+          } else {
+            failedCount++;
+          }
+        } catch (e) {
+          failedCount++;
+        }
+      }
+
+      activeMediaConfig = {
+        ...activeMediaConfig,
+        githubOwner: tgtOwner,
+        githubRepository: tgtRepo,
+        branch: tgtBranch,
+        connectionStatus: "connected"
+      };
+
+      return res.json({
+        success: true,
+        message: `عملیات مهاجرت تکمیل گردید: ${successCount} موفق، ${failedCount} ناموفق، ${skippedCount} صرف‌نظر شده.`,
+        migratedAssets,
+        results: {
+          total: assetList.length,
+          success: successCount,
+          failed: failedCount,
+          skipped: skippedCount,
+          activeRepo: `${tgtOwner}/${tgtRepo}`
+        }
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: `خطای سرور در مهاجرت: ${err.message}`
+      });
+    }
+  });
+
+
   // Helper to generate pre-rendered HTML with full route-specific metadata and 404 status detection
   const renderSeoPage = async (rawTemplate: string, reqPath: string): Promise<{ html: string; status: number; isRedirect?: boolean; redirectUrl?: string }> => {
     let cleanPath = reqPath.split("?")[0].toLowerCase();

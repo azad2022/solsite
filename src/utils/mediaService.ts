@@ -1,0 +1,371 @@
+import { MediaAsset, MediaStorageConfig, DEFAULT_MEDIA_STORAGE_CONFIG } from '../types';
+import { 
+  fetchMediaAssetsFromSupabase, 
+  saveMediaAssetToSupabase, 
+  deleteMediaAssetFromSupabase,
+  fetchMediaConfigFromSupabase,
+  saveMediaConfigToSupabase
+} from './supabaseClient';
+
+/**
+ * Sanitizes and generates an SEO-friendly filename.
+ * Example: "تصویر تست مقاله جدید.png" -> "tasvir-test-maghale-jadid.webp"
+ */
+export function generateSeoFilename(inputName: string, targetExt: string = 'webp'): string {
+  if (!inputName) return `media-${Date.now()}.${targetExt}`;
+
+  // Extract base name without extension
+  const lastDot = inputName.lastIndexOf('.');
+  let baseName = lastDot > 0 ? inputName.substring(0, lastDot) : inputName;
+
+  // Simple Persian/Arabic character transliteration mapping
+  const charMap: Record<string, string> = {
+    'آ': 'a', 'ا': 'a', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ث': 's', 'ج': 'j', 'چ': 'ch',
+    'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'ژ': 'zh', 'س': 's',
+    'ش': 'sh', 'ص': 's', 'ض': 'z', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f',
+    'ق': 'gh', 'ک': 'k', 'گ': 'g', 'ل': 'l', 'م': 'm', 'ن': 'n', 'و': 'v', 'ه': 'h',
+    'ی': 'y', 'ي': 'y', 'ك': 'k', ' ': '-', '_': '-'
+  };
+
+  let cleanStr = baseName
+    .split('')
+    .map(c => charMap[c] !== undefined ? charMap[c] : c)
+    .join('')
+    .toLowerCase()
+    .replace(/[^a-z0-9\-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  if (!cleanStr) {
+    cleanStr = `image-${Date.now()}`;
+  }
+
+  return `${cleanStr}.${targetExt}`;
+}
+
+/**
+ * Client-side Canvas Image Optimization:
+ * Converts uploaded File to optimized WebP base64 string, limiting dimensions and reducing file size.
+ */
+export async function optimizeImageFile(
+  file: File, 
+  maxWidth: number = 1920, 
+  maxHeight: number = 1080, 
+  quality: number = 0.82
+): Promise<{ base64: string; width: number; height: number; mimeType: string; sizeBytes: number }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          const aspect = width / height;
+          if (width > maxWidth) {
+            width = maxWidth;
+            height = Math.round(width / aspect);
+          }
+          if (height > maxHeight) {
+            height = maxHeight;
+            width = Math.round(height * aspect);
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert canvas to WebP or fallback to JPEG
+        let mimeType = 'image/webp';
+        let dataUrl = canvas.toDataURL('image/webp', quality);
+
+        if (!dataUrl.startsWith('data:image/webp')) {
+          mimeType = 'image/jpeg';
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        // Base64 part only
+        const base64 = dataUrl.split(',')[1] || '';
+        const sizeBytes = Math.round((base64.length * 3) / 4);
+
+        resolve({
+          base64,
+          width,
+          height,
+          mimeType,
+          sizeBytes
+        });
+      };
+      img.onerror = () => reject(new Error('تصویر بارگذاری نشد'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('خطا در خواندن فایل'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Fetch Media Storage Config from server or Supabase
+ */
+export async function getMediaStorageConfig(): Promise<MediaStorageConfig> {
+  // Try server API first
+  try {
+    const res = await fetch('/api/media/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.config) {
+        return data.config;
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  // Fallback to Supabase
+  const supaConfig = await fetchMediaConfigFromSupabase();
+  if (supaConfig) return supaConfig;
+
+  // Fallback to LocalStorage
+  const local = localStorage.getItem('solmint_media_config');
+  if (local) {
+    try {
+      return JSON.parse(local);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return DEFAULT_MEDIA_STORAGE_CONFIG;
+}
+
+/**
+ * Save Media Storage Config to server & DB
+ */
+export async function saveMediaStorageConfig(config: MediaStorageConfig): Promise<boolean> {
+  localStorage.setItem('solmint_media_config', JSON.stringify(config));
+  await saveMediaConfigToSupabase(config);
+
+  try {
+    const res = await fetch('/api/media/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config })
+    });
+    return res.ok;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Test Connection to GitHub Media Repository
+ */
+export async function testMediaRepositoryConnection(config: MediaStorageConfig): Promise<{ success: boolean; message: string; details?: any }> {
+  try {
+    const res = await fetch('/api/media/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    const data = await res.json();
+    return {
+      success: res.ok && data.success,
+      message: data.message || (res.ok ? 'اتصال با موفقیت برقرار شد' : 'برقراری ارتباط با مخزن گیت‌هاب ناموفق بود'),
+      details: data.details
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `خطای ارتباط با سرور: ${err.message || 'شبکه غیرقابل دسترس است'}`
+    };
+  }
+}
+
+/**
+ * Fetch all MediaAssets (combines Supabase with LocalStorage cache)
+ */
+export async function getAllMediaAssets(): Promise<MediaAsset[]> {
+  const supaAssets = await fetchMediaAssetsFromSupabase();
+  if (supaAssets && supaAssets.length > 0) {
+    localStorage.setItem('solmint_media_assets_cache', JSON.stringify(supaAssets));
+    return supaAssets;
+  }
+
+  const cached = localStorage.getItem('solmint_media_assets_cache');
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Upload Image File to GitHub via Server API and register MediaAsset
+ */
+export async function uploadMediaAsset(
+  file: File,
+  customSeoName?: string,
+  altText: string = '',
+  title: string = ''
+): Promise<{ success: boolean; asset?: MediaAsset; message: string }> {
+  try {
+    // 1. Optimize Image
+    const optimized = await optimizeImageFile(file);
+
+    // 2. Determine SEO Filename
+    const targetFilename = generateSeoFilename(customSeoName || file.name, 'webp');
+
+    // 3. Current storage config
+    const config = await getMediaStorageConfig();
+
+    // 4. Send base64 to server API
+    const res = await fetch('/api/media/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base64: optimized.base64,
+        filename: targetFilename,
+        originalFilename: file.name,
+        mimeType: optimized.mimeType,
+        width: optimized.width,
+        height: optimized.height,
+        altText,
+        title,
+        config
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success || !data.asset) {
+      return {
+        success: false,
+        message: data.message || 'خطا در آپلود فایل تصویر به مخزن گیت‌هاب'
+      };
+    }
+
+    const asset: MediaAsset = data.asset;
+
+    // 5. Save metadata to Supabase DB
+    await saveMediaAssetToSupabase(asset);
+
+    // Update local cache
+    const existing = await getAllMediaAssets();
+    const updated = [asset, ...existing.filter(a => a.id !== asset.id)];
+    localStorage.setItem('solmint_media_assets_cache', JSON.stringify(updated));
+
+    return {
+      success: true,
+      asset,
+      message: 'تصویر با موفقیت در مخزن گیت‌هاب آپلود و ثبت گردید'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `خطای پردازش تصویر: ${err.message || 'ناشناخته'}`
+    };
+  }
+}
+
+/**
+ * Delete MediaAsset from GitHub & DB
+ */
+export async function deleteMediaAsset(asset: MediaAsset): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/media/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assetId: asset.id,
+        path: asset.path,
+        sha: asset.sha,
+        githubOwner: asset.githubOwner,
+        githubRepository: asset.githubRepository,
+        branch: asset.branch
+      })
+    });
+
+    const data = await res.json();
+
+    // Always delete from Supabase DB even if github deletion returns 404
+    await deleteMediaAssetFromSupabase(asset.id);
+
+    // Update local cache
+    const existing = await getAllMediaAssets();
+    const updated = existing.filter(a => a.id !== asset.id);
+    localStorage.setItem('solmint_media_assets_cache', JSON.stringify(updated));
+
+    return {
+      success: true,
+      message: data.message || 'تصویر با موفقیت حذف گردید'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `خطای ارتباط سرور: ${err.message || 'ناشناخته'}`
+    };
+  }
+}
+
+/**
+ * Migrate assets from current repository to target repository
+ */
+export async function migrateMediaRepository(
+  sourceConfig: MediaStorageConfig,
+  targetConfig: MediaStorageConfig
+): Promise<{ success: boolean; message: string; results?: any }> {
+  try {
+    const assets = await getAllMediaAssets();
+
+    const res = await fetch('/api/media/migrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceConfig,
+        targetConfig,
+        assets
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        message: data.message || 'انتقال و مهاجرت مخزن با خطا مواجه شد'
+      };
+    }
+
+    // Update database assets with new repository info
+    if (data.migratedAssets && Array.isArray(data.migratedAssets)) {
+      for (const updatedAsset of data.migratedAssets) {
+        await saveMediaAssetToSupabase(updatedAsset);
+      }
+      localStorage.setItem('solmint_media_assets_cache', JSON.stringify(data.migratedAssets));
+    }
+
+    return {
+      success: true,
+      message: data.message || 'عملیات انتقال تصاویر با موفقیت تکمیل شد',
+      results: data.results
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `خطای سرور در انجام مهاجرت: ${err.message || 'ناشناخته'}`
+    };
+  }
+}

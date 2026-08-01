@@ -184,15 +184,19 @@ export async function generateArticleWithDeepSeek(
     try {
       const keywordsStr = settings.targetKeywords.join('، ');
       
-      const userPrompt = `لطفاً یک مقاله تخصصی و کاملاً سئو شده درباره موضوع زیر بنویسید:
+      const userPrompt = `لطفاً یک مقاله تخصصی و کاربردی درباره موضوع زیر بنویسید:
 موضوع: "${topic}"
 کلمات کلیدی اجباری سئو: ${keywordsStr}
 لحن: ${settings.writingStyle.tone}
 تعداد کلمات تقریبی: ${settings.writingStyle.targetWordCount} کلمه
 
+قوانین بسیار مهم عنوان و محتوا:
+۱. در عنوان مقاله به هیچ عنوان عباراتی مثل "مقاله سئو شده"، "آموزش سئو شده"، "سئو شده" یا نام مدل‌های هوش مصنوعی (مانند DeepSeek) را درج نکنید. فقط و فقط عنوان واقعی و جذاب مقاله را بنویسید.
+2. در متن مقاله، لینک‌ها یا مشخصات نویسنده، هیچ نامی از دیپ‌سیک یا هوش مصنوعی نباید وجود داشته باشد. نویسنده فقط "تیم محتوای سولمینت" است.
+
 خروجی شما باید یک JSON معتبر باشد با ساختار دقیق زیر (بدون هیچ متن اضافی قبل یا بعد از JSON):
 {
-  "title": "عنوان جذاب سئو شده در حدود ۵۰ تا ۷۰ کاراکتر",
+  "title": "عنوان جذاب و دقیق مقاله بدون عبارت‌های اضافی در حدود ۵۰ تا ۷۰ کاراکتر",
   "category": "یکی از موارد دقیق مقابل: آموزش سولانا | توسعه وب۳ | امنیت | اخبار و تحلیل | آموزش ساخت میم کوین | آموزش ساخت NFT | کیف پول سولانا",
   "summary": "خلاصه جذاب مقاله برای Meta Description در حدود ۱۲۰ تا ۱۶۰ کاراکتر",
   "tags": ["تگ۱", "تگ۲", "تگ۳", "تگ۴"],
@@ -256,12 +260,27 @@ export async function generateArticleWithDeepSeek(
           const images = COVER_IMAGES_BY_CATEGORY[category] || COVER_IMAGES_BY_CATEGORY['آموزش سولانا'];
           const coverImage = images[Math.floor(Math.random() * images.length)];
 
+          // Clean title from any unwanted AI prefixes or meta commentary
+          let cleanTitle = parsed.title || topic;
+          cleanTitle = cleanTitle
+            .replace(/^(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|عنوان\s*سئو\s*شده|سئو\s*شده|مقاله\s*سئوشده|آموزش\s*سئوشده)\s*[:：\-–—]?\s*/gi, '')
+            .replace(/\s*\(مقاله\s*سئو\s*شده\)/gi, '')
+            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, '')
+            .trim();
+
+          // Clean content from any DeepSeek references
+          let cleanContent = (parsed.content || '')
+            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, 'سولمینت');
+
+          let cleanSummary = (parsed.summary || '')
+            .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک/gi, 'سولمینت');
+
           return {
-            title: parsed.title,
-            slug: parsed.title ? parsed.title.toLowerCase().replace(/[^\w\u0600-\u06FF]+/g, '-').slice(0, 60) : `deepseek-article-${Date.now()}`,
+            title: cleanTitle,
+            slug: cleanTitle ? cleanTitle.toLowerCase().replace(/[^\w\u0600-\u06FF]+/g, '-').slice(0, 60) : `solmint-article-${Date.now()}`,
             category: category,
-            summary: parsed.summary,
-            content: parsed.content,
+            summary: cleanSummary,
+            content: cleanContent,
             tags: parsed.tags || settings.targetKeywords.slice(0, 4),
             coverImage: coverImage,
             videoUrl: settings.mediaConfig.includeVideo ? settings.mediaConfig.defaultVideoUrl : undefined,
@@ -275,7 +294,7 @@ export async function generateArticleWithDeepSeek(
     }
   }
 
-  // Smart Fallback Engine generating realistic, rich SEO Article using DeepSeek prompt rules
+  // Smart Fallback Engine generating realistic, rich SEO Article using Solmint prompt rules
   return generateSmartFallbackArticle(topic, settings);
 }
 
@@ -291,8 +310,8 @@ function generateSmartFallbackArticle(topic: string, settings: DeepSeekAiSetting
   else if (isRent) category = 'توسعه وب۳';
   else if (isSecurity) category = 'امنیت';
 
-  const title = `آموزش سئو شده: ${topic} [راهنمای جامع سال ۲۰۲۶]`;
-  const slug = `deepseek-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+  const title = `${topic} [راهنمای جامع سال ۲۰۲۶]`;
+  const slug = `solmint-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
 
   const summary = `در این مقاله جامع آموزش داده می‌شود که چگونه با استفاده از اپلیکیشن سولمینت (Solmint App) و ابزارهای غیرامانی شبکه سولانا، فرایند ${topic} را با کمترین کارمزد و بالاترین سرعت انجام دهید.`;
 
@@ -300,7 +319,7 @@ function generateSmartFallbackArticle(topic: string, settings: DeepSeekAiSetting
 
 به وبسایت **سولمینت (Solmint App)** خوش آمدید. اکوسیستم **سولانا (Solana)** به دلیل کارمزد بسیار پایین (کمتر از ۰.۰۰۱ دلار) و سرعت تراکنش بی‌نظیر (بیش از ۶۵,۰۰۰ TPS)، به انتخاب اول توسعه‌دهندگان و کاربران بلاکچین تبدیل شده است.
 
-در این مقاله تخصصی که به کمک هوش مصنوعی **DeepSeek AI** تدوین شده است، تمامی مراحل مربوط به **${topic}** را به صورت گام‌به‌گام بررسی می‌کنیم.
+در این مقاله تخصصی تیم محتوای **سولمینت**، تمامی مراحل مربوط به **${topic}** را به صورت گام‌به‌گام بررسی می‌کنیم.
 
 ---
 
