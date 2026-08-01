@@ -115,15 +115,18 @@ export async function optimizeImageFile(
 
 function getAdminAuthHeaders(): Record<string, string> {
   try {
-    const passcode = localStorage.getItem('solmint_admin_passcode') || 'solmint1404';
+    let passcode = (localStorage.getItem('solmint_admin_passcode') || 'solmint1404').trim();
+    passcode = passcode.replace(/^["']|["']$/g, '').trim();
     return {
       'Content-Type': 'application/json',
-      'x-admin-passcode': passcode
+      'x-admin-passcode': passcode,
+      'Authorization': `Bearer ${passcode}`
     };
   } catch {
     return {
       'Content-Type': 'application/json',
-      'x-admin-passcode': 'solmint1404'
+      'x-admin-passcode': 'solmint1404',
+      'Authorization': 'Bearer solmint1404'
     };
   }
 }
@@ -167,15 +170,31 @@ export async function getMediaStorageConfig(): Promise<MediaStorageConfig> {
 /**
  * Save Media Storage Config to server & DB
  */
-export async function saveMediaStorageConfig(config: MediaStorageConfig): Promise<boolean> {
-  localStorage.setItem('solmint_media_config', JSON.stringify(config));
-  await saveMediaConfigToSupabase(config);
+export async function saveMediaStorageConfig(config: MediaStorageConfig & { githubToken?: string }): Promise<boolean> {
+  const token = config.githubToken;
+  // Clean public config (strip token from persistence to prevent secret exposure)
+  const sanitizedConfig: MediaStorageConfig = {
+    provider: config.provider || 'github',
+    githubOwner: config.githubOwner,
+    githubRepository: config.githubRepository,
+    branch: config.branch || 'main',
+    basePath: config.basePath || 'articles/',
+    connectionStatus: config.connectionStatus || 'untested'
+  };
+
+  localStorage.setItem('solmint_media_config', JSON.stringify(sanitizedConfig));
+  await saveMediaConfigToSupabase(sanitizedConfig);
 
   try {
     const res = await fetch('/api/media/config', {
       method: 'POST',
       headers: getAdminAuthHeaders(),
-      body: JSON.stringify({ config })
+      body: JSON.stringify({ 
+        config: {
+          ...sanitizedConfig,
+          githubToken: token || undefined
+        } 
+      })
     });
     return res.ok;
   } catch (err) {

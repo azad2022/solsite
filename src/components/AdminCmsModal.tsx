@@ -275,16 +275,38 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
   const [formCoverImageAssetId, setFormCoverImageAssetId] = useState<string>('');
 
-  // Effect to load media assets & config when modal opens
+  // Effect to load media assets & config and validate server session when modal opens
   useEffect(() => {
     if (isOpen && isAuthenticated) {
-      getAllMediaAssets().then(assets => setGithubMediaAssets(assets));
-      getMediaStorageConfig().then(cfg => {
-        setMediaConfigState(cfg);
-        setConfigOwner(cfg.githubOwner);
-        setConfigRepo(cfg.githubRepository);
-        setConfigBranch(cfg.branch || 'main');
-        setConfigBasePath(cfg.basePath || 'articles/');
+      // Validate server session auth
+      const passcode = (localStorage.getItem('solmint_admin_passcode') || 'solmint1404').trim().replace(/^["']|["']$/g, '');
+      fetch('/api/media/config', {
+        headers: {
+          'x-admin-passcode': passcode,
+          'Authorization': `Bearer ${passcode}`
+        }
+      }).then(res => {
+        if (res.status === 401) {
+          // Passcode invalid or expired, reset auth state
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+          localStorage.removeItem('solmint_admin_session');
+          localStorage.removeItem('solmint_current_user');
+          setAuthError('نشست کاری شما منقضی شده یا رمز عبور نامعتبر است. لطفاً مجدداً وارد شوید.');
+          return;
+        }
+        getAllMediaAssets().then(assets => setGithubMediaAssets(assets || []));
+        getMediaStorageConfig().then(cfg => {
+          if (cfg) {
+            setMediaConfigState(cfg);
+            setConfigOwner(cfg.githubOwner || 'azad2022');
+            setConfigRepo(cfg.githubRepository || 'solmint-media');
+            setConfigBranch(cfg.branch || 'main');
+            setConfigBasePath(cfg.basePath || 'articles/');
+          }
+        });
+      }).catch(() => {
+        getAllMediaAssets().then(assets => setGithubMediaAssets(assets || []));
       });
     }
   }, [isOpen, isAuthenticated]);
@@ -2568,22 +2590,27 @@ Sitemap: https://solmint.ir/sitemap.xml
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                         {githubMediaAssets
-                          .filter(asset => 
-                            !mediaSearchQuery || 
-                            asset.filename.toLowerCase().includes(mediaSearchQuery.toLowerCase()) ||
-                            asset.altText?.toLowerCase().includes(mediaSearchQuery.toLowerCase()) ||
-                            asset.title?.toLowerCase().includes(mediaSearchQuery.toLowerCase())
-                          )
+                          .filter(asset => {
+                            if (!asset) return false;
+                            const q = (mediaSearchQuery || '').toLowerCase();
+                            if (!q) return true;
+                            const filename = (asset.filename || '').toLowerCase();
+                            const altText = (asset.altText || '').toLowerCase();
+                            const title = (asset.title || '').toLowerCase();
+                            return filename.includes(q) || altText.includes(q) || title.includes(q);
+                          })
                           .map((asset) => {
-                            const isUsed = articles.some(a => a.coverImage === asset.publicUrl || a.coverImageAssetId === asset.id);
+                            const publicUrl = asset.publicUrl || asset.url || '';
+                            const filename = asset.filename || 'تصویر';
+                            const isUsed = articles.some(a => a.coverImage === publicUrl || a.coverImageAssetId === asset.id);
                             return (
-                              <div key={asset.id} className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/40 transition-all space-y-3 flex flex-col justify-between">
+                              <div key={asset.id || Math.random().toString()} className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/40 transition-all space-y-3 flex flex-col justify-between">
                                 <div className="space-y-2">
                                   {/* Image Container */}
                                   <div className="relative group rounded-xl overflow-hidden bg-slate-950 border border-slate-800 h-36 flex items-center justify-center">
                                     <img 
-                                      src={asset.publicUrl} 
-                                      alt={asset.altText || asset.filename} 
+                                      src={publicUrl} 
+                                      alt={asset.altText || filename} 
                                       className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                                       loading="lazy"
                                     />
@@ -2593,14 +2620,14 @@ Sitemap: https://solmint.ir/sitemap.xml
                                       </span>
                                     )}
                                     <span className="absolute bottom-2 left-2 bg-slate-950/80 text-slate-300 text-[9px] font-mono px-2 py-0.5 rounded-md backdrop-blur-sm border border-slate-700">
-                                      {asset.width && asset.height ? `${asset.width}x${asset.height}` : 'WebP'} • {Math.round(asset.fileSize / 1024)} KB
+                                      {asset.width && asset.height ? `${asset.width}x${asset.height}` : 'WebP'} • {asset.fileSize ? Math.round(asset.fileSize / 1024) : 0} KB
                                     </span>
                                   </div>
 
                                   {/* Asset Info */}
                                   <div>
-                                    <span className="font-mono text-xs font-bold text-white block truncate dir-ltr text-right" title={asset.filename}>
-                                      {asset.filename}
+                                    <span className="font-mono text-xs font-bold text-white block truncate dir-ltr text-right" title={filename}>
+                                      {filename}
                                     </span>
                                     {asset.altText && (
                                       <span className="text-[11px] text-slate-400 block truncate mt-0.5">
@@ -2609,7 +2636,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                                     )}
                                     <div className="flex items-center gap-1.5 mt-1.5">
                                       <span className="text-[9px] font-mono bg-slate-800 text-purple-300 px-2 py-0.5 rounded-md border border-slate-700">
-                                        {asset.githubOwner}/{asset.githubRepository}
+                                        {asset.githubOwner || 'azad2022'}/{asset.githubRepository || 'solmint-media'}
                                       </span>
                                     </div>
                                   </div>
@@ -2619,7 +2646,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
                                   <button
                                     onClick={() => {
-                                      navigator.clipboard.writeText(asset.publicUrl);
+                                      navigator.clipboard.writeText(publicUrl);
                                       alert('لینک مستقیم تصویر کپی شد!');
                                     }}
                                     className="flex-1 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer border border-slate-700"
@@ -2629,7 +2656,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                                   </button>
 
                                   <a
-                                    href={asset.publicUrl}
+                                    href={publicUrl}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer border border-slate-700"
@@ -5317,34 +5344,41 @@ Sitemap: https://solmint.ir/sitemap.xml
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {githubMediaAssets.map((asset) => (
-                      <div
-                        key={asset.id}
-                        onClick={() => {
-                          setFormCoverImage(asset.publicUrl);
-                          setIsMediaPickerOpen(false);
-                        }}
-                        className="group relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-[#14F195] cursor-pointer transition-all hover:scale-[1.02] flex flex-col"
-                      >
-                        <div className="h-28 w-full bg-slate-950 overflow-hidden relative">
-                          <img
-                            src={asset.publicUrl}
-                            alt={asset.altText || asset.filename}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                          <div className="absolute inset-0 bg-purple-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <span className="px-3 py-1 rounded-lg bg-[#14F195] text-slate-950 font-black text-xs shadow-lg">
-                              انتخاب این تصویر
+                    {githubMediaAssets.map((asset) => {
+                      const url = asset.publicUrl || asset.url || '';
+                      const filename = asset.filename || 'تصویر';
+                      return (
+                        <div
+                          key={asset.id || Math.random().toString()}
+                          onClick={() => {
+                            if (url) {
+                              setFormCoverImage(url);
+                              if (asset.id) setFormCoverImageAssetId(asset.id);
+                            }
+                            setIsMediaPickerOpen(false);
+                          }}
+                          className="group relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-[#14F195] cursor-pointer transition-all hover:scale-[1.02] flex flex-col"
+                        >
+                          <div className="h-28 w-full bg-slate-950 overflow-hidden relative">
+                            <img
+                              src={url}
+                              alt={asset.altText || filename}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            />
+                            <div className="absolute inset-0 bg-purple-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <span className="px-3 py-1 rounded-lg bg-[#14F195] text-slate-950 font-black text-xs shadow-lg">
+                                انتخاب این تصویر
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-2 bg-slate-900">
+                            <span className="font-mono text-[10px] font-bold text-slate-300 block truncate dir-ltr text-right">
+                              {filename}
                             </span>
                           </div>
                         </div>
-                        <div className="p-2 bg-slate-900">
-                          <span className="font-mono text-[10px] font-bold text-slate-300 block truncate dir-ltr text-right">
-                            {asset.filename}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
