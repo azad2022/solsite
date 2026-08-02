@@ -228,11 +228,11 @@ export const ProArticleEditor: React.FC<ProArticleEditorProps> = ({
         <div className="p-3 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
           
           {/* Mode Tabs */}
-          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 shrink-0">
             <button
               type="button"
               onClick={() => setViewMode('edit')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
                 viewMode === 'edit' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -243,7 +243,7 @@ export const ProArticleEditor: React.FC<ProArticleEditorProps> = ({
             <button
               type="button"
               onClick={() => setViewMode('split')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`hidden md:flex px-3 py-1.5 rounded-lg text-xs font-bold items-center gap-1.5 cursor-pointer transition-all ${
                 viewMode === 'split' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -254,7 +254,7 @@ export const ProArticleEditor: React.FC<ProArticleEditorProps> = ({
             <button
               type="button"
               onClick={() => setViewMode('preview')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
                 viewMode === 'preview' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -264,34 +264,34 @@ export const ProArticleEditor: React.FC<ProArticleEditorProps> = ({
           </div>
 
           {/* AI Assistance Quick Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               disabled={isAiLoading}
               onClick={() => onCallGeminiAi('expand')}
-              className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-blue-600/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/30 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+              className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-blue-600/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/30 text-[10px] sm:text-[11px] font-bold flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all shrink-0"
               title="تکمیل و بازنویسی متن با Gemini AI"
             >
               <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-              <span>{isAiLoading ? 'در حال نگارش...' : 'تکمیل خودکار متن با AI'}</span>
+              <span>{isAiLoading ? 'در حال نگارش...' : 'تکمیل با AI'}</span>
             </button>
 
             <button
               type="button"
               disabled={isAiLoading}
               onClick={() => onCallGeminiAi('faq')}
-              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+              className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 text-[10px] sm:text-[11px] font-bold flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all shrink-0"
               title="تولید بخش سوالات متداول سئو"
             >
               <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-              <span>افزودن FAQ خودکار</span>
+              <span>افزودن FAQ</span>
             </button>
 
             {/* Fullscreen Toggle */}
             <button
               type="button"
               onClick={() => setIsFullScreen(!isFullScreen)}
-              className="p-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer border border-slate-700"
+              className="p-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer border border-slate-700 shrink-0"
               title={isFullScreen ? 'خروج از حالت تمام صفحه' : 'حالت تمام صفحه بدون تمرکز'}
             >
               {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -302,7 +302,7 @@ export const ProArticleEditor: React.FC<ProArticleEditorProps> = ({
 
         {/* Formatting Toolbar (Visible in Edit & Split modes) */}
         {viewMode !== 'preview' && (
-          <div className="p-2 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center gap-1 text-slate-300 overflow-x-auto">
+          <div className="p-2 bg-slate-900/90 border-b border-slate-800 flex items-center gap-1 text-slate-300 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap">
             
             {/* Headers Group */}
             <div className="flex items-center gap-0.5 border-l border-slate-800 pl-2 ml-1">

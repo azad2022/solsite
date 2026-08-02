@@ -1649,17 +1649,17 @@ Sitemap: https://solmint.ir/sitemap.xml
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="glass-card w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-700 p-6 sm:p-8 space-y-6 my-auto text-slate-200 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-0 sm:p-4 overflow-y-auto">
+      <div className="glass-card w-full h-full min-h-screen sm:min-h-0 sm:h-auto sm:max-w-5xl sm:max-h-[92vh] overflow-y-auto rounded-none sm:rounded-3xl border-0 sm:border border-slate-700 p-3.5 sm:p-8 space-y-4 sm:space-y-6 my-0 sm:my-auto text-slate-200 shadow-2xl flex flex-col justify-between">
         
         {/* Modal Top Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#9945FF]/20 via-[#14F195]/20 to-[#00C2FF]/20 text-[#14F195] border border-[#9945FF]/30 flex items-center justify-center p-2 font-bold shadow-lg shadow-[#9945FF]/10">
+        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-[#9945FF]/20 via-[#14F195]/20 to-[#00C2FF]/20 text-[#14F195] border border-[#9945FF]/30 flex items-center justify-center p-1.5 sm:p-2 font-bold shadow-lg shadow-[#9945FF]/10 shrink-0">
               <SolanaLogoIcon className="w-full h-full" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-sm sm:text-lg font-bold text-white flex items-center gap-2">
                 {currentUser?.role === 'admin' 
                   ? 'پنل مدیریت محتوا، نظرات و سئو (Solmint CMS)'
                   : currentUser
@@ -1675,7 +1675,7 @@ Sitemap: https://solmint.ir/sitemap.xml
           <button
             onClick={onClose}
             aria-label="بستن پنجره"
-            className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            className="p-2 sm:p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer active:scale-95 transition-transform shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1920,12 +1920,12 @@ Sitemap: https://solmint.ir/sitemap.xml
             </div>
 
             {/* CMS Navigation Tabs */}
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 p-2 rounded-2xl border border-slate-800">
-              <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-slate-900/90 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl border border-slate-800 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 w-full sm:w-auto">
                 {hasPermission('articles') && (
                   <button
                     onClick={() => setAdminTab('articles')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'articles' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -1937,7 +1937,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                 {hasPermission('editor') && (
                   <button
                     onClick={() => handleOpenEditor()}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'editor' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -1949,19 +1949,19 @@ Sitemap: https://solmint.ir/sitemap.xml
                 {hasPermission('comments') && (
                   <button
                     onClick={() => setAdminTab('comments')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'comments' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     <MessageSquare className="w-4 h-4" />
-                    <span>مدیریت نظرات ({testimonials.length + articles.reduce((acc, a) => acc + a.comments.length, 0)})</span>
+                    <span>نظرات ({testimonials.length + articles.reduce((acc, a) => acc + a.comments.length, 0)})</span>
                   </button>
                 )}
 
                 {hasPermission('media') && (
                   <button
                     onClick={() => setAdminTab('media')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'media' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -1973,7 +1973,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                 {hasPermission('seo') && (
                   <button
                     onClick={() => setAdminTab('seo')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'seo' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -1985,43 +1985,43 @@ Sitemap: https://solmint.ir/sitemap.xml
                 {hasPermission('audit') && (
                   <button
                     onClick={() => setAdminTab('audit')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'audit' ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-md' : 'text-emerald-400 hover:text-emerald-300'
                     }`}
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>تست و آودیت سئو (Diagnostic)</span>
+                    <span>تست سئو</span>
                   </button>
                 )}
 
                 {hasPermission('redirects') && (
                   <button
                     onClick={() => setAdminTab('redirects')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'redirects' ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md' : 'text-amber-400 hover:text-amber-300'
                     }`}
                   >
                     <RotateCcw className="w-4 h-4" />
-                    <span>مدیریت 301 Redirects</span>
+                    <span>هدایت‌ها (301)</span>
                   </button>
                 )}
 
                 {hasPermission('downloads') && (
                   <button
                     onClick={() => setAdminTab('downloads')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'downloads' ? 'bg-[#9945FF] text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     <Download className="w-4 h-4 text-[#14F195]" />
-                    <span>لینک‌های دانلود</span>
+                    <span>لینک دانلود</span>
                   </button>
                 )}
 
                 {hasPermission('deepseek') && (
                   <button
                     onClick={() => setAdminTab('deepseek')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'deepseek'
                         ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
                         : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10'
@@ -2035,35 +2035,35 @@ Sitemap: https://solmint.ir/sitemap.xml
                 {hasPermission('chatbot') && (
                   <button
                     onClick={() => setAdminTab('chatbot')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'chatbot'
                         ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-extrabold shadow-lg shadow-[#9945FF]/30'
                         : 'text-[#14F195] hover:text-white hover:bg-[#9945FF]/10'
                     }`}
                   >
                     <Bot className="w-4 h-4 text-[#14F195]" />
-                    <span>تنظیمات چت‌بات AI</span>
+                    <span>چت‌بات AI</span>
                   </button>
                 )}
 
                 {hasPermission('database') && (
                   <button
                     onClick={() => setAdminTab('database')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'database'
                         ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-extrabold shadow-lg shadow-emerald-500/25'
                         : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
                     }`}
                   >
                     <Database className="w-4 h-4 text-emerald-300" />
-                    <span>دیتابیس (Supabase / Cloudflare)</span>
+                    <span>دیتابیس</span>
                   </button>
                 )}
 
                 {hasPermission('security') && (
                   <button
                     onClick={() => setAdminTab('security')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'security' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -2075,21 +2075,21 @@ Sitemap: https://solmint.ir/sitemap.xml
                 {hasPermission('users') && (
                   <button
                     onClick={() => setAdminTab('users')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
                       adminTab === 'users'
                         ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold shadow-lg shadow-amber-500/25'
                         : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                     }`}
                   >
                     <Users className="w-4 h-4 text-amber-300" />
-                    <span>مدیریت اعضا و دسترسی‌ها (RBAC)</span>
+                    <span>مدیریت کاربران (RBAC)</span>
                   </button>
                 )}
               </div>
 
               <button
                 onClick={handleLogout}
-                className="text-xs text-rose-400 hover:bg-rose-500/10 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 border border-rose-500/20 cursor-pointer"
+                className="text-xs text-rose-400 hover:bg-rose-500/10 px-3 py-1.5 rounded-xl font-bold flex items-center justify-center gap-1 border border-rose-500/20 cursor-pointer shrink-0 self-end sm:self-auto active:scale-95 transition-transform"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>خروج</span>
