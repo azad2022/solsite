@@ -1649,11 +1649,11 @@ Sitemap: https://solmint.ir/sitemap.xml
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-0 sm:p-4 overflow-y-auto">
-      <div className="glass-card w-full h-full min-h-screen sm:min-h-0 sm:h-auto sm:max-w-5xl sm:max-h-[92vh] overflow-y-auto rounded-none sm:rounded-3xl border-0 sm:border border-slate-700 p-3.5 sm:p-8 space-y-4 sm:space-y-6 my-0 sm:my-auto text-slate-200 shadow-2xl flex flex-col justify-between">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto">
+      <div className="glass-card w-full max-w-5xl rounded-2xl sm:rounded-3xl border border-slate-700 p-4 sm:p-8 space-y-5 sm:space-y-6 my-2 sm:my-auto text-slate-200 shadow-2xl">
         
         {/* Modal Top Header */}
-        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-[#9945FF]/20 via-[#14F195]/20 to-[#00C2FF]/20 text-[#14F195] border border-[#9945FF]/30 flex items-center justify-center p-1.5 sm:p-2 font-bold shadow-lg shadow-[#9945FF]/10 shrink-0">
               <SolanaLogoIcon className="w-full h-full" />
@@ -1675,7 +1675,7 @@ Sitemap: https://solmint.ir/sitemap.xml
           <button
             onClick={onClose}
             aria-label="بستن پنجره"
-            className="p-2 sm:p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer active:scale-95 transition-transform shrink-0"
+            className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer active:scale-95 transition-transform shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
