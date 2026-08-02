@@ -280,18 +280,42 @@ async function startServer() {
     try {
       const { username, passwordHash, passcode } = req.body;
       const cleanUsername = String(username || "").trim().toLowerCase();
-      const users = getAllUsers();
+      const suppliedPass = String(passcode || "").trim();
+      const suppliedHash = String(passwordHash || "").trim();
 
-      // Check admin passcode match
       const cmsSettings = getCmsSettings();
-      const currentAdminPasscode = cmsSettings.security.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404";
+      const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").trim();
 
-      if (passcode === currentAdminPasscode || passcode === "solmint1404" || cleanUsername === "admin") {
-        const adminUser = users.find(u => u.username === "admin") || {
+      const users = getAllUsers();
+      const adminUserInDb = users.find(u => u.username.toLowerCase() === "admin");
+
+      // Check if trying to login as admin / superadmin
+      if (cleanUsername === "admin") {
+        let isPassValid = false;
+
+        // Check if suppliedPass matches current active admin passcode from settings
+        if (suppliedPass && suppliedPass === currentAdminPasscode) {
+          isPassValid = true;
+        }
+        // Check if suppliedHash matches adminUserInDb passwordHash
+        else if (adminUserInDb && adminUserInDb.passwordHash && suppliedHash && suppliedHash === adminUserInDb.passwordHash) {
+          isPassValid = true;
+        }
+        // Check if suppliedPass matches adminUserInDb passwordHash
+        else if (adminUserInDb && adminUserInDb.passwordHash && suppliedPass && suppliedPass === adminUserInDb.passwordHash) {
+          isPassValid = true;
+        }
+
+        if (!isPassValid) {
+          return res.status(401).json({ success: false, message: "نام کاربری یا رمز عبور مدیر اشتباه است." });
+        }
+
+        const adminUser = adminUserInDb || {
           id: "admin-1",
           username: "admin",
           fullName: "مدیر ارشد پلتفرم (SuperAdmin)",
           role: "superadmin",
+          passwordHash: suppliedHash,
           permissions: ["articles", "editor", "comments", "media", "seo", "downloads", "deepseek", "chatbot", "security", "database", "users"],
           isActive: true,
           createdAt: "۱۴۰۴/۰۱/۰۱"
@@ -299,6 +323,7 @@ async function startServer() {
         return res.json({ success: true, user: adminUser, isSuperAdmin: true });
       }
 
+      // Standard user login
       const found = users.find(u => u.username.toLowerCase() === cleanUsername);
       if (!found) {
         return res.status(401).json({ success: false, message: "کاربری با این مشخصات یافت نشد." });
@@ -308,8 +333,13 @@ async function startServer() {
         return res.status(403).json({ success: false, message: "حساب کاربری شما توسط مدیریت غیرفعال شده است." });
       }
 
-      if (found.passwordHash === passwordHash) {
-        return res.json({ success: true, user: found });
+      const isUserPassValid =
+        (suppliedHash && found.passwordHash === suppliedHash) ||
+        (suppliedPass && found.passwordHash === suppliedPass) ||
+        (found.role === "superadmin" && suppliedPass === currentAdminPasscode);
+
+      if (isUserPassValid) {
+        return res.json({ success: true, user: found, isSuperAdmin: found.role === "superadmin" });
       } else {
         return res.status(401).json({ success: false, message: "رمز عبور وارد شده اشتباه است." });
       }
@@ -503,16 +533,17 @@ async function startServer() {
   ).trim();
 
   // Admin authentication check helper for sensitive API endpoints
-  const ADMIN_PASSCODE = (process.env.ADMIN_PASSCODE || "solmint1404").replace(/^["']|["']$/g, '').trim();
-
   const isAuthorizedAdmin = (req: express.Request): boolean => {
+    const cmsSettings = getCmsSettings();
+    const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").replace(/^["']|["']$/g, '').trim();
+
     const passcodeHeader = (req.headers["x-admin-passcode"] as string || "").trim();
     const authHeader = (req.headers["authorization"] || "").trim();
 
-    if (passcodeHeader && (passcodeHeader === ADMIN_PASSCODE || passcodeHeader === "solmint1404")) return true;
+    if (passcodeHeader && passcodeHeader === currentAdminPasscode) return true;
     if (authHeader.startsWith("Bearer ")) {
       const token = authHeader.substring(7).trim();
-      if (token === ADMIN_PASSCODE || token === "solmint1404") return true;
+      if (token === currentAdminPasscode) return true;
     }
 
     return false;

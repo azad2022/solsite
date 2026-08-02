@@ -889,37 +889,48 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     // Fallback authentication for static deployments (e.g. status 405 or server offline)
     if (!authRes.success) {
       const cleanIdent = identifier.toLowerCase();
-      const savedPasscode = (localStorage.getItem('solmint_admin_passcode') || 'solmint1404').trim();
+      const savedPasscode = (localStorage.getItem('solmint_admin_passcode') || '').trim();
+      const savedHash = (localStorage.getItem('solmint_admin_pass_hash') || '').trim();
 
-      if (
-        cleanIdent === 'admin' ||
-        pass === 'solmint1404' ||
-        pass === savedPasscode ||
-        cleanIdent === 'solmint1404' ||
-        inputHash === DEFAULT_PASSCODE_HASH
-      ) {
-        const adminUser: UserAccount = {
-          id: 'admin-1',
-          username: 'admin',
-          fullName: 'مدیر ارشد پلتفرم (SuperAdmin)',
-          role: 'superadmin',
-          passwordHash: inputHash || DEFAULT_PASSCODE_HASH,
-          permissions: ALL_ADMIN_PERMISSIONS,
-          isActive: true,
-          createdAt: '۱۴۰۴/۰۱/۰۱'
-        };
-        authRes = {
-          success: true,
-          user: adminUser,
-          isSuperAdmin: true
-        };
+      const activePasscode = savedPasscode || 'solmint1404';
+      const activeHash = savedHash || DEFAULT_PASSCODE_HASH;
+
+      if (cleanIdent === 'admin') {
+        const isPassValid = (pass === activePasscode) || (inputHash === activeHash);
+        if (isPassValid) {
+          const adminUser: UserAccount = {
+            id: 'admin-1',
+            username: 'admin',
+            fullName: 'مدیر ارشد پلتفرم (SuperAdmin)',
+            role: 'superadmin',
+            passwordHash: activeHash,
+            permissions: ALL_ADMIN_PERMISSIONS,
+            isActive: true,
+            createdAt: '۱۴۰۴/۰۱/۰۱'
+          };
+          authRes = {
+            success: true,
+            user: adminUser,
+            isSuperAdmin: true
+          };
+        } else {
+          authRes = {
+            success: false,
+            message: 'نام کاربری یا رمز عبور مدیر اشتباه است.'
+          };
+        }
       } else {
         const localFound = users.find(u => u.username.toLowerCase() === cleanIdent);
-        if (localFound && (localFound.passwordHash === inputHash || pass === 'solmint1404')) {
-          if (localFound.isActive === false) {
-            authRes = { success: false, message: 'حساب کاربری شما توسط مدیریت غیرفعال شده است.' };
+        if (localFound) {
+          const isUserPassValid = (localFound.passwordHash === inputHash) || (localFound.role === 'superadmin' && pass === activePasscode);
+          if (isUserPassValid) {
+            if (localFound.isActive === false) {
+              authRes = { success: false, message: 'حساب کاربری شما توسط مدیریت غیرفعال شده است.' };
+            } else {
+              authRes = { success: true, user: localFound };
+            }
           } else {
-            authRes = { success: true, user: localFound };
+            authRes = { success: false, message: 'رمز عبور وارد شده اشتباه است.' };
           }
         }
       }
@@ -931,9 +942,13 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
 
       if (isTeamMember) {
         setIsAuthenticated(true);
-        localStorage.setItem('solmint_admin_passcode', pass || 'solmint1404');
+        if (pass) {
+          localStorage.setItem('solmint_admin_passcode', pass);
+          localStorage.setItem('solmint_admin_pass_hash', inputHash);
+        }
         const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
         localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
+        setAuthError('');
 
         const userPerms = user.permissions || (user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
         if (!userPerms.includes(adminTab)) {
@@ -1042,33 +1057,51 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
 
   const handleChangePasscode = async (e: React.FormEvent) => {
     e.preventDefault();
-    const currentInputHash = await hashPasscode(currentPassInput);
-    const savedPasscode = (localStorage.getItem('solmint_admin_passcode') || 'solmint1404').trim();
+    const currentInputHash = await hashPasscode(currentPassInput.trim());
+    const savedPasscode = (localStorage.getItem('solmint_admin_passcode') || '').trim();
+    const savedHash = (localStorage.getItem('solmint_admin_pass_hash') || '').trim();
+
+    const activePasscode = savedPasscode || 'solmint1404';
+    const activeHash = savedHash || DEFAULT_PASSCODE_HASH;
 
     const isCurrentCorrect =
-      currentInputHash === storedPassHash ||
-      currentPassInput.trim() === savedPasscode ||
-      (currentPassInput.trim() === 'solmint1404');
+      currentPassInput.trim() === activePasscode ||
+      currentInputHash === activeHash;
 
     if (!isCurrentCorrect) {
       alert('رمز عبور فعلی وارد شده اشتباه است.');
       return;
     }
-    if (newPassInput.length < 6) {
+    if (newPassInput.trim().length < 6) {
       alert('رمز عبور جدید باید حداقل ۶ کاراکتر باشد.');
       return;
     }
-    if (newPassInput !== confirmPassInput) {
+    if (newPassInput.trim() !== confirmPassInput.trim()) {
       alert('تکرار رمز عبور جدید مطابقت ندارد.');
       return;
     }
 
-    const newHash = await hashPasscode(newPassInput);
+    const newPass = newPassInput.trim();
+    const newHash = await hashPasscode(newPass);
+
     setStoredPassHash(newHash);
     localStorage.setItem('solmint_admin_pass_hash', newHash);
-    localStorage.setItem('solmint_admin_passcode', newPassInput);
-    await saveCmsSettingsToApi({ security: { adminPasscode: newPassInput } });
-    setPassChangeSuccess('رمز عبور پنل مدیریت با موفقیت در دیتابیس سرور بروزرسانی و رمزنگاری شد.');
+    localStorage.setItem('solmint_admin_passcode', newPass);
+
+    // Save on server database
+    await saveCmsSettingsToApi({ security: { adminPasscode: newPass } });
+
+    // Also update local users array
+    const updatedUsers = users.map(u => {
+      if (u.username.toLowerCase() === 'admin' || u.role === 'superadmin') {
+        return { ...u, passwordHash: newHash };
+      }
+      return u;
+    });
+    setUsers(updatedUsers);
+    safeSetLocalStorage('solmint_users', updatedUsers);
+
+    setPassChangeSuccess('رمز عبور پنل مدیریت با موفقیت در دیتابیس سرور بروزرسانی شد و رمز عبور قدیمی باطل گردید.');
     setCurrentPassInput('');
     setNewPassInput('');
     setConfirmPassInput('');
