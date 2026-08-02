@@ -108,12 +108,12 @@ import {
   Play,
   Smartphone,
   RotateCcw,
+  Sliders,
   Link as LinkIcon,
   Bot,
   Wand2,
   Brain,
   Cpu,
-  Sliders,
   Settings2,
   Tag,
   Upload,
@@ -1920,180 +1920,256 @@ Sitemap: https://solmint.ir/sitemap.xml
             </div>
 
             {/* CMS Navigation Tabs */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-slate-900/90 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl border border-slate-800 shrink-0">
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 w-full sm:w-auto">
-                {hasPermission('articles') && (
+            <div className="bg-slate-900/90 p-2 rounded-2xl border border-slate-800 shrink-0 space-y-2">
+              
+              {/* Mobile View: Quick Dropdown Select Menu */}
+              <div className="block md:hidden">
+                <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
+                  <label htmlFor="admin-mobile-tab-select" className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>انتخاب بخش مدیریت:</span>
+                  </label>
                   <button
-                    onClick={() => setAdminTab('articles')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'articles' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
+                    onClick={handleLogout}
+                    className="text-[11px] text-rose-400 hover:bg-rose-500/10 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-rose-500/20 cursor-pointer active:scale-95 transition-transform"
                   >
-                    <FileText className="w-4 h-4" />
-                    <span>مقالات ({articles.length})</span>
+                    <LogOut className="w-3 h-3" />
+                    <span>خروج</span>
                   </button>
-                )}
+                </div>
 
-                {hasPermission('editor') && (
-                  <button
-                    onClick={() => handleOpenEditor()}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'editor' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>ایجاد مقاله</span>
-                  </button>
-                )}
-
-                {hasPermission('comments') && (
-                  <button
-                    onClick={() => setAdminTab('comments')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'comments' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    <span>نظرات ({testimonials.length + articles.reduce((acc, a) => acc + a.comments.length, 0)})</span>
-                  </button>
-                )}
-
-                {hasPermission('media') && (
-                  <button
-                    onClick={() => setAdminTab('media')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'media' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <ImageIcon className="w-4 h-4" />
-                    <span>رسانه</span>
-                  </button>
-                )}
-
-                {hasPermission('seo') && (
-                  <button
-                    onClick={() => setAdminTab('seo')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'seo' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Globe className="w-4 h-4" />
-                    <span>سئو و Cloudflare</span>
-                  </button>
-                )}
-
-                {hasPermission('audit') && (
-                  <button
-                    onClick={() => setAdminTab('audit')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'audit' ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-md' : 'text-emerald-400 hover:text-emerald-300'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>تست سئو</span>
-                  </button>
-                )}
-
-                {hasPermission('redirects') && (
-                  <button
-                    onClick={() => setAdminTab('redirects')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'redirects' ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md' : 'text-amber-400 hover:text-amber-300'
-                    }`}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>هدایت‌ها (301)</span>
-                  </button>
-                )}
-
-                {hasPermission('downloads') && (
-                  <button
-                    onClick={() => setAdminTab('downloads')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'downloads' ? 'bg-[#9945FF] text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Download className="w-4 h-4 text-[#14F195]" />
-                    <span>لینک دانلود</span>
-                  </button>
-                )}
-
-                {hasPermission('deepseek') && (
-                  <button
-                    onClick={() => setAdminTab('deepseek')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'deepseek'
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
-                        : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10'
-                    }`}
-                  >
-                    <Brain className="w-4 h-4 text-cyan-300 animate-pulse" />
-                    <span>نویسنده DeepSeek</span>
-                  </button>
-                )}
-
-                {hasPermission('chatbot') && (
-                  <button
-                    onClick={() => setAdminTab('chatbot')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'chatbot'
-                        ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-extrabold shadow-lg shadow-[#9945FF]/30'
-                        : 'text-[#14F195] hover:text-white hover:bg-[#9945FF]/10'
-                    }`}
-                  >
-                    <Bot className="w-4 h-4 text-[#14F195]" />
-                    <span>چت‌بات AI</span>
-                  </button>
-                )}
-
-                {hasPermission('database') && (
-                  <button
-                    onClick={() => setAdminTab('database')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'database'
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-extrabold shadow-lg shadow-emerald-500/25'
-                        : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
-                    }`}
-                  >
-                    <Database className="w-4 h-4 text-emerald-300" />
-                    <span>دیتابیس</span>
-                  </button>
-                )}
-
-                {hasPermission('security') && (
-                  <button
-                    onClick={() => setAdminTab('security')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'security' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>امنیت CMS</span>
-                  </button>
-                )}
-
-                {hasPermission('users') && (
-                  <button
-                    onClick={() => setAdminTab('users')}
-                    className={`px-3 py-2 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap active:scale-95 ${
-                      adminTab === 'users'
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold shadow-lg shadow-amber-500/25'
-                        : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
-                    }`}
-                  >
-                    <Users className="w-4 h-4 text-amber-300" />
-                    <span>مدیریت کاربران (RBAC)</span>
-                  </button>
-                )}
+                <select
+                  id="admin-mobile-tab-select"
+                  value={adminTab}
+                  onChange={(e) => {
+                    const selected = e.target.value;
+                    if (selected === 'editor') {
+                      handleOpenEditor();
+                    } else {
+                      setAdminTab(selected as any);
+                    }
+                  }}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-bold text-xs cursor-pointer focus:outline-none focus:border-cyan-500 shadow-inner"
+                >
+                  {hasPermission('articles') && (
+                    <option value="articles">📝 مدیریت مقالات ({articles.length})</option>
+                  )}
+                  {hasPermission('editor') && (
+                    <option value="editor">➕ ایجاد مقاله جدید</option>
+                  )}
+                  {hasPermission('comments') && (
+                    <option value="comments">💬 مدیریت نظرات و دیدگاه‌ها ({testimonials.length + articles.reduce((acc, a) => acc + a.comments.length, 0)})</option>
+                  )}
+                  {hasPermission('media') && (
+                    <option value="media">🖼️ کتابخانه رسانه و مدیریت فایل‌ها</option>
+                  )}
+                  {hasPermission('seo') && (
+                    <option value="seo">🌐 تنظیمات سئو، متاتگ‌ها و CDN</option>
+                  )}
+                  {hasPermission('audit') && (
+                    <option value="audit">🔍 تست و آودیت هوشمند سئو (Diagnostic)</option>
+                  )}
+                  {hasPermission('redirects') && (
+                    <option value="redirects">🔄 مدیریت 301 Redirects</option>
+                  )}
+                  {hasPermission('downloads') && (
+                    <option value="downloads">📥 مدیریت لینک‌های دانلود اختصاصی</option>
+                  )}
+                  {hasPermission('deepseek') && (
+                    <option value="deepseek">🧠 نویسنده هوشمند DeepSeek</option>
+                  )}
+                  {hasPermission('chatbot') && (
+                    <option value="chatbot">🤖 تنظیمات چت‌بات پشتیبان AI</option>
+                  )}
+                  {hasPermission('database') && (
+                    <option value="database">🗄️ تنظیمات دیتابیس (Supabase / Cloudflare)</option>
+                  )}
+                  {hasPermission('security') && (
+                    <option value="security">🛡️ امنیت، رمز عبور و کلیدها</option>
+                  )}
+                  {hasPermission('users') && (
+                    <option value="users">👥 مدیریت کاربران و سطح دسترسی (RBAC)</option>
+                  )}
+                </select>
               </div>
 
-              <button
-                onClick={handleLogout}
-                className="text-xs text-rose-400 hover:bg-rose-500/10 px-3 py-1.5 rounded-xl font-bold flex items-center justify-center gap-1 border border-rose-500/20 cursor-pointer shrink-0 self-end sm:self-auto active:scale-95 transition-transform"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>خروج</span>
-              </button>
+              {/* Desktop View: Full Tab Strip */}
+              <div className="hidden md:flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {hasPermission('articles') && (
+                    <button
+                      onClick={() => setAdminTab('articles')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'articles' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>مقالات ({articles.length})</span>
+                    </button>
+                  )}
+
+                  {hasPermission('editor') && (
+                    <button
+                      onClick={() => handleOpenEditor()}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'editor' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>ایجاد مقاله</span>
+                    </button>
+                  )}
+
+                  {hasPermission('comments') && (
+                    <button
+                      onClick={() => setAdminTab('comments')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'comments' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>مدیریت نظرات ({testimonials.length + articles.reduce((acc, a) => acc + a.comments.length, 0)})</span>
+                    </button>
+                  )}
+
+                  {hasPermission('media') && (
+                    <button
+                      onClick={() => setAdminTab('media')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'media' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      <span>کتابخانه رسانه</span>
+                    </button>
+                  )}
+
+                  {hasPermission('seo') && (
+                    <button
+                      onClick={() => setAdminTab('seo')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'seo' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Globe className="w-4 h-4" />
+                      <span>سئو و Cloudflare</span>
+                    </button>
+                  )}
+
+                  {hasPermission('audit') && (
+                    <button
+                      onClick={() => setAdminTab('audit')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'audit' ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-md' : 'text-emerald-400 hover:text-emerald-300'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>تست و آودیت سئو (Diagnostic)</span>
+                    </button>
+                  )}
+
+                  {hasPermission('redirects') && (
+                    <button
+                      onClick={() => setAdminTab('redirects')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'redirects' ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md' : 'text-amber-400 hover:text-amber-300'
+                      }`}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>مدیریت 301 Redirects</span>
+                    </button>
+                  )}
+
+                  {hasPermission('downloads') && (
+                    <button
+                      onClick={() => setAdminTab('downloads')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'downloads' ? 'bg-[#9945FF] text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Download className="w-4 h-4 text-[#14F195]" />
+                      <span>لینک‌های دانلود</span>
+                    </button>
+                  )}
+
+                  {hasPermission('deepseek') && (
+                    <button
+                      onClick={() => setAdminTab('deepseek')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'deepseek'
+                          ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+                          : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10'
+                      }`}
+                    >
+                      <Brain className="w-4 h-4 text-cyan-300 animate-pulse" />
+                      <span>نویسنده DeepSeek</span>
+                    </button>
+                  )}
+
+                  {hasPermission('chatbot') && (
+                    <button
+                      onClick={() => setAdminTab('chatbot')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'chatbot'
+                          ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-extrabold shadow-lg shadow-[#9945FF]/30'
+                          : 'text-[#14F195] hover:text-white hover:bg-[#9945FF]/10'
+                      }`}
+                    >
+                      <Bot className="w-4 h-4 text-[#14F195]" />
+                      <span>تنظیمات چت‌بات AI</span>
+                    </button>
+                  )}
+
+                  {hasPermission('database') && (
+                    <button
+                      onClick={() => setAdminTab('database')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'database'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-extrabold shadow-lg shadow-emerald-500/25'
+                          : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
+                      }`}
+                    >
+                      <Database className="w-4 h-4 text-emerald-300" />
+                      <span>دیتابیس (Supabase / Cloudflare)</span>
+                    </button>
+                  )}
+
+                  {hasPermission('security') && (
+                    <button
+                      onClick={() => setAdminTab('security')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'security' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>امنیت CMS</span>
+                    </button>
+                  )}
+
+                  {hasPermission('users') && (
+                    <button
+                      onClick={() => setAdminTab('users')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        adminTab === 'users'
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold shadow-lg shadow-amber-500/25'
+                          : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                      }`}
+                    >
+                      <Users className="w-4 h-4 text-amber-300" />
+                      <span>مدیریت اعضا و دسترسی‌ها (RBAC)</span>
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleLogout}
+                  className="text-xs text-rose-400 hover:bg-rose-500/10 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 border border-rose-500/20 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>خروج</span>
+                </button>
+              </div>
+
             </div>
 
             {/* TAB ACCESS GUARD */}
