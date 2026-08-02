@@ -141,6 +141,7 @@ export async function updateUserApi(payload: {
   role?: string;
   permissions?: string[];
   isActive?: boolean;
+  passwordHash?: string;
 }): Promise<boolean> {
   try {
     const res = await fetch('/api/users/update', {

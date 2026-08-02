@@ -981,22 +981,20 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
 
     if (authRes.success && authRes.user) {
       const user = authRes.user;
-      const isTeamMember = user.role === 'admin' || user.role === 'superadmin' || user.role === 'editor' || user.role === 'writer' || (user.permissions && user.permissions.length > 0);
+      setIsAuthenticated(true);
+      if (pass) {
+        localStorage.setItem('solmint_admin_passcode', pass);
+        localStorage.setItem('solmint_admin_pass_hash', inputHash);
+      }
+      const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
+      localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
+      setAuthError('');
 
-      if (isTeamMember) {
-        setIsAuthenticated(true);
-        if (pass) {
-          localStorage.setItem('solmint_admin_passcode', pass);
-          localStorage.setItem('solmint_admin_pass_hash', inputHash);
-        }
-        const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
-        localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
-        setAuthError('');
-
-        const userPerms = user.permissions || (user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
-        if (!userPerms.includes(adminTab)) {
-          setAdminTab(userPerms[0] || 'articles');
-        }
+      const userPerms = user.permissions && user.permissions.length > 0 
+        ? user.permissions 
+        : (user.role === 'superadmin' || user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
+      if (!userPerms.includes(adminTab)) {
+        setAdminTab(userPerms[0] || 'articles');
       }
 
       setCurrentUser(user);
@@ -1426,7 +1424,8 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         userId: editingUserId,
         role: memberRole,
         permissions: memberPermissions,
-        isActive: memberIsActive
+        isActive: memberIsActive,
+        ...(passHash ? { passwordHash: passHash } : {})
       });
       setUserManagementNotice(`اطلاعات و دسترسی‌های کاربر "${cleanName}" با موفقیت به‌روزرسانی شد.`);
     } else {
