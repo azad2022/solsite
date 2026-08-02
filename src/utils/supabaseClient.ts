@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS public.articles (
     summary TEXT,
     content TEXT,
     cover_image TEXT,
+    cover_image_asset_id TEXT,
     video_url TEXT,
     author JSONB,
     published_at TEXT,
@@ -48,6 +49,9 @@ CREATE TABLE IF NOT EXISTS public.articles (
     is_draft BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- افزودن ستون‌های جدید در صورت وجود قبلی جدول
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS cover_image_asset_id TEXT;
 
 -- 2. فعال‌سازی دسترسی خواندن و نوشتن همگانی (Row Level Security Policy)
 ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
