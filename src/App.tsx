@@ -121,6 +121,14 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Auto open admin/login modal if URL is /admin, /cms, /login, or /dashboard
+  useEffect(() => {
+    const lower = currentPath.toLowerCase();
+    if (lower === '/admin' || lower === '/cms' || lower === '/login' || lower === '/dashboard') {
+      setIsAdminModalOpen(true);
+    }
+  }, [currentPath]);
+
   // Extract active article slug if on an article route
   const activeArticleSlug = useMemo(() => {
     if (currentPath.startsWith('/article/')) {
