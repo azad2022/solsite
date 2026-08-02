@@ -113,6 +113,61 @@ DROP POLICY IF EXISTS "Public Read Media Config" ON public.media_config;
 CREATE POLICY "Public Read Media Config" ON public.media_config FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public Write Media Config" ON public.media_config;
 CREATE POLICY "Public Write Media Config" ON public.media_config FOR ALL USING (true);
+
+-- 5. ساخت جدول کاربران و اعضای تیم در سوپابیس (Users & Roles)
+CREATE TABLE IF NOT EXISTS public.users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    full_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT DEFAULT 'admin',
+    permissions JSONB DEFAULT '[]'::jsonb,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Read Write Users" ON public.users;
+CREATE POLICY "Public Read Write Users" ON public.users FOR ALL USING (true);
+
+-- ثبت کاربر مدیر ارشد پیش‌فرض در صورت عدم وجود
+INSERT INTO public.users (id, username, full_name, password_hash, role, permissions, is_active)
+VALUES (
+  'admin-1',
+  'admin',
+  'مدیر ارشد پلتفرم (SuperAdmin)',
+  'e6b8c8d0e7e1f2a3',
+  'superadmin',
+  '["articles","editor","comments","media","seo","audit","redirects","downloads","deepseek","chatbot","database","security","users"]'::jsonb,
+  true
+)
+ON CONFLICT (username) DO NOTHING;
+
+-- 6. ساخت جدول تنظیمات سی‌ام‌اس (CMS Settings)
+CREATE TABLE IF NOT EXISTS public.cms_settings (
+    id TEXT PRIMARY KEY DEFAULT 'main_settings',
+    settings_json JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.cms_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Read Write Settings" ON public.cms_settings;
+CREATE POLICY "Public Read Write Settings" ON public.cms_settings FOR ALL USING (true);
+
+-- 7. ساخت جدول دیدگاه‌های مقالات (Comments)
+CREATE TABLE IF NOT EXISTS public.comments (
+    id TEXT PRIMARY KEY,
+    article_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    user_id TEXT,
+    text TEXT NOT NULL,
+    approved BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Read Write Comments" ON public.comments;
+CREATE POLICY "Public Read Write Comments" ON public.comments FOR ALL USING (true);
 `;
 
 /**
@@ -412,4 +467,149 @@ export async function saveMediaConfigToSupabase(config: any): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Fetch all Users from Supabase table 'users'
+ */
+export async function fetchUsersFromSupabase(): Promise<any[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('⚠️ Could not fetch users from Supabase:', error.message);
+      return null;
+    }
+
+    if (!data) return [];
+
+    return data.map((item: any) => ({
+      id: item.id,
+      username: item.username,
+      fullName: item.full_name,
+      passwordHash: item.password_hash,
+      role: item.role || 'admin',
+      permissions: Array.isArray(item.permissions) ? item.permissions : (item.permissions ? JSON.parse(item.permissions) : []),
+      isActive: item.is_active !== false,
+      createdAt: item.created_at
+    }));
+  } catch (err) {
+    console.warn('Catch error in fetchUsersFromSupabase:', err);
+    return null;
+  }
+}
+
+/**
+ * Save or update a User account in Supabase
+ */
+export async function saveUserToSupabase(user: any): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  try {
+    const dbPayload = {
+      id: user.id || 'usr-' + Date.now(),
+      username: String(user.username).trim(),
+      full_name: String(user.fullName || user.full_name || '').trim(),
+      password_hash: String(user.passwordHash || user.password_hash || '').trim(),
+      role: user.role || 'admin',
+      permissions: user.permissions || [],
+      is_active: user.isActive !== false
+    };
+
+    const { error } = await client
+      .from('users')
+      .upsert(dbPayload, { onConflict: 'username' });
+
+    if (error) {
+      console.warn('Supabase user upsert warning:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Catch error in saveUserToSupabase:', err);
+    return false;
+  }
+}
+
+/**
+ * Delete a User account from Supabase
+ */
+export async function deleteUserFromSupabase(userId: string): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  try {
+    const { error } = await client
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (error) {
+      console.warn('Supabase user delete warning:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Catch error in deleteUserFromSupabase:', err);
+    return false;
+  }
+}
+
+/**
+ * Fetch CMS Settings from Supabase table 'cms_settings'
+ */
+export async function fetchCmsSettingsFromSupabase(): Promise<any | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('cms_settings')
+      .select('*')
+      .eq('id', 'main_settings')
+      .single();
+
+    if (error || !data || !data.settings_json) return null;
+
+    return typeof data.settings_json === 'string' ? JSON.parse(data.settings_json) : data.settings_json;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Save CMS Settings to Supabase
+ */
+export async function saveCmsSettingsToSupabase(settings: any): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  try {
+    const dbPayload = {
+      id: 'main_settings',
+      settings_json: settings,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await client
+      .from('cms_settings')
+      .upsert(dbPayload, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('Supabase cms_settings upsert warning:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Catch error in saveCmsSettingsToSupabase:', err);
+    return false;
+  }
+}
+
 

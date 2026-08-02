@@ -287,6 +287,19 @@ async function startServer() {
       if (!result.success) {
         return res.status(400).json(result);
       }
+
+      if (serverSupabase) {
+        serverSupabase.from("users").upsert({
+          id: newUser.id,
+          username: newUser.username,
+          full_name: newUser.fullName,
+          password_hash: newUser.passwordHash,
+          role: newUser.role,
+          permissions: newUser.permissions,
+          is_active: newUser.isActive
+        }, { onConflict: "username" }).then(() => {}).catch(() => {});
+      }
+
       return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
