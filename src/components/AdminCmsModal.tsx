@@ -291,12 +291,15 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
   const [formCoverImageAssetId, setFormCoverImageAssetId] = useState<string>('');
 
-  // Effect to sync users, settings, and articles from server database when modal opens
+  // Effect to sync users, settings, and articles from server database on mount and when modal opens
   useEffect(() => {
-    if (isOpen) {
+    const syncUsersAndData = () => {
       fetchUsersApi().then(serverUsers => {
         if (serverUsers && serverUsers.length > 0) {
           setUsers(serverUsers);
+          try {
+            localStorage.setItem('solmint_users', JSON.stringify(serverUsers));
+          } catch (e) {}
         }
       });
       fetchCmsSettingsFromApi().then(settings => {
@@ -325,7 +328,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
           setArticles(arts);
         }
       });
-    }
+    };
+
+    syncUsersAndData();
   }, [isOpen]);
   useEffect(() => {
     if (isOpen && isAuthenticated) {

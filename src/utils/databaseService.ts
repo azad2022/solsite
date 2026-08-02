@@ -18,16 +18,16 @@ export interface DatabaseConfig {
 }
 
 const DEFAULT_CONFIG: DatabaseConfig = {
-  provider: 'supabase',
-  supabaseUrl: 'https://nvopkbiedorfshwbmyhn.supabase.co',
-  supabaseAnonKey: 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt',
+  provider: 'cloudflare_d1',
+  supabaseUrl: '',
+  supabaseAnonKey: '',
   cloudflareWorkerEndpoint: '',
   cloudflareApiKey: ''
 };
 
 export function getDatabaseConfig(): DatabaseConfig {
   const metaEnv = (import.meta as any).env || {};
-  const storedProvider = (localStorage.getItem('solmint_db_provider') as DatabaseProvider) || 'supabase';
+  const storedProvider = (localStorage.getItem('solmint_db_provider') as DatabaseProvider) || 'cloudflare_d1';
   const storedCloudflareUrl = localStorage.getItem('solmint_cf_worker_url') || '';
   const storedCloudflareKey = localStorage.getItem('solmint_cf_worker_key') || '';
 
@@ -61,7 +61,11 @@ export function saveDatabaseConfig(config: Partial<DatabaseConfig>): void {
 /**
  * SQL Schema for Cloudflare D1 Database (SQLite)
  */
-export const CLOUDFLARE_D1_ARTICLES_SQL = `-- 1. ساخت جدول مقالات در کلادفلر (Cloudflare D1 / SQLite)
+export const CLOUDFLARE_D1_ARTICLES_SQL = `-- ============================================================
+-- SQL SCHEMA FOR CLOUDFLARE D1 DATABASE (SOLMINT)
+-- ============================================================
+
+-- 1. جدول مقالات سولمینت
 CREATE TABLE IF NOT EXISTS articles (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -71,6 +75,7 @@ CREATE TABLE IF NOT EXISTS articles (
     summary TEXT,
     content TEXT,
     cover_image TEXT,
+    cover_image_asset_id TEXT,
     video_url TEXT,
     author TEXT,
     published_at TEXT,
@@ -84,8 +89,47 @@ CREATE TABLE IF NOT EXISTS articles (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- دستور ساخت جدول در Cloudflare CLI (npx wrangler):
--- npx wrangler d1 execute YOUR_DATABASE_NAME --command "KOD_HA_YI_BALA"
+-- 2. جدول کاربران و اعضای تیم (احراز هویت و دسترسی‌ها)
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    full_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT DEFAULT 'admin',
+    permissions TEXT DEFAULT '[]',
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. جدول دیدگاه‌های مقالات
+CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY,
+    article_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    user_id TEXT,
+    text TEXT NOT NULL,
+    approved INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. جدول تنظیمات سی‌ام‌اس و گذرواژه مدیریت
+CREATE TABLE IF NOT EXISTS cms_settings (
+    id TEXT PRIMARY KEY DEFAULT 'main_settings',
+    settings_json TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- کاربر پیش‌فرض مدیر ارشد (SuperAdmin)
+INSERT OR IGNORE INTO users (id, username, full_name, password_hash, role, permissions, is_active)
+VALUES (
+  'admin-1',
+  'admin',
+  'مدیر ارشد پلتفرم (SuperAdmin)',
+  'e6b8c8d0e7e1f2a3',
+  'superadmin',
+  '["articles","editor","comments","media","seo","audit","redirects","downloads","deepseek","chatbot","database","security","users"]',
+  1
+);
 `;
 
 /**
