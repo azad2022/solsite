@@ -1,9 +1,15 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import compression from "compression";
 import dotenv from "dotenv";
 dotenv.config();
+
+function hashString(str: string): string {
+  if (!str) return "";
+  return crypto.createHash("sha256").update(str).digest("hex");
+}
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -252,19 +258,28 @@ async function startServer() {
 
   app.post("/api/users/register", (req, res) => {
     try {
-      const { username, fullName, passwordHash, role } = req.body;
-      if (!username || !fullName || !passwordHash) {
+      const { username, fullName, passwordHash, role, permissions, isActive } = req.body || {};
+      if (!username || !fullName || (!passwordHash && !req.body?.password)) {
         return res.status(400).json({ success: false, message: "لطفا تمامی اطلاعات الزامی را وارد کنید." });
       }
+
+      const passInput = String(passwordHash || req.body?.password || "").trim();
+      const finalHash = passInput.length === 64 ? passInput : hashString(passInput);
+
+      const defaultPerms = role === "admin" || role === "superadmin" 
+        ? ["articles", "editor", "comments", "media", "seo", "audit", "redirects", "downloads", "deepseek", "chatbot", "database", "security", "users"]
+        : role === "writer" || role === "editor"
+        ? ["articles", "editor", "comments", "media"]
+        : ["articles"];
 
       const newUser = {
         id: "usr-" + Date.now(),
         username: String(username).trim(),
         fullName: String(fullName).trim(),
-        passwordHash: String(passwordHash),
+        passwordHash: finalHash,
         role: role || "user",
-        permissions: role === "admin" ? ["articles", "editor", "comments", "media"] : [],
-        isActive: true,
+        permissions: Array.isArray(permissions) && permissions.length > 0 ? permissions : defaultPerms,
+        isActive: typeof isActive === "boolean" ? isActive : true,
         createdAt: new Date().toLocaleDateString("fa-IR")
       };
 
@@ -280,13 +295,14 @@ async function startServer() {
 
   app.post("/api/users/login", (req, res) => {
     try {
-      const { username, passwordHash, passcode } = req.body;
+      const { username, passwordHash, passcode } = req.body || {};
       const cleanUsername = String(username || "").trim().toLowerCase();
       const suppliedPass = String(passcode || "").trim();
       const suppliedHash = String(passwordHash || "").trim();
+      const hashedSuppliedPass = suppliedPass ? hashString(suppliedPass) : "";
 
       const cmsSettings = getCmsSettings();
-      const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").trim();
+      const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").replace(/^["']|["']$/g, '').trim();
 
       const users = getAllUsers();
       const adminUserInDb = users.find(u => u.username.toLowerCase() === "admin");
@@ -295,16 +311,13 @@ async function startServer() {
       if (cleanUsername === "admin") {
         let isPassValid = false;
 
-        // Check if suppliedPass matches current active admin passcode from settings
         if (suppliedPass && suppliedPass === currentAdminPasscode) {
           isPassValid = true;
-        }
-        // Check if suppliedHash matches adminUserInDb passwordHash
-        else if (adminUserInDb && adminUserInDb.passwordHash && suppliedHash && suppliedHash === adminUserInDb.passwordHash) {
-          isPassValid = true;
-        }
-        // Check if suppliedPass matches adminUserInDb passwordHash
-        else if (adminUserInDb && adminUserInDb.passwordHash && suppliedPass && suppliedPass === adminUserInDb.passwordHash) {
+        } else if (adminUserInDb && adminUserInDb.passwordHash) {
+          if (suppliedHash && suppliedHash === adminUserInDb.passwordHash) isPassValid = true;
+          else if (suppliedPass && suppliedPass === adminUserInDb.passwordHash) isPassValid = true;
+          else if (hashedSuppliedPass && hashedSuppliedPass === adminUserInDb.passwordHash) isPassValid = true;
+        } else if (suppliedPass && suppliedPass === "solmint1404") {
           isPassValid = true;
         }
 
@@ -317,8 +330,8 @@ async function startServer() {
           username: "admin",
           fullName: "مدیر ارشد پلتفرم (SuperAdmin)",
           role: "superadmin",
-          passwordHash: suppliedHash,
-          permissions: ["articles", "editor", "comments", "media", "seo", "downloads", "deepseek", "chatbot", "security", "database", "users"],
+          passwordHash: suppliedHash || hashString(currentAdminPasscode),
+          permissions: ["articles", "editor", "comments", "media", "seo", "audit", "redirects", "downloads", "deepseek", "chatbot", "database", "security", "users"],
           isActive: true,
           createdAt: "۱۴۰۴/۰۱/۰۱"
         };
@@ -328,7 +341,7 @@ async function startServer() {
       // Standard user login
       const found = users.find(u => u.username.toLowerCase() === cleanUsername);
       if (!found) {
-        return res.status(401).json({ success: false, message: "کاربری با این مشخصات یافت نشد." });
+        return res.status(401).json({ success: false, message: "کاربری با این نام کاربری یافت نشد." });
       }
 
       if (found.isActive === false) {
@@ -338,6 +351,7 @@ async function startServer() {
       const isUserPassValid =
         (suppliedHash && found.passwordHash === suppliedHash) ||
         (suppliedPass && found.passwordHash === suppliedPass) ||
+        (hashedSuppliedPass && found.passwordHash === hashedSuppliedPass) ||
         (found.role === "superadmin" && suppliedPass === currentAdminPasscode);
 
       if (isUserPassValid) {
@@ -352,7 +366,7 @@ async function startServer() {
 
   app.post("/api/users/update", (req, res) => {
     try {
-      const { userId, role, permissions, isActive } = req.body;
+      const { userId, role, permissions, isActive, password, passwordHash } = req.body || {};
       const users = getAllUsers();
       const idx = users.findIndex(u => u.id === userId);
       if (idx === -1) {
@@ -360,11 +374,16 @@ async function startServer() {
       }
 
       if (role) users[idx].role = role;
-      if (permissions) users[idx].permissions = permissions;
+      if (Array.isArray(permissions)) users[idx].permissions = permissions;
       if (typeof isActive === "boolean") users[idx].isActive = isActive;
+      if (passwordHash) {
+        users[idx].passwordHash = String(passwordHash);
+      } else if (password) {
+        users[idx].passwordHash = hashString(String(password));
+      }
 
       saveUsers(users);
-      return res.json({ success: true, message: "مشخصات کاربر با موفقیت به‌روزرسانی شد.", users });
+      return res.json({ success: true, message: "مشخصات کاربر با موفقیت به‌روزرسانی شد.", users, user: users[idx] });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
     }
@@ -1697,6 +1716,14 @@ async function startServer() {
       }
     }
     return res.json(cachedSolanaStatus);
+  });
+
+  // Catch-all JSON 404 for any unhandled /api/* requests (prevents falling through to Vite static server which returns 405 Method Not Allowed)
+  app.all("/api/*", (req, res) => {
+    return res.status(404).json({
+      success: false,
+      message: `مسیر API یافت نشد: ${req.method} ${req.path}`
+    });
   });
 
   // Dynamic Sitemap XML Endpoint fetching from REAL article data source

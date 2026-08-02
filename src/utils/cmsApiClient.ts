@@ -65,6 +65,8 @@ export async function registerUserApi(payload: {
   fullName: string;
   passwordHash: string;
   role?: string;
+  permissions?: string[];
+  isActive?: boolean;
 }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
   try {
     const res = await fetch('/api/users/register', {

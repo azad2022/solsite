@@ -953,9 +953,14 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
           };
         }
       } else {
-        const localFound = users.find(u => u.username.toLowerCase() === cleanIdent);
+        const localList = users.length > 0 ? users : safeGetLocalStorage<UserAccount[]>('solmint_users', []);
+        const localFound = localList.find(u => u.username.toLowerCase() === cleanIdent);
         if (localFound) {
-          const isUserPassValid = (localFound.passwordHash === inputHash) || (localFound.role === 'superadmin' && pass === activePasscode);
+          const isUserPassValid = 
+            (localFound.passwordHash === inputHash) || 
+            (localFound.passwordHash === pass) || 
+            (localFound.role === 'superadmin' && pass === activePasscode);
+
           if (isUserPassValid) {
             if (localFound.isActive === false) {
               authRes = { success: false, message: 'حساب کاربری شما توسط مدیریت غیرفعال شده است.' };
@@ -1428,7 +1433,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         username: cleanUser,
         fullName: cleanName,
         passwordHash: passHash,
-        role: memberRole
+        role: memberRole,
+        permissions: memberPermissions,
+        isActive: memberIsActive
       });
 
       const newUser: UserAccount = regRes.user || {
@@ -1991,6 +1998,166 @@ Sitemap: https://solmint.ir/sitemap.xml
                     <option value="users">👥 مدیریت کاربران و سطح دسترسی (RBAC)</option>
                   )}
                 </select>
+
+                {/* Mobile View: Horizontal Touch-Scrollable Tab Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-2 scrollbar-none no-scrollbar">
+                  {hasPermission('articles') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('articles')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'articles' ? 'bg-sky-500 text-white shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5 text-sky-400" />
+                      <span>مقالات ({articles.length})</span>
+                    </button>
+                  )}
+                  {hasPermission('editor') && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditor()}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'editor' ? 'bg-sky-500 text-white shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>ایجاد مقاله</span>
+                    </button>
+                  )}
+                  {hasPermission('comments') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('comments')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'comments' ? 'bg-sky-500 text-white shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>نظرات</span>
+                    </button>
+                  )}
+                  {hasPermission('media') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('media')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'media' ? 'bg-sky-500 text-white shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>رسانه</span>
+                    </button>
+                  )}
+                  {hasPermission('seo') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('seo')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'seo' ? 'bg-sky-500 text-white shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>سئو</span>
+                    </button>
+                  )}
+                  {hasPermission('audit') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('audit')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'audit' ? 'bg-amber-500 text-slate-950 shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5 text-amber-400" />
+                      <span>آودیت</span>
+                    </button>
+                  )}
+                  {hasPermission('redirects') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('redirects')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'redirects' ? 'bg-sky-500 text-white shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+                      <span>ریدایرکت</span>
+                    </button>
+                  )}
+                  {hasPermission('downloads') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('downloads')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'downloads' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>دانلودها</span>
+                    </button>
+                  )}
+                  {hasPermission('deepseek') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('deepseek')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'deepseek' ? 'bg-purple-600 text-white shadow-md' : 'bg-slate-950 text-purple-300 border border-slate-800'
+                      }`}
+                    >
+                      <Brain className="w-3.5 h-3.5 text-purple-400" />
+                      <span>DeepSeek AI</span>
+                    </button>
+                  )}
+                  {hasPermission('chatbot') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('chatbot')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'chatbot' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-950 text-indigo-300 border border-slate-800'
+                      }`}
+                    >
+                      <Bot className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>چت‌بات</span>
+                    </button>
+                  )}
+                  {hasPermission('database') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('database')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'database' ? 'bg-cyan-600 text-white shadow-md' : 'bg-slate-950 text-cyan-300 border border-slate-800'
+                      }`}
+                    >
+                      <Database className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>دیتابیس</span>
+                    </button>
+                  )}
+                  {hasPermission('security') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('security')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'security' ? 'bg-[#9945FF] text-white shadow-md' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#14F195]" />
+                      <span>امنیت</span>
+                    </button>
+                  )}
+                  {hasPermission('users') && (
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('users')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+                        adminTab === 'users' ? 'bg-amber-500 text-slate-950 shadow-md' : 'bg-slate-950 text-amber-300 border border-slate-800'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5 text-amber-400" />
+                      <span>کاربران</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Desktop View: Full Tab Strip */}
