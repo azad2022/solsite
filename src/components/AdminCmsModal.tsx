@@ -16,7 +16,7 @@ import {
   MediaStorageConfig,
   DEFAULT_MEDIA_STORAGE_CONFIG
 } from '../types';
-import { generateArticleWithDeepSeek, testDeepSeekConnection, batchTestDeepSeekKeys, getRandomCoverForCategoryOrTitle, cleanArticleTitle, cleanArticleContent } from '../utils/deepseekService';
+import { generateArticleWithDeepSeek, testDeepSeekConnection, batchTestDeepSeekKeys, getRandomCoverForCategoryOrTitle, cleanArticleTitle, cleanArticleContent, triggerServerAutoPublish, fetchServerDeepseekLogs, clearServerDeepseekLogs } from '../utils/deepseekService';
 import { generateSlugFromTitle, DEFAULT_ARTICLE_AUTHOR } from '../utils/slugUtils';
 import {
   fetchCmsSettingsFromApi,
@@ -53,6 +53,7 @@ import {
 } from '../utils/mediaService';
 import { SUPABASE_ARTICLES_TABLE_SQL } from '../utils/supabaseClient';
 import { SolanaLogoIcon } from './Header';
+import { ProArticleEditor } from './ProArticleEditor';
 import { 
   formatAccurateDates, 
   convertShamsiToGregorian, 
@@ -69,6 +70,7 @@ import {
 import { 
   Lock, 
   Key, 
+  Activity,
   Plus, 
   Edit3, 
   Trash2, 
@@ -679,10 +681,35 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [customPromptTopic, setCustomPromptTopic] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
+  // Server Activity Logs & Scheduled Hours State
+  const [serverLogs, setServerLogs] = useState<Array<{ id: string; timestamp: string; topic: string; status: 'success' | 'error'; message: string; articleSlug?: string; articleTitle?: string }>>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [publishScheduleHours, setPublishScheduleHours] = useState<number>(6);
+
   // Batch API Key Tester State
   const [batchKeysInput, setBatchKeysInput] = useState('');
   const [batchResults, setBatchResults] = useState<Array<{ key: string; success: boolean; message: string; maskedKey: string }> | null>(null);
   const [isBatchTesting, setIsBatchTesting] = useState(false);
+
+  const loadServerLogs = async () => {
+    setIsLoadingLogs(true);
+    const logs = await fetchServerDeepseekLogs();
+    setServerLogs(logs);
+    setIsLoadingLogs(false);
+  };
+
+  useEffect(() => {
+    if (adminTab === 'deepseek' && isOpen) {
+      loadServerLogs();
+    }
+  }, [adminTab, isOpen]);
+
+  const handleClearServerLogs = async () => {
+    if (window.confirm('آیا از پاکسازی تمامی لوگ‌های فعالیت نویسنده خودکار در سرور اطمینان دارید؟')) {
+      await clearServerDeepseekLogs();
+      setServerLogs([]);
+    }
+  };
 
   const handleBatchTestKeys = async () => {
     if (!batchKeysInput.trim()) return;
@@ -706,9 +733,15 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       setDeepseekSettings(deepseekState);
     }
     safeSetLocalStorage('solmint_deepseek_settings', deepseekState);
-    await saveCmsSettingsToApi({ deepseek: deepseekState as any });
-    setDeepseekSaveNotice('تنظیمات هوش مصنوعی و کلیدهای API با موفقیت در دیتابیس سرور ذخیره شد.');
+    const serverPayload = {
+      ...deepseekState,
+      autoPublishEnabled: deepseekState.publishSchedule.enabled,
+      publishScheduleHours: publishScheduleHours
+    };
+    await saveCmsSettingsToApi({ deepseek: serverPayload as any });
+    setDeepseekSaveNotice('تنظیمات هوش مصنوعی، پرامپت‌ها و کلید API با موفقیت در فایل settings.json سرور ذخیره شد.');
     setTimeout(() => setDeepseekSaveNotice(''), 4000);
+    loadServerLogs();
   };
 
   const handleTestDeepseekApi = async () => {
@@ -1195,8 +1228,14 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     const finalGregorian = formPublishedAtGregorian || datePair.gregorian;
     const finalPublishedAt = `${finalJalali} (${finalGregorian})`;
 
-    // Automatically assign HD cover image if cover image URL is empty
-    const finalCoverImage = formCoverImage.trim() || getRandomCoverForCategoryOrTitle(formCategory, formTitle);
+    // Cover image requirement check
+    const isCoverRequired = !!(deepseekState.requireCoverImage || deepseekState.mediaConfig?.requireCoverImage);
+    if (isCoverRequired && !formCoverImage.trim()) {
+      alert('بر اساس تنظیمات سیستم، انتشار مقاله بدون تصویر کاور غیرفعال است. لطفاً یک آدرس تصویر انتخاب نمایید یا گزینه «الزامی بودن عکس کاور» را در تنظیمات هوش مصنوعی و رسانه غیرفعال کنید.');
+      return;
+    }
+
+    const finalCoverImage = formCoverImage.trim();
 
     const computedSlug = generateSlugFromTitle(formSlug || formTitle);
     let savedArticle: Article | null = null;
@@ -1268,6 +1307,20 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     setIsAutoPublishing(true);
     setAutoPublishSuccess(null);
     try {
+      // 1. First trigger server auto publish
+      const serverRes = await triggerServerAutoPublish(customTopic || '');
+      if (serverRes.success && serverRes.article) {
+        const fullArticle = serverRes.article as Article;
+        const updated = [fullArticle, ...articles.filter(a => a.id !== fullArticle.id)];
+        setArticles(updated);
+        localStorage.setItem('solmint_articles', JSON.stringify(updated));
+        await saveArticleToActiveDatabase(fullArticle);
+        setAutoPublishSuccess(`مقاله "${fullArticle.title}" با موفقیت مستقیم در دیتابیس سرور نگارش و با آدرس "/article/${fullArticle.slug}" منتشر شد!`);
+        loadServerLogs();
+        return;
+      }
+
+      // 2. Client fallback if server trigger fails
       const aiArticle = await generateArticleWithDeepSeek(customTopic || '', deepseekState);
       
       const datePair = formatAccurateDates(new Date().toISOString());
@@ -1313,6 +1366,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       await saveArticleToActiveDatabase(fullArticle);
 
       setAutoPublishSuccess(`مقاله "${fullArticle.title}" با موفقیت نگارش گردید و با لینک اختصاصی "/article/${fullArticle.slug}" به صورت رسمی منتشر شد!`);
+      loadServerLogs();
     } catch (err: any) {
       alert(`خطا در تولید و انتشار مقاله: ${err.message || err}`);
     } finally {
@@ -1497,8 +1551,8 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   };
 
   // GEMINI AI ASSISTANT CALLS
-  const callGeminiAi = async (type: 'seo_summary' | 'seo_keywords' | 'expand') => {
-    if (!formTitle && type !== 'expand') {
+  const callGeminiAi = async (type: 'seo_summary' | 'seo_keywords' | 'expand' | 'faq') => {
+    if (!formTitle && type !== 'expand' && type !== 'faq') {
       alert('لطفاً ابتدا عنوان مقاله را وارد کنید.');
       return;
     }
@@ -1510,6 +1564,8 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         promptText = `تولید چکیده استاندارد سئو (Meta Description) برای مقاله با عنوان: "${formTitle}". خلاصه متن: ${formContent.substring(0, 300)}`;
       } else if (type === 'seo_keywords') {
         promptText = `لیست ۱۰ کلمه کلیدی سئو کاما جدا شده فارسی برای مقاله وب۳ سولانا با عنوان "${formTitle}".`;
+      } else if (type === 'faq') {
+        promptText = `تولید ۳ سوال و پاسخ متداول در قالب مارک‌داون با تیتر "## ❓ سوالات متداول (FAQ)" برای مقاله سولانا با عنوان "${formTitle || 'آموزش سولانا'}".`;
       } else {
         promptText = `تکمیل و ساختاربندی مقاله آموزش سولانا با عنوان "${formTitle}". متن فعلی: ${formContent}`;
       }
@@ -1531,6 +1587,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       } else if (type === 'seo_keywords') {
         setFormTags(data.result.trim());
         triggerAiToast('کلمات کلیدی سئو با Gemini تولید شدند.');
+      } else if (type === 'faq') {
+        setFormContent(formContent + '\n\n' + data.result.trim());
+        triggerAiToast('بخش سوالات متداول سئو به مقاله افزوده شد.');
       } else {
         setFormContent(data.result.trim());
         triggerAiToast('متن مقاله توسط Gemini کامل شد.');
@@ -2353,7 +2412,12 @@ Sitemap: https://solmint.ir/sitemap.xml
 
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <label className="block text-slate-300 font-semibold">آدرس تصویر کاور (Cover Image URL):</label>
+                      <label className="block text-slate-300 font-semibold">
+                        آدرس تصویر کاور (Cover Image URL):
+                        {!(deepseekState.requireCoverImage || deepseekState.mediaConfig?.requireCoverImage) && (
+                          <span className="text-xs text-emerald-400 font-normal mr-2">(اختیاری)</span>
+                        )}
+                      </label>
                       <button
                         type="button"
                         onClick={() => setIsMediaPickerOpen(true)}
@@ -2366,10 +2430,10 @@ Sitemap: https://solmint.ir/sitemap.xml
                     <div className="flex gap-2">
                       <input
                         type="url"
-                        required
+                        required={!!(deepseekState.requireCoverImage || deepseekState.mediaConfig?.requireCoverImage)}
                         value={formCoverImage}
                         onChange={(e) => setFormCoverImage(e.target.value)}
-                        placeholder="https://raw.githubusercontent.com/... یا انتخاب از مخزن"
+                        placeholder="https://raw.githubusercontent.com/... (در صورت خالی بودن، مقاله با پوستر گرافیکی بدون عکس منتشر می‌شود)"
                         className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200 font-mono text-xs dir-ltr"
                       />
                       <button
@@ -2381,6 +2445,15 @@ Sitemap: https://solmint.ir/sitemap.xml
                         <span>انتخاب تصویر</span>
                       </button>
                     </div>
+
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {(deepseekState.requireCoverImage || deepseekState.mediaConfig?.requireCoverImage) ? (
+                        <span className="text-amber-400 font-bold">⚠️ بر اساس تنظیمات ادمین، درج آدرس تصویر کاور برای انتشار مقاله الزامی است.</span>
+                      ) : (
+                        <span className="text-emerald-400 font-medium">💡 تصویر کاور اختیاری است. در صورت خالی بودن، مقاله با بنر تایپوگرافی شیک سولمینت منتشر خواهد شد.</span>
+                      )}
+                    </p>
+
                     {formCoverImage && (
                       <div className="mt-2 p-2 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-3">
                         <img src={formCoverImage} alt="Cover Preview" className="w-16 h-12 object-cover rounded-lg border border-slate-700 shrink-0" />
@@ -2507,25 +2580,15 @@ Sitemap: https://solmint.ir/sitemap.xml
                 </div>
 
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-slate-300 font-semibold">متن کامل مقاله (Markdown/HTML Supported):</label>
-                    <button
-                      type="button"
-                      disabled={isAiLoading}
-                      onClick={() => callGeminiAi('expand')}
-                      className="text-[11px] text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      تکمیل خودکار متن با Gemini AI
-                    </button>
-                  </div>
-                  <textarea
-                    rows={8}
-                    required
-                    value={formContent}
-                    onChange={(e) => setFormContent(e.target.value)}
-                    placeholder="محتوای مقاله را اینجا بنویسید..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200 font-mono leading-relaxed"
+                  <label className="block text-slate-300 font-semibold mb-2">
+                    محتوای تخصصی مقاله (ویرایشگر پیشرفته سئو و مارک‌داون):
+                  </label>
+                  <ProArticleEditor
+                    content={formContent}
+                    onChange={setFormContent}
+                    onOpenMediaPicker={() => setIsMediaPickerOpen(true)}
+                    onCallGeminiAi={callGeminiAi}
+                    isAiLoading={isAiLoading}
                   />
                 </div>
 
@@ -4149,18 +4212,21 @@ Sitemap: https://solmint.ir/sitemap.xml
                       />
                     </div>
 
-                    {/* Publish Time Picker */}
+                    {/* Server Auto Interval */}
                     <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                      <label className="block font-bold text-white text-xs">ساعت انتشار روزانه:</label>
-                      <input
-                        type="time"
-                        value={deepseekState.publishSchedule.publishTime}
-                        onChange={(e) => setDeepseekState({
-                          ...deepseekState,
-                          publishSchedule: { ...deepseekState.publishSchedule, publishTime: e.target.value }
-                        })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white font-mono dir-ltr text-xs"
-                      />
+                      <label className="block font-bold text-white text-xs">فاصله زمانی نگارش خودکار سرور:</label>
+                      <select
+                        value={publishScheduleHours}
+                        onChange={(e) => setPublishScheduleHours(parseInt(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs cursor-pointer"
+                      >
+                        <option value={1}>هر ۱ ساعت (انتشار بسیار سریع)</option>
+                        <option value={3}>هر ۳ ساعت (۸ مقاله در روز)</option>
+                        <option value={6}>هر ۶ ساعت (۴ مقاله در روز - پیش‌فرض)</option>
+                        <option value={12}>هر ۱۲ ساعت (۲ مقاله در روز)</option>
+                        <option value={24}>هر ۲۴ ساعت (۱ مقاله در روز)</option>
+                        <option value={48}>هر ۴۸ ساعت (۱ مقاله هر ۲ روز)</option>
+                      </select>
                     </div>
 
                     {/* Draft vs Direct Publish */}
@@ -4227,6 +4293,25 @@ Sitemap: https://solmint.ir/sitemap.xml
                     </h5>
 
                     <div className="space-y-3">
+                      <label className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
+                        <div>
+                          <span className="text-white font-bold block text-xs">الزامی بودن عکس کاور جهت انتشار مقاله</span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            در صورت غیرفعال بودن، نویسندگان انسانی و هوش مصنوعی می‌توانند مقاله را بدون عکس کاور (با بنر تایپوگرافی شیک) منتشر کنند.
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={!!(deepseekState.requireCoverImage ?? deepseekState.mediaConfig?.requireCoverImage)}
+                          onChange={(e) => setDeepseekState({
+                            ...deepseekState,
+                            requireCoverImage: e.target.checked,
+                            mediaConfig: { ...deepseekState.mediaConfig, requireCoverImage: e.target.checked }
+                          })}
+                          className="w-5 h-5 accent-cyan-500 cursor-pointer shrink-0"
+                        />
+                      </label>
+
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
@@ -4362,6 +4447,73 @@ Sitemap: https://solmint.ir/sitemap.xml
                     </div>
                   </div>
 
+                </div>
+
+                {/* Section 8: Server Activity Logs */}
+                <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <h5 className="font-bold text-white text-sm flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      <span>۸. گزارش زنده فعالیت نگارش خودکار سرور (Server Activity Logs)</span>
+                    </h5>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={loadServerLogs}
+                        disabled={isLoadingLogs}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+                        <span>بروزرسانی گزارش‌ها</span>
+                      </button>
+                      {serverLogs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearServerLogs}
+                          className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                          <span>پاکسازی تاریخچه</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {serverLogs.length === 0 ? (
+                    <div className="p-6 text-center rounded-xl bg-slate-950 border border-slate-800/80 text-slate-400 space-y-2">
+                      <p className="text-xs">هنوز هیچ گزارشی ثبت نشده است. با کلیک روی «انتشار ۱ کلیکی اتوماتیک» یا بر اساس زمان‌بندی سرور، گزارش نگارش مقالات در اینجا نمایش داده خواهد شد.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {serverLogs.map((log) => (
+                        <div key={log.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${log.status === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                                {log.status === 'success' ? 'موفق' : 'خطا'}
+                              </span>
+                              <span className="font-bold text-white">{log.topic}</span>
+                            </div>
+                            <p className="text-slate-300 text-[11px]">{log.message}</p>
+                          </div>
+                          <div className="text-left shrink-0 space-y-1">
+                            <span className="text-[10px] text-slate-500 font-mono dir-ltr block">{new Date(log.timestamp).toLocaleString('fa-IR')}</span>
+                            {log.articleSlug && (
+                              <a
+                                href={`/article/${log.articleSlug}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] text-cyan-400 hover:underline font-bold inline-flex items-center gap-1"
+                              >
+                                <span>مشاهده مقاله</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Submit Action */}

@@ -297,8 +297,12 @@ export async function generateArticleWithDeepSeek(
           const cleanJsonStr = contentRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
           const parsed = JSON.parse(cleanJsonStr);
           const category = parsed.category || 'آموزش سولانا';
-          const images = COVER_IMAGES_BY_CATEGORY[category] || COVER_IMAGES_BY_CATEGORY['آموزش سولانا'];
-          const coverImage = images[Math.floor(Math.random() * images.length)];
+          const shouldIncludeCover = (settings.mediaConfig?.includeCoverImage ?? true) && (settings.requireCoverImage ?? true);
+          let coverImage = '';
+          if (shouldIncludeCover) {
+            const images = COVER_IMAGES_BY_CATEGORY[category] || COVER_IMAGES_BY_CATEGORY['آموزش سولانا'];
+            coverImage = images[Math.floor(Math.random() * images.length)];
+          }
 
           // Thoroughly clean title and content from any unwanted AI chatter, prefixes or "مقاله سئو شده"
           let cleanTitle = cleanArticleTitle(parsed.title || topic, topic);
@@ -409,8 +413,12 @@ function generateSmartFallbackArticle(topic: string, settings: DeepSeekAiSetting
 
 اگر به دنبال کوتاه‌ترین، امن‌ترین و ارزان‌ترین راه برای **${topic}** هستید، همین حالا جدیدترین نسخه **اپلیکیشن سولمینت** را دریافت کنید و به جامعه چند هزار نفری کاربران ما بپیوندید.`;
 
-  const categoryImages = COVER_IMAGES_BY_CATEGORY[category] || COVER_IMAGES_BY_CATEGORY['آموزش سولانا'];
-  const coverImage = categoryImages[Math.floor(Math.random() * categoryImages.length)];
+  const shouldIncludeCoverFallback = (settings.mediaConfig?.includeCoverImage ?? true) && (settings.requireCoverImage ?? true);
+  let coverImage = '';
+  if (shouldIncludeCoverFallback) {
+    const categoryImages = COVER_IMAGES_BY_CATEGORY[category] || COVER_IMAGES_BY_CATEGORY['آموزش سولانا'];
+    coverImage = categoryImages[Math.floor(Math.random() * categoryImages.length)];
+  }
 
   return {
     title,
@@ -518,5 +526,53 @@ export async function sendDeepSeekChatMessage(
   }
 
   return answer;
+}
+
+/**
+ * Trigger server-side automatic article generation and publishing
+ */
+export async function triggerServerAutoPublish(topic?: string): Promise<{ success: boolean; message: string; article?: Partial<Article>; log?: any }> {
+  try {
+    const res = await fetch('/api/deepseek/auto-publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic })
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `خطای ارتباط با سرور: ${err?.message || 'مشکل در شبکه'}`
+    };
+  }
+}
+
+/**
+ * Fetch DeepSeek server activity logs
+ */
+export async function fetchServerDeepseekLogs(): Promise<Array<{ id: string; timestamp: string; topic: string; status: 'success' | 'error'; message: string; articleSlug?: string; articleTitle?: string }>> {
+  try {
+    const res = await fetch('/api/deepseek/logs');
+    if (res.ok) {
+      const data = await res.json();
+      return data.logs || [];
+    }
+  } catch (err) {
+    console.warn('Failed to fetch DeepSeek server logs:', err);
+  }
+  return [];
+}
+
+/**
+ * Clear DeepSeek server activity logs
+ */
+export async function clearServerDeepseekLogs(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/deepseek/logs', { method: 'DELETE' });
+    return res.ok;
+  } catch (err) {
+    return false;
+  }
 }
 

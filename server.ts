@@ -15,6 +15,8 @@ import {
   registerUser,
   getCmsSettings,
   saveCmsSettings,
+  addDeepseekLog,
+  clearDeepseekLogs,
   getAllComments,
   saveComment,
   deleteComment,
@@ -1220,23 +1222,225 @@ async function startServer() {
     });
   };
 
+  // SERVER-SIDE DEEPSEEK AUTO-PUBLISHING ENGINE
+  const runServerAutoPublishArticle = async (customTopic?: string): Promise<{ success: boolean; message: string; article?: any; log?: any }> => {
+    const settings = getCmsSettings();
+    const ds: any = settings.deepseek || {};
+    const activeKey = (ds.apiKey || process.env.DEEPSEEK_API_KEY || "").trim();
+    const activeBaseUrl = (ds.apiBaseUrl || ds.baseUrl || "https://api.gapgpt.app/v1").replace(/\/$/, "");
+    const activeModel = ds.model || "deepseek-chat";
+
+    const topics = (ds.targetTopics && ds.targetTopics.length > 0) ? ds.targetTopics : [
+      'آموزش جامع ساخت توکن در شبکه‌ی سولانا بدون کدنویسی',
+      'راهنمای ساخت میم کوین با سولمینت و افزودن نقدینگی',
+      'بازیابی کارمزد اجاره حساب‌های خالی سولانا (SOL Rent Claim)',
+      'آموزش ضرب NFT با استاندارد Metaplex در اپلیکیشن موبایل',
+      'بررسی امنیت کیف پول‌های غیرامانی و الگوریتم Ed25519'
+    ];
+
+    const topic = customTopic || topics[Math.floor(Math.random() * topics.length)];
+    const keywords = (ds.targetKeywords || ['سولمینت', 'سولانا', 'توکن']).join('، ');
+
+    let articleData: any = null;
+
+    if (activeKey.length > 5) {
+      try {
+        const userPrompt = `لطفاً یک مقاله تخصصی و کاربردی درباره موضوع زیر بنویسید:
+موضوع: "${topic}"
+کلمات کلیدی اجباری سئو: ${keywords}
+لحن: ${ds.writingStyle?.tone || 'آموزشی و روان'}
+تعداد کلمات تقریبی: ${ds.writingStyle?.targetWordCount || 1200} کلمه
+
+قوانین بسیار مهم عنوان و محتوا:
+۱. در عنوان مقاله به هیچ عنوان عباراتی مثل "مقاله سئو شده"، "آموزش سئو شده"، "سئو شده" یا نام مدل‌های هوش مصنوعی (مانند DeepSeek) را درج نکنید. فقط و فقط عنوان واقعی و جذاب مقاله را بنویسید.
+۲. در متن مقاله، لینک‌ها یا مشخصات نویسنده، هیچ نامی از دیپ‌سیک یا هوش مصنوعی نباید وجود داشته باشد. نویسنده فقط "تیم تحریریه سولمینت" است.
+
+خروجی شما باید یک JSON معتبر باشد با ساختار دقیق زیر (بدون هیچ متن اضافی قبل یا بعد از JSON):
+{
+  "title": "عنوان جذاب و دقیق مقاله بدون عبارت‌های اضافی در حدود ۵۰ تا ۷۰ کاراکتر",
+  "category": "یکی از موارد دقیق مقابل: آموزش سولانا | توسعه وب۳ | امنیت | اخبار و تحلیل | آموزش ساخت میم کوین | آموزش ساخت NFT | کیف پول سولانا",
+  "summary": "خلاصه جذاب مقاله برای Meta Description در حدود ۱۲۰ تا ۱۶۰ کاراکتر",
+  "tags": ["تگ۱", "تگ۲", "تگ۳", "تگ۴"],
+  "readTimeMinutes": 6,
+  "content": "متن کامل مقاله شامل تیترهای H2 و H3 مارک‌داون، لیست‌ها، نکات کلیدی و بخش FAQ"
+}`;
+
+        const apiRes = await fetch(`${activeBaseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${activeKey}`
+          },
+          body: JSON.stringify({
+            model: activeModel,
+            messages: [
+              { role: "system", content: ds.systemPrompt || "شما نویسنده ارشد سولمینت هستید." },
+              { role: "user", content: userPrompt }
+            ],
+            temperature: 0.7
+          })
+        });
+
+        if (apiRes.ok) {
+          const resJson = await apiRes.json();
+          const rawContent = resJson.choices?.[0]?.message?.content;
+          if (rawContent) {
+            const cleanJsonStr = rawContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            articleData = JSON.parse(cleanJsonStr);
+          }
+        }
+      } catch (err) {
+        console.warn("[DeepSeek Server] API call error, generating smart SEO fallback article:", err);
+      }
+    }
+
+    // Smart SEO Fallback if API was unreachable or key missing
+    if (!articleData || !articleData.title) {
+      const isMeme = topic.includes('میم') || topic.includes('Meme');
+      const isNft = topic.includes('NFT');
+      const isSec = topic.includes('امنیت');
+      let cat = 'آموزش سولانا';
+      if (isMeme) cat = 'آموزش ساخت میم کوین';
+      else if (isNft) cat = 'آموزش ساخت NFT';
+      else if (isSec) cat = 'امنیت';
+
+      articleData = {
+        title: topic.replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '').trim(),
+        category: cat,
+        summary: `راهنمای جامع ${topic} در وبسایت رسمی سولمینت (solmint.ir) با بالاترین امنیت غیرامانی و سرعت بالادست.`,
+        content: `# ${topic}\n\nبه وبسایت **سولمینت (Solmint App)** خوش آمدید. اکوسیستم **سولانا (Solana)** به دلیل کارمزد بسیار پایین و سرعت بی‌نظیر، انتخاب اول کاربران در سراسر دنیا است.\n\nدر این مقاله تخصصی مراحل **${topic}** به صورت گام‌به‌گام بررسی می‌گردد.\n\n## ۱. چرا اپلیکیشن سولمینت؟\n- 🔒 **غیرامانی (Non-Custodial)**\n- ⚡ **تولید فوری توکن**\n- 💰 **بازیابی کارمزد اجاره (Rent Claim)**\n\n--- \n## ۲. سوالات متداول (FAQ)\nآیا نیاز به کدنویسی دارد؟ خیر، تمام مراحل به شکل کاملاً گرافیکی در اپلیکیشن انجام می‌شود.`,
+        tags: ['سولمینت', 'سولانا', 'وب۳'],
+        readTimeMinutes: 6
+      };
+    }
+
+    const cleanTitle = (articleData.title || topic)
+      .replace(/^#+\s*/, '')
+      .replace(/^(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|سئو\s*شده|سئوشده|عنوان|پاسخ)\s*[:：\-–—]?\s*/gi, '')
+      .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '')
+      .trim();
+
+    const cleanSlug = cleanTitle
+      .toLowerCase()
+      .replace(/[^\w\u0600-\u06FF\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+
+    const now = new Date();
+    const jalali = new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(now);
+    const gregorian = now.toISOString().split('T')[0];
+
+    const category = articleData.category || 'آموزش سولانا';
+    const includeCover = (ds.mediaConfig?.includeCoverImage ?? true) && (ds.requireCoverImage ?? true);
+    
+    let coverImage = '';
+    if (includeCover) {
+      const COVERS: Record<string, string[]> = {
+        'آموزش سولانا': [
+          'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=1200&q=80',
+          'https://images.unsplash.com/photo-1622979135225-d2ba269bc1bd?auto=format&fit=crop&w=1200&q=80'
+        ],
+        'آموزش ساخت میم کوین': [
+          'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?auto=format&fit=crop&w=1200&q=80'
+        ]
+      };
+      const coverList = COVERS[category] || COVERS['آموزش سولانا'];
+      coverImage = coverList[Math.floor(Math.random() * coverList.length)];
+    }
+
+    const fullArticle = {
+      id: 'art_' + Date.now(),
+      title: cleanTitle,
+      slug: cleanSlug,
+      category: category,
+      tags: articleData.tags || ['سولانا', 'سولمینت', 'وب۳'],
+      summary: articleData.summary || '',
+      content: articleData.content || '',
+      coverImage: coverImage,
+      author: {
+        name: 'تیم تحریریه سول‌مینت',
+        role: 'تحلیل‌گر ارشد وب۳ و کریپتو',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+      },
+      publishedAt: `${jalali} (${gregorian})`,
+      publishedAtJalali: jalali,
+      publishedAtGregorian: gregorian,
+      readTimeMinutes: articleData.readTimeMinutes || 6,
+      viewsCount: 1,
+      comments: [],
+      seoScore: 98,
+      isDraft: ds.publishSchedule?.autoPublishAsDraft ?? false
+    };
+
+    saveArticleToDisk(fullArticle);
+
+    saveCmsSettings({
+      deepseek: {
+        ...ds,
+        lastAutoPublishedAt: now.toISOString()
+      } as any
+    });
+
+    const log = addDeepseekLog({
+      topic,
+      status: 'success',
+      message: `مقاله "${cleanTitle}" با موفقیت در دیتابیس سرور ذخیره و منتشر شد.`,
+      articleSlug: cleanSlug,
+      articleTitle: cleanTitle
+    });
+
+    return {
+      success: true,
+      message: `مقاله "${cleanTitle}" با موفقیت در سرور تولید و منتشر شد.`,
+      article: fullArticle,
+      log
+    };
+  };
+
+  // Background Worker for DeepSeek Automated Article Publishing
+  setInterval(async () => {
+    try {
+      const settings = getCmsSettings();
+      const ds = settings.deepseek;
+      if (!ds || (!ds.autoPublishEnabled && !ds.publishSchedule?.enabled)) {
+        return;
+      }
+
+      const hours = ds.publishScheduleHours || 6;
+      const lastPublished = ds.lastAutoPublishedAt ? new Date(ds.lastAutoPublishedAt).getTime() : 0;
+      const nowMs = Date.now();
+      const intervalMs = hours * 3600 * 1000;
+
+      if (nowMs - lastPublished >= intervalMs) {
+        console.log(`[DeepSeek AutoWorker] Triggering scheduled article generation (Interval: ${hours}h)...`);
+        await runServerAutoPublishArticle();
+      }
+    } catch (err) {
+      console.error("[DeepSeek AutoWorker] Background task error:", err);
+    }
+  }, 3 * 60 * 1000); // Checks every 3 minutes
+
   // API endpoint for proxying DeepSeek / OpenAI-compatible API tests
   app.post("/api/deepseek/test", rateLimitMiddleware(15, 60000), async (req, res) => {
     try {
+      const settings = getCmsSettings();
+      const storedKey = settings.deepseek?.apiKey || process.env.DEEPSEEK_API_KEY || "";
       const { apiKey, baseUrl, model } = req.body;
-      if (!apiKey || typeof apiKey !== "string") {
-        return res.status(400).json({ success: false, message: "کلید API وارد نشده است." });
+      const activeKey = (apiKey || storedKey).trim();
+
+      if (!activeKey) {
+        return res.status(400).json({ success: false, message: "کلید API وارد نشده است و در تنظیمات سرور نیز موجود نیست." });
       }
 
-      const cleanBaseUrl = (baseUrl || "https://api.gapgpt.app/v1").replace(/\/$/, "");
+      const cleanBaseUrl = (baseUrl || settings.deepseek?.apiBaseUrl || settings.deepseek?.baseUrl || "https://api.gapgpt.app/v1").replace(/\/$/, "");
       const endpoint = `${cleanBaseUrl}/chat/completions`;
-      const targetModel = model || "deepseek-chat";
+      const targetModel = model || settings.deepseek?.model || "deepseek-chat";
 
       const apiRes = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey.trim()}`
+          "Authorization": `Bearer ${activeKey}`
         },
         body: JSON.stringify({
           model: targetModel,
@@ -1249,13 +1453,13 @@ async function startServer() {
         const data = await apiRes.json().catch(() => ({}));
         return res.json({
           success: true,
-          message: `اتصال با موفقیت برقرار شد! پاسخ مدل (${data.model || targetModel}) دریافت گردید.`
+          message: `اتصال با موفقیت برقرار شد! پاسخ مدل (${data.model || targetModel}) در سرور دریافت گردید.`
         });
       } else {
         const errJson = await apiRes.json().catch(() => ({}));
         let errMsg = errJson?.error?.message || errJson?.message || apiRes.statusText;
         if (errMsg.toLowerCase().includes("authentication") || errMsg.toLowerCase().includes("api key") || errMsg.toLowerCase().includes("invalid")) {
-          errMsg = "کلید API وارد شده نامعتبر یا منقضی می‌باشد. لطفاً کلید API معتبر خود را از پنل DeepSeek وارد نمایید.";
+          errMsg = "کلید API وارد شده نامعتبر یا منقضی می‌باشد. لطفاً کلید API معتبر خود را وارد نمایید.";
         }
         return res.status(apiRes.status).json({
           success: false,
@@ -1271,28 +1475,64 @@ async function startServer() {
     }
   });
 
+  // API endpoint for triggering Server-Side Auto-Publishing
+  app.post("/api/deepseek/auto-publish", rateLimitMiddleware(15, 60000), async (req, res) => {
+    try {
+      const { topic } = req.body || {};
+      const result = await runServerAutoPublishArticle(topic);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("Server auto publish endpoint error:", err);
+      return res.status(500).json({ success: false, message: err.message || "خطا در انتشار اتوماتیک سرور" });
+    }
+  });
+
+  // API endpoint for getting DeepSeek execution logs
+  app.get("/api/deepseek/logs", (req, res) => {
+    try {
+      const settings = getCmsSettings();
+      return res.json({ success: true, logs: settings.deepseek?.autoLogs || [] });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // API endpoint for clearing DeepSeek logs
+  app.delete("/api/deepseek/logs", (req, res) => {
+    try {
+      clearDeepseekLogs();
+      return res.json({ success: true, message: "لوگ‌های نویسنده خودکار با موفقیت پاکسازی شدند." });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   // API endpoint for proxying DeepSeek article generation
   app.post("/api/deepseek/generate", rateLimitMiddleware(15, 60000), async (req, res) => {
     try {
+      const settings = getCmsSettings();
+      const storedKey = settings.deepseek?.apiKey || process.env.DEEPSEEK_API_KEY || "";
       const { apiKey, baseUrl, model, systemPrompt, userPrompt } = req.body;
-      if (!apiKey) {
-        return res.status(400).json({ error: "کلید API الزامی است." });
+      const activeKey = (apiKey || storedKey).trim();
+
+      if (!activeKey) {
+        return res.status(400).json({ error: "کلید API الزامی است و در سرور ذخیره نشده است." });
       }
 
-      const cleanBaseUrl = (baseUrl || "https://api.deepseek.com/v1").replace(/\/$/, "");
+      const cleanBaseUrl = (baseUrl || settings.deepseek?.apiBaseUrl || settings.deepseek?.baseUrl || "https://api.deepseek.com/v1").replace(/\/$/, "");
       const endpoint = `${cleanBaseUrl}/chat/completions`;
-      const targetModel = model || "deepseek-chat";
+      const targetModel = model || settings.deepseek?.model || "deepseek-chat";
 
       const apiRes = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey.trim()}`
+          "Authorization": `Bearer ${activeKey}`
         },
         body: JSON.stringify({
           model: targetModel,
           messages: [
-            { role: "system", content: systemPrompt || "شما یک دستیار هوش مصنوعی هستید." },
+            { role: "system", content: systemPrompt || settings.deepseek?.systemPrompt || "شما یک دستیار هوش مصنوعی هستید." },
             { role: "user", content: userPrompt }
           ],
           temperature: 0.7

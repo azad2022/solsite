@@ -69,11 +69,23 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
               <div>
                 {/* Image */}
                 <div className="relative h-48 overflow-hidden bg-slate-900">
-                  <img
-                    src={art.coverImage}
-                    alt={art.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  {art.coverImage ? (
+                    <img
+                      src={art.coverImage}
+                      alt={art.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-cyan-950/70 to-slate-900 p-5 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 font-bold">
+                          SOLMINT ARTICLE
+                        </span>
+                        <BookOpen className="w-4 h-4 text-cyan-400 opacity-60" />
+                      </div>
+                      <p className="text-xs font-bold text-white line-clamp-2 leading-snug">{art.title}</p>
+                    </div>
+                  )}
                   <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/80 text-[#14F195] text-[10px] font-mono font-bold backdrop-blur-md border border-white/10">
                     {art.category}
                   </span>

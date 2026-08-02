@@ -17,7 +17,8 @@ import {
   ArrowLeft,
   Video,
   Lock,
-  UserPlus
+  UserPlus,
+  Sparkles
 } from 'lucide-react';
 
 interface BlogHubProps {
@@ -247,12 +248,27 @@ export const BlogHub: React.FC<BlogHubProps> = ({
             }}
             className="glass-card rounded-3xl overflow-hidden border border-slate-700/80 hover:border-sky-500/50 transition-all cursor-pointer grid grid-cols-1 lg:grid-cols-12 gap-0 group glow-sky block text-right decoration-none"
           >
-            <div className="lg:col-span-7 relative h-64 lg:h-auto overflow-hidden">
-              <img
-                src={featuredArticle.coverImage}
-                alt={featuredArticle.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
+            <div className="lg:col-span-7 relative h-64 lg:h-auto overflow-hidden bg-slate-900">
+              {featuredArticle.coverImage ? (
+                <img
+                  src={featuredArticle.coverImage}
+                  alt={featuredArticle.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : (
+                <div className="w-full h-full min-h-[220px] bg-gradient-to-br from-slate-950 via-cyan-950/80 to-blue-950/80 p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-l border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30">
+                      SOLMINT FEATURED
+                    </span>
+                    <Sparkles className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-xs text-slate-400 font-bold block">{featuredArticle.category}</span>
+                    <h3 className="text-xl sm:text-2xl font-extrabold text-white leading-tight">{featuredArticle.title}</h3>
+                  </div>
+                </div>
+              )}
               <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-sky-500 text-white text-xs font-bold shadow-md">
                 مقاله ویژه پلتفرم
               </div>
@@ -328,11 +344,23 @@ export const BlogHub: React.FC<BlogHubProps> = ({
               <div>
                 {/* Article Image */}
                 <div className="relative h-48 overflow-hidden bg-slate-900">
-                  <img
-                    src={art.coverImage}
-                    alt={art.title}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
+                  {art.coverImage ? (
+                    <img
+                      src={art.coverImage}
+                      alt={art.title}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-cyan-950/70 to-slate-900 p-5 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 font-bold">
+                          SOLMINT ARTICLE
+                        </span>
+                        <BookOpen className="w-4 h-4 text-cyan-400 opacity-60" />
+                      </div>
+                      <p className="text-xs font-bold text-white line-clamp-2 leading-snug">{art.title}</p>
+                    </div>
+                  )}
                   <span className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-slate-900/90 text-sky-400 text-[11px] font-bold backdrop-blur-md border border-slate-800">
                     {art.category}
                   </span>
@@ -459,13 +487,22 @@ export const BlogHub: React.FC<BlogHubProps> = ({
             </div>
 
             {/* Cover Image */}
-            <div className="rounded-2xl overflow-hidden border border-slate-800">
-              <img
-                src={readingArticle.coverImage}
-                alt={readingArticle.title}
-                className="w-full max-h-96 object-cover"
-              />
-            </div>
+            {readingArticle.coverImage ? (
+              <div className="rounded-2xl overflow-hidden border border-slate-800">
+                <img
+                  src={readingArticle.coverImage}
+                  alt={readingArticle.title}
+                  className="w-full max-h-96 object-cover"
+                />
+              </div>
+            ) : (
+              <div className="rounded-2xl overflow-hidden border border-slate-800/80 bg-gradient-to-r from-slate-950 via-cyan-950/60 to-slate-900 p-8 text-center space-y-2">
+                <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30 inline-block font-bold">
+                  SOLMINT OFFICIAL ARTICLE
+                </span>
+                <p className="text-xl font-bold text-white">{readingArticle.title}</p>
+              </div>
+            )}
 
             {/* MP4 Video Player if available */}
             {readingArticle.videoUrl && (

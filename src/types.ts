@@ -194,6 +194,7 @@ export interface DeepSeekAiSettings {
   apiBaseUrl: string;
   model: string; // 'deepseek-chat' | 'deepseek-reasoner'
   systemPrompt: string;
+  requireCoverImage?: boolean;
   targetTopics: string[];
   targetKeywords: string[];
   publishSchedule: {
@@ -204,6 +205,7 @@ export interface DeepSeekAiSettings {
   };
   mediaConfig: {
     includeCoverImage: boolean;
+    requireCoverImage?: boolean;
     imageStyle: 'solana_theme' | 'cyberpunk_crypto' | 'tech_minimal' | '3d_gradient';
     includeVideo: boolean;
     defaultVideoUrl?: string;
@@ -228,6 +230,7 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
 ۳. حتماً از کلمات کلیدی سئو تعیین شده در طول متن به طور طبیعی استفاده کنید.
 ۴. لحن مقاله روان و کاربردی برای علاقه‌مندان به بلاکچین، ارز دیجیتال و سولانا باشد.
 ۵. قوانین اکید عنوان و محتوا: به هیچ عنوان کلماتی نظیر "مقاله سئو شده"، "آموزش سئو شده"، "سئو شده" یا نام‌های هوش مصنوعی (مانند DeepSeek) را در عنوان مقاله یا متن یا به عنوان نویسنده یا لینک وارد نکنید. فقط عنوان اصلی مقاله درج شود.`,
+  requireCoverImage: false,
   targetTopics: [
     'آموزش جامع ساخت توکن در شبکه‌ی سولانا بدون کدنویسی',
     'راهنمای ساخت میم کوین با سولمینت و افزودن نقدینگی',
