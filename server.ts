@@ -1539,21 +1539,34 @@ async function startServer() {
     }
   });
 
-  // API endpoint for proxying DeepSeek article generation
+  // API endpoint for proxying DeepSeek article generation & AI assistance
   app.post("/api/deepseek/generate", rateLimitMiddleware(15, 60000), async (req, res) => {
     try {
       const settings = getCmsSettings();
       const storedKey = settings.deepseek?.apiKey || process.env.DEEPSEEK_API_KEY || "";
-      const { apiKey, baseUrl, model, systemPrompt, userPrompt } = req.body;
+      const { apiKey, baseUrl, model, systemPrompt, systemInstruction, userPrompt, prompt, type } = req.body;
       const activeKey = (apiKey || storedKey).trim();
 
       if (!activeKey) {
-        return res.status(400).json({ error: "کلید API الزامی است و در سرور ذخیره نشده است." });
+        return res.status(400).json({ error: "کلید API دیپ‌سیک در پنل مدیریت یافت نشد. لطفاً در تب تنظیمات DeepSeek کلید API خود را ذخیره کنید." });
       }
 
       const cleanBaseUrl = (baseUrl || settings.deepseek?.apiBaseUrl || settings.deepseek?.baseUrl || "https://api.deepseek.com/v1").replace(/\/$/, "");
       const endpoint = `${cleanBaseUrl}/chat/completions`;
       const targetModel = model || settings.deepseek?.model || "deepseek-chat";
+
+      let sys = systemPrompt || systemInstruction;
+      if (!sys) {
+        if (type === "seo_summary") {
+          sys = "شما دستیار تولید چکیده مقاله استاندارد سئو (Meta Description) به زبان فارسی هستید. چکیده باید بین ۱۲۰ تا ۱۶۰ کاراکتر باشد، جذاب باشد و کلمات کلیدی اصلی را شامل شود.";
+        } else if (type === "seo_keywords") {
+          sys = "شما متخصص تحقیق کلمات کلیدی وب۳ و سولانا هستید. لیستی از کلمات کلیدی کاما جدا شده برای موضوع داده شده به فارسی ارائه دهید.";
+        } else {
+          sys = "شما یک دستیار متخصص سئو، وب۳ و محتوای سولانا برای پلتفرم سولمینت (solmint.ir) هستید. پاسخ‌های خود را به زبان فارسی روان، جذاب و استاندارد سئو ارائه دهید.";
+        }
+      }
+
+      const textContent = userPrompt || prompt || "";
 
       const apiRes = await fetch(endpoint, {
         method: "POST",
@@ -1564,8 +1577,8 @@ async function startServer() {
         body: JSON.stringify({
           model: targetModel,
           messages: [
-            { role: "system", content: systemPrompt || settings.deepseek?.systemPrompt || "شما یک دستیار هوش مصنوعی هستید." },
-            { role: "user", content: userPrompt }
+            { role: "system", content: sys },
+            { role: "user", content: textContent }
           ],
           temperature: 0.7
         })
@@ -1573,106 +1586,28 @@ async function startServer() {
 
       if (apiRes.ok) {
         const data = await apiRes.json();
-        return res.json(data);
-      } else {
-        const errJson = await apiRes.json().catch(() => ({}));
-        return res.status(apiRes.status).json({
-          error: errJson?.error?.message || errJson?.message || apiRes.statusText
-        });
-      }
-    } catch (error: any) {
-      console.error("DeepSeek proxy generate error:", error);
-      return res.status(500).json({ error: error?.message || "خطای سرور" });
-    }
-  });
-
-  // API endpoint for proxying DeepSeek Chatbot messages
-  app.post("/api/deepseek/chat", rateLimitMiddleware(25, 60000), async (req, res) => {
-    try {
-      const { apiKey, baseUrl, model, systemPrompt, messages } = req.body;
-      if (!apiKey) {
-        return res.status(400).json({ error: "کلید API الزامی است." });
-      }
-
-      const cleanBaseUrl = (baseUrl || "https://api.gapgpt.app/v1").replace(/\/$/, "");
-      const endpoint = `${cleanBaseUrl}/chat/completions`;
-      const targetModel = model || "deepseek-chat";
-
-      const formattedMessages: Array<{ role: string; content: string }> = [];
-      if (systemPrompt) {
-        formattedMessages.push({ role: "system", content: systemPrompt });
-      }
-      if (Array.isArray(messages)) {
-        formattedMessages.push(...messages);
-      }
-
-      const apiRes = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey.trim()}`
-        },
-        body: JSON.stringify({
-          model: targetModel,
-          messages: formattedMessages,
-          temperature: 0.7
-        })
-      });
-
-      if (apiRes.ok) {
-        const data = await apiRes.json();
-        return res.json(data);
+        const resText = data?.choices?.[0]?.message?.content || "";
+        return res.json({ result: resText, choices: data?.choices, ...data });
       } else {
         const errJson = await apiRes.json().catch(() => ({}));
         let rawMsg = errJson?.error?.message || errJson?.message || apiRes.statusText;
         if (rawMsg.toLowerCase().includes("authentication") || rawMsg.toLowerCase().includes("api key") || rawMsg.toLowerCase().includes("invalid")) {
-          rawMsg = "کلید API چت‌بات نامعتبر یا منقضی است. لطفاً کلید معتبر DeepSeek را در پنل مدیریت وارد نمایید.";
+          rawMsg = "کلید API دیپ‌سیک نامعتبر یا منقضی است. لطفاً کلید معتبر را در تب تنظیمات DeepSeek پنل مدیریت وارد نمایید.";
         }
         return res.status(apiRes.status).json({
           error: rawMsg
         });
       }
     } catch (error: any) {
-      console.error("DeepSeek proxy chat error:", error);
-      return res.status(500).json({ error: error?.message || "خطای سرور" });
+      console.error("DeepSeek proxy generate error:", error);
+      return res.status(500).json({ error: error?.message || "خطا در ارتباط با هوش مصنوعی DeepSeek" });
     }
   });
 
-
-  // API endpoint for Gemini AI assistance in SEO & CMS
-  app.post("/api/gemini/generate", rateLimitMiddleware(15, 60000), async (req, res) => {
-    try {
-      const { prompt, systemInstruction, type } = req.body;
-      if (!prompt) {
-        return res.status(400).json({ error: "متن درخواست الزامی است." });
-      }
-
-      const ai = getAiClient();
-      
-      let defaultSys = "شما یک دستیار متخصص سئو، وب۳ و محتوای سولانا برای پلتفرم سولمینت (solmint.ir) هستید. پاسخ‌های خود را به زبان فارسی روان، جذاب و استاندارد سئو ارائه دهید.";
-      if (type === "seo_summary") {
-        defaultSys = "شما دستیار تولید چکیده مقاله استاندارد سئو (Meta Description) به زبان فارسی هستید. چکیده باید بین ۱۲۰ تا ۱۶۰ کاراکتر باشد، جذاب باشد و کلمات کلیدی اصلی را شامل شود.";
-      } else if (type === "seo_keywords") {
-        defaultSys = "شما متخصص تحقیق کلمات کلیدی وب۳ و سولانا هستید. لیستی از کلمات کلیدی کاما جدا شده برای موضوع داده شده به فارسی ارائه دهید.";
-      }
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          systemInstruction: systemInstruction || defaultSys,
-          temperature: 0.7,
-        },
-      });
-
-      const resultText = response.text || "";
-      return res.json({ result: resultText });
-    } catch (error: any) {
-      console.error("Gemini API Error:", error);
-      return res.status(500).json({ 
-        error: error.message || "خطا در ارتباط با هوش مصنوعی. لطفاً کلید GEMINI_API_KEY را بررسی کنید." 
-      });
-    }
+  // Proxy endpoint for backward compatibility: redirects gemini calls to deepseek
+  app.post("/api/gemini/generate", (req, res) => {
+    req.url = "/api/deepseek/generate";
+    app._router.handle(req, res, () => {});
   });
 
   // Authentic Solana Mainnet Status API with RPC querying and safe caching

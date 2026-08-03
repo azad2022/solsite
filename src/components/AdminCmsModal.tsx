@@ -1561,8 +1561,8 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     setNewMediaUrl('');
   };
 
-  // GEMINI AI ASSISTANT CALLS
-  const callGeminiAi = async (type: 'seo_summary' | 'seo_keywords' | 'expand' | 'faq') => {
+  // DEEPSEEK AI ASSISTANT CALLS
+  const callDeepSeekAi = async (type: 'seo_summary' | 'seo_keywords' | 'expand' | 'faq') => {
     if (!formTitle && type !== 'expand' && type !== 'faq') {
       alert('لطفاً ابتدا عنوان مقاله را وارد کنید.');
       return;
@@ -1581,10 +1581,10 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         promptText = `تکمیل و ساختاربندی مقاله آموزش سولانا با عنوان "${formTitle}". متن فعلی: ${formContent}`;
       }
 
-      const res = await fetch('/api/gemini/generate', {
+      const res = await fetch('/api/deepseek/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptText, type })
+        body: JSON.stringify({ prompt: promptText, userPrompt: promptText, type })
       });
 
       const data = await res.json();
@@ -1592,25 +1592,29 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         throw new Error(data.error);
       }
 
+      const aiResult = (data.result || data.choices?.[0]?.message?.content || '').trim();
+
       if (type === 'seo_summary') {
-        setFormSummary(data.result.trim());
-        triggerAiToast('چکیده سئو با هوش مصنوعی Gemini ساخته شد.');
+        setFormSummary(aiResult);
+        triggerAiToast('چکیده سئو با هوش مصنوعی DeepSeek ساخته شد.');
       } else if (type === 'seo_keywords') {
-        setFormTags(data.result.trim());
-        triggerAiToast('کلمات کلیدی سئو با Gemini تولید شدند.');
+        setFormTags(aiResult);
+        triggerAiToast('کلمات کلیدی سئو با DeepSeek تولید شدند.');
       } else if (type === 'faq') {
-        setFormContent(formContent + '\n\n' + data.result.trim());
-        triggerAiToast('بخش سوالات متداول سئو به مقاله افزوده شد.');
+        setFormContent(formContent + '\n\n' + aiResult);
+        triggerAiToast('بخش سوالات متداول سئو با DeepSeek به مقاله افزوده شد.');
       } else {
-        setFormContent(data.result.trim());
-        triggerAiToast('متن مقاله توسط Gemini کامل شد.');
+        setFormContent(aiResult);
+        triggerAiToast('متن مقاله توسط DeepSeek کامل شد.');
       }
     } catch (err: any) {
-      alert('خطا در هوش مصنوعی Gemini: ' + err.message);
+      alert('خطا در هوش مصنوعی DeepSeek: ' + err.message);
     } finally {
       setIsAiLoading(false);
     }
   };
+
+  const callGeminiAi = callDeepSeekAi;
 
   const triggerAiToast = (msg: string) => {
     setAiToast(msg);
@@ -2533,13 +2537,13 @@ Sitemap: https://solmint.ir/sitemap.xml
                   </div>
                 </div>
 
-                {/* Gemini AI Assistant Banner */}
+                {/* DeepSeek AI Assistant Banner */}
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-950/80 via-slate-900 to-emerald-950/80 border border-sky-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <Sparkles className="w-6 h-6 text-sky-400 shrink-0 animate-pulse" />
                     <div>
-                      <span className="font-bold text-white text-sm block">دستیار هوش مصنوعی Gemini برای سئو و محتوا</span>
-                      <span className="text-[11px] text-slate-400">تولید خودکار چکیده سئو، کلمات کلیدی و بازنویسی متون مقالات.</span>
+                      <span className="font-bold text-white text-sm block">دستیار هوش مصنوعی DeepSeek برای سئو و محتوا</span>
+                      <span className="text-[11px] text-slate-400">تولید خودکار چکیده سئو، کلمات کلیدی و بازنویسی متون مقالات با API دیپ‌سیک.</span>
                     </div>
                   </div>
 
@@ -2547,7 +2551,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                     <button
                       type="button"
                       disabled={isAiLoading}
-                      onClick={() => callGeminiAi('seo_summary')}
+                      onClick={() => callDeepSeekAi('seo_summary')}
                       className="px-3 py-1.5 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold text-[11px] hover:bg-sky-500/30 cursor-pointer"
                     >
                       {isAiLoading ? 'در حال تولید...' : 'تولید چکیده سئو'}
@@ -2556,7 +2560,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                     <button
                       type="button"
                       disabled={isAiLoading}
-                      onClick={() => callGeminiAi('seo_keywords')}
+                      onClick={() => callDeepSeekAi('seo_keywords')}
                       className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold text-[11px] hover:bg-emerald-500/30 cursor-pointer"
                     >
                       پیشنهاد برچسب‌ها

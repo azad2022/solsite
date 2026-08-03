@@ -270,7 +270,7 @@ export const ProArticleEditor: React.FC<ProArticleEditorProps> = ({
               disabled={isAiLoading}
               onClick={() => onCallGeminiAi('expand')}
               className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-blue-600/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/30 text-[10px] sm:text-[11px] font-bold flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all shrink-0"
-              title="تکمیل و بازنویسی متن با Gemini AI"
+              title="تکمیل و بازنویسی متن با DeepSeek AI"
             >
               <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
               <span>{isAiLoading ? 'در حال نگارش...' : 'تکمیل با AI'}</span>
