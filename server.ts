@@ -1257,7 +1257,7 @@ async function startServer() {
   // Helper function to build clean DeepSeek chat completions endpoint
   const buildDeepSeekEndpoint = (baseUrl?: string): string => {
     let raw = (baseUrl || "").trim();
-    if (!raw || raw.includes("gapgpt.app")) {
+    if (!raw) {
       raw = "https://api.deepseek.com/v1";
     }
     if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
@@ -1267,6 +1267,9 @@ async function startServer() {
     raw = raw.replace(/\/chat\/completions$/i, "");
     if (raw === "https://api.deepseek.com") {
       raw = "https://api.deepseek.com/v1";
+    }
+    if (raw === "https://api.gapgpt.app") {
+      raw = "https://api.gapgpt.app/v1";
     }
     return `${raw}/chat/completions`;
   };

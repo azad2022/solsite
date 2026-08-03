@@ -73,7 +73,7 @@ export function getRandomCoverForCategoryOrTitle(category?: string, title?: stri
  */
 export function buildDeepSeekEndpoint(baseUrl?: string): string {
   let raw = (baseUrl || '').trim();
-  if (!raw || raw.includes('gapgpt.app')) {
+  if (!raw) {
     raw = 'https://api.deepseek.com/v1';
   }
   if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
@@ -83,6 +83,9 @@ export function buildDeepSeekEndpoint(baseUrl?: string): string {
   raw = raw.replace(/\/chat\/completions$/i, '');
   if (raw === 'https://api.deepseek.com') {
     raw = 'https://api.deepseek.com/v1';
+  }
+  if (raw === 'https://api.gapgpt.app') {
+    raw = 'https://api.gapgpt.app/v1';
   }
   return `${raw}/chat/completions`;
 }
