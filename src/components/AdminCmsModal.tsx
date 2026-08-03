@@ -4176,13 +4176,37 @@ Sitemap: https://solmint.ir/sitemap.xml
                         مدل انتخابی هوش مصنوعی (Model Selection):
                       </label>
                       <select
-                        value={deepseekState.model}
-                        onChange={(e) => setDeepseekState({ ...deepseekState, model: e.target.value })}
+                        value={
+                          ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-coder'].includes(deepseekState.model)
+                            ? deepseekState.model
+                            : 'custom'
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val !== 'custom') {
+                            setDeepseekState({ ...deepseekState, model: val });
+                          } else {
+                            setDeepseekState({ ...deepseekState, model: deepseekState.model || 'custom-model' });
+                          }
+                        }}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono dir-ltr focus:border-cyan-400 focus:outline-none transition-colors text-xs cursor-pointer"
                       >
                         <option value="deepseek-chat">deepseek-chat (V3 - نگارش روان و سریع)</option>
                         <option value="deepseek-reasoner">deepseek-reasoner (R1 - استدلال عمیق و برنامه‌نویسی)</option>
+                        <option value="deepseek-v4-flash">deepseek-v4-flash (نسخه V4 Flash سریع GapGPT / DeepSeek)</option>
+                        <option value="deepseek-coder">deepseek-coder (کدنویسی و تحلیل هوشمند)</option>
+                        <option value="custom">✏️ وارد کردن نام مدل سفارشی (Custom Model Name)...</option>
                       </select>
+
+                      {(!['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-coder'].includes(deepseekState.model) || deepseekState.model === 'custom') && (
+                        <input
+                          type="text"
+                          placeholder="مثال: deepseek-v4-flash یا gpt-4o"
+                          value={deepseekState.model === 'custom' ? '' : deepseekState.model}
+                          onChange={(e) => setDeepseekState({ ...deepseekState, model: e.target.value })}
+                          className="w-full mt-2 bg-slate-900 border border-cyan-500/50 rounded-xl p-2.5 text-white font-mono text-xs dir-ltr focus:outline-none focus:border-cyan-400 placeholder:text-slate-500"
+                        />
+                      )}
                     </div>
 
                     {/* Test Connection Button */}
@@ -5095,13 +5119,36 @@ Sitemap: https://solmint.ir/sitemap.xml
                         مدل انتخابی هوش مصنوعی برای چت‌بات:
                       </label>
                       <select
-                        value={chatbotState.model}
-                        onChange={(e) => setChatbotState({ ...chatbotState, model: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono text-xs cursor-pointer focus:border-cyan-400"
+                        value={
+                          ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-coder'].includes(chatbotState.model)
+                            ? chatbotState.model
+                            : 'custom'
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val !== 'custom') {
+                            setChatbotState({ ...chatbotState, model: val });
+                          } else {
+                            setChatbotState({ ...chatbotState, model: chatbotState.model || 'custom-model' });
+                          }
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono text-xs cursor-pointer focus:border-cyan-400 dir-ltr"
                       >
-                        <option value="deepseek-chat">deepseek-chat (پیش‌فرض - بسیار سریع و روان)</option>
+                        <option value="deepseek-chat">deepseek-chat (پیش‌فرض - روان و سریع)</option>
                         <option value="deepseek-reasoner">deepseek-reasoner (R1 - استدلال محاسباتی عمیق)</option>
+                        <option value="deepseek-v4-flash">deepseek-v4-flash (GapGPT / DeepSeek V4 Flash)</option>
+                        <option value="deepseek-coder">deepseek-coder (برنامه‌نویسی و استخراج کد)</option>
+                        <option value="custom">✏️ نام مدل سفارشی...</option>
                       </select>
+                      {(!['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-coder'].includes(chatbotState.model) || chatbotState.model === 'custom') && (
+                        <input
+                          type="text"
+                          placeholder="مثال: deepseek-v4-flash"
+                          value={chatbotState.model === 'custom' ? '' : chatbotState.model}
+                          onChange={(e) => setChatbotState({ ...chatbotState, model: e.target.value })}
+                          className="w-full mt-2 bg-slate-900 border border-cyan-500/50 rounded-xl p-2.5 text-white font-mono text-xs dir-ltr focus:outline-none focus:border-cyan-400 placeholder:text-slate-500"
+                        />
+                      )}
                     </div>
 
                     {/* Max history turns */}
