@@ -729,18 +729,30 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   useEffect(() => {
     if (deepseekSettings) {
       setDeepseekState(deepseekSettings);
+      if ((deepseekSettings as any).publishScheduleHours) {
+        setPublishScheduleHours((deepseekSettings as any).publishScheduleHours);
+      } else if (deepseekSettings.publishSchedule?.intervalHours) {
+        setPublishScheduleHours(deepseekSettings.publishSchedule.intervalHours);
+      }
     }
   }, [deepseekSettings, isOpen]);
 
   const handleSaveDeepseekSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (setDeepseekSettings) {
-      setDeepseekSettings(deepseekState);
-    }
-    safeSetLocalStorage('solmint_deepseek_settings', deepseekState);
-    const serverPayload = {
+    const updatedState = {
       ...deepseekState,
-      autoPublishEnabled: deepseekState.publishSchedule.enabled,
+      publishSchedule: {
+        ...deepseekState.publishSchedule,
+        intervalHours: publishScheduleHours
+      }
+    };
+    if (setDeepseekSettings) {
+      setDeepseekSettings(updatedState);
+    }
+    safeSetLocalStorage('solmint_deepseek_settings', updatedState);
+    const serverPayload = {
+      ...updatedState,
+      autoPublishEnabled: updatedState.publishSchedule.enabled,
       publishScheduleHours: publishScheduleHours
     };
     await saveCmsSettingsToApi({ deepseek: serverPayload as any });

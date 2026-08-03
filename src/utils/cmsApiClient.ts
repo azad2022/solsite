@@ -113,8 +113,8 @@ export async function registerUserApi(payload: {
     username: payload.username,
     fullName: payload.fullName,
     passwordHash: payload.passwordHash,
-    role: payload.role || 'admin',
-    permissions: payload.permissions || ['articles', 'editor', 'comments', 'media', 'seo', 'audit', 'redirects', 'downloads', 'deepseek', 'chatbot', 'database', 'security', 'users'],
+    role: (payload.role as any) || 'admin',
+    permissions: (payload.permissions as any) || ['articles', 'editor', 'comments', 'media', 'seo', 'audit', 'redirects', 'downloads', 'deepseek', 'chatbot', 'database', 'security', 'users'],
     isActive: payload.isActive !== false,
     createdAt: new Date().toLocaleDateString('fa-IR')
   };
@@ -183,6 +183,7 @@ export async function loginUserApi(payload: {
           id: 'admin-1',
           username: 'admin',
           fullName: 'مدیر ارشد پلتفرم (SuperAdmin)',
+          passwordHash: 'admin_hash',
           role: 'superadmin',
           permissions: ['articles', 'editor', 'comments', 'media', 'seo', 'audit', 'redirects', 'downloads', 'deepseek', 'chatbot', 'database', 'security', 'users'],
           isActive: true,

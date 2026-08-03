@@ -297,7 +297,7 @@ async function startServer() {
           role: newUser.role,
           permissions: newUser.permissions,
           is_active: newUser.isActive
-        }, { onConflict: "username" }).then(() => {}).catch(() => {});
+        }, { onConflict: "username" }).then(() => {}, () => {});
       }
 
       return res.json(result);
@@ -1259,7 +1259,8 @@ async function startServer() {
     const settings = getCmsSettings();
     const ds: any = settings.deepseek || {};
     const activeKey = (ds.apiKey || process.env.DEEPSEEK_API_KEY || "").trim();
-    const activeBaseUrl = (ds.apiBaseUrl || ds.baseUrl || "https://api.gapgpt.app/v1").replace(/\/$/, "");
+    const rawBaseUrl = ds.apiBaseUrl || ds.baseUrl;
+    const activeBaseUrl = (rawBaseUrl && !rawBaseUrl.includes("gapgpt.app") ? rawBaseUrl : "https://api.deepseek.com/v1").replace(/\/$/, "");
     const activeModel = ds.model || "deepseek-chat";
 
     const topics = (ds.targetTopics && ds.targetTopics.length > 0) ? ds.targetTopics : [
@@ -1274,6 +1275,7 @@ async function startServer() {
     const keywords = (ds.targetKeywords || ['سولمینت', 'سولانا', 'توکن']).join('، ');
 
     let articleData: any = null;
+    let apiErrorMsg = "";
 
     if (activeKey.length > 5) {
       try {
@@ -1317,13 +1319,22 @@ async function startServer() {
           const resJson = await apiRes.json();
           const rawContent = resJson.choices?.[0]?.message?.content;
           if (rawContent) {
-            const cleanJsonStr = rawContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            let cleanJsonStr = rawContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
+            if (jsonMatch) cleanJsonStr = jsonMatch[0];
             articleData = JSON.parse(cleanJsonStr);
           }
+        } else {
+          const errJson = await apiRes.json().catch(() => ({}));
+          apiErrorMsg = errJson?.error?.message || errJson?.message || `پاسخ ناموفق سرور دیپ‌سیک (کد ${apiRes.status})`;
+          console.warn("[DeepSeek Server] API call error:", apiErrorMsg);
         }
-      } catch (err) {
-        console.warn("[DeepSeek Server] API call error, generating smart SEO fallback article:", err);
+      } catch (err: any) {
+        apiErrorMsg = err?.message || "خطای ارتباط با سرور دیپ‌سیک";
+        console.warn("[DeepSeek Server] API exception:", err);
       }
+    } else {
+      apiErrorMsg = "کلید API دیپ‌سیک ثبت نشده یا نامعتبر است.";
     }
 
     // Smart SEO Fallback if API was unreachable or key missing
@@ -1406,6 +1417,32 @@ async function startServer() {
 
     saveArticleToDisk(fullArticle);
 
+    if (serverSupabase) {
+      try {
+        await serverSupabase.from("articles").upsert({
+          id: fullArticle.id,
+          title: fullArticle.title,
+          slug: fullArticle.slug,
+          category: fullArticle.category,
+          tags: fullArticle.tags,
+          summary: fullArticle.summary,
+          content: fullArticle.content,
+          cover_image: fullArticle.coverImage,
+          author: fullArticle.author,
+          published_at: fullArticle.publishedAt,
+          published_at_jalali: fullArticle.publishedAtJalali,
+          published_at_gregorian: fullArticle.publishedAtGregorian,
+          read_time_minutes: fullArticle.readTimeMinutes,
+          views_count: fullArticle.viewsCount,
+          comments: fullArticle.comments,
+          seo_score: fullArticle.seoScore,
+          is_draft: fullArticle.isDraft ? 1 : 0
+        });
+      } catch (spErr) {
+        console.warn("[DeepSeek AutoPublish] Supabase sync error:", spErr);
+      }
+    }
+
     saveCmsSettings({
       deepseek: {
         ...ds,
@@ -1413,17 +1450,22 @@ async function startServer() {
       } as any
     });
 
+    const statusType = apiErrorMsg ? 'error' : 'success';
+    const logMsg = apiErrorMsg 
+      ? `هشدار API دیپ‌سیک (${apiErrorMsg}). مقاله با عنوان "${cleanTitle}" از موتور شبیه‌ساز انتشار یافت.`
+      : `مقاله "${cleanTitle}" با موفقیت توسط API دیپ‌سیک نگارش و در دیتابیس منتشر شد.`;
+
     const log = addDeepseekLog({
       topic,
-      status: 'success',
-      message: `مقاله "${cleanTitle}" با موفقیت در دیتابیس سرور ذخیره و منتشر شد.`,
+      status: statusType,
+      message: logMsg,
       articleSlug: cleanSlug,
       articleTitle: cleanTitle
     });
 
     return {
       success: true,
-      message: `مقاله "${cleanTitle}" با موفقیت در سرور تولید و منتشر شد.`,
+      message: logMsg,
       article: fullArticle,
       log
     };
@@ -1434,11 +1476,12 @@ async function startServer() {
     try {
       const settings = getCmsSettings();
       const ds = settings.deepseek;
-      if (!ds || (!ds.autoPublishEnabled && !ds.publishSchedule?.enabled)) {
+      const isAutoPublishActive = Boolean(ds?.autoPublishEnabled || ds?.publishSchedule?.enabled);
+      if (!ds || !isAutoPublishActive) {
         return;
       }
 
-      const hours = ds.publishScheduleHours || 6;
+      const hours = ds.publishScheduleHours || (ds.publishSchedule as any)?.intervalHours || 6;
       const lastPublished = ds.lastAutoPublishedAt ? new Date(ds.lastAutoPublishedAt).getTime() : 0;
       const nowMs = Date.now();
       const intervalMs = hours * 3600 * 1000;
@@ -1450,7 +1493,7 @@ async function startServer() {
     } catch (err) {
       console.error("[DeepSeek AutoWorker] Background task error:", err);
     }
-  }, 3 * 60 * 1000); // Checks every 3 minutes
+  }, 2 * 60 * 1000); // Checks every 2 minutes
 
   // API endpoint for proxying DeepSeek / OpenAI-compatible API tests
   app.post("/api/deepseek/test", rateLimitMiddleware(15, 60000), async (req, res) => {

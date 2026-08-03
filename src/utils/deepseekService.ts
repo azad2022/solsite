@@ -269,7 +269,9 @@ export async function generateArticleWithDeepSeek(
 
       // 2. Direct fetch fallback if proxy did not return data
       if (!data) {
-        const endpoint = `${settings.apiBaseUrl.replace(/\/$/, '')}/chat/completions`;
+        const rawUrl = settings.apiBaseUrl;
+        const validBaseUrl = (rawUrl && !rawUrl.includes("gapgpt.app") ? rawUrl : "https://api.deepseek.com/v1").replace(/\/$/, "");
+        const endpoint = `${validBaseUrl}/chat/completions`;
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -293,8 +295,10 @@ export async function generateArticleWithDeepSeek(
       if (data) {
         const contentRaw = data.choices?.[0]?.message?.content;
         if (contentRaw) {
-          // Clean JSON markdown blocks if model wraps in ```json
-          const cleanJsonStr = contentRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          // Clean JSON markdown blocks if model wraps in ```json or adds text
+          let cleanJsonStr = contentRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
+          if (jsonMatch) cleanJsonStr = jsonMatch[0];
           const parsed = JSON.parse(cleanJsonStr);
           const category = parsed.category || 'آموزش سولانا';
           const shouldIncludeCover = (settings.mediaConfig?.includeCoverImage ?? true) && (settings.requireCoverImage ?? true);
