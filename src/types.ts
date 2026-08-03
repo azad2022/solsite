@@ -220,7 +220,7 @@ export interface DeepSeekAiSettings {
 
 export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
   apiKey: '',
-  apiBaseUrl: 'https://api.gapgpt.app/v1',
+  apiBaseUrl: 'https://api.deepseek.com/v1',
   model: 'deepseek-chat',
   systemPrompt: `شما دستیار نویسنده ارشد وبسایت "سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
 
@@ -287,7 +287,7 @@ export interface ChatbotSettings {
 export const DEFAULT_CHATBOT_SETTINGS: ChatbotSettings = {
   enabled: true,
   apiKey: '',
-  apiBaseUrl: 'https://api.gapgpt.app/v1',
+  apiBaseUrl: 'https://api.deepseek.com/v1',
   botName: 'پشتیبان هوشمند سولمینت',
   botAvatar: '🤖',
   welcomeMessage: 'سلام! 👋 من دستیار هوشمند سولمینت هستم. چطور می‌توانم در زمینه ساخت توکن، کیف پول سولانا، یا بازیابی کارمزد اجاره (Rent Claim) به شما کمک کنم؟',

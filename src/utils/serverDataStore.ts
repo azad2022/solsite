@@ -155,8 +155,8 @@ export interface ServerSettings {
 const DEFAULT_SETTINGS: ServerSettings = {
   deepseek: {
     apiKey: process.env.DEEPSEEK_API_KEY || '',
-    baseUrl: 'https://api.gapgpt.app/v1',
-    apiBaseUrl: 'https://api.gapgpt.app/v1',
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiBaseUrl: 'https://api.deepseek.com/v1',
     model: 'deepseek-chat',
     defaultCategory: 'آموزش سولانا',
     systemPrompt: `شما نویسنده و تحلیل‌گر ارشد وب۳، بلاک‌چین و سولانا در رسانه تخصصی سولمینت (solmint.ir) هستید. مقالاتی کاملاً حرفه‌ای، جذاب، کاربردی و آموزنده به زبان فارسی بنویسید.
@@ -210,7 +210,7 @@ const DEFAULT_SETTINGS: ServerSettings = {
     initialMessage: 'سلام! چطور می‌توانم در زمینه ساخت توکن، میم‌کوین، NFT یا کیف پول سولانا به شما کمک کنم؟',
     systemPrompt: 'شما پشتیبان هوشمند پلتفرم سولمینت هستید.',
     apiKey: process.env.DEEPSEEK_API_KEY || '',
-    baseUrl: 'https://api.gapgpt.app/v1',
+    baseUrl: 'https://api.deepseek.com/v1',
     model: 'deepseek-chat'
   },
   downloads: {

@@ -68,9 +68,28 @@ export function getRandomCoverForCategoryOrTitle(category?: string, title?: stri
   return defaultList[Math.floor(Math.random() * defaultList.length)];
 }
 
+/**
+ * Cleanly normalizes base URL and returns full chat completions endpoint
+ */
+export function buildDeepSeekEndpoint(baseUrl?: string): string {
+  let raw = (baseUrl || '').trim();
+  if (!raw || raw.includes('gapgpt.app')) {
+    raw = 'https://api.deepseek.com/v1';
+  }
+  if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+    raw = `https://${raw}`;
+  }
+  raw = raw.replace(/\/+$/, '');
+  raw = raw.replace(/\/chat\/completions$/i, '');
+  if (raw === 'https://api.deepseek.com') {
+    raw = 'https://api.deepseek.com/v1';
+  }
+  return `${raw}/chat/completions`;
+}
+
 export async function testDeepSeekConnection(
   apiKey: string,
-  baseUrl: string = 'https://api.gapgpt.app/v1',
+  baseUrl: string = 'https://api.deepseek.com/v1',
   model: string = 'deepseek-chat'
 ): Promise<{ success: boolean; message: string }> {
   if (!apiKey || apiKey.trim() === '') {
@@ -92,17 +111,16 @@ export async function testDeepSeekConnection(
       })
     });
 
-    if (proxyRes.ok) {
-      const data = await proxyRes.json();
+    const data = await proxyRes.json().catch(() => ({}));
+    if (proxyRes.ok && data.success !== false) {
       return {
-        success: data.success ?? true,
+        success: true,
         message: data.message || 'ارتباط با موفقیت برقرار شد!'
       };
-    } else {
-      const errData = await proxyRes.json().catch(() => ({}));
+    } else if (data && data.message) {
       return {
         success: false,
-        message: errData.message || `خطای پاسخ (کد ${proxyRes.status})`
+        message: data.message
       };
     }
   } catch (proxyErr) {
@@ -110,7 +128,7 @@ export async function testDeepSeekConnection(
   }
 
   // 2. Direct fetch fallback
-  const endpoint = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const endpoint = buildDeepSeekEndpoint(baseUrl);
 
   try {
     const response = await fetch(endpoint, {
@@ -135,10 +153,17 @@ export async function testDeepSeekConnection(
       };
     } else {
       const errJson = await response.json().catch(() => ({}));
-      const errMsg = errJson?.error?.message || errJson?.message || response.statusText;
+      let errMsg = errJson?.error?.message || errJson?.message || response.statusText;
+      if (response.status === 401 || errMsg.toLowerCase().includes('authentication') || errMsg.toLowerCase().includes('api key') || errMsg.toLowerCase().includes('invalid')) {
+        errMsg = 'کلید API دیپ‌سیک وارد شده نامعتبر یا منقضی می‌باشد.';
+      } else if (response.status === 402 || errMsg.toLowerCase().includes('balance') || errMsg.toLowerCase().includes('insufficient')) {
+        errMsg = 'اعتبار (Balance) حساب دیپ‌سیک شما کافی نیست یا تمام شده است.';
+      } else if (response.status === 405) {
+        errMsg = 'روش درخواست نامعتبر (کد 405). آدرس سرور به صورت https://api.deepseek.com/v1 تنظیم گردید.';
+      }
       return {
         success: false,
-        message: `خطا در اتصال (کد ${response.status}): ${errMsg}`
+        message: `خطا در اتصال به دیپ‌سیک (کد ${response.status}): ${errMsg}`
       };
     }
   } catch (err: any) {
@@ -269,9 +294,7 @@ export async function generateArticleWithDeepSeek(
 
       // 2. Direct fetch fallback if proxy did not return data
       if (!data) {
-        const rawUrl = settings.apiBaseUrl;
-        const validBaseUrl = (rawUrl && !rawUrl.includes("gapgpt.app") ? rawUrl : "https://api.deepseek.com/v1").replace(/\/$/, "");
-        const endpoint = `${validBaseUrl}/chat/completions`;
+        const endpoint = buildDeepSeekEndpoint(settings.apiBaseUrl);
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -448,7 +471,7 @@ export async function sendDeepSeekChatMessage(
     : (deepseekSettings.apiKey || '');
   const baseUrl = (chatbotSettings.apiBaseUrl && chatbotSettings.apiBaseUrl.trim().length > 0) 
     ? chatbotSettings.apiBaseUrl 
-    : (deepseekSettings.apiBaseUrl || 'https://api.gapgpt.app/v1');
+    : (deepseekSettings.apiBaseUrl || 'https://api.deepseek.com/v1');
   const model = chatbotSettings.model || deepseekSettings.model || 'deepseek-chat';
   const systemPrompt = chatbotSettings.systemPrompt;
 
@@ -495,7 +518,7 @@ export async function sendDeepSeekChatMessage(
   }
 
   // 2. Direct fetch fallback
-  const endpoint = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const endpoint = buildDeepSeekEndpoint(baseUrl);
   const fullPayloadMessages = [
     { role: 'system', content: systemPrompt },
     ...recentMessages

@@ -1254,13 +1254,29 @@ async function startServer() {
     });
   };
 
+  // Helper function to build clean DeepSeek chat completions endpoint
+  const buildDeepSeekEndpoint = (baseUrl?: string): string => {
+    let raw = (baseUrl || "").trim();
+    if (!raw || raw.includes("gapgpt.app")) {
+      raw = "https://api.deepseek.com/v1";
+    }
+    if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
+      raw = `https://${raw}`;
+    }
+    raw = raw.replace(/\/+$/, "");
+    raw = raw.replace(/\/chat\/completions$/i, "");
+    if (raw === "https://api.deepseek.com") {
+      raw = "https://api.deepseek.com/v1";
+    }
+    return `${raw}/chat/completions`;
+  };
+
   // SERVER-SIDE DEEPSEEK AUTO-PUBLISHING ENGINE
   const runServerAutoPublishArticle = async (customTopic?: string): Promise<{ success: boolean; message: string; article?: any; log?: any }> => {
     const settings = getCmsSettings();
     const ds: any = settings.deepseek || {};
     const activeKey = (ds.apiKey || process.env.DEEPSEEK_API_KEY || "").trim();
-    const rawBaseUrl = ds.apiBaseUrl || ds.baseUrl;
-    const activeBaseUrl = (rawBaseUrl && !rawBaseUrl.includes("gapgpt.app") ? rawBaseUrl : "https://api.deepseek.com/v1").replace(/\/$/, "");
+    const endpoint = buildDeepSeekEndpoint(ds.apiBaseUrl || ds.baseUrl);
     const activeModel = ds.model || "deepseek-chat";
 
     const topics = (ds.targetTopics && ds.targetTopics.length > 0) ? ds.targetTopics : [
@@ -1299,7 +1315,7 @@ async function startServer() {
   "content": "متن کامل مقاله شامل تیترهای H2 و H3 مارک‌داون، لیست‌ها، نکات کلیدی و بخش FAQ"
 }`;
 
-        const apiRes = await fetch(`${activeBaseUrl}/chat/completions`, {
+        const apiRes = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1504,11 +1520,10 @@ async function startServer() {
       const activeKey = (apiKey || storedKey).trim();
 
       if (!activeKey) {
-        return res.status(400).json({ success: false, message: "کلید API وارد نشده است و در تنظیمات سرور نیز موجود نیست." });
+        return res.json({ success: false, message: "کلید API وارد نشده است. لطفاً کلید معتبر خود را وارد کنید." });
       }
 
-      const cleanBaseUrl = (baseUrl || settings.deepseek?.apiBaseUrl || settings.deepseek?.baseUrl || "https://api.gapgpt.app/v1").replace(/\/$/, "");
-      const endpoint = `${cleanBaseUrl}/chat/completions`;
+      const endpoint = buildDeepSeekEndpoint(baseUrl || settings.deepseek?.apiBaseUrl || settings.deepseek?.baseUrl);
       const targetModel = model || settings.deepseek?.model || "deepseek-chat";
 
       const apiRes = await fetch(endpoint, {
@@ -1528,22 +1543,26 @@ async function startServer() {
         const data = await apiRes.json().catch(() => ({}));
         return res.json({
           success: true,
-          message: `اتصال با موفقیت برقرار شد! پاسخ مدل (${data.model || targetModel}) در سرور دریافت گردید.`
+          message: `اتصال با موفقیت برقرار شد! پاسخ مدل (${data.model || targetModel}) با موفقیت در سرور دریافت گردید.`
         });
       } else {
         const errJson = await apiRes.json().catch(() => ({}));
-        let errMsg = errJson?.error?.message || errJson?.message || apiRes.statusText;
-        if (errMsg.toLowerCase().includes("authentication") || errMsg.toLowerCase().includes("api key") || errMsg.toLowerCase().includes("invalid")) {
-          errMsg = "کلید API وارد شده نامعتبر یا منقضی می‌باشد. لطفاً کلید API معتبر خود را وارد نمایید.";
+        let errMsg = errJson?.error?.message || errJson?.message || apiRes.statusText || "";
+        if (apiRes.status === 401 || errMsg.toLowerCase().includes("authentication") || errMsg.toLowerCase().includes("api key") || errMsg.toLowerCase().includes("invalid")) {
+          errMsg = "کلید API وارد شده نامعتبر یا منقضی می‌باشد. لطفاً کلید API معتبر دیپ‌سیک را وارد نمایید.";
+        } else if (apiRes.status === 402 || errMsg.toLowerCase().includes("balance") || errMsg.toLowerCase().includes("insufficient")) {
+          errMsg = "اعتبار (Balance) حساب دیپ‌سیک شما کافی نیست یا تمام شده است.";
+        } else if (apiRes.status === 405) {
+          errMsg = "روش درخواست نامعتبر (کد 405). آدرس سرور به صورت https://api.deepseek.com/v1 تنظیم گردید.";
         }
-        return res.status(apiRes.status).json({
+        return res.json({
           success: false,
           message: `خطا در اتصال (کد ${apiRes.status}): ${errMsg}`
         });
       }
     } catch (error: any) {
       console.error("DeepSeek proxy test error:", error);
-      return res.status(500).json({
+      return res.json({
         success: false,
         message: `خطای سرور هنگام اتصال: ${error?.message || "نامشخص"}`
       });
@@ -1594,8 +1613,7 @@ async function startServer() {
         return res.status(400).json({ error: "کلید API دیپ‌سیک در پنل مدیریت یافت نشد. لطفاً در تب تنظیمات DeepSeek کلید API خود را ذخیره کنید." });
       }
 
-      const cleanBaseUrl = (baseUrl || settings.deepseek?.apiBaseUrl || settings.deepseek?.baseUrl || "https://api.deepseek.com/v1").replace(/\/$/, "");
-      const endpoint = `${cleanBaseUrl}/chat/completions`;
+      const endpoint = buildDeepSeekEndpoint(baseUrl || settings.deepseek?.apiBaseUrl || settings.deepseek?.baseUrl);
       const targetModel = model || settings.deepseek?.model || "deepseek-chat";
 
       let sys = systemPrompt || systemInstruction;
