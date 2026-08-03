@@ -20,6 +20,17 @@ export interface CmsSettings {
 }
 
 /**
+ * Helper to get authentication headers including x-admin-passcode
+ */
+function getAuthHeaders(): Record<string, string> {
+  const passcode = localStorage.getItem('solmint_admin_passcode') || localStorage.getItem('solmint_passcode') || 'solmint1404';
+  return {
+    'Content-Type': 'application/json',
+    'x-admin-passcode': passcode
+  };
+}
+
+/**
  * Helper to safely parse JSON from a fetch Response without throwing 'Unexpected end of JSON input'
  */
 async function safeFetchJson<T = any>(res: Response): Promise<{ ok: boolean; status: number; data: T | null }> {
@@ -64,7 +75,7 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
   try {
     const res = await fetch('/api/cms/settings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ settings })
     });
     apiSuccess = res.ok;

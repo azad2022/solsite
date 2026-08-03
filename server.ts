@@ -169,8 +169,17 @@ async function startServer() {
 
   app.use(express.json({ limit: "10mb" }));
 
-  // In-memory rate limiting map for AI Proxy endpoints
+  // In-memory rate limiting map for AI Proxy endpoints with periodic memory cleanup
   const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of rateLimitMap.entries()) {
+      if (now > record.resetTime) {
+        rateLimitMap.delete(ip);
+      }
+    }
+  }, 5 * 60 * 1000);
 
   const rateLimitMiddleware = (limit: number = 20, windowMs: number = 60000) => {
     return (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -192,6 +201,33 @@ async function startServer() {
       record.count += 1;
       return next();
     };
+  };
+
+  // Admin authentication check helper for sensitive API endpoints
+  const isAuthorizedAdmin = (req: express.Request): boolean => {
+    const cmsSettings = getCmsSettings();
+    const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").replace(/^["']|["']$/g, '').trim();
+
+    const passcodeHeader = (req.headers["x-admin-passcode"] as string || "").trim();
+    const authHeader = (req.headers["authorization"] || "").trim();
+
+    if (passcodeHeader && passcodeHeader === currentAdminPasscode) return true;
+    if (authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7).trim();
+      if (token === currentAdminPasscode) return true;
+    }
+
+    return false;
+  };
+
+  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!isAuthorizedAdmin(req)) {
+      return res.status(401).json({
+        success: false,
+        message: "دسترسی غیرمجاز. برای انجام این عملیات باید به عنوان مدیر سیستم احراز هویت شده باشید."
+      });
+    }
+    next();
   };
 
   // Legacy Redirect Map for Server-side 301 Redirects
@@ -225,7 +261,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/cms/settings", (req, res) => {
+  app.post("/api/cms/settings", requireAdminAuth, (req, res) => {
     try {
       const { settings } = req.body;
       if (!settings || typeof settings !== "object") {
@@ -377,7 +413,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/users/update", (req, res) => {
+  app.post("/api/users/update", requireAdminAuth, (req, res) => {
     try {
       const { userId, role, permissions, isActive, password, passwordHash } = req.body || {};
       const users = getAllUsers();
@@ -402,7 +438,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/users/delete", (req, res) => {
+  app.post("/api/users/delete", requireAdminAuth, (req, res) => {
     try {
       const { userId } = req.body;
       let users = getAllUsers();
@@ -565,33 +601,6 @@ async function startServer() {
     process.env.VITE_GITHUB_TOKEN ||
     ""
   ).trim();
-
-  // Admin authentication check helper for sensitive API endpoints
-  const isAuthorizedAdmin = (req: express.Request): boolean => {
-    const cmsSettings = getCmsSettings();
-    const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").replace(/^["']|["']$/g, '').trim();
-
-    const passcodeHeader = (req.headers["x-admin-passcode"] as string || "").trim();
-    const authHeader = (req.headers["authorization"] || "").trim();
-
-    if (passcodeHeader && passcodeHeader === currentAdminPasscode) return true;
-    if (authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7).trim();
-      if (token === currentAdminPasscode) return true;
-    }
-
-    return false;
-  };
-
-  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (!isAuthorizedAdmin(req)) {
-      return res.status(401).json({
-        success: false,
-        message: "دسترسی غیرمجاز. برای انجام این عملیات باید به عنوان مدیر سیستم احراز هویت شده باشید."
-      });
-    }
-    next();
-  };
 
   const getGitHubToken = (): string => {
     return serverGitHubToken.trim();
@@ -1324,6 +1333,7 @@ async function startServer() {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${activeKey}`
           },
+          signal: AbortSignal.timeout(60000),
           body: JSON.stringify({
             model: activeModel,
             messages: [
@@ -1338,10 +1348,15 @@ async function startServer() {
           const resJson = await apiRes.json();
           const rawContent = resJson.choices?.[0]?.message?.content;
           if (rawContent) {
-            let cleanJsonStr = rawContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
-            if (jsonMatch) cleanJsonStr = jsonMatch[0];
-            articleData = JSON.parse(cleanJsonStr);
+            try {
+              let cleanJsonStr = rawContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+              const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
+              if (jsonMatch) cleanJsonStr = jsonMatch[0];
+              articleData = JSON.parse(cleanJsonStr);
+            } catch (pErr) {
+              console.warn("[DeepSeek Server] Failed to parse JSON response:", pErr);
+              apiErrorMsg = "فرمت پاسخ مدل هوش مصنوعی ساختار استاندارد JSON نبود.";
+            }
           }
         } else {
           const errJson = await apiRes.json().catch(() => ({}));
@@ -1382,11 +1397,18 @@ async function startServer() {
       .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '')
       .trim();
 
-    const cleanSlug = cleanTitle
+    let cleanSlug = cleanTitle
       .toLowerCase()
       .replace(/[^\w\u0600-\u06FF\s-]/g, '')
       .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    if (!cleanSlug || cleanSlug.length < 2) {
+      cleanSlug = `article-${Date.now()}`;
+    } else {
+      cleanSlug = `${cleanSlug}-${Date.now().toString(36)}`;
+    }
 
     const now = new Date();
     const jalali = new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(now);
@@ -1535,6 +1557,7 @@ async function startServer() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${activeKey}`
         },
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           model: targetModel,
           messages: [{ role: "user", content: "سلام، تست آنلاین ارتباط با API" }],
@@ -1638,6 +1661,7 @@ async function startServer() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${activeKey}`
         },
+        signal: AbortSignal.timeout(60000),
         body: JSON.stringify({
           model: targetModel,
           messages: [
@@ -1697,6 +1721,7 @@ async function startServer() {
         const rpcRes = await fetch("https://api.mainnet-beta.solana.com", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(8000),
           body: JSON.stringify([
             { jsonrpc: "2.0", id: 1, method: "getSlot", params: [] },
             { jsonrpc: "2.0", id: 2, method: "getRecentPerformanceSamples", params: [1] }

@@ -28,11 +28,16 @@ function readJsonFile<T>(filename: string, defaultValue: T): T {
 function writeJsonFile<T>(filename: string, data: T): boolean {
   ensureDataDir();
   const filePath = path.join(DATA_DIR, filename);
+  const tempPath = path.join(DATA_DIR, `${filename}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`);
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tempPath, filePath);
     return true;
   } catch (err) {
     console.error(`Error writing ${filename} to disk:`, err);
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch (_) {}
     return false;
   }
 }
