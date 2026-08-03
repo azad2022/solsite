@@ -1,0 +1,92 @@
+{
+  "deepseek": {
+    "apiKey": "sk-mwY8X2Ez1Vy01uT2EfuNqKMMTLMUz5qZuSo0Eql3wXsp2aP6",
+    "baseUrl": "https://api.gapgpt.app/v1",
+    "apiBaseUrl": "https://api.gapgpt.app/v1",
+    "model": "deepseek-chat",
+    "defaultCategory": "آموزش سولانا",
+    "systemPrompt": "شما نویسنده و تحلیل‌گر ارشد وب۳، بلاک‌چین و سولانا در رسانه تخصصی سولمینت (solmint.ir) هستید. مقالاتی کاملاً حرفه‌ای، جذاب، کاربردی و آموزنده به زبان فارسی بنویسید.\nقوانین:\n۱. از بکار بردن کلماتی نظیر \"مقاله سئو شده\"، \"DeepSeek\" یا \"هوش مصنوعی\" در عنوان مقاله جداً خودداری کنید.\n۲. نویسنده مقاله فقط \"تیم تحریریه سولمینت\" است.",
+    "targetTopics": [
+      "آموزش جامع ساخت توکن در شبکه‌ی سولانا بدون کدنویسی",
+      "راهنمای ساخت میم کوین با سولمینت و افزودن نقدینگی",
+      "بازیابی کارمزد اجاره حساب‌های خالی سولانا (SOL Rent Claim)",
+      "آموزش ضرب NFT با استاندارد Metaplex در اپلیکیشن موبایل",
+      "بررسی امنیت کیف پول‌های غیرامانی و الگوریتم Ed25519",
+      "مقایسه کارمزد و سرعت سولانا با اتریوم و تون‌کوین (TON)",
+      "چگونه اولین آردراپ (Airdrop) خود را در بلاکچین سولانا دریافت کنیم؟"
+    ],
+    "targetKeywords": [
+      "سولمینت",
+      "کیف پول سولانا",
+      "ساخت توکن سولانا",
+      "بازیابی اجاره SOL",
+      "ساخت میم کوین",
+      "کیف پول غیرامانی",
+      "ضرب NFT سولانا",
+      "برنامه سولمینت"
+    ],
+    "publishSchedule": {
+      "enabled": true,
+      "publishDays": [
+        "شنبه",
+        "دوشنبه",
+        "چهارشنبه"
+      ],
+      "publishTime": "10:00",
+      "autoPublishAsDraft": false
+    },
+    "mediaConfig": {
+      "includeCoverImage": true,
+      "imageStyle": "solana_theme",
+      "includeVideo": false,
+      "defaultVideoUrl": "https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-and-code-42898-large.mp4"
+    },
+    "writingStyle": {
+      "tone": "آموزشی و روان",
+      "targetWordCount": 1200,
+      "includeFaqSection": true,
+      "includeCallToAction": true
+    },
+    "autoPublishEnabled": true,
+    "publishScheduleHours": 6,
+    "autoLogs": [
+      {
+        "id": "log_1785789471367",
+        "timestamp": "۱۲ مرداد ۱۴۰۵، ۲۰:۳۷:۵۱",
+        "topic": "چگونه اولین آردراپ (Airdrop) خود را در بلاکچین سولانا دریافت کنیم؟",
+        "status": "success",
+        "message": "مقاله \"راهنمای کامل دریافت اولین آردراپ در بلاکچین سولانا\" با موفقیت توسط API دیپ‌سیک نگارش و در دیتابیس منتشر شد.",
+        "articleSlug": "راهنمای-کامل-دریافت-اولین-آردراپ-در-بلاکچین-سولانا-msdoxymc",
+        "articleTitle": "راهنمای کامل دریافت اولین آردراپ در بلاکچین سولانا"
+      },
+      {
+        "id": "log_1785777766594",
+        "timestamp": "۱۲ مرداد ۱۴۰۵، ۱۷:۲۲:۴۶",
+        "topic": "راهنمای ساخت میم کوین با سولمینت و افزودن نقدینگی",
+        "status": "success",
+        "message": "مقاله \"راهنمای گام به گام ساخت میم کوین با سولمینت و افزودن نقدینگی\" با موفقیت در دیتابیس سرور ذخیره و منتشر شد.",
+        "articleSlug": "راهنمای-گام-به-گام-ساخت-میم-کوین-با-سولمینت-و-افزودن-نقدینگی",
+        "articleTitle": "راهنمای گام به گام ساخت میم کوین با سولمینت و افزودن نقدینگی"
+      }
+    ],
+    "lastAutoPublishedAt": "2026-08-03T20:37:51.108Z"
+  },
+  "chatbot": {
+    "enabled": true,
+    "title": "پشتیبان هوشمند سولمینت",
+    "initialMessage": "سلام! چطور می‌توانم در زمینه ساخت توکن، میم‌کوین، NFT یا کیف پول سولانا به شما کمک کنم؟",
+    "systemPrompt": "شما پشتیبان هوشمند پلتفرم سولمینت هستید.",
+    "apiKey": "sk-mwY8X2Ez1Vy01uT2EfuNqKMMTLMUz5qZuSo0Eql3wXsp2aP6",
+    "baseUrl": "https://api.gapgpt.app/v1",
+    "model": "deepseek-chat"
+  },
+  "downloads": {
+    "apkUrl": "https://solmint.ir/app-release.apk",
+    "directApkUrl": "https://solmint.ir/app-release.apk",
+    "webAppUrl": "https://solmint.ir",
+    "iosPwaUrl": "https://solmint.ir"
+  },
+  "security": {
+    "adminPasscode": "aa3724585"
+  }
+}

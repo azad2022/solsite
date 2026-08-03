@@ -1522,12 +1522,12 @@ async function startServer() {
         return;
       }
 
-      const hours = ds.publishScheduleHours || (ds.publishSchedule as any)?.intervalHours || 6;
+      const hours = Number(ds.publishScheduleHours || (ds.publishSchedule as any)?.intervalHours || 6);
       const lastPublished = ds.lastAutoPublishedAt ? new Date(ds.lastAutoPublishedAt).getTime() : 0;
       const nowMs = Date.now();
-      const intervalMs = hours * 3600 * 1000;
+      const intervalMs = Math.max(1, hours) * 3600 * 1000;
 
-      if (nowMs - lastPublished >= intervalMs) {
+      if (!lastPublished || (nowMs - lastPublished >= intervalMs)) {
         console.log(`[DeepSeek AutoWorker] Triggering scheduled article generation (Interval: ${hours}h)...`);
         await runServerAutoPublishArticle();
       }
