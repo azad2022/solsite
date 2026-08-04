@@ -12,6 +12,12 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not configured. Database writes will fail under hardened RLS policies.');
 }
 
+// Hydrate the server-side JSON persistence layer from Supabase before the app starts,
+// and continuously mirror settings/users changes back to Supabase. This keeps the
+// existing synchronous serverDataStore API compatible while making Supabase the
+// durable production persistence layer.
+await import('./supabase-persistence-bridge.mjs');
+
 if (existsSync(new URL('../dist/server.cjs', import.meta.url))) {
   await import('../dist/server.cjs');
 } else {
