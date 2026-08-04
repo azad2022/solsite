@@ -263,7 +263,7 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
   ],
   publishSchedule: {
     enabled: true,
-    publishDays: ['شنبه', 'دوشنبه', 'چهارشنبه'],
+    publishDays: ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه'],
     publishTime: '10:00',
     publishMode: 'published',
     autoPublishAsDraft: false,

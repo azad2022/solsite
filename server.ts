@@ -1740,59 +1740,48 @@ async function startServer() {
       const tehran = getTehranDateInfo();
       const slots = ds.executedSlots || {};
 
-      // Check if specific days are configured
-      const hasConfiguredDays = Boolean(schedule?.publishDays && Array.isArray(schedule.publishDays) && schedule.publishDays.length > 0);
-      
+      const targetDays = (schedule?.publishDays && Array.isArray(schedule.publishDays)) ? schedule.publishDays : [];
+      const cleanDay = (str: string) => str.replace(/[\u200c\s_]/g, '');
+      const currentDayClean = cleanDay(tehran.weekdayFa);
+
+      const isAllDays = targetDays.length === 0 || targetDays.some(d => {
+        const cd = cleanDay(d);
+        return cd === 'همه‌روزها' || cd === 'همه‌روز' || cd === 'هرروز' || cd === 'همه' || cd === 'all';
+      });
+
+      const isDayMatched = isAllDays || targetDays.some(d => cleanDay(d) === currentDayClean);
+
+      if (!isDayMatched) {
+        return;
+      }
+
+      const intervalHours = Number(schedule?.intervalHours || ds.publishScheduleHours || 6);
+      const lastPublishedMs = ds.lastAutoPublishedAt ? new Date(ds.lastAutoPublishedAt).getTime() : 0;
+      const hoursPassed = lastPublishedMs ? (tehran.now.getTime() - lastPublishedMs) / (1000 * 3600) : 999;
+
+      const targetTimeStr = (schedule?.publishTime || '10:00').trim();
+      const [tHourRaw, tMinRaw] = targetTimeStr.split(':').map(Number);
+      const tHour = isNaN(tHourRaw) ? 10 : tHourRaw;
+      const tMinute = isNaN(tMinRaw) ? 0 : tMinRaw;
+      const scheduledTotalMins = tHour * 60 + tMinute;
+      const currentTotalMins = tehran.hour * 60 + tehran.minute;
+
       let shouldTrigger = false;
       let slotKey = '';
 
-      if (hasConfiguredDays) {
-        // Mode 1: Fixed Scheduled Days & Time
-        const targetDays = schedule!.publishDays;
-        const targetTimeStr = (schedule?.publishTime || '10:00').trim();
-        const [tHourRaw, tMinRaw] = targetTimeStr.split(':').map(Number);
-        const tHour = isNaN(tHourRaw) ? 10 : tHourRaw;
-        const tMinute = isNaN(tMinRaw) ? 0 : tMinRaw;
+      const fixedSlotKey = `slot_${tehran.dateKey}_${targetTimeStr}`;
+      const currentSlotIndex = Math.floor(tehran.hour / Math.max(1, intervalHours));
+      const intervalSlotKey = `slot_${tehran.dateKey}_interval_${intervalHours}h_${currentSlotIndex}`;
 
-        // Clean Persian day matching
-        const cleanDay = (str: string) => str.replace(/[\u200c\s_]/g, '');
-        const currentDayClean = cleanDay(tehran.weekdayFa);
-        const isDayMatched = targetDays.some(d => cleanDay(d) === currentDayClean);
+      const fixedSlotEligible = currentTotalMins >= scheduledTotalMins && slots[fixedSlotKey]?.status !== 'success' && ds.lastPublishedSlot !== fixedSlotKey;
+      const intervalEligible = hoursPassed >= intervalHours && slots[intervalSlotKey]?.status !== 'success' && ds.lastPublishedSlot !== intervalSlotKey;
 
-        if (!isDayMatched) {
-          // Today is not a scheduled day - DO NOT EXECUTE
-          return;
-        }
-
-        const scheduledTotalMins = tHour * 60 + tMinute;
-        const currentTotalMins = tehran.hour * 60 + tehran.minute;
-
-        if (currentTotalMins < scheduledTotalMins) {
-          // Scheduled time has not arrived yet today
-          return;
-        }
-
-        slotKey = `slot_${tehran.dateKey}_${targetTimeStr}`;
-
-        if (slots[slotKey]?.status === 'success' || ds.lastPublishedSlot === slotKey) {
-          // Already executed successfully today
-          return;
-        }
-
+      if (fixedSlotEligible) {
         shouldTrigger = true;
-
-      } else {
-        // Mode 2: Interval Hours Fallback (only when publishDays is not configured)
-        const intervalHours = Number(schedule?.intervalHours || ds.publishScheduleHours || 6);
-        const lastPublishedMs = ds.lastAutoPublishedAt ? new Date(ds.lastAutoPublishedAt).getTime() : 0;
-        const hoursPassed = (tehran.now.getTime() - lastPublishedMs) / (1000 * 3600);
-
-        const currentSlotIndex = Math.floor(tehran.hour / intervalHours);
-        slotKey = `slot_${tehran.dateKey}_interval_${intervalHours}h_${currentSlotIndex}`;
-
-        if ((!lastPublishedMs || hoursPassed >= intervalHours) && slots[slotKey]?.status !== 'success' && ds.lastPublishedSlot !== slotKey) {
-          shouldTrigger = true;
-        }
+        slotKey = fixedSlotKey;
+      } else if (intervalEligible) {
+        shouldTrigger = true;
+        slotKey = intervalSlotKey;
       }
 
       if (shouldTrigger && slotKey) {
@@ -1806,6 +1795,21 @@ async function startServer() {
       isAutoPublishWorkerBusy = false;
     }
   };
+
+  // Passive Trigger Middleware for Cloud Run serverless container wakes (Debounced every 3 minutes)
+  let lastPassiveAutoCheckMs = 0;
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.includes('.')) {
+      const now = Date.now();
+      if (now - lastPassiveAutoCheckMs > 3 * 60 * 1000) {
+        lastPassiveAutoCheckMs = now;
+        setTimeout(() => {
+          checkScheduledPublishing().catch(err => console.error('[Passive AutoPublish Error]', err));
+        }, 200);
+      }
+    }
+    next();
+  });
 
   // Boot check on server restart / boot
   setTimeout(checkScheduledPublishing, 5000);
