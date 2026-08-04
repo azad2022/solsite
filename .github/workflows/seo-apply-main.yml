@@ -1,0 +1,178 @@
+name: Apply Solmint SEO Hardening On Main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor == 'azad2022'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply changes
+        shell: python
+        run: |
+          from pathlib import Path
+          root = Path('.')
+
+          # 1) Shared safe Markdown -> semantic HTML renderer.
+          (root / 'src/utils/articleMarkdown.ts').write_text(r'''const escapeHtml = (value: string): string =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+const safeHref = (value: string): string => /^(https?:\\/\\/|mailto:|\\/|#)/i.test(value.trim()) ? value.trim() : '#';
+
+const renderInlineMarkdown = (value: string): string => {
+  let html = escapeHtml(value);
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>').replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  html = html.replace(/\\*([^*]+)\\*/g, '<em>$1</em>').replace(/_([^_]+)_/g, '<em>$1</em>');
+  html = html.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, (_m, alt, src) => `<img src="${safeHref(src)}" alt="${alt}" loading="lazy" decoding="async" />`);
+  html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, (_m, label, href) => {
+    const safe = safeHref(href);
+    return `<a href="${safe}"${/^https?:\\/\\//i.test(safe) ? ' target="_blank" rel="noopener noreferrer"' : ''}>${label}</a>`;
+  });
+  return html;
+};
+
+export function renderArticleMarkdownToHtml(markdown: string): string {
+  const source = String(markdown || '').replace(/\\r\\n?/g, '\\n').trim();
+  if (!source) return '';
+  const lines = source.split('\\n');
+  const out: string[] = [];
+  let paragraph: string[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+  let listItems: string[] = [];
+  let inCode = false;
+  let codeLanguage = '';
+  let codeLines: string[] = [];
+
+  const flushParagraph = () => { if (paragraph.length) { const t = paragraph.join(' ').trim(); if (t) out.push(`<p>${renderInlineMarkdown(t)}</p>`); paragraph = []; } };
+  const flushList = () => { if (listType && listItems.length) out.push(`<${listType}>${listItems.map(i => `<li>${renderInlineMarkdown(i)}</li>`).join('')}</${listType}>`); listType = null; listItems = []; };
+  const flushCode = () => { if (inCode) { const cls = codeLanguage ? ` class="language-${escapeHtml(codeLanguage)}"` : ''; out.push(`<pre><code${cls}>${escapeHtml(codeLines.join('\\n'))}</code></pre>`); inCode = false; codeLanguage = ''; codeLines = []; } };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (line.trim().startsWith('```')) { if (!inCode) { flushParagraph(); flushList(); inCode = true; codeLanguage = line.trim().slice(3).trim(); } else flushCode(); continue; }
+    if (inCode) { codeLines.push(line); continue; }
+    if (!line.trim()) { flushParagraph(); flushList(); continue; }
+    const h = line.match(/^(#{1,3})\\s+(.+)$/);
+    if (h) { flushParagraph(); flushList(); out.push(`<h${h[1].length}>${renderInlineMarkdown(h[2].trim())}</h${h[1].length}>`); continue; }
+    if (/^---+$/.test(line.trim())) { flushParagraph(); flushList(); out.push('<hr />'); continue; }
+    const q = line.match(/^>\\s?(.*)$/);
+    if (q) { flushParagraph(); flushList(); out.push(`<blockquote>${renderInlineMarkdown(q[1])}</blockquote>`); continue; }
+    const ul = line.match(/^[-*]\\s+(.+)$/);
+    if (ul) { flushParagraph(); if (listType === 'ol') flushList(); listType = 'ul'; listItems.push(ul[1]); continue; }
+    const ol = line.match(/^\\d+[.)]\\s+(.+)$/);
+    if (ol) { flushParagraph(); if (listType === 'ul') flushList(); listType = 'ol'; listItems.push(ol[1]); continue; }
+    paragraph.push(line.trim());
+  }
+  flushParagraph(); flushList(); flushCode();
+  return out.join('\\n');
+}
+''', encoding='utf-8')
+
+          blog = root / 'src/components/BlogHub.tsx'
+          t = blog.read_text(encoding='utf-8')
+          t = t.replace("import { AuthorAvatar } from './AuthorAvatar';", "import { AuthorAvatar } from './AuthorAvatar';\nimport { renderArticleMarkdownToHtml } from '../utils/articleMarkdown';")
+          old = '''            <div className="prose prose-invert max-w-3xl mx-auto w-full text-slate-200 text-[15px] sm:text-base leading-8 sm:leading-8 space-y-5 whitespace-pre-line bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words">
+              {readingArticle.content}
+            </div>'''
+          new = '''            <div className="prose prose-invert max-w-3xl mx-auto w-full text-slate-200 text-[15px] sm:text-base leading-8 sm:leading-8 bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words article-content" dangerouslySetInnerHTML={{ __html: renderArticleMarkdownToHtml(readingArticle.content) }} />'''
+          if old not in t: raise SystemExit('BlogHub marker not found')
+          blog.write_text(t.replace(old, new), encoding='utf-8')
+
+          server = root / 'server.ts'
+          t = server.read_text(encoding='utf-8')
+          t = t.replace("import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from \"./src/utils/seoManager\";", "import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from \"./src/utils/seoManager\";\nimport { renderArticleMarkdownToHtml } from \"./src/utils/articleMarkdown\";")
+          old = '''            <div style="font-size:1rem;line-height:1.8;color:#e2e8f0;white-space:pre-line;">
+              ${articleData.content}
+            </div>'''
+          new = '''            <div class="article-content" style="font-size:1rem;line-height:1.9;color:#e2e8f0;">
+              ${renderArticleMarkdownToHtml(articleData.content)}
+            </div>'''
+          if old not in t: raise SystemExit('server article body marker not found')
+          t = t.replace(old, new)
+
+          old = '''      const articleJsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": articleData.title,
+        "description": articleData.summary,
+        "image": articleData.coverImage,
+        "author": {
+          "@type": "Person",
+          "name": articleData.author.name,
+          "jobTitle": articleData.author.role
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "سولمینت",
+          "url": "https://solmint.ir",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://solmint.ir/og-solmint.png"
+          }
+        },
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": info.canonical
+        },
+        "datePublished": articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\\//g, "-") : "2025-07-27",
+        "dateModified": formatLastModDate(articleData)
+      };'''
+          new = '''      const articleJsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "@id": `${info.canonical}#article`,
+        "headline": articleData.title,
+        "description": articleData.summary,
+        "image": articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
+        "author": { "@type": "Person", "name": articleData.author?.name || "تیم تحریریه سولمینت", "jobTitle": articleData.author?.role || "تیم تحریریه" },
+        "publisher": { "@type": "Organization", "name": "سولمینت", "url": SITE_DOMAIN, "logo": { "@type": "ImageObject", "url": `${SITE_DOMAIN}/og-solmint.png` } },
+        "mainEntityOfPage": { "@type": "WebPage", "@id": info.canonical },
+        "datePublished": articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\\//g, "-") : formatLastModDate(articleData),
+        "dateModified": formatLastModDate(articleData),
+        "inLanguage": "fa-IR",
+        "isPartOf": { "@type": "WebSite", "name": "سولمینت", "url": SITE_DOMAIN }
+      };
+      const breadcrumbJsonLd = { "@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": info.breadcrumbs.map((b, idx) => ({ "@type": "ListItem", "position": idx + 1, "name": b.name, "item": b.url })) };'''
+          if old not in t: raise SystemExit('server schema marker not found')
+          t = t.replace(old, new)
+
+          old = '''      const schemaScript = `\\
+    <script type="application/ld+json">\\
+    ${JSON.stringify(articleJsonLd, null, 2)}\\
+    </script>`;'''
+          new = '''      const schemaScript = `\\
+    <script type="application/ld+json">\\
+    ${JSON.stringify(articleJsonLd, null, 2)}\\
+    </script>\\
+    <script type="application/ld+json">\\
+    ${JSON.stringify(breadcrumbJsonLd, null, 2)}\\
+    </script>`;'''
+          if old not in t: raise SystemExit('schema injection marker not found')
+          t = t.replace(old, new)
+
+          css = root / 'src/index.css'
+          c = css.read_text(encoding='utf-8')
+          if '/* SEO semantic article content */' not in c:
+            c += '''\n\n/* SEO semantic article content */\n.article-content h1,.article-content h2,.article-content h3{color:#fff;font-weight:800;line-height:1.5;margin:1.5rem 0 .75rem}.article-content h1{font-size:1.65rem}.article-content h2{font-size:1.35rem;color:#14F195}.article-content h3{font-size:1.15rem;color:#7dd3fc}.article-content p{margin:0 0 1rem}.article-content ul,.article-content ol{margin:0 0 1rem;padding-inline-start:1.5rem}.article-content li{margin:.4rem 0}.article-content a{color:#38bdf8;text-decoration:underline;text-underline-offset:3px}.article-content blockquote{border-inline-start:3px solid #14F195;padding-inline-start:1rem;color:#cbd5e1;margin:1rem 0}.article-content pre{overflow-x:auto;padding:1rem;border-radius:.75rem;background:#020617;color:#e2e8f0;direction:ltr;text-align:left;margin:1rem 0}.article-content img{max-width:100%;height:auto;border-radius:1rem;margin:1rem auto;display:block}\n'''
+            css.write_text(c, encoding='utf-8')
+
+          # Remove all one-shot migration artifacts after applying successfully.
+          for p in [root/'.github/workflows/seo-hardening.yml', root/'.github/workflows/seo-apply-main.yml', root/'SEO_HARDENING_TRIGGER.txt']:
+            p.unlink(missing_ok=True)
+
+      - name: Commit production SEO changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/utils/articleMarkdown.ts src/components/BlogHub.tsx server.ts src/index.css .github/workflows SEO_HARDENING_TRIGGER.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: harden technical SEO and article semantics"
+          git push
