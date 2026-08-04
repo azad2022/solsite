@@ -1298,7 +1298,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         author: {
           name: currentUser?.fullName || 'تیم تحریریه سول‌مینت',
           role: 'تحلیل‌گر ارشد وب۳ و کریپتو',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+          avatar: '/avatars/editor.svg'
         },
         publishedAt: finalPublishedAt,
         publishedAtJalali: finalJalali,
@@ -1381,7 +1381,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         author: {
           name: currentUser?.fullName || 'تیم تحریریه سول‌مینت',
           role: 'تحلیل‌گر ارشد وب۳ و کریپتو',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+          avatar: '/avatars/editor.svg'
         },
         publishedAt: finalPublishedAt,
         publishedAtJalali: finalJalali,

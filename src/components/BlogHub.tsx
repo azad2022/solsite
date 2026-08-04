@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Article, ArticleComment, UserAccount } from '../types';
 import { sanitizeText, safeSetLocalStorage } from '../utils/security';
 import { addCommentApi } from '../utils/cmsApiClient';
+import { AuthorAvatar } from './AuthorAvatar';
 import { 
   Search, 
   BookOpen, 
@@ -307,11 +308,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
               <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <img
-                    src={featuredArticle.author.avatar}
-                    alt={featuredArticle.author.name}
-                    className="w-8 h-8 rounded-full object-cover border border-slate-700"
-                  />
+                  <AuthorAvatar author={featuredArticle.author} size="sm" />
                   <div>
                     <span className="text-xs font-bold text-slate-200 block">{featuredArticle.author.name}</span>
                     <span className="text-[10px] text-slate-400">{featuredArticle.author.role}</span>
@@ -342,35 +339,37 @@ export const BlogHub: React.FC<BlogHubProps> = ({
               className="glass-card rounded-2xl overflow-hidden border border-slate-800 hover:border-slate-700 glass-card-hover cursor-pointer flex flex-col justify-between block text-right decoration-none group"
             >
               <div>
-                {/* Article Image */}
-                <div className="relative h-48 overflow-hidden bg-slate-900">
-                  {art.coverImage ? (
+                {/* Article Image or Header Badge */}
+                {art.coverImage ? (
+                  <div className="relative h-48 overflow-hidden bg-slate-900">
                     <img
                       src={art.coverImage}
                       alt={art.title}
                       className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-cyan-950/70 to-slate-900 p-5 flex flex-col justify-between">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 font-bold">
-                          SOLMINT ARTICLE
-                        </span>
-                        <BookOpen className="w-4 h-4 text-cyan-400 opacity-60" />
-                      </div>
-                      <p className="text-xs font-bold text-white line-clamp-2 leading-snug">{art.title}</p>
-                    </div>
-                  )}
-                  <span className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-slate-900/90 text-sky-400 text-[11px] font-bold backdrop-blur-md border border-slate-800">
-                    {art.category}
-                  </span>
-                  {art.videoUrl && (
-                    <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
-                      <Video className="w-3 h-3" />
-                      ویدیو
+                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-slate-900/90 text-sky-400 text-[11px] font-bold backdrop-blur-md border border-slate-800">
+                      {art.category}
                     </span>
-                  )}
-                </div>
+                    {art.videoUrl && (
+                      <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
+                        <Video className="w-3 h-3" />
+                        ویدیو
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="pt-5 px-5 flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-400 text-[11px] font-bold border border-sky-500/30">
+                      {art.category}
+                    </span>
+                    {art.videoUrl && (
+                      <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
+                        <Video className="w-3 h-3" />
+                        ویدیو
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Article Body */}
                 <div className="p-5 space-y-3">
@@ -409,7 +408,10 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
               {/* Card Footer */}
               <div className="px-5 py-3 bg-slate-900/50 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                <span className="font-semibold text-slate-300">{art.author.name}</span>
+                <div className="flex items-center gap-2">
+                  <AuthorAvatar author={art.author} size="sm" />
+                  <span className="font-semibold text-slate-300">{art.author.name}</span>
+                </div>
                 <span className="flex items-center gap-1 text-slate-400">
                   <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
                   {art.comments.length} دیدگاه
@@ -454,11 +456,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
             {/* Author bar & Share */}
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
               <div className="flex items-center gap-3">
-                <img
-                  src={readingArticle.author.avatar}
-                  alt={readingArticle.author.name}
-                  className="w-10 h-10 rounded-full object-cover border border-slate-700"
-                />
+                <AuthorAvatar author={readingArticle.author} size="lg" />
                 <div>
                   <span className="text-xs font-bold text-white block">{readingArticle.author.name}</span>
                   <span className="text-[11px] text-slate-400">{readingArticle.author.role}</span>
@@ -495,14 +493,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
                   className="w-full max-h-96 object-cover"
                 />
               </div>
-            ) : (
-              <div className="rounded-2xl overflow-hidden border border-slate-800/80 bg-gradient-to-r from-slate-950 via-cyan-950/60 to-slate-900 p-8 text-center space-y-2">
-                <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30 inline-block font-bold">
-                  SOLMINT OFFICIAL ARTICLE
-                </span>
-                <p className="text-xl font-bold text-white">{readingArticle.title}</p>
-              </div>
-            )}
+            ) : null}
 
             {/* MP4 Video Player if available */}
             {readingArticle.videoUrl && (

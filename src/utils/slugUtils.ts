@@ -25,5 +25,5 @@ export function generateSlugFromTitle(title: string): string {
 export const DEFAULT_ARTICLE_AUTHOR = {
   name: 'تیم تحریریه سول‌مینت',
   role: 'تحلیل‌گر ارشد وب۳ و کریپتو',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+  avatar: '/avatars/editor.svg'
 };

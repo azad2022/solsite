@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Article } from '../types';
 import { BookOpen, Clock, Eye, MessageSquare, ArrowLeft, Video, Sparkles, X, Copy, Check, Send } from 'lucide-react';
+import { AuthorAvatar } from './AuthorAvatar';
 
 interface LatestArticlesSectionProps {
   articles: Article[];
@@ -67,35 +68,37 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
               className="bg-[#101020]/80 border border-white/10 rounded-3xl overflow-hidden hover:border-[#9945FF]/50 transition-all duration-300 hover:-translate-y-1 cursor-pointer backdrop-blur-xl flex flex-col justify-between shadow-xl group block text-right decoration-none"
             >
               <div>
-                {/* Image */}
-                <div className="relative h-48 overflow-hidden bg-slate-900">
-                  {art.coverImage ? (
+                {/* Image or Header Badge */}
+                {art.coverImage ? (
+                  <div className="relative h-48 overflow-hidden bg-slate-900">
                     <img
                       src={art.coverImage}
                       alt={art.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-cyan-950/70 to-slate-900 p-5 flex flex-col justify-between">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 font-bold">
-                          SOLMINT ARTICLE
-                        </span>
-                        <BookOpen className="w-4 h-4 text-cyan-400 opacity-60" />
-                      </div>
-                      <p className="text-xs font-bold text-white line-clamp-2 leading-snug">{art.title}</p>
-                    </div>
-                  )}
-                  <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/80 text-[#14F195] text-[10px] font-mono font-bold backdrop-blur-md border border-white/10">
-                    {art.category}
-                  </span>
-                  {art.videoUrl && (
-                    <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
-                      <Video className="w-3 h-3" />
-                      ویدیو
+                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/80 text-[#14F195] text-[10px] font-mono font-bold backdrop-blur-md border border-white/10">
+                      {art.category}
                     </span>
-                  )}
-                </div>
+                    {art.videoUrl && (
+                      <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
+                        <Video className="w-3 h-3" />
+                        ویدیو
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="pt-5 px-5 flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-full bg-[#14F195]/10 text-[#14F195] text-[10px] font-mono font-bold border border-[#14F195]/30">
+                      {art.category}
+                    </span>
+                    {art.videoUrl && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
+                        <Video className="w-3 h-3" />
+                        ویدیو
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Body */}
                 <div className="p-5 space-y-3">
@@ -168,11 +171,7 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
             {/* Author bar & Share */}
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-black/40 border border-white/10">
               <div className="flex items-center gap-3">
-                <img
-                  src={readingArticle.author.avatar}
-                  alt={readingArticle.author.name}
-                  className="w-10 h-10 rounded-full object-cover border border-[#9945FF]"
-                />
+                <AuthorAvatar author={readingArticle.author} size="lg" />
                 <div>
                   <span className="text-xs font-bold text-white block">{readingArticle.author.name}</span>
                   <span className="text-[11px] text-slate-400">{readingArticle.author.role}</span>
@@ -201,13 +200,15 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
             </div>
 
             {/* Cover Image */}
-            <div className="rounded-2xl overflow-hidden border border-white/10">
-              <img
-                src={readingArticle.coverImage}
-                alt={readingArticle.title}
-                className="w-full max-h-80 object-cover"
-              />
-            </div>
+            {readingArticle.coverImage ? (
+              <div className="rounded-2xl overflow-hidden border border-white/10">
+                <img
+                  src={readingArticle.coverImage}
+                  alt={readingArticle.title}
+                  className="w-full max-h-80 object-cover"
+                />
+              </div>
+            ) : null}
 
             {/* MP4 Video Player if available */}
             {readingArticle.videoUrl && (

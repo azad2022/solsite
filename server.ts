@@ -78,6 +78,9 @@ async function getAllPublishedArticles(): Promise<any[]> {
             continue;
           }
 
+          const rawCover = item.cover_image;
+          const cleanCover = (rawCover && rawCover !== 'none' && rawCover !== 'null') ? rawCover : "";
+
           const mappedArt = {
             id: String(item.id),
             title: item.title,
@@ -86,15 +89,15 @@ async function getAllPublishedArticles(): Promise<any[]> {
             tags: item.tags || [],
             summary: item.summary || "",
             content: item.content || "",
-            coverImage: item.cover_image || "/images/blog-og.jpg",
+            coverImage: cleanCover,
             videoUrl: item.video_url || null,
-            author: item.author || { name: "تیم سولمینت", role: "مدیریت", avatar: "⚡" },
+            author: item.author || { name: "تیم سولمینت", role: "مدیریت", avatar: "/avatars/solmint.svg" },
             publishedAt: item.published_at || item.created_at || "2025/07/27",
             publishedAtJalali: item.published_at_jalali || "",
             publishedAtGregorian: item.published_at_gregorian || "",
             readTimeMinutes: item.read_time_minutes || 5,
             viewsCount: item.views_count || 0,
-            comments: item.comments || [],
+            comments: Array.isArray(item.comments) ? item.comments : [],
             seoScore: item.seo_score || 90,
             isDraft: false,
             updatedAt: item.updated_at || item.created_at || null
@@ -118,17 +121,39 @@ async function getAllPublishedArticles(): Promise<any[]> {
     }
   }
 
-  // Attach server persistent comments to matching articles
+  // Fetch and attach server persistent comments from both Supabase and disk
+  let supabaseComments: any[] = [];
+  if (serverSupabase) {
+    try {
+      const { data } = await serverSupabase
+        .from('comments')
+        .select('*')
+        .eq('approved', true);
+      if (data && Array.isArray(data)) {
+        supabaseComments = data.map(c => ({
+          id: c.id,
+          articleId: c.article_id,
+          userName: c.user_name,
+          userId: c.user_id,
+          text: c.text,
+          createdAt: c.created_at ? new Date(c.created_at).toLocaleDateString('fa-IR') : 'قبل‌تر',
+          approved: c.approved !== false
+        }));
+      }
+    } catch (e) {
+      console.warn('⚠️ Error fetching comments from Supabase:', e);
+    }
+  }
+
+  const combinedComments = [...allComments, ...supabaseComments];
   const articles = Array.from(articleMap.values());
   for (const art of articles) {
-    const artComments = allComments.filter(c => c.articleId === art.id || c.articleId === art.slug);
-    if (artComments.length > 0) {
-      // Merge unique comments
-      const commentMap = new Map<string, any>();
-      (art.comments || []).forEach((c: any) => commentMap.set(c.id, c));
-      artComments.forEach(c => commentMap.set(c.id, c));
-      art.comments = Array.from(commentMap.values());
-    }
+    const artComments = combinedComments.filter(c => c.articleId === art.id || c.articleId === art.slug);
+    // Merge unique comments
+    const commentMap = new Map<string, any>();
+    (art.comments || []).forEach((c: any) => commentMap.set(c.id, c));
+    artComments.forEach(c => commentMap.set(c.id, c));
+    art.comments = Array.from(commentMap.values());
   }
 
   return articles;
@@ -475,7 +500,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/comments/add", (req, res) => {
+  app.post("/api/comments/add", async (req, res) => {
     try {
       const { articleId, userName, userId, text } = req.body;
       if (!articleId || !userName || !text) {
@@ -493,6 +518,40 @@ async function startServer() {
       };
 
       const updatedComments = saveComment(newComment);
+
+      // Sync with Supabase if connected
+      if (serverSupabase) {
+        try {
+          // 1. Insert into comments table
+          await serverSupabase.from('comments').insert({
+            id: newComment.id,
+            article_id: newComment.articleId,
+            user_name: newComment.userName,
+            user_id: newComment.userId || null,
+            text: newComment.text,
+            approved: true
+          });
+
+          // 2. Append to article's comments JSONB column in articles table
+          const { data: artData } = await serverSupabase
+            .from('articles')
+            .select('id, comments')
+            .or(`id.eq.${newComment.articleId},slug.eq.${newComment.articleId}`)
+            .single();
+
+          if (artData) {
+            const existingComments = Array.isArray(artData.comments) ? artData.comments : [];
+            const merged = [newComment, ...existingComments.filter((c: any) => c.id !== newComment.id)];
+            await serverSupabase
+              .from('articles')
+              .update({ comments: merged })
+              .eq('id', artData.id);
+          }
+        } catch (spErr) {
+          console.warn('⚠️ Supabase comment sync warning:', spErr);
+        }
+      }
+
       return res.json({ success: true, comment: newComment, comments: updatedComments, message: "دیدگاه شما با موفقیت ثبت شد." });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
@@ -515,10 +574,19 @@ async function startServer() {
     }
   });
 
-  app.post("/api/comments/delete", (req, res) => {
+  app.post("/api/comments/delete", async (req, res) => {
     try {
       const { commentId } = req.body;
       const updated = deleteComment(commentId);
+
+      if (serverSupabase && commentId) {
+        try {
+          await serverSupabase.from('comments').delete().eq('id', commentId);
+        } catch (spErr) {
+          console.warn('⚠️ Supabase comment delete warning:', spErr);
+        }
+      }
+
       return res.json({ success: true, comments: updated, message: "دیدگاه حذف شد." });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });

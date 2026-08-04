@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bgSolmint" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9945FF" />
+      <stop offset="50%" stop-color="#14F195" />
+      <stop offset="100%" stop-color="#00C2FF" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#bgSolmint)" />
+  <circle cx="60" cy="60" r="52" fill="url(#shieldGrad)" />
+  <!-- Solana / Solmint Symbol -->
+  <path d="M38 42h44c2.2 0 3.3 2.7 1.8 4.3l-12 12c-.8.8-1.9 1.3-3.1 1.3H24.8c-2.2 0-3.3-2.7-1.8-4.3l12-12c.8-.8 1.9-1.3 3-1.3z" fill="#14F195"/>
+  <path d="M82 60.4H38c-2.2 0-3.3 2.7-1.8 4.3l12 12c.8.8 1.9 1.3 3.1 1.3h43.9c2.2 0 3.3-2.7 1.8-4.3l-12-12c-.8-.8-2-1.3-3-1.3z" fill="#00C2FF"/>
+  <path d="M38 78.8h44c2.2 0 3.3 2.7 1.8 4.3l-12 12c-.8.8-1.9 1.3-3.1 1.3H24.8c-2.2 0-3.3-2.7-1.8-4.3l12-12c.8-.8 1.9-1.3 3-1.3z" fill="#9945FF"/>
+</svg>

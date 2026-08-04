@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bgEditor" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#38BDF8" />
+    </linearGradient>
+    <linearGradient id="innerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#1E293B" />
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#bgEditor)" />
+  <circle cx="60" cy="60" r="53" fill="url(#innerBg)" />
+  <!-- Pen & Quill Icon -->
+  <g fill="none" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 80l40-40 8 8-40 40H40v-8z" fill="#0284C7" fill-opacity="0.3"/>
+    <path d="M72 32l16 16"/>
+    <path d="M35 85l10-10"/>
+    <circle cx="85" cy="35" r="4" fill="#38BDF8"/>
+  </g>
+</svg>

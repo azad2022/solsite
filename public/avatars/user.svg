@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bgUser" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#475569" />
+      <stop offset="100%" stop-color="#64748B" />
+    </linearGradient>
+    <linearGradient id="userInner" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#1E293B" />
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#bgUser)" />
+  <circle cx="60" cy="60" r="53" fill="url(#userInner)" />
+  <!-- User Silhouette -->
+  <circle cx="60" cy="48" r="16" fill="#94A3B8"/>
+  <path d="M36 88c0-13.3 10.7-24 24-24s24 10.7 24 24v2H36v-2z" fill="#94A3B8"/>
+</svg>
