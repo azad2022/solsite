@@ -35,22 +35,18 @@ const SuspenseFallback = () => (
 );
 
 export default function App() {
-  // Current browser route path
   const [currentPath, setCurrentPath] = useState<string>(() => {
     return window.location.pathname || '/';
   });
 
-  // Current logged in user (normal user or admin)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     return safeGetLocalStorage<UserAccount | null>('solmint_current_user', null);
   });
 
-  // Persistent Download Links state
   const [downloadLinks, setDownloadLinks] = useState<DownloadLinks>(() => {
     return safeGetLocalStorage<DownloadLinks>('solmint_download_links', DEFAULT_DOWNLOAD_LINKS);
   });
 
-  // Persistent DeepSeek AI Settings state
   const [deepseekSettings, setDeepseekSettings] = useState<DeepSeekAiSettings>(() => {
     const saved = safeGetLocalStorage<DeepSeekAiSettings>('solmint_deepseek_settings', DEFAULT_DEEPSEEK_SETTINGS);
     if (!saved.apiKey || saved.apiKey.trim() === '' || saved.apiBaseUrl === 'https://api.deepseek.com/v1') {
@@ -63,7 +59,6 @@ export default function App() {
     return saved;
   });
 
-  // Persistent Chatbot Settings state
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(() => {
     const saved = safeGetLocalStorage<ChatbotSettings>('solmint_chatbot_settings', DEFAULT_CHATBOT_SETTINGS);
     if (!saved.apiKey || saved.apiKey.trim() === '' || saved.apiBaseUrl === 'https://api.deepseek.com/v1') {
@@ -76,7 +71,6 @@ export default function App() {
     return saved;
   });
 
-  // Live Solana Ticker State
   const [solanaStatus, setSolanaStatus] = useState<SolanaStatus>({
     price: 184.25,
     change24h: 4.38,
@@ -87,7 +81,6 @@ export default function App() {
     slot: 284910283
   });
 
-  // Persistent Articles, Media & Testimonials state
   const [articles, setArticles] = useState<Article[]>(() => {
     return safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES);
   });
@@ -100,10 +93,10 @@ export default function App() {
     return safeGetLocalStorage<Testimonial[]>('solmint_testimonials', INITIAL_TESTIMONIALS);
   });
 
-  // Admin / Auth CMS Modal
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
 
-  // Navigate handler with pushState and SEO head update
+  // Single client-side navigation path used by the header, BlogHub and homepage article cards.
+  // This keeps article navigation inside the same React route state and preserves the exact slug.
   const handleNavigate = (path: string) => {
     setCurrentPath(path);
     if (window.location.pathname !== path) {
@@ -112,7 +105,6 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Popstate listener for browser forward/back buttons
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname || '/');
@@ -121,7 +113,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Auto open admin/login modal if URL is /admin, /cms, /login, or /dashboard
   useEffect(() => {
     const lower = currentPath.toLowerCase();
     if (lower === '/admin' || lower === '/cms' || lower === '/login' || lower === '/dashboard') {
@@ -129,7 +120,6 @@ export default function App() {
     }
   }, [currentPath]);
 
-  // Extract active article slug if on an article route
   const activeArticleSlug = useMemo(() => {
     if (currentPath.startsWith('/article/')) {
       return currentPath.replace('/article/', '').trim();
@@ -145,7 +135,6 @@ export default function App() {
     return articles.find(a => a.slug === activeArticleSlug) || null;
   }, [activeArticleSlug, articles]);
 
-  // Sync SEO metadata whenever route changes
   useEffect(() => {
     if (activeArticle) {
       updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
@@ -160,7 +149,6 @@ export default function App() {
     localStorage.removeItem('solmint_admin_session');
   };
 
-  // Fetch articles & settings from active server database on mount
   useEffect(() => {
     async function loadInitialServerData() {
       const dbArticles = await fetchArticlesFromActiveDatabase();
@@ -179,7 +167,6 @@ export default function App() {
     loadInitialServerData();
   }, []);
 
-  // Live status ticker auto-refresh
   const refreshSolanaStatus = async () => {
     try {
       const res = await fetch('/api/solana/status');
@@ -218,11 +205,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#08080f] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif] antialiased relative selection:bg-[#9945FF] selection:text-white">
-      
-      {/* Background Particle Canvas */}
       <ParticleCanvas />
 
-      {/* Clean Top Header & Navigation */}
       <Header
         solanaStatus={solanaStatus}
         refreshStatus={refreshSolanaStatus}
@@ -233,7 +217,6 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Main Content Area */}
       <main className="flex-1 relative z-10">
         <Suspense fallback={<SuspenseFallback />}>
           {currentPath === '/' && (
@@ -247,6 +230,7 @@ export default function App() {
                 articles={articles}
                 setArticles={setArticles}
                 onGoToBlog={() => handleNavigate('/blog')}
+                onNavigate={handleNavigate}
               />
             </>
           )}
@@ -294,7 +278,6 @@ export default function App() {
         </Suspense>
       </main>
 
-      {/* Admin / User Auth CMS Modal */}
       {isAdminModalOpen && (
         <Suspense fallback={null}>
           <AdminCmsModal
@@ -319,7 +302,6 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* Floating DeepSeek AI Chatbot */}
       <Suspense fallback={null}>
         <DeepSeekChatbot
           chatbotSettings={chatbotSettings}
@@ -328,9 +310,7 @@ export default function App() {
         />
       </Suspense>
 
-      {/* Footer */}
       <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
-
     </div>
   );
 }
