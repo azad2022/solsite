@@ -9,91 +9,42 @@ permissions:
   contents: read
 
 jobs:
-  check-and-publish:
+  wake-scheduler:
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Check production schedule and publish only when due
+      - name: Trigger production DeepSeek scheduler
         env:
           SITE_URL: https://solmint.ir
+          CRON_SECRET: ${{ secrets.AUTOPUBLISH_CRON_SECRET }}
         run: |
           set -euo pipefail
 
-          python - <<'PY'
-          import json
-          import os
-          import subprocess
-          from datetime import datetime
-          from zoneinfo import ZoneInfo
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "AUTOPUBLISH_CRON_SECRET is not configured in GitHub repository secrets." >&2
+            exit 1
+          fi
 
-          site = os.environ['SITE_URL'].rstrip('/')
-          settings_url = site + '/api/cms/settings'
-          publish_url = site + '/api/deepseek/auto-publish'
+          url="${SITE_URL%/}/api/deepseek/auto-publish/scheduled"
+          response_file="$(mktemp)"
 
-          def curl_json(url, method='GET'):
-              args = ['curl', '--silent', '--show-error', '--location', '--max-time', '30', '--retry', '2', '--retry-delay', '2']
-              if method == 'POST':
-                  args += ['--request', 'POST', '--header', 'Content-Type: application/json', '--data', '{}']
-              args += [url]
-              raw = subprocess.check_output(args, text=True)
-              return json.loads(raw)
+          http_code="$(curl --silent --show-error --location \
+            --max-time 150 \
+            --retry 2 \
+            --retry-delay 3 \
+            --retry-all-errors \
+            --header 'Content-Type: application/json' \
+            --header "x-autopublish-cron-secret: ${CRON_SECRET}" \
+            --data '{}' \
+            --output "${response_file}" \
+            --write-out '%{http_code}' \
+            "${url}")"
 
-          data = curl_json(settings_url)
-          ds = (data or {}).get('settings', {}).get('deepseek', {})
-          schedule = ds.get('publishSchedule') or {}
+          echo "HTTP ${http_code}"
+          cat "${response_file}"
+          echo
 
-          enabled = bool(ds.get('autoPublishEnabled') or schedule.get('enabled'))
-          if not enabled:
-              print('[scheduler] Auto publishing is disabled.')
-              raise SystemExit(0)
-
-          tz = ZoneInfo('Asia/Tehran')
-          now = datetime.now(tz)
-
-          weekday_names = ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه', 'یکشنبه']
-          current_day = weekday_names[now.weekday()].replace('\u200c', '').replace(' ', '')
-          configured_days = schedule.get('publishDays') or []
-          configured_days = [str(x).replace('\u200c', '').replace(' ', '').replace('_', '') for x in configured_days]
-          all_days = not configured_days or any(x in {'همهروزها', 'همهروز', 'هرروز', 'همه', 'all'} for x in configured_days)
-          if not all_days and current_day not in configured_days:
-              print(f'[scheduler] Today ({current_day}) is not enabled for publishing.')
-              raise SystemExit(0)
-
-          interval_value = schedule.get('intervalHours') or ds.get('publishScheduleHours')
-          interval_hours = float(interval_value) if interval_value else 0.0
-          interval_hours = max(interval_hours, 1.0) if interval_hours else 0.0
-
-          last_raw = ds.get('lastAutoPublishedAt')
-          last_dt = None
-          if last_raw:
-              try:
-                  last_dt = datetime.fromisoformat(str(last_raw).replace('Z', '+00:00')).astimezone(tz)
-              except Exception:
-                  last_dt = None
-
-          hours_passed = 999.0 if last_dt is None else (now - last_dt).total_seconds() / 3600
-
-          if interval_hours:
-              due = hours_passed >= interval_hours
-              print(f'[scheduler] mode=interval now={now.isoformat()} last={last_raw!r} hours_passed={hours_passed:.2f} interval={interval_hours} due={due}')
-          else:
-              publish_time = str(schedule.get('publishTime') or '10:00').strip()
-              try:
-                  hh, mm = [int(x) for x in publish_time.split(':', 1)]
-              except Exception:
-                  hh, mm = 10, 0
-              today_slot = f"slot_{now:%Y-%m-%d}_{publish_time}"
-              due = (now.hour * 60 + now.minute) >= (hh * 60 + mm) and ds.get('lastPublishedSlot') != today_slot
-              print(f'[scheduler] mode=daily now={now.isoformat()} last={last_raw!r} publish_time={publish_time} due={due}')
-
-          if not due:
-              print('[scheduler] Publication is not due yet.')
-              raise SystemExit(0)
-
-          print('[scheduler] Publication is due; calling production DeepSeek auto-publish endpoint.')
-          result = curl_json(publish_url, method='POST')
-          print(json.dumps(result, ensure_ascii=False, indent=2))
-
-          if not result.get('success'):
-              raise SystemExit('DeepSeek auto-publish returned success=false')
-          PY
+          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ]; then
+            echo "Scheduled publisher endpoint failed." >&2
+            exit 1
+          fi
