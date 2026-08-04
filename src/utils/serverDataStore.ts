@@ -145,6 +145,7 @@ export interface ServerSettings {
     lastPublishedSlot?: string;
     lastExecutionStatus?: 'success' | 'error' | 'running';
     lastExecutionMessage?: string;
+    executedSlots?: Record<string, { status: 'running' | 'success' | 'error'; timestamp: string; message?: string }>;
     autoLogs?: ServerAutoLog[];
   };
   chatbot: {
@@ -221,6 +222,7 @@ const DEFAULT_SETTINGS: ServerSettings = {
     },
     autoPublishEnabled: true,
     publishScheduleHours: 6,
+    executedSlots: {},
     autoLogs: []
   },
   chatbot: {
@@ -268,6 +270,7 @@ export function getCmsSettings(): ServerSettings {
         ...DEFAULT_SETTINGS.deepseek.writingStyle,
         ...(loaded.deepseek?.writingStyle || {})
       },
+      executedSlots: loaded.deepseek?.executedSlots || {},
       autoLogs: loaded.deepseek?.autoLogs || []
     },
     chatbot: {
@@ -312,7 +315,14 @@ export function getCmsSettingsForClient(): ServerSettings {
   };
 }
 
-export function saveCmsSettings(newSettings: Partial<ServerSettings>): ServerSettings {
+export type SaveCmsSettingsInput = {
+  deepseek?: Partial<ServerSettings['deepseek']>;
+  chatbot?: Partial<ServerSettings['chatbot']>;
+  downloads?: Partial<ServerSettings['downloads']>;
+  security?: Partial<ServerSettings['security']>;
+};
+
+export function saveCmsSettings(newSettings: SaveCmsSettingsInput): ServerSettings {
   const current = getCmsSettings();
 
   // Protect API keys: If incoming key is masked (contains '****') or empty, preserve current server key
@@ -460,3 +470,66 @@ export function deleteArticleFromDisk(articleIdOrSlug: string): any[] {
   writeJsonFile('articles.json', articles);
   return articles;
 }
+
+// ------------------- IDEMPOTENCY / ATOMIC LOCK HELPERS -------------------
+export function tryAcquireSlotLock(slotKey: string): boolean {
+  const settings = getCmsSettings();
+  const ds = settings.deepseek;
+  const slots = ds.executedSlots || {};
+  const currentSlotRecord = slots[slotKey];
+  const now = Date.now();
+
+  if (currentSlotRecord) {
+    if (currentSlotRecord.status === 'success') {
+      console.log(`[SlotLock] Slot "${slotKey}" was already executed successfully.`);
+      return false;
+    }
+    if (currentSlotRecord.status === 'running') {
+      const lockAgeMs = now - new Date(currentSlotRecord.timestamp).getTime();
+      if (lockAgeMs < 10 * 60 * 1000) { // 10 minutes lock timeout
+        console.log(`[SlotLock] Slot "${slotKey}" is locked by another process (age: ${Math.round(lockAgeMs / 1000)}s).`);
+        return false;
+      }
+      console.warn(`[SlotLock] Stale lock detected for slot "${slotKey}". Overwriting.`);
+    }
+  }
+
+  const updatedSlots = {
+    ...slots,
+    [slotKey]: {
+      status: 'running' as const,
+      timestamp: new Date().toISOString()
+    }
+  };
+
+  saveCmsSettings({
+    deepseek: {
+      executedSlots: updatedSlots
+    }
+  });
+
+  return true;
+}
+
+export function releaseSlotLock(slotKey: string, status: 'success' | 'error', message?: string): void {
+  const settings = getCmsSettings();
+  const ds = settings.deepseek;
+  const slots = ds.executedSlots || {};
+
+  const updatedSlots = {
+    ...slots,
+    [slotKey]: {
+      status,
+      timestamp: new Date().toISOString(),
+      message
+    }
+  };
+
+  saveCmsSettings({
+    deepseek: {
+      executedSlots: updatedSlots,
+      ...(status === 'success' ? { lastPublishedSlot: slotKey } : {})
+    }
+  });
+}
+

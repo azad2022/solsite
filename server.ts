@@ -29,7 +29,9 @@ import {
   deleteComment,
   getStoredArticles,
   saveArticleToDisk,
-  deleteArticleFromDisk
+  deleteArticleFromDisk,
+  tryAcquireSlotLock,
+  releaseSlotLock
 } from "./src/utils/serverDataStore";
 
 // Initialize Supabase client for Server-Side Article Retrieval & Sitemap Generation
@@ -60,17 +62,7 @@ async function getAllPublishedArticles(): Promise<any[]> {
     }
   }
 
-  // 2. Local Disk Persistent Articles
-  const storedDiskArticles = getStoredArticles();
-  for (const art of storedDiskArticles) {
-    if (!art.isDraft) {
-      articleMap.set(art.slug, art);
-    } else {
-      articleMap.delete(art.slug);
-    }
-  }
-
-  // 3. Fetch published articles from Supabase 'articles' table
+  // 2. Fetch published articles from Supabase 'articles' table if connected (Source of Truth)
   if (serverSupabase) {
     try {
       const { data, error } = await serverSupabase
@@ -78,7 +70,7 @@ async function getAllPublishedArticles(): Promise<any[]> {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && Array.isArray(data) && data.length > 0) {
+      if (!error && data && Array.isArray(data)) {
         for (const item of data) {
           const isDraft = item.is_draft === true || item.is_draft === 1 || item.is_draft === "true";
           if (isDraft) {
@@ -113,6 +105,16 @@ async function getAllPublishedArticles(): Promise<any[]> {
       }
     } catch (e) {
       console.warn("⚠️ Error fetching articles from Supabase in server:", e);
+    }
+  } else {
+    // Fallback to local disk ONLY when Supabase is not configured
+    const storedDiskArticles = getStoredArticles();
+    for (const art of storedDiskArticles) {
+      if (!art.isDraft) {
+        articleMap.set(art.slug, art);
+      } else {
+        articleMap.delete(art.slug);
+      }
     }
   }
 
@@ -1349,6 +1351,17 @@ async function startServer() {
   const runServerAutoPublishArticle = async (customTopic?: string, slotKey?: string): Promise<{ success: boolean; message: string; article?: any; log?: any }> => {
     const startTime = Date.now();
     const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    // Atomic Slot Lock check for scheduled publishing
+    if (slotKey) {
+      const lockAcquired = tryAcquireSlotLock(slotKey);
+      if (!lockAcquired) {
+        const msg = `زمان‌بندی ${slotKey} قبلاً اجرا شده یا توسط فرآیند دیگری در حال انجام است.`;
+        console.log(`[DeepSeek AutoPublish] Lock skipped: ${msg}`);
+        return { success: false, message: msg };
+      }
+    }
+
     const settings = getCmsSettings();
     const ds: any = settings.deepseek || {};
     const activeKey = (ds.apiKey || process.env.DEEPSEEK_API_KEY || "").trim();
@@ -1358,6 +1371,7 @@ async function startServer() {
     if (!activeKey || activeKey.length < 5) {
       const errMsg = "کلید API دیپ‌سیک در تنظیمات سرور ثبت نشده است. انتشار اتوماتیک لغو گردید.";
       console.warn(`[DeepSeek AutoPublish] ${errMsg}`);
+      if (slotKey) releaseSlotLock(slotKey, 'error', errMsg);
       
       saveCmsSettings({
         deepseek: {
@@ -1477,6 +1491,7 @@ async function startServer() {
     if (!articleData || !articleData.title || typeof articleData.title !== 'string' || articleData.title.trim().length < 4 || !articleData.content || articleData.content.trim().length < 50) {
       const finalError = apiErrorMsg || "عدم امکان دریافت محتوای معتبر از API دیپ‌سیک.";
       console.error(`[DeepSeek AutoPublish] FAILED (no fallback published): ${finalError}`);
+      if (slotKey) releaseSlotLock(slotKey, 'error', finalError);
 
       saveCmsSettings({
         deepseek: {
@@ -1612,13 +1627,13 @@ async function startServer() {
       }
     }
 
-    // Backup write to local disk
-    saveArticleToDisk(fullArticle);
-
-    // IF SUPABASE WAS CONFIGURED AND FAILED: FAIL THE PUBLICATION REPORT
+    // IF SUPABASE WAS CONFIGURED AND FAILED: FAIL THE PUBLICATION REPORT & ROLLBACK
     if (serverSupabase && supabaseStatus === 'error') {
       const failureMsg = `خطا در ذخیره مقاله در دیتابیس اصلی سوپابیس: ${supabaseWriteError}`;
+      if (slotKey) releaseSlotLock(slotKey, 'error', failureMsg);
       
+      deleteArticleFromDisk(fullArticle.id);
+
       saveCmsSettings({
         deepseek: {
           ...ds,
@@ -1644,6 +1659,11 @@ async function startServer() {
         log
       };
     }
+
+    // Backup write to local disk (only when Supabase succeeded or is not configured)
+    saveArticleToDisk(fullArticle);
+
+    if (slotKey) releaseSlotLock(slotKey, 'success');
 
     // SUCCESS PERSISTENCE
     saveCmsSettings({
@@ -1677,10 +1697,10 @@ async function startServer() {
     };
   };
 
-  // Scheduled Auto-Publishing Worker with Idempotency Lock
+  // Scheduled Auto-Publishing Worker with Restart Safety and Idempotency Lock
   let isAutoPublishWorkerBusy = false;
 
-  setInterval(async () => {
+  const checkScheduledPublishing = async () => {
     if (isAutoPublishWorkerBusy) return;
     try {
       const settings = getCmsSettings();
@@ -1707,24 +1727,29 @@ async function startServer() {
       const hoursPassed = (tehran.now.getTime() - lastPublishedMs) / (1000 * 3600);
       const isIntervalMatched = !lastPublishedMs || hoursPassed >= intervalHours;
 
-      const currentSlot = `slot_${tehran.dateKey}_${tehran.weekdayFa}_${targetTimeStr}`;
+      const slotKey = `slot_${tehran.dateKey}_${targetTimeStr}`;
 
       if ((isDayMatched && isTimeMatched) || isIntervalMatched) {
-        if (ds.lastPublishedSlot === currentSlot && (tehran.now.getTime() - lastPublishedMs < 3600 * 1000)) {
-          // Already executed for this scheduled slot
+        const slots = ds.executedSlots || {};
+        if (slots[slotKey]?.status === 'success' || ds.lastPublishedSlot === slotKey) {
           return;
         }
 
         isAutoPublishWorkerBusy = true;
-        console.log(`[DeepSeek AutoWorker] Triggering scheduled article publishing for slot: ${currentSlot}`);
-        await runServerAutoPublishArticle(undefined, currentSlot);
+        console.log(`[DeepSeek AutoWorker] Triggering scheduled article publishing for slot: ${slotKey}`);
+        await runServerAutoPublishArticle(undefined, slotKey);
       }
     } catch (err) {
       console.error("[DeepSeek AutoWorker] Background task error:", err);
     } finally {
       isAutoPublishWorkerBusy = false;
     }
-  }, 60 * 1000); // Checks every 2 minutes
+  };
+
+  // Boot check on server restart / boot
+  setTimeout(checkScheduledPublishing, 5000);
+  // Periodic check every 60 seconds
+  setInterval(checkScheduledPublishing, 60 * 1000); // Checks every 2 minutes
 
   // API endpoint for proxying DeepSeek / OpenAI-compatible API tests
   app.post("/api/deepseek/test", rateLimitMiddleware(15, 60000), async (req, res) => {
