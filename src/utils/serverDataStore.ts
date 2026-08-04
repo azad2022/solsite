@@ -94,17 +94,21 @@ export function registerUser(newUser: ServerUser): { success: boolean; message: 
 // ------------------- SETTINGS PERSISTENCE -------------------
 export interface ServerAutoLog {
   id: string;
+  generationId?: string;
   timestamp: string;
   topic: string;
   status: 'success' | 'error';
   message: string;
   articleSlug?: string;
   articleTitle?: string;
+  supabaseStatus?: string;
+  durationMs?: number;
 }
 
 export interface ServerSettings {
   deepseek: {
     apiKey: string;
+    apiKeyConfigured?: boolean;
     baseUrl: string;
     apiBaseUrl?: string;
     model: string;
@@ -117,7 +121,10 @@ export interface ServerSettings {
       enabled: boolean;
       publishDays?: string[];
       publishTime?: string;
+      publishMode?: 'published' | 'draft';
       autoPublishAsDraft?: boolean;
+      timezone?: string;
+      intervalHours?: number;
     };
     mediaConfig?: {
       includeCoverImage?: boolean;
@@ -135,6 +142,9 @@ export interface ServerSettings {
     autoPublishEnabled?: boolean;
     publishScheduleHours?: number;
     lastAutoPublishedAt?: string;
+    lastPublishedSlot?: string;
+    lastExecutionStatus?: 'success' | 'error' | 'running';
+    lastExecutionMessage?: string;
     autoLogs?: ServerAutoLog[];
   };
   chatbot: {
@@ -160,6 +170,7 @@ export interface ServerSettings {
 const DEFAULT_SETTINGS: ServerSettings = {
   deepseek: {
     apiKey: process.env.DEEPSEEK_API_KEY || '',
+    apiKeyConfigured: Boolean(process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY.trim().length > 5),
     baseUrl: 'https://api.deepseek.com/v1',
     apiBaseUrl: 'https://api.deepseek.com/v1',
     model: 'deepseek-chat',
@@ -191,7 +202,10 @@ const DEFAULT_SETTINGS: ServerSettings = {
       enabled: true,
       publishDays: ['شنبه', 'دوشنبه', 'چهارشنبه'],
       publishTime: '10:00',
-      autoPublishAsDraft: false
+      publishMode: 'published',
+      autoPublishAsDraft: false,
+      timezone: 'Asia/Tehran',
+      intervalHours: 6
     },
     mediaConfig: {
       includeCoverImage: true,
@@ -231,12 +245,17 @@ const DEFAULT_SETTINGS: ServerSettings = {
 
 export function getCmsSettings(): ServerSettings {
   const loaded = readJsonFile<ServerSettings>('settings.json', DEFAULT_SETTINGS);
+  const rawDsKey = (loaded.deepseek?.apiKey || process.env.DEEPSEEK_API_KEY || '').trim();
+  const rawBotKey = (loaded.chatbot?.apiKey || process.env.DEEPSEEK_API_KEY || '').trim();
+
   return {
     ...DEFAULT_SETTINGS,
     ...loaded,
     deepseek: {
       ...DEFAULT_SETTINGS.deepseek,
       ...(loaded.deepseek || {}),
+      apiKey: rawDsKey,
+      apiKeyConfigured: rawDsKey.length > 5,
       publishSchedule: {
         ...DEFAULT_SETTINGS.deepseek.publishSchedule,
         ...(loaded.deepseek?.publishSchedule || {})
@@ -251,20 +270,69 @@ export function getCmsSettings(): ServerSettings {
       },
       autoLogs: loaded.deepseek?.autoLogs || []
     },
-    chatbot: { ...DEFAULT_SETTINGS.chatbot, ...(loaded.chatbot || {}) },
+    chatbot: {
+      ...DEFAULT_SETTINGS.chatbot,
+      ...(loaded.chatbot || {}),
+      apiKey: rawBotKey
+    },
     downloads: { ...DEFAULT_SETTINGS.downloads, ...(loaded.downloads || {}) },
     security: { ...DEFAULT_SETTINGS.security, ...(loaded.security || {}) }
   };
 }
 
+/**
+ * Mask API keys when sending CMS settings to the client/browser
+ */
+export function getCmsSettingsForClient(): ServerSettings {
+  const settings = getCmsSettings();
+  const dsKey = settings.deepseek.apiKey || '';
+  const botKey = settings.chatbot.apiKey || '';
+
+  const maskKey = (key: string) => {
+    if (!key || key.length < 6) return '';
+    return `${key.slice(0, 4)}****${key.slice(-4)}`;
+  };
+
+  return {
+    ...settings,
+    deepseek: {
+      ...settings.deepseek,
+      apiKey: maskKey(dsKey),
+      apiKeyConfigured: dsKey.length > 5
+    },
+    chatbot: {
+      ...settings.chatbot,
+      apiKey: maskKey(botKey)
+    }
+  };
+}
+
 export function saveCmsSettings(newSettings: Partial<ServerSettings>): ServerSettings {
   const current = getCmsSettings();
+
+  // Protect API keys: If incoming key is masked (contains '****') or empty, preserve current server key
+  let incomingDsKey = newSettings.deepseek?.apiKey;
+  if (!incomingDsKey || incomingDsKey.includes('****') || incomingDsKey.trim() === '') {
+    incomingDsKey = current.deepseek.apiKey;
+  } else {
+    incomingDsKey = incomingDsKey.trim();
+  }
+
+  let incomingBotKey = newSettings.chatbot?.apiKey;
+  if (!incomingBotKey || incomingBotKey.includes('****') || incomingBotKey.trim() === '') {
+    incomingBotKey = current.chatbot.apiKey;
+  } else {
+    incomingBotKey = incomingBotKey.trim();
+  }
+
   const updated: ServerSettings = {
     ...current,
     ...newSettings,
     deepseek: {
       ...current.deepseek,
       ...(newSettings.deepseek || {}),
+      apiKey: incomingDsKey,
+      apiKeyConfigured: incomingDsKey.length > 5,
       publishSchedule: {
         ...current.deepseek.publishSchedule,
         ...(newSettings.deepseek?.publishSchedule || {})
@@ -278,10 +346,15 @@ export function saveCmsSettings(newSettings: Partial<ServerSettings>): ServerSet
         ...(newSettings.deepseek?.writingStyle || {})
       }
     },
-    chatbot: { ...current.chatbot, ...(newSettings.chatbot || {}) },
+    chatbot: {
+      ...current.chatbot,
+      ...(newSettings.chatbot || {}),
+      apiKey: incomingBotKey
+    },
     downloads: { ...current.downloads, ...(newSettings.downloads || {}) },
     security: { ...current.security, ...(newSettings.security || {}) }
   };
+
   writeJsonFile('settings.json', updated);
   return updated;
 }

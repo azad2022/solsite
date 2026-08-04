@@ -20,6 +20,7 @@ import {
   saveUsers,
   registerUser,
   getCmsSettings,
+  getCmsSettingsForClient,
   saveCmsSettings,
   addDeepseekLog,
   clearDeepseekLogs,
@@ -254,7 +255,7 @@ async function startServer() {
   // 1. CMS SETTINGS ENDPOINTS
   app.get("/api/cms/settings", (req, res) => {
     try {
-      const settings = getCmsSettings();
+      const settings = getCmsSettingsForClient();
       return res.json({ success: true, settings });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
@@ -1283,13 +1284,102 @@ async function startServer() {
     return `${raw}/chat/completions`;
   };
 
+  // Tehran Timezone and Persian Day Name Helper
+  const getTehranDateInfo = () => {
+    const now = new Date();
+    try {
+      const tehranFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Tehran',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const parts = tehranFormatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value || '';
+      const month = parts.find(p => p.type === 'month')?.value || '';
+      const day = parts.find(p => p.type === 'day')?.value || '';
+      const hour = parts.find(p => p.type === 'hour')?.value || '00';
+      const minute = parts.find(p => p.type === 'minute')?.value || '00';
+
+      const faFormatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+        timeZone: 'Asia/Tehran',
+        weekday: 'long'
+      });
+      const weekdayFaRaw = faFormatter.format(now).trim();
+      const dayMap: Record<string, string> = {
+        'شنبه': 'شنبه',
+        'یکشنبه': 'یکشنبه',
+        'یک‌شنبه': 'یکشنبه',
+        'دوشنبه': 'دوشنبه',
+        'سه‌شنبه': 'سه‌شنبه',
+        'سه_شنبه': 'سه‌شنبه',
+        'چهارشنبه': 'چهارشنبه',
+        'پنج‌شنبه': 'پنج‌شنبه',
+        'پنجشنبه': 'پنج‌شنبه',
+        'جمعه': 'جمعه'
+      };
+      const weekdayFa = dayMap[weekdayFaRaw] || weekdayFaRaw;
+
+      return {
+        now,
+        dateKey: `${year}-${month}-${day}`,
+        weekdayFa,
+        timeKey: `${hour}:${minute}`,
+        hour: Number(hour),
+        minute: Number(minute)
+      };
+    } catch {
+      return {
+        now,
+        dateKey: now.toISOString().split('T')[0],
+        weekdayFa: 'دوشنبه',
+        timeKey: '10:00',
+        hour: 10,
+        minute: 0
+      };
+    }
+  };
+
   // SERVER-SIDE DEEPSEEK AUTO-PUBLISHING ENGINE
-  const runServerAutoPublishArticle = async (customTopic?: string): Promise<{ success: boolean; message: string; article?: any; log?: any }> => {
+  const runServerAutoPublishArticle = async (customTopic?: string, slotKey?: string): Promise<{ success: boolean; message: string; article?: any; log?: any }> => {
+    const startTime = Date.now();
+    const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const settings = getCmsSettings();
     const ds: any = settings.deepseek || {};
     const activeKey = (ds.apiKey || process.env.DEEPSEEK_API_KEY || "").trim();
     const endpoint = buildDeepSeekEndpoint(ds.apiBaseUrl || ds.baseUrl);
     const activeModel = ds.model || "deepseek-chat";
+
+    if (!activeKey || activeKey.length < 5) {
+      const errMsg = "کلید API دیپ‌سیک در تنظیمات سرور ثبت نشده است. انتشار اتوماتیک لغو گردید.";
+      console.warn(`[DeepSeek AutoPublish] ${errMsg}`);
+      
+      saveCmsSettings({
+        deepseek: {
+          ...ds,
+          lastExecutionStatus: 'error',
+          lastExecutionMessage: errMsg
+        }
+      });
+
+      const log = addDeepseekLog({
+        generationId,
+        topic: customTopic || 'موضوع خودکار',
+        status: 'error',
+        message: errMsg,
+        supabaseStatus: 'failed_no_api_key',
+        durationMs: Date.now() - startTime
+      });
+
+      return {
+        success: false,
+        message: errMsg,
+        log
+      };
+    }
 
     const topics = (ds.targetTopics && ds.targetTopics.length > 0) ? ds.targetTopics : [
       'آموزش جامع ساخت توکن در شبکه‌ی سولانا بدون کدنویسی',
@@ -1305,9 +1395,7 @@ async function startServer() {
     let articleData: any = null;
     let apiErrorMsg = "";
 
-    if (activeKey.length > 5) {
-      try {
-        const userPrompt = `لطفاً یک مقاله تخصصی و کاربردی درباره موضوع زیر بنویسید:
+    const userPrompt = `لطفاً یک مقاله تخصصی و کاربردی درباره موضوع زیر بنویسید:
 موضوع: "${topic}"
 کلمات کلیدی اجباری سئو: ${keywords}
 لحن: ${ds.writingStyle?.tone || 'آموزشی و روان'}
@@ -1319,21 +1407,29 @@ async function startServer() {
 
 خروجی شما باید یک JSON معتبر باشد با ساختار دقیق زیر (بدون هیچ متن اضافی قبل یا بعد از JSON):
 {
-  "title": "عنوان جذاب و دقیق مقاله بدون عبارت‌های اضافی در حدود ۵۰ تا ۷۰ کاراکتر",
-  "category": "یکی از موارد دقیق مقابل: آموزش سولانا | توسعه وب۳ | امنیت | اخبار و تحلیل | آموزش ساخت میم کوین | آموزش ساخت NFT | کیف پول سولانا",
-  "summary": "خلاصه جذاب مقاله برای Meta Description در حدود ۱۲۰ تا ۱۶۰ کاراکتر",
-  "tags": ["تگ۱", "تگ۲", "تگ۳", "تگ۴"],
+  "title": "عنوان جذاب و دقیق مقاله به فارسی بدون کلمات اضافی",
+  "category": "یکی از موارد: آموزش سولانا | توسعه وب۳ | امنیت | اخبار و تحلیل | آموزش ساخت میم کوین | آموزش ساخت NFT | کیف پول سولانا",
+  "summary": "خلاصه مقاله برای Meta Description بین ۱۲۰ تا ۱۶۰ کاراکتر",
+  "tags": ["تگ۱", "تگ۲", "تگ۳"],
   "readTimeMinutes": 6,
-  "content": "متن کامل مقاله شامل تیترهای H2 و H3 مارک‌داون، لیست‌ها، نکات کلیدی و بخش FAQ"
+  "content": "متن کامل مقاله به مارک‌داون شامل تیترهای H2 و H3 و بخش FAQ"
 }`;
 
+    // Retry loop for DeepSeek API call
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts && !articleData) {
+      attempts++;
+      try {
+        console.log(`[DeepSeek AutoPublish] API call attempt ${attempts}/${maxAttempts} for topic: "${topic}"...`);
         const apiRes = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${activeKey}`
           },
-          signal: AbortSignal.timeout(60000),
+          signal: AbortSignal.timeout(65000),
           body: JSON.stringify({
             model: activeModel,
             messages: [
@@ -1354,44 +1450,58 @@ async function startServer() {
               if (jsonMatch) cleanJsonStr = jsonMatch[0];
               articleData = JSON.parse(cleanJsonStr);
             } catch (pErr) {
-              console.warn("[DeepSeek Server] Failed to parse JSON response:", pErr);
-              apiErrorMsg = "فرمت پاسخ مدل هوش مصنوعی ساختار استاندارد JSON نبود.";
+              console.warn("[DeepSeek AutoPublish] Failed to parse JSON response:", pErr);
+              apiErrorMsg = "پاسخ دریافتی از مدل دیپ‌سیک ساختار JSON معتبر نداشت.";
             }
           }
         } else {
           const errJson = await apiRes.json().catch(() => ({}));
-          apiErrorMsg = errJson?.error?.message || errJson?.message || `پاسخ ناموفق سرور دیپ‌سیک (کد ${apiRes.status})`;
-          console.warn("[DeepSeek Server] API call error:", apiErrorMsg);
+          apiErrorMsg = errJson?.error?.message || errJson?.message || `کد خطای ${apiRes.status} از دیپ‌سیک`;
+          if (apiRes.status === 401 || apiRes.status === 403) {
+            break;
+          }
         }
       } catch (err: any) {
         apiErrorMsg = err?.message || "خطای ارتباط با سرور دیپ‌سیک";
-        console.warn("[DeepSeek Server] API exception:", err);
+        console.warn(`[DeepSeek AutoPublish] Attempt ${attempts} failed:`, apiErrorMsg);
       }
-    } else {
-      apiErrorMsg = "کلید API دیپ‌سیک ثبت نشده یا نامعتبر است.";
+
+      if (!articleData && attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, attempts * 2500));
+      }
     }
 
-    // Smart SEO Fallback if API was unreachable or key missing
-    if (!articleData || !articleData.title) {
-      const isMeme = topic.includes('میم') || topic.includes('Meme');
-      const isNft = topic.includes('NFT');
-      const isSec = topic.includes('امنیت');
-      let cat = 'آموزش سولانا';
-      if (isMeme) cat = 'آموزش ساخت میم کوین';
-      else if (isNft) cat = 'آموزش ساخت NFT';
-      else if (isSec) cat = 'امنیت';
+    // STRICT VALIDATION: NO DUMMY FALLBACK ARTICLE FOR AUTO PUBLISH!
+    if (!articleData || !articleData.title || typeof articleData.title !== 'string' || articleData.title.trim().length < 4 || !articleData.content || articleData.content.trim().length < 50) {
+      const finalError = apiErrorMsg || "عدم امکان دریافت محتوای معتبر از API دیپ‌سیک.";
+      console.error(`[DeepSeek AutoPublish] FAILED (no fallback published): ${finalError}`);
 
-      articleData = {
-        title: topic.replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '').trim(),
-        category: cat,
-        summary: `راهنمای جامع ${topic} در وبسایت رسمی سولمینت (solmint.ir) با بالاترین امنیت غیرامانی و سرعت بالادست.`,
-        content: `# ${topic}\n\nبه وبسایت **سولمینت (Solmint App)** خوش آمدید. اکوسیستم **سولانا (Solana)** به دلیل کارمزد بسیار پایین و سرعت بی‌نظیر، انتخاب اول کاربران در سراسر دنیا است.\n\nدر این مقاله تخصصی مراحل **${topic}** به صورت گام‌به‌گام بررسی می‌گردد.\n\n## ۱. چرا اپلیکیشن سولمینت؟\n- 🔒 **غیرامانی (Non-Custodial)**\n- ⚡ **تولید فوری توکن**\n- 💰 **بازیابی کارمزد اجاره (Rent Claim)**\n\n--- \n## ۲. سوالات متداول (FAQ)\nآیا نیاز به کدنویسی دارد؟ خیر، تمام مراحل به شکل کاملاً گرافیکی در اپلیکیشن انجام می‌شود.`,
-        tags: ['سولمینت', 'سولانا', 'وب۳'],
-        readTimeMinutes: 6
+      saveCmsSettings({
+        deepseek: {
+          ...ds,
+          lastExecutionStatus: 'error',
+          lastExecutionMessage: finalError
+        }
+      });
+
+      const log = addDeepseekLog({
+        generationId,
+        topic,
+        status: 'error',
+        message: `انتشار لغو شد: ${finalError}`,
+        supabaseStatus: 'failed',
+        durationMs: Date.now() - startTime
+      });
+
+      return {
+        success: false,
+        message: `خطا در انتشار خودکار: ${finalError}`,
+        log
       };
     }
 
-    const cleanTitle = (articleData.title || topic)
+    // CLEAN ARTICLE DATA
+    const cleanTitle = articleData.title
       .replace(/^#+\s*/, '')
       .replace(/^(مقاله\s*سئو\s*شده|آموزش\s*سئو\s*شده|سئو\s*شده|سئوشده|عنوان|پاسخ)\s*[:：\-–—]?\s*/gi, '')
       .replace(/deepseek|دیپ\s*سیک|دیپ‌سیک|هوش\s*مصنوعی/gi, '')
@@ -1416,7 +1526,7 @@ async function startServer() {
 
     const category = articleData.category || 'آموزش سولانا';
     const includeCover = (ds.mediaConfig?.includeCoverImage ?? true) && (ds.requireCoverImage ?? true);
-    
+
     let coverImage = '';
     if (includeCover) {
       const COVERS: Record<string, string[]> = {
@@ -1432,13 +1542,17 @@ async function startServer() {
       coverImage = coverList[Math.floor(Math.random() * coverList.length)];
     }
 
+    // Determine Draft vs Public status
+    const scheduleMode = ds.publishSchedule?.publishMode;
+    const isExplicitDraft = scheduleMode === 'draft' || (ds.publishSchedule?.autoPublishAsDraft === true && scheduleMode !== 'published');
+
     const fullArticle = {
       id: 'art_' + Date.now(),
       title: cleanTitle,
       slug: cleanSlug,
       category: category,
-      tags: articleData.tags || ['سولانا', 'سولمینت', 'وب۳'],
-      summary: articleData.summary || '',
+      tags: Array.isArray(articleData.tags) ? articleData.tags : ['سولانا', 'سولمینت', 'وب۳'],
+      summary: articleData.summary || cleanTitle,
       content: articleData.content || '',
       coverImage: coverImage,
       author: {
@@ -1449,18 +1563,20 @@ async function startServer() {
       publishedAt: `${jalali} (${gregorian})`,
       publishedAtJalali: jalali,
       publishedAtGregorian: gregorian,
-      readTimeMinutes: articleData.readTimeMinutes || 6,
+      readTimeMinutes: Number(articleData.readTimeMinutes) || 6,
       viewsCount: 1,
       comments: [],
       seoScore: 98,
-      isDraft: ds.publishSchedule?.autoPublishAsDraft ?? false
+      isDraft: isExplicitDraft
     };
 
-    saveArticleToDisk(fullArticle);
+    // SAVE ATOMICALLY TO SUPABASE & DISK
+    let supabaseStatus = 'not_configured';
+    let supabaseWriteError = '';
 
     if (serverSupabase) {
       try {
-        await serverSupabase.from("articles").upsert({
+        const { error: spErr } = await serverSupabase.from("articles").upsert({
           id: fullArticle.id,
           title: fullArticle.title,
           slug: fullArticle.slug,
@@ -1479,62 +1595,134 @@ async function startServer() {
           seo_score: fullArticle.seoScore,
           is_draft: fullArticle.isDraft ? 1 : 0
         });
-      } catch (spErr) {
-        console.warn("[DeepSeek AutoPublish] Supabase sync error:", spErr);
+
+        if (spErr) {
+          supabaseStatus = 'error';
+          supabaseWriteError = spErr.message;
+          console.error("[DeepSeek AutoPublish] Supabase write failed:", spErr);
+        } else {
+          supabaseStatus = 'synced';
+        }
+      } catch (spEx: any) {
+        supabaseStatus = 'error';
+        supabaseWriteError = spEx?.message || 'خطا در ثبت سوپابیس';
+        console.error("[DeepSeek AutoPublish] Supabase exception:", spEx);
       }
     }
 
+    // Backup write to local disk
+    saveArticleToDisk(fullArticle);
+
+    // IF SUPABASE WAS CONFIGURED AND FAILED: FAIL THE PUBLICATION REPORT
+    if (serverSupabase && supabaseStatus === 'error') {
+      const failureMsg = `خطا در ذخیره مقاله در دیتابیس اصلی سوپابیس: ${supabaseWriteError}`;
+      
+      saveCmsSettings({
+        deepseek: {
+          ...ds,
+          lastExecutionStatus: 'error',
+          lastExecutionMessage: failureMsg
+        }
+      });
+
+      const log = addDeepseekLog({
+        generationId,
+        topic,
+        status: 'error',
+        message: failureMsg,
+        articleSlug: cleanSlug,
+        articleTitle: cleanTitle,
+        supabaseStatus: 'failed',
+        durationMs: Date.now() - startTime
+      });
+
+      return {
+        success: false,
+        message: failureMsg,
+        log
+      };
+    }
+
+    // SUCCESS PERSISTENCE
     saveCmsSettings({
       deepseek: {
         ...ds,
-        lastAutoPublishedAt: now.toISOString()
-      } as any
+        lastAutoPublishedAt: now.toISOString(),
+        lastPublishedSlot: slotKey || `slot_${now.toISOString().split('T')[0]}`,
+        lastExecutionStatus: 'success',
+        lastExecutionMessage: `مقاله "${cleanTitle}" با موفقیت منتشر گردید.`
+      }
     });
 
-    const statusType = apiErrorMsg ? 'error' : 'success';
-    const logMsg = apiErrorMsg 
-      ? `هشدار API دیپ‌سیک (${apiErrorMsg}). مقاله با عنوان "${cleanTitle}" از موتور شبیه‌ساز انتشار یافت.`
-      : `مقاله "${cleanTitle}" با موفقیت توسط API دیپ‌سیک نگارش و در دیتابیس منتشر شد.`;
+    const successLogMsg = `مقاله "${cleanTitle}" با موفقیت توسط API دیپ‌سیک نگارش و در دیتابیس منتشر شد (Supabase: ${supabaseStatus}).`;
 
     const log = addDeepseekLog({
+      generationId,
       topic,
-      status: statusType,
-      message: logMsg,
+      status: 'success',
+      message: successLogMsg,
       articleSlug: cleanSlug,
-      articleTitle: cleanTitle
+      articleTitle: cleanTitle,
+      supabaseStatus,
+      durationMs: Date.now() - startTime
     });
 
     return {
       success: true,
-      message: logMsg,
+      message: successLogMsg,
       article: fullArticle,
       log
     };
   };
 
-  // Background Worker for DeepSeek Automated Article Publishing
+  // Scheduled Auto-Publishing Worker with Idempotency Lock
+  let isAutoPublishWorkerBusy = false;
+
   setInterval(async () => {
+    if (isAutoPublishWorkerBusy) return;
     try {
       const settings = getCmsSettings();
       const ds = settings.deepseek;
-      const isAutoPublishActive = Boolean(ds?.autoPublishEnabled || ds?.publishSchedule?.enabled);
+      const schedule = ds?.publishSchedule;
+      const isAutoPublishActive = Boolean(ds?.autoPublishEnabled || schedule?.enabled);
+
       if (!ds || !isAutoPublishActive) {
         return;
       }
 
-      const hours = Number(ds.publishScheduleHours || (ds.publishSchedule as any)?.intervalHours || 6);
-      const lastPublished = ds.lastAutoPublishedAt ? new Date(ds.lastAutoPublishedAt).getTime() : 0;
-      const nowMs = Date.now();
-      const intervalMs = Math.max(1, hours) * 3600 * 1000;
+      const tehran = getTehranDateInfo();
+      const targetDays = (schedule?.publishDays && schedule.publishDays.length > 0) 
+        ? schedule.publishDays 
+        : ['شنبه', 'دوشنبه', 'چهارشنبه'];
+      const targetTimeStr = (schedule?.publishTime || '10:00').trim();
+      const [tHour, tMinute] = targetTimeStr.split(':').map(Number);
 
-      if (!lastPublished || (nowMs - lastPublished >= intervalMs)) {
-        console.log(`[DeepSeek AutoWorker] Triggering scheduled article generation (Interval: ${hours}h)...`);
-        await runServerAutoPublishArticle();
+      const isDayMatched = targetDays.some(d => d.trim() === tehran.weekdayFa);
+      const isTimeMatched = tehran.hour === tHour && Math.abs(tehran.minute - (tMinute || 0)) <= 3;
+
+      const intervalHours = Number(schedule?.intervalHours || ds.publishScheduleHours || 6);
+      const lastPublishedMs = ds.lastAutoPublishedAt ? new Date(ds.lastAutoPublishedAt).getTime() : 0;
+      const hoursPassed = (tehran.now.getTime() - lastPublishedMs) / (1000 * 3600);
+      const isIntervalMatched = !lastPublishedMs || hoursPassed >= intervalHours;
+
+      const currentSlot = `slot_${tehran.dateKey}_${tehran.weekdayFa}_${targetTimeStr}`;
+
+      if ((isDayMatched && isTimeMatched) || isIntervalMatched) {
+        if (ds.lastPublishedSlot === currentSlot && (tehran.now.getTime() - lastPublishedMs < 3600 * 1000)) {
+          // Already executed for this scheduled slot
+          return;
+        }
+
+        isAutoPublishWorkerBusy = true;
+        console.log(`[DeepSeek AutoWorker] Triggering scheduled article publishing for slot: ${currentSlot}`);
+        await runServerAutoPublishArticle(undefined, currentSlot);
       }
     } catch (err) {
       console.error("[DeepSeek AutoWorker] Background task error:", err);
+    } finally {
+      isAutoPublishWorkerBusy = false;
     }
-  }, 2 * 60 * 1000); // Checks every 2 minutes
+  }, 60 * 1000); // Checks every 2 minutes
 
   // API endpoint for proxying DeepSeek / OpenAI-compatible API tests
   app.post("/api/deepseek/test", rateLimitMiddleware(15, 60000), async (req, res) => {

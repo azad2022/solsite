@@ -191,6 +191,7 @@ export const DEFAULT_DOWNLOAD_LINKS: DownloadLinks = {
 
 export interface DeepSeekAiSettings {
   apiKey: string;
+  apiKeyConfigured?: boolean;
   apiBaseUrl: string;
   model: string; // 'deepseek-chat' | 'deepseek-reasoner'
   systemPrompt: string;
@@ -201,7 +202,10 @@ export interface DeepSeekAiSettings {
     enabled: boolean;
     publishDays: string[]; // ['شنبه', 'دوشنبه', 'چهارشنبه']
     publishTime: string; // "10:00"
-    autoPublishAsDraft: boolean;
+    publishMode?: 'published' | 'draft';
+    autoPublishAsDraft: boolean; // false = publish immediately as public, true = save as draft
+    timezone?: string; // e.g. "Asia/Tehran"
+    intervalHours?: number;
   };
   mediaConfig: {
     includeCoverImage: boolean;
@@ -216,10 +220,17 @@ export interface DeepSeekAiSettings {
     includeFaqSection: boolean;
     includeCallToAction: boolean;
   };
+  autoPublishEnabled?: boolean;
+  publishScheduleHours?: number;
+  lastAutoPublishedAt?: string;
+  lastPublishedSlot?: string;
+  lastExecutionStatus?: 'success' | 'error' | 'running';
+  lastExecutionMessage?: string;
 }
 
 export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
   apiKey: '',
+  apiKeyConfigured: false,
   apiBaseUrl: 'https://api.deepseek.com/v1',
   model: 'deepseek-chat',
   systemPrompt: `شما دستیار نویسنده ارشد وبسایت "سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
@@ -254,7 +265,10 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
     enabled: true,
     publishDays: ['شنبه', 'دوشنبه', 'چهارشنبه'],
     publishTime: '10:00',
-    autoPublishAsDraft: true
+    publishMode: 'published',
+    autoPublishAsDraft: false,
+    timezone: 'Asia/Tehran',
+    intervalHours: 6
   },
   mediaConfig: {
     includeCoverImage: true,
