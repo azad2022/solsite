@@ -1,6 +1,7 @@
 {
   "deepseek": {
     "apiKey": "sk-mwY8X2Ez1Vy01uT2EfuNqKMMTLMUz5qZuSo0Eql3wXsp2aP6",
+    "apiKeyConfigured": true,
     "baseUrl": "https://api.gapgpt.app/v1",
     "apiBaseUrl": "https://api.gapgpt.app/v1",
     "model": "deepseek-chat",
@@ -33,7 +34,10 @@
         "چهارشنبه"
       ],
       "publishTime": "10:00",
-      "autoPublishAsDraft": false
+      "publishMode": "published",
+      "autoPublishAsDraft": false,
+      "timezone": "Asia/Tehran",
+      "intervalHours": 6
     },
     "mediaConfig": {
       "includeCoverImage": true,
@@ -49,7 +53,28 @@
     },
     "autoPublishEnabled": true,
     "publishScheduleHours": 6,
+    "executedSlots": {
+      "test_concurrent_slot_1785831753943": {
+        "status": "error",
+        "timestamp": "2026-08-04T08:22:33.946Z",
+        "message": "Cleanup test lock"
+      },
+      "test_success_slot_1785831753946": {
+        "status": "success",
+        "timestamp": "2026-08-04T08:22:33.947Z",
+        "message": "Completed test article"
+      }
+    },
     "autoLogs": [
+      {
+        "id": "log_1785827057217",
+        "timestamp": "۱۳ مرداد ۱۴۰۵، ۷:۰۴:۱۷",
+        "topic": "آموزش جامع ساخت توکن در شبکه‌ی سولانا بدون کدنویسی",
+        "status": "success",
+        "message": "مقاله \"ساخت توکن سولانا بدون کدنویسی: راهنمای جامع با سولمینت\" با موفقیت توسط API دیپ‌سیک نگارش و در دیتابیس منتشر شد.",
+        "articleSlug": "ساخت-توکن-سولانا-بدون-کدنویسی-راهنمای-جامع-با-سولمینت-msebbjy9",
+        "articleTitle": "ساخت توکن سولانا بدون کدنویسی: راهنمای جامع با سولمینت"
+      },
       {
         "id": "log_1785789471367",
         "timestamp": "۱۲ مرداد ۱۴۰۵، ۲۰:۳۷:۵۱",
@@ -69,7 +94,8 @@
         "articleTitle": "راهنمای گام به گام ساخت میم کوین با سولمینت و افزودن نقدینگی"
       }
     ],
-    "lastAutoPublishedAt": "2026-08-03T20:37:51.108Z"
+    "lastAutoPublishedAt": "2026-08-04T07:04:16.833Z",
+    "lastPublishedSlot": "test_success_slot_1785831753946"
   },
   "chatbot": {
     "enabled": true,

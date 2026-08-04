@@ -472,12 +472,57 @@ export function deleteArticleFromDisk(articleIdOrSlug: string): any[] {
 }
 
 // ------------------- IDEMPOTENCY / ATOMIC LOCK HELPERS -------------------
+const LOCKS_DIR = path.join(process.cwd(), 'data', 'locks');
+
+function ensureLocksDir() {
+  ensureDataDir();
+  if (!fs.existsSync(LOCKS_DIR)) {
+    fs.mkdirSync(LOCKS_DIR, { recursive: true });
+  }
+}
+
 export function tryAcquireSlotLock(slotKey: string): boolean {
+  ensureLocksDir();
+  const safeKey = slotKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const lockFilePath = path.join(LOCKS_DIR, `lock_${safeKey}.lock`);
+  const now = Date.now();
+
+  // Step 1: Check atomic OS file creation lock
+  let fileFd: number | null = null;
+  try {
+    fileFd = fs.openSync(lockFilePath, 'wx');
+    fs.writeFileSync(fileFd, JSON.stringify({ pid: process.pid, timestamp: new Date().toISOString() }));
+  } catch (err: any) {
+    if (err.code === 'EEXIST') {
+      try {
+        const stats = fs.statSync(lockFilePath);
+        const lockAgeMs = now - stats.mtimeMs;
+        if (lockAgeMs < 10 * 60 * 1000) { // 10 minutes timeout
+          console.log(`[SlotLock] Slot "${slotKey}" is locked by another process (file lock age: ${Math.round(lockAgeMs / 1000)}s).`);
+          return false;
+        }
+        console.warn(`[SlotLock] Removing stale file lock for slot "${slotKey}".`);
+        fs.unlinkSync(lockFilePath);
+        fileFd = fs.openSync(lockFilePath, 'wx');
+        fs.writeFileSync(fileFd, JSON.stringify({ pid: process.pid, timestamp: new Date().toISOString() }));
+      } catch (retryErr) {
+        console.log(`[SlotLock] Concurrent lock race lost for slot "${slotKey}".`);
+        return false;
+      }
+    } else {
+      console.error(`[SlotLock] Unexpected file lock error for "${slotKey}":`, err);
+    }
+  } finally {
+    if (fileFd !== null) {
+      try { fs.closeSync(fileFd); } catch (_) {}
+    }
+  }
+
+  // Step 2: Check CMS settings execution history
   const settings = getCmsSettings();
   const ds = settings.deepseek;
   const slots = ds.executedSlots || {};
   const currentSlotRecord = slots[slotKey];
-  const now = Date.now();
 
   if (currentSlotRecord) {
     if (currentSlotRecord.status === 'success') {
@@ -486,11 +531,10 @@ export function tryAcquireSlotLock(slotKey: string): boolean {
     }
     if (currentSlotRecord.status === 'running') {
       const lockAgeMs = now - new Date(currentSlotRecord.timestamp).getTime();
-      if (lockAgeMs < 10 * 60 * 1000) { // 10 minutes lock timeout
-        console.log(`[SlotLock] Slot "${slotKey}" is locked by another process (age: ${Math.round(lockAgeMs / 1000)}s).`);
+      if (lockAgeMs < 10 * 60 * 1000) {
+        console.log(`[SlotLock] Slot "${slotKey}" marked as running in settings (age: ${Math.round(lockAgeMs / 1000)}s).`);
         return false;
       }
-      console.warn(`[SlotLock] Stale lock detected for slot "${slotKey}". Overwriting.`);
     }
   }
 
@@ -512,6 +556,16 @@ export function tryAcquireSlotLock(slotKey: string): boolean {
 }
 
 export function releaseSlotLock(slotKey: string, status: 'success' | 'error', message?: string): void {
+  ensureLocksDir();
+  const safeKey = slotKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const lockFilePath = path.join(LOCKS_DIR, `lock_${safeKey}.lock`);
+
+  if (status === 'error') {
+    try {
+      if (fs.existsSync(lockFilePath)) fs.unlinkSync(lockFilePath);
+    } catch (_) {}
+  }
+
   const settings = getCmsSettings();
   const ds = settings.deepseek;
   const slots = ds.executedSlots || {};
