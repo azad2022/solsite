@@ -164,8 +164,9 @@ export default function App() {
   useEffect(() => {
     async function loadInitialServerData() {
       const dbArticles = await fetchArticlesFromActiveDatabase();
-      if (dbArticles && dbArticles.length > 0) {
+      if (dbArticles && Array.isArray(dbArticles)) {
         setArticles(dbArticles);
+        safeSetLocalStorage('solmint_articles', dbArticles);
       }
 
       const settings = await fetchCmsSettingsFromApi();

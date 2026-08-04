@@ -33,7 +33,8 @@ import {
 } from '../utils/cmsApiClient';
 import { 
   saveArticleToActiveDatabase, 
-  deleteArticleFromActiveDatabase, 
+  deleteArticleFromActiveDatabase,
+  fetchArticlesFromActiveDatabase, 
   getDatabaseConfig, 
   saveDatabaseConfig, 
   testDatabaseConnection, 
@@ -1239,7 +1240,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   };
 
   // SAVE ARTICLE
-  const handleSaveArticle = (e: React.FormEvent) => {
+  const handleSaveArticle = async (e: React.FormEvent) => {
     e.preventDefault();
     const tagArray = formTags.split(',').map(t => t.trim()).filter(Boolean);
 
@@ -1312,14 +1313,28 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       updatedList = [newArt, ...articles];
     }
 
-    setArticles(updatedList);
-    localStorage.setItem('solmint_articles', JSON.stringify(updatedList));
-
     if (savedArticle) {
-      saveArticleToActiveDatabase(savedArticle);
-    }
+      try {
+        const saveOk = await saveArticleToActiveDatabase(savedArticle);
+        if (!saveOk) {
+          alert('❌ خطا در انتشار مقاله! ثبت مقاله در دیتابیس اصلی (Supabase) با خطا مواجه شد. مقاله منتشر نشد.');
+          return;
+        }
 
-    setAdminTab('articles');
+        const freshArticles = await fetchArticlesFromActiveDatabase();
+        const finalArticles = freshArticles && freshArticles.length > 0 ? freshArticles : updatedList;
+        setArticles(finalArticles);
+        localStorage.setItem('solmint_articles', JSON.stringify(finalArticles));
+        setAdminTab('articles');
+      } catch (err: any) {
+        alert(`❌ خطا در ارتباط با دیتابیس: ${err.message || err}`);
+        return;
+      }
+    } else {
+      setArticles(updatedList);
+      localStorage.setItem('solmint_articles', JSON.stringify(updatedList));
+      setAdminTab('articles');
+    }
   };
 
   // 100% AUTOMATIC ARTICLE GENERATION & PUBLISHING WITH DEEPSEEK
@@ -1331,11 +1346,11 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const serverRes = await triggerServerAutoPublish(customTopic || '');
       if (serverRes.success && serverRes.article) {
         const fullArticle = serverRes.article as Article;
-        const updated = [fullArticle, ...articles.filter(a => a.id !== fullArticle.id)];
+        const freshArticles = await fetchArticlesFromActiveDatabase();
+        const updated = freshArticles && freshArticles.length > 0 ? freshArticles : [fullArticle, ...articles.filter(a => a.id !== fullArticle.id)];
         setArticles(updated);
         localStorage.setItem('solmint_articles', JSON.stringify(updated));
-        await saveArticleToActiveDatabase(fullArticle);
-        setAutoPublishSuccess(`مقاله "${fullArticle.title}" با موفقیت مستقیم در دیتابیس سرور نگارش و با آدرس "/article/${fullArticle.slug}" منتشر شد!`);
+        setAutoPublishSuccess(`مقاله "${fullArticle.title}" با موفقیت مستقیم در دیتابیس اصلی (Supabase) نگارش و با آدرس "/article/${fullArticle.slug}" منتشر شد!`);
         loadServerLogs();
         return;
       }
@@ -1378,12 +1393,16 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         isDraft: false
       };
 
-      const updated = [fullArticle, ...articles];
+      // Persist directly into connected database (Supabase) and enforce success
+      const saveSuccess = await saveArticleToActiveDatabase(fullArticle);
+      if (!saveSuccess) {
+        throw new Error('انتشار مقاله ناموفق بود: ذخیره‌سازی در دیتابیس اصلی (Supabase) با خطا مواجه شد.');
+      }
+
+      const freshArticles = await fetchArticlesFromActiveDatabase();
+      const updated = freshArticles && freshArticles.length > 0 ? freshArticles : [fullArticle, ...articles];
       setArticles(updated);
       localStorage.setItem('solmint_articles', JSON.stringify(updated));
-
-      // Persist directly into connected database (Supabase / Cloudflare D1)
-      await saveArticleToActiveDatabase(fullArticle);
 
       setAutoPublishSuccess(`مقاله "${fullArticle.title}" با موفقیت نگارش گردید و با لینک اختصاصی "/article/${fullArticle.slug}" به صورت رسمی منتشر شد!`);
       loadServerLogs();
@@ -1522,12 +1541,17 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   };
 
   // DELETE ARTICLE
-  const handleDeleteArticle = (id: string) => {
+  const handleDeleteArticle = async (id: string) => {
     if (confirm('آیا از حذف این مقاله اطمینان دارید؟')) {
-      const updated = articles.filter(a => a.id !== id);
+      const success = await deleteArticleFromActiveDatabase(id);
+      if (!success) {
+        alert('❌ خطا در حذف مقاله از دیتابیس اصلی (Supabase). مقاله حذف نشد.');
+        return;
+      }
+      const freshArticles = await fetchArticlesFromActiveDatabase();
+      const updated = freshArticles ? freshArticles : articles.filter(a => a.id !== id);
       setArticles(updated);
       localStorage.setItem('solmint_articles', JSON.stringify(updated));
-      deleteArticleFromActiveDatabase(id);
     }
   };
 

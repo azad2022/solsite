@@ -18,21 +18,26 @@ export interface DatabaseConfig {
 }
 
 const DEFAULT_CONFIG: DatabaseConfig = {
-  provider: 'cloudflare_d1',
-  supabaseUrl: '',
-  supabaseAnonKey: '',
+  provider: 'supabase',
+  supabaseUrl: 'https://nvopkbiedorfshwbmyhn.supabase.co',
+  supabaseAnonKey: 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt',
   cloudflareWorkerEndpoint: '',
   cloudflareApiKey: ''
 };
 
 export function getDatabaseConfig(): DatabaseConfig {
   const metaEnv = (import.meta as any).env || {};
-  const storedProvider = (localStorage.getItem('solmint_db_provider') as DatabaseProvider) || 'cloudflare_d1';
+  const storedProvider = localStorage.getItem('solmint_db_provider') as DatabaseProvider | null;
   const storedCloudflareUrl = localStorage.getItem('solmint_cf_worker_url') || '';
   const storedCloudflareKey = localStorage.getItem('solmint_cf_worker_key') || '';
 
+  // Default to supabase unless explicitly set to cloudflare_d1 with a valid worker endpoint
+  const activeProvider: DatabaseProvider = (storedProvider === 'cloudflare_d1' && storedCloudflareUrl) 
+    ? 'cloudflare_d1' 
+    : 'supabase';
+
   return {
-    provider: storedProvider,
+    provider: activeProvider,
     supabaseUrl: metaEnv.VITE_SUPABASE_URL || localStorage.getItem('solmint_supabase_url') || DEFAULT_CONFIG.supabaseUrl,
     supabaseAnonKey: metaEnv.VITE_SUPABASE_ANON_KEY || localStorage.getItem('solmint_supabase_anon_key') || DEFAULT_CONFIG.supabaseAnonKey,
     cloudflareWorkerEndpoint: storedCloudflareUrl,
@@ -138,21 +143,24 @@ VALUES (
 export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | null> {
   const config = getDatabaseConfig();
 
-  // Try server database endpoint first
+  if (config.provider === 'supabase') {
+    const supaArticles = await fetchArticlesFromSupabase();
+    if (supaArticles !== null) {
+      return supaArticles;
+    }
+  }
+
+  // Fallback to server database endpoint
   try {
     const res = await fetch('/api/articles');
     if (res.ok) {
       const data = await res.json();
-      if (data.articles && Array.isArray(data.articles) && data.articles.length > 0) {
+      if (data.articles && Array.isArray(data.articles)) {
         return data.articles;
       }
     }
   } catch (err) {
     console.warn('Error fetching from server API:', err);
-  }
-
-  if (config.provider === 'supabase') {
-    return await fetchArticlesFromSupabase();
   }
 
   if (config.provider === 'cloudflare_d1') {
@@ -183,25 +191,28 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
  * Universal Save Article to active database and server storage
  */
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
-  // Always save to real server persistent database
+  const config = getDatabaseConfig();
+
+  // Primary persistence in Supabase
+  let supaSuccess = false;
+  if (config.provider === 'supabase' || !config.cloudflareWorkerEndpoint) {
+    supaSuccess = await saveArticleToSupabase(article);
+  }
+
+  // Also notify server backend /api/articles
+  let apiSuccess = false;
   try {
-    await fetch('/api/articles', {
+    const res = await fetch('/api/articles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(article)
     });
+    apiSuccess = res.ok;
   } catch (err) {
     console.warn('Error saving to server API:', err);
   }
 
-  const config = getDatabaseConfig();
-
-  if (config.provider === 'supabase') {
-    return await saveArticleToSupabase(article);
-  }
-
-  if (config.provider === 'cloudflare_d1') {
-    if (!config.cloudflareWorkerEndpoint) return false;
+  if (config.provider === 'cloudflare_d1' && config.cloudflareWorkerEndpoint) {
     try {
       const response = await fetch(`${config.cloudflareWorkerEndpoint}/api/articles`, {
         method: 'POST',
@@ -218,28 +229,29 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
     }
   }
 
-  return true;
+  return supaSuccess || apiSuccess;
 }
 
 /**
  * Universal Delete Article from active database and server storage
  */
 export async function deleteArticleFromActiveDatabase(articleId: string): Promise<boolean> {
-  // Always delete from real server persistent database
+  const config = getDatabaseConfig();
+
+  let supaSuccess = false;
+  if (config.provider === 'supabase' || !config.cloudflareWorkerEndpoint) {
+    supaSuccess = await deleteArticleFromSupabase(articleId);
+  }
+
+  let apiSuccess = false;
   try {
-    await fetch(`/api/articles/${articleId}`, { method: 'DELETE' });
+    const res = await fetch(`/api/articles/${articleId}`, { method: 'DELETE' });
+    apiSuccess = res.ok;
   } catch (err) {
     console.warn('Error deleting from server API:', err);
   }
 
-  const config = getDatabaseConfig();
-
-  if (config.provider === 'supabase') {
-    return await deleteArticleFromSupabase(articleId);
-  }
-
-  if (config.provider === 'cloudflare_d1') {
-    if (!config.cloudflareWorkerEndpoint) return false;
+  if (config.provider === 'cloudflare_d1' && config.cloudflareWorkerEndpoint) {
     try {
       const response = await fetch(`${config.cloudflareWorkerEndpoint}/api/articles/${articleId}`, {
         method: 'DELETE',
@@ -254,7 +266,7 @@ export async function deleteArticleFromActiveDatabase(articleId: string): Promis
     }
   }
 
-  return true;
+  return supaSuccess || apiSuccess;
 }
 
 /**

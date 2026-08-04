@@ -518,6 +518,7 @@ async function startServer() {
   // 4. REAL ARTICLES ENDPOINTS
   app.get("/api/articles", async (req, res) => {
     try {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       const articles = await getAllPublishedArticles();
       return res.json({ success: true, articles });
     } catch (err: any) {
@@ -532,13 +533,10 @@ async function startServer() {
         return res.status(400).json({ success: false, message: "مشخصات مقاله ناقص است." });
       }
 
-      // Save to disk
-      saveArticleToDisk(article);
-
-      // Save to Supabase if connected
+      // Save to Supabase if connected (Source of Truth)
       if (serverSupabase) {
         try {
-          await serverSupabase.from("articles").upsert({
+          const { error: spErr } = await serverSupabase.from("articles").upsert({
             id: article.id,
             title: article.title,
             slug: article.slug,
@@ -558,11 +556,21 @@ async function startServer() {
             seo_score: article.seoScore,
             is_draft: article.isDraft ? 1 : 0
           });
-        } catch (supabaseErr) {
-          console.warn("⚠️ Supabase upsert error:", supabaseErr);
+
+          if (spErr) {
+            console.error("❌ Supabase upsert error:", spErr);
+            return res.status(500).json({ success: false, message: `خطا در ذخیره‌سازی مقاله در Supabase: ${spErr.message}` });
+          }
+        } catch (supabaseErr: any) {
+          console.error("❌ Supabase upsert exception:", supabaseErr);
+          return res.status(500).json({ success: false, message: `خطا در ذخیره‌سازی مقاله در Supabase: ${supabaseErr.message || supabaseErr}` });
         }
       }
 
+      // Save to disk backup
+      saveArticleToDisk(article);
+
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.json({ success: true, message: "مقاله با موفقیت در دیتابیس ثبت و منتشر گردید.", article });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
@@ -572,16 +580,23 @@ async function startServer() {
   app.delete("/api/articles/:id", async (req, res) => {
     try {
       const articleId = req.params.id;
-      deleteArticleFromDisk(articleId);
 
       if (serverSupabase) {
         try {
-          await serverSupabase.from("articles").delete().or(`id.eq.${articleId},slug.eq.${articleId}`);
-        } catch (supabaseErr) {
-          console.warn("⚠️ Supabase delete error:", supabaseErr);
+          const { error: spErr } = await serverSupabase.from("articles").delete().or(`id.eq.${articleId},slug.eq.${articleId}`);
+          if (spErr) {
+            console.error("❌ Supabase delete error:", spErr);
+            return res.status(500).json({ success: false, message: `خطا در حذف مقاله از Supabase: ${spErr.message}` });
+          }
+        } catch (supabaseErr: any) {
+          console.error("❌ Supabase delete exception:", supabaseErr);
+          return res.status(500).json({ success: false, message: `خطا در حذف مقاله از Supabase: ${supabaseErr.message || supabaseErr}` });
         }
       }
 
+      deleteArticleFromDisk(articleId);
+
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.json({ success: true, message: "مقاله با موفقیت از دیتابیس حذف شد." });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });

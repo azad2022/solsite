@@ -192,28 +192,28 @@ export async function fetchArticlesFromSupabase(): Promise<Article[] | null> {
       return null;
     }
 
-    if (!data || data.length === 0) return null;
+    if (!data) return [];
 
     // Map database snake_case fields back to Article object
     return data.map((item: any) => ({
       id: item.id,
       title: item.title,
       slug: item.slug,
-      category: item.category,
+      category: item.category || 'آموزش سولانا',
       tags: item.tags || [],
-      summary: item.summary,
-      content: item.content,
-      coverImage: item.cover_image,
-      videoUrl: item.video_url,
+      summary: item.summary || '',
+      content: item.content || '',
+      coverImage: item.cover_image || '/images/blog-og.jpg',
+      videoUrl: item.video_url || undefined,
       author: item.author || { name: 'تیم سولمینت', role: 'مدیریت', avatar: '⚡' },
-      publishedAt: item.published_at,
-      publishedAtJalali: item.published_at_jalali,
-      publishedAtGregorian: item.published_at_gregorian,
+      publishedAt: item.published_at || item.created_at || new Date().toISOString().split('T')[0],
+      publishedAtJalali: item.published_at_jalali || '',
+      publishedAtGregorian: item.published_at_gregorian || '',
       readTimeMinutes: item.read_time_minutes || 5,
       viewsCount: item.views_count || 0,
       comments: item.comments || [],
       seoScore: item.seo_score || 90,
-      isDraft: item.is_draft || false
+      isDraft: Boolean(item.is_draft)
     }));
   } catch (err) {
     console.warn('Catch error in fetchArticlesFromSupabase:', err);
@@ -226,7 +226,10 @@ export async function fetchArticlesFromSupabase(): Promise<Article[] | null> {
  */
 export async function saveArticleToSupabase(article: Article): Promise<boolean> {
   const client = getSupabaseClient();
-  if (!client) return false;
+  if (!client) {
+    console.error('❌ Supabase client unavailable for saveArticleToSupabase');
+    return false;
+  }
 
   try {
     const dbPayload = {
@@ -248,7 +251,7 @@ export async function saveArticleToSupabase(article: Article): Promise<boolean> 
       views_count: article.viewsCount,
       comments: article.comments,
       seo_score: article.seoScore || 90,
-      is_draft: article.isDraft || false
+      is_draft: article.isDraft ? 1 : 0
     };
 
     const { error } = await client
@@ -256,13 +259,13 @@ export async function saveArticleToSupabase(article: Article): Promise<boolean> 
       .upsert(dbPayload, { onConflict: 'id' });
 
     if (error) {
-      console.warn('Supabase upsert warning:', error.message || error);
+      console.error('❌ Supabase article upsert error:', error.message || error);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.warn('Catch error in saveArticleToSupabase:', err);
+    console.error('❌ Catch error in saveArticleToSupabase:', err);
     return false;
   }
 }
