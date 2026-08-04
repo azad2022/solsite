@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/deepseek-autopublish-production
+      - main
   workflow_dispatch:
 
 permissions:
@@ -53,5 +54,19 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add server.ts
-          git diff --cached --quiet && echo 'No changes to commit.' || git commit -m 'fix: harden DeepSeek scheduled publishing trigger'
-          git push origin HEAD:${{ github.ref_name }}
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: harden DeepSeek scheduled publishing trigger'
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo 'No server changes were necessary.'
+          fi
+
+      - name: Remove one-time migration workflow after main is patched
+        if: github.ref_name == 'main'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/apply-deepseek-production-fix.yml
+          git add .github/workflows/apply-deepseek-production-fix.yml
+          git commit -m 'chore: remove one-time DeepSeek migration workflow'
+          git push origin HEAD:main
