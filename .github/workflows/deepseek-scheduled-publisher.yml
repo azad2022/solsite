@@ -1,83 +1,18 @@
 name: Solmint DeepSeek Scheduled Publisher
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 4
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # One-time production migration. The previous migration workflow patched
-      # server.ts in the runner but failed before committing because this repo
-      # intentionally has no package-lock.json and therefore cannot use npm ci.
-      - name: Persist DeepSeek production cron endpoint
-        shell: python
-        run: |
-          from pathlib import Path
-
-          path = Path('server.ts')
-          text = path.read_text(encoding='utf-8')
-          changed = False
-
-          if 'const requireAutoPublishCronAuth' not in text:
-              marker = '''  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {\n    if (!isAuthorizedAdmin(req)) {\n      return res.status(401).json({\n        success: false,\n        message: "دسترسی غیرمجاز. برای انجام این عملیات باید به عنوان مدیر سیستم احراز هویت شده باشید."\n      });\n    }\n    next();\n  };\n'''
-              addition = marker + '''\n  // Dedicated production cron authentication. This endpoint never accepts the public admin UI passcode.\n  const requireAutoPublishCronAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {\n    const configuredSecret = String(process.env.AUTOPUBLISH_CRON_SECRET || '').trim();\n    const suppliedSecret = String(req.headers['x-autopublish-cron-secret'] || '').trim();\n\n    if (!configuredSecret || !suppliedSecret || suppliedSecret !== configuredSecret) {\n      return res.status(401).json({\n        success: false,\n        code: 'AUTOPUBLISH_CRON_UNAUTHORIZED',\n        message: 'احراز هویت سرویس زمان‌بندی انتشار خودکار نامعتبر است.'\n      });\n    }\n\n    next();\n  };\n'''
-              if marker not in text:
-                  raise SystemExit('Admin auth marker was not found; refusing to patch server.ts')
-              text = text.replace(marker, addition, 1)
-              changed = True
-
-          route_marker = '''  // API endpoint for triggering Server-Side Auto-Publishing\n  app.post("/api/deepseek/auto-publish", rateLimitMiddleware(15, 60000), async (req, res) => {\n'''
-          scheduled_route = '''  // Production cron endpoint: wake the scheduler without bypassing its due-time/idempotency checks.\n  app.post("/api/deepseek/auto-publish/scheduled", requireAutoPublishCronAuth, rateLimitMiddleware(30, 60000), async (req, res) => {\n    try {\n      await checkScheduledPublishing();\n      const latest = getCmsSettings().deepseek;\n      return res.json({\n        success: true,\n        status: latest?.lastExecutionStatus || 'idle',\n        message: latest?.lastExecutionMessage || 'بررسی زمان‌بندی انجام شد؛ در صورت رسیدن زمان انتشار، فرآیند اجرا خواهد شد.'\n      });\n    } catch (err: any) {\n      const message = err?.message || 'خطا در بررسی زمان‌بندی انتشار خودکار.';\n      console.error('[DeepSeek AutoPublish Cron] Scheduler error:', err);\n      return res.status(500).json({ success: false, code: 'AUTOPUBLISH_SCHEDULER_ERROR', message });\n    }\n  });\n\n'''
-          if '"/api/deepseek/auto-publish/scheduled"' not in text:
-              if route_marker not in text:
-                  raise SystemExit('Auto-publish endpoint marker was not found; refusing to patch server.ts')
-              text = text.replace(route_marker, scheduled_route + route_marker, 1)
-              changed = True
-
-          if changed:
-              path.write_text(text, encoding='utf-8')
-              print('server.ts patched successfully')
-          else:
-              print('server.ts already contains the production cron patch')
-
-      - name: Validate production patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f server.ts
-          grep -q "const requireAutoPublishCronAuth" server.ts
-          grep -q '/api/deepseek/auto-publish/scheduled' server.ts
-          grep -q 'checkScheduledPublishing()' server.ts
-          echo 'Production DeepSeek scheduler patch validation passed.'
-
-      - name: Commit production patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- server.ts; then
-            echo 'No server.ts changes to commit.'
-          else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add server.ts
-            git commit -m 'fix: harden DeepSeek scheduled publishing trigger'
-            git push origin HEAD:main
-          fi
-
       - name: Check production schedule and publish only when due
         env:
           SITE_URL: https://solmint.ir
