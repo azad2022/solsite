@@ -1,0 +1,54 @@
+name: Solmint DeepSeek Auto-Publish Watchdog
+
+on:
+  schedule:
+    # GitHub Actions cron has a 5-minute minimum interval.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-autopublish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger production auto-publish worker
+        env:
+          SITE_URL: https://solmint.ir
+        run: |
+          set -euo pipefail
+
+          url="${SITE_URL%/}/api/deepseek/auto-publish"
+          echo "[watchdog] Calling ${url}"
+
+          response_file="$(mktemp)"
+          http_code="$(curl --silent --show-error --location \
+            --max-time 90 \
+            --retry 2 \
+            --retry-delay 3 \
+            --retry-all-errors \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            --output "${response_file}" \
+            --write-out '%{http_code}' \
+            "${url}")"
+
+          echo "[watchdog] HTTP ${http_code}"
+          cat "${response_file}"
+          echo
+
+          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ]; then
+            echo "[watchdog] Auto-publish endpoint returned HTTP ${http_code}" >&2
+            exit 1
+          fi
+
+          if ! grep -q '"success":true' "${response_file}"; then
+            echo "[watchdog] Request reached the server, but auto-publish did not report success." >&2
+            echo "[watchdog] This is expected when the schedule is not due yet; inspect the JSON/log message above for the exact reason." >&2
+          fi
+
+      - name: Report watchdog completion
+        if: always()
+        run: echo "[watchdog] Production auto-publish check completed at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
