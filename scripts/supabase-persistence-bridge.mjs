@@ -56,8 +56,11 @@ if (!key) {
   const syncUsersToDb = async () => {
     const users = readJson(USERS_FILE);
     if (!Array.isArray(users)) return;
+
+    const localIds = new Set();
     for (const user of users) {
       if (!user?.id || !user?.username) continue;
+      localIds.add(String(user.id));
       const payload = {
         id: String(user.id),
         username: String(user.username).trim().toLowerCase(),
@@ -71,6 +74,18 @@ if (!key) {
 
       const { error } = await supabase.from('users').upsert(payload, { onConflict: 'id' });
       if (error) console.warn(`⚠️ User ${user.username} Supabase sync failed:`, error.message);
+    }
+
+    const { data: dbUsers, error: dbListError } = await supabase.from('users').select('id');
+    if (dbListError) {
+      console.warn('⚠️ Could not reconcile deleted users with Supabase:', dbListError.message);
+      return;
+    }
+
+    const staleIds = (dbUsers || []).map((u) => String(u.id)).filter((id) => !localIds.has(id));
+    if (staleIds.length > 0) {
+      const { error } = await supabase.from('users').delete().in('id', staleIds);
+      if (error) console.warn('⚠️ Supabase stale-user cleanup failed:', error.message);
     }
   };
 
