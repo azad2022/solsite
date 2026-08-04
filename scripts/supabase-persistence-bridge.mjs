@@ -58,16 +58,18 @@ if (!key) {
     if (!Array.isArray(users)) return;
     for (const user of users) {
       if (!user?.id || !user?.username) continue;
-      const { error } = await supabase.from('users').upsert({
+      const payload = {
         id: String(user.id),
         username: String(user.username).trim().toLowerCase(),
         full_name: String(user.fullName || user.username),
         password_hash: String(user.passwordHash || ''),
         role: user.role || 'user',
         permissions: Array.isArray(user.permissions) ? user.permissions : [],
-        is_active: user.isActive !== false,
-        created_at: user.createdAt && !String(user.createdAt).includes('/') ? user.createdAt : undefined
-      }, { onConflict: 'id' });
+        is_active: user.isActive !== false
+      };
+      if (user.createdAt && !String(user.createdAt).includes('/')) payload.created_at = user.createdAt;
+
+      const { error } = await supabase.from('users').upsert(payload, { onConflict: 'id' });
       if (error) console.warn(`⚠️ User ${user.username} Supabase sync failed:`, error.message);
     }
   };
@@ -85,7 +87,10 @@ if (!key) {
   };
 
   const hydrateUsersFromDb = async () => {
-    const { data, error } = await supabase.from('users').select('id,username,full_name,password_hash,role,permissions,is_active,created_at').order('created_at', { ascending: true });
+    const { data, error } = await supabase
+      .from('users')
+      .select('id,username,full_name,password_hash,role,permissions,is_active,created_at')
+      .order('created_at', { ascending: true });
     if (error) {
       console.warn('⚠️ Could not read users from Supabase:', error.message);
       return false;
@@ -118,6 +123,8 @@ if (!key) {
     hydrating = false;
   };
 
+  await bootstrap();
+
   fs.watchFile(SETTINGS_FILE, { interval: 1500 }, () => {
     if (hydrating) return;
     clearTimeout(settingsTimer);
@@ -128,10 +135,5 @@ if (!key) {
     if (hydrating) return;
     clearTimeout(usersTimer);
     usersTimer = setTimeout(() => syncUsersToDb().catch(() => {}), 500);
-  });
-
-  bootstrap().catch((error) => {
-    hydrating = false;
-    console.warn('⚠️ Supabase persistence bridge bootstrap failed:', error?.message || error);
   });
 }
