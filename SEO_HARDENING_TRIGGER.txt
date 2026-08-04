@@ -1,0 +1,1 @@
+One-shot trigger for the production SEO hardening workflow.
