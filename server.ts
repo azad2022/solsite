@@ -15,6 +15,7 @@ import { createServer as createViteServer } from "vite";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { INITIAL_ARTICLES } from "./src/data/initialBlogData";
 import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from "./src/utils/seoManager";
+import { renderMarkdownToHtml } from "./src/utils/markdownRenderer";
 import {
   getAllUsers,
   saveUsers,
@@ -1333,8 +1334,8 @@ async function startServer() {
               </div>
             </header>
             <hr style="border:0;border-top:1px solid #334155;margin:1.5rem 0;" />
-            <div style="font-size:1rem;line-height:1.8;color:#e2e8f0;white-space:pre-line;">
-              ${articleData.content}
+            <div class="article-content" style="font-size:1rem;line-height:1.8;color:#e2e8f0;">
+              ${renderMarkdownToHtml(articleData.content)}
             </div>
           </article>
         </main>

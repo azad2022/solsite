@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Article, ArticleComment, UserAccount } from '../types';
 import { sanitizeText, safeSetLocalStorage } from '../utils/security';
 import { addCommentApi } from '../utils/cmsApiClient';
+import { renderMarkdownToHtml } from '../utils/markdownRenderer';
 import { AuthorAvatar } from './AuthorAvatar';
 import {
   Search,
@@ -437,10 +438,11 @@ export const BlogHub: React.FC<BlogHubProps> = ({
               </div>
             )}
 
-            {/* Main article body: larger mobile type, more line-height and a readable column. */}
-            <div className="prose prose-invert max-w-3xl mx-auto w-full text-slate-200 text-[15px] sm:text-base leading-8 sm:leading-8 space-y-5 whitespace-pre-line bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words">
-              {readingArticle.content}
-            </div>
+            {/* Semantic article body: Markdown is rendered as real HTML for users and crawlers. */}
+            <div
+              className="article-content max-w-3xl mx-auto w-full bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words"
+              dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }}
+            />
 
             {/* Comments */}
             <div className="pt-5 sm:pt-7 border-t border-slate-800 space-y-5 sm:space-y-6">

@@ -81,6 +81,38 @@
   box-shadow: 0 0 30px rgba(153, 69, 255, 0.4);
 }
 
+/* Semantic article typography. Independent of the Tailwind typography plugin. */
+.article-content {
+  color: #e2e8f0;
+  font-size: 1rem;
+  line-height: 1.95;
+  direction: rtl;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.article-content > * + * { margin-top: 1.25rem; }
+.article-content h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); line-height: 1.45; font-weight: 800; color: #fff; margin-top: 2rem; }
+.article-content h3 { font-size: clamp(1.15rem, 2.5vw, 1.45rem); line-height: 1.5; font-weight: 750; color: #f8fafc; margin-top: 1.75rem; }
+.article-content h4, .article-content h5, .article-content h6 { font-weight: 700; color: #f8fafc; margin-top: 1.5rem; }
+.article-content p { margin: 0; }
+.article-content ul, .article-content ol { padding-right: 1.5rem; padding-left: 0; }
+.article-content ul { list-style: disc; }
+.article-content ol { list-style: decimal; }
+.article-content li { padding-right: .35rem; margin-top: .45rem; }
+.article-content a { color: #38bdf8; text-decoration: underline; text-underline-offset: 3px; }
+.article-content strong { color: #fff; font-weight: 800; }
+.article-content code { direction: ltr; unicode-bidi: plaintext; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: rgba(15,23,42,.9); border: 1px solid rgba(71,85,105,.6); border-radius: .45rem; padding: .12rem .35rem; }
+.article-content pre { direction: ltr; text-align: left; overflow-x: auto; background: #020617; border: 1px solid rgba(71,85,105,.7); border-radius: .85rem; padding: 1rem; line-height: 1.7; white-space: pre; }
+.article-content pre code { display: block; background: transparent; border: 0; padding: 0; color: #e2e8f0; }
+.article-content blockquote { margin-right: 0; border-right: 3px solid #38bdf8; padding: .75rem 1rem; background: rgba(14,165,233,.06); color: #cbd5e1; }
+.article-content hr { border: 0; border-top: 1px solid rgba(71,85,105,.7); }
+.article-content img { display: block; max-width: 100%; height: auto; margin: 1.25rem auto; border-radius: .85rem; }
+@media (max-width: 767px) {
+  .article-content { font-size: 1rem; line-height: 2; }
+  .article-content h2 { margin-top: 1.75rem; }
+  .article-content pre { font-size: .82rem; margin-left: -.25rem; margin-right: -.25rem; }
+}
+
 /* Article reader: isolate the scroll-lock rules to the article reader only.
    Do NOT target every z-50 fixed modal: the admin CMS is also a fixed z-50
    modal and must retain normal touch scrolling on mobile devices. */
