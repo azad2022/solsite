@@ -25,11 +25,12 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
 
   const navigateToArticle = (art: Article) => {
     const path = `/article/${art.slug}`;
-    if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path);
-    }
-    window.dispatchEvent(new PopStateEvent('popstate'));
-    window.scrollTo({ top: 0, behavior: 'auto' });
+
+    // Use a real browser navigation here. The homepage previously relied on
+    // manually dispatching a synthetic popstate event after pushState. That
+    // could leave React's route state out of sync on some mobile browsers,
+    // making the card appear clickable while keeping the homepage mounted.
+    window.location.assign(path);
   };
 
   return (
