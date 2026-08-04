@@ -478,21 +478,17 @@ export async function sendDeepSeekChatMessage(
   const model = chatbotSettings.model || deepseekSettings.model || 'deepseek-chat';
   const systemPrompt = chatbotSettings.systemPrompt;
 
-  if (!apiKey || apiKey.trim().length === 0) {
-    throw new Error('کلید API پشتیبانی آنلاین در تنظیمات ثبت نشده است. مدیر وبسایت باید کلید API را در پنل مدیریت وارد کند.');
-  }
-
   const turnsToKeep = chatbotSettings.maxHistoryTurns || 8;
   const recentMessages = messages.slice(-turnsToKeep);
 
-  // 1. Try server proxy endpoint first
+  // 1. Try server proxy endpoint first (it checks server-side environment variables & settings if client key is empty)
   try {
     const proxyRes = await fetch('/api/deepseek/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        apiKey: apiKey.trim(),
-        baseUrl: baseUrl.trim(),
+        apiKey: apiKey ? apiKey.trim() : undefined,
+        baseUrl: baseUrl ? baseUrl.trim() : undefined,
         model: model,
         systemPrompt: systemPrompt,
         messages: recentMessages
@@ -508,7 +504,7 @@ export async function sendDeepSeekChatMessage(
       if (errData.error) {
         const rawErr = typeof errData.error === 'string' ? errData.error : errData.error.message || '';
         if (rawErr.toLowerCase().includes('authentication') || rawErr.toLowerCase().includes('api key') || rawErr.toLowerCase().includes('invalid')) {
-          throw new Error('کلید API پشتیبانی آنلاین (DeepSeek API Key) نامعتبر یا منقضی است. لطفاً کلید معتبر را در پنل مدیریت تنظیم نمایید.');
+          throw new Error('کلید API پشتیبانی آنلاین (DeepSeek API Key) نامعتبر یا تنظیم نشده است. لطفاً کلید معتبر را در پنل مدیریت تنظیم نمایید.');
         }
         throw new Error(rawErr || `خطا در پاسخ API (${proxyRes.status})`);
       }
@@ -520,7 +516,11 @@ export async function sendDeepSeekChatMessage(
     }
   }
 
-  // 2. Direct fetch fallback
+  // 2. Direct fetch fallback (requires client-side key)
+  if (!apiKey || apiKey.trim().length === 0) {
+    throw new Error('کلید API پشتیبانی آنلاین در تنظیمات ثبت نشده است. مدیر وبسایت باید کلید API را در پنل مدیریت وارد کند.');
+  }
+
   const endpoint = buildDeepSeekEndpoint(baseUrl);
   const fullPayloadMessages = [
     { role: 'system', content: systemPrompt },
