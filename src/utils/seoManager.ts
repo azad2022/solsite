@@ -21,9 +21,7 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'website',
     ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
     h1: 'پلتفرم غیرمتمرکز و اپلیکیشن سولانا سولمینت',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }]
   },
   '/solana-wallet': {
     path: '/solana-wallet',
@@ -33,10 +31,7 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'article',
     ogImage: `${SITE_DOMAIN}/images/solana-wallet-og.jpg`,
     h1: 'کیف پول غیرامانی و امن سولانا در اپلیکیشن سولمینت',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'کیف پول سولانا', url: `${SITE_DOMAIN}/solana-wallet` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'کیف پول سولانا', url: `${SITE_DOMAIN}/solana-wallet` }]
   },
   '/solana-token': {
     path: '/solana-token',
@@ -46,10 +41,7 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'article',
     ogImage: `${SITE_DOMAIN}/images/solana-token-og.jpg`,
     h1: 'آموزش و قابلیت ساخت توکن سولانا (SPL Token)',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'ساخت توکن سولانا', url: `${SITE_DOMAIN}/solana-token` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'ساخت توکن سولانا', url: `${SITE_DOMAIN}/solana-token` }]
   },
   '/solana-meme-coin': {
     path: '/solana-meme-coin',
@@ -59,10 +51,7 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'article',
     ogImage: `${SITE_DOMAIN}/images/meme-coin-og.jpg`,
     h1: 'راهنمای ساخت میم کوین در شبکه سولانا',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'ساخت میم کوین', url: `${SITE_DOMAIN}/solana-meme-coin` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'ساخت میم کوین', url: `${SITE_DOMAIN}/solana-meme-coin` }]
   },
   '/solana-nft': {
     path: '/solana-nft',
@@ -72,10 +61,7 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'article',
     ogImage: `${SITE_DOMAIN}/images/solana-nft-og.jpg`,
     h1: 'مدیریت و ضرب NFT در شبکه قدرتمند سولانا',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'NFT سولانا', url: `${SITE_DOMAIN}/solana-nft` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'NFT سولانا', url: `${SITE_DOMAIN}/solana-nft` }]
   },
   '/security': {
     path: '/security',
@@ -85,10 +71,7 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'article',
     ogImage: `${SITE_DOMAIN}/images/security-og.jpg`,
     h1: 'معماری امنیتی و مدل غیرامانی اپلیکیشن سولمینت',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'امنیت و معماری', url: `${SITE_DOMAIN}/security` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'امنیت و معماری', url: `${SITE_DOMAIN}/security` }]
   },
   '/download': {
     path: '/download',
@@ -98,23 +81,17 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'website',
     ogImage: `${SITE_DOMAIN}/images/download-og.jpg`,
     h1: 'دانلود مستقیم نسخه اندروید اپلیکیشن سولمینت',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'دانلود اپلیکیشن', url: `${SITE_DOMAIN}/download` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'دانلود اپلیکیشن', url: `${SITE_DOMAIN}/download` }]
   },
   '/blog': {
     path: '/blog',
     title: 'وبلاگ و آکادمی آموزشی سولمینت | آموزش وب۳، سولانا و کریپتو',
     description: 'مقالات تخصصی و آموزش‌های جامع سولانا، ساخت توکن، مدیریت کیف پول غیرامانی، امنیت کریپتو و اخبار تحلیلی شبکه سولانا در آکادمی solmint.ir.',
     canonical: `${SITE_DOMAIN}/blog`,
-    ogType: 'blog',
+    ogType: 'website',
     ogImage: `${SITE_DOMAIN}/images/blog-og.jpg`,
     h1: 'آکادمی و وبلاگ آموزشی سولمینت',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'وبلاگ آموزشی', url: `${SITE_DOMAIN}/blog` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'وبلاگ آموزشی', url: `${SITE_DOMAIN}/blog` }]
   },
   '/faq': {
     path: '/faq',
@@ -124,116 +101,59 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     ogType: 'website',
     ogImage: `${SITE_DOMAIN}/images/faq-og.jpg`,
     h1: 'سوالات متداول و راهنمای کامل سولمینت',
-    breadcrumbs: [
-      { name: 'خانه', url: `${SITE_DOMAIN}/` },
-      { name: 'سوالات متداول', url: `${SITE_DOMAIN}/faq` }
-    ]
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'سوالات متداول', url: `${SITE_DOMAIN}/faq` }]
   }
 };
 
-/**
- * Returns structured RouteSeoInfo for a given URL path and optional article
- */
-export function getRouteSeoInfo(path: string, articleData?: { title: string; summary: string; slug: string; coverImage?: string }): RouteSeoInfo {
+type ArticleSeoData = {
+  title: string;
+  summary: string;
+  slug: string;
+  coverImage?: string;
+  publishedAtGregorian?: string;
+  updatedAt?: string | null;
+  author?: { name?: string; role?: string };
+};
+
+export function getRouteSeoInfo(path: string, articleData?: ArticleSeoData): RouteSeoInfo {
   let info = ROUTES_SEO_MAP[path];
 
+  if (!info && (path.startsWith('/article/') || path.startsWith('/blog/')) && articleData) {
+    info = {
+      path: `/article/${articleData.slug}`,
+      title: `${articleData.title} | وبلاگ و آموزش سولمینت`,
+      description: articleData.summary,
+      canonical: `${SITE_DOMAIN}/article/${articleData.slug}`,
+      ogType: 'article',
+      ogImage: articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
+      h1: articleData.title,
+      breadcrumbs: [
+        { name: 'خانه', url: `${SITE_DOMAIN}/` },
+        { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
+        { name: articleData.title, url: `${SITE_DOMAIN}/article/${articleData.slug}` }
+      ]
+    };
+  }
+
   if (!info) {
-    if (path.startsWith('/article/') || path.startsWith('/blog/')) {
-      if (articleData) {
-        info = {
-          path: `/article/${articleData.slug}`,
-          title: `${articleData.title} | وبلاگ و آموزش سولمینت`,
-          description: articleData.summary,
-          canonical: `${SITE_DOMAIN}/article/${articleData.slug}`,
-          ogType: 'article',
-          ogImage: articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
-          h1: articleData.title,
-          breadcrumbs: [
-            { name: 'خانه', url: `${SITE_DOMAIN}/` },
-            { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
-            { name: articleData.title, url: `${SITE_DOMAIN}/article/${articleData.slug}` }
-          ]
-        };
-      } else {
-        info = {
-          path,
-          title: 'صفحه مورد نظر یافت نشد (۴۰۴) | سولمینت',
-          description: 'متأسفانه مقاله یا صفحه مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.',
-          canonical: `${SITE_DOMAIN}${path}`,
-          ogType: 'website',
-          ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
-          h1: '۴۰۴ - مقاله مورد نظر یافت نشد',
-          breadcrumbs: [
-            { name: 'خانه', url: `${SITE_DOMAIN}/` },
-            { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
-            { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }
-          ],
-          is404: true
-        };
-      }
-    } else {
-      info = {
-        path,
-        title: 'صفحه مورد نظر یافت نشد (۴۰۴) | سولمینت',
-        description: 'متأسفانه صفحه مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.',
-        canonical: `${SITE_DOMAIN}${path}`,
-        ogType: 'website',
-        ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
-        h1: '۴۰۴ - صفحه مورد نظر یافت نشد',
-        breadcrumbs: [
-          { name: 'خانه', url: `${SITE_DOMAIN}/` },
-          { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }
-        ],
-        is404: true
-      };
-    }
+    info = {
+      path,
+      title: 'صفحه مورد نظر یافت نشد (۴۰۴) | سولمینت',
+      description: path.startsWith('/article/') || path.startsWith('/blog/')
+        ? 'متأسفانه مقاله مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.'
+        : 'متأسفانه صفحه مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.',
+      canonical: `${SITE_DOMAIN}${path}`,
+      ogType: 'website',
+      ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+      h1: path.startsWith('/article/') || path.startsWith('/blog/') ? '۴۰۴ - مقاله مورد نظر یافت نشد' : '۴۰۴ - صفحه مورد نظر یافت نشد',
+      breadcrumbs: path.startsWith('/article/') || path.startsWith('/blog/')
+        ? [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` }, { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }]
+        : [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }],
+      is404: true
+    };
   }
 
   return info;
-}
-
-/**
- * Updates browser DOM head metadata dynamically according to current route
- */
-export function updateRouteSeo(path: string, articleData?: { title: string; summary: string; slug: string; coverImage?: string }) {
-  if (typeof document === 'undefined') return;
-
-  const info = getRouteSeoInfo(path, articleData);
-
-  // 1. Title
-  document.title = info.title;
-
-  // 2. Meta Description
-  let metaDesc = document.querySelector('meta[name="description"]');
-  if (!metaDesc) {
-    metaDesc = document.createElement('meta');
-    metaDesc.setAttribute('name', 'description');
-    document.head.appendChild(metaDesc);
-  }
-  metaDesc.setAttribute('content', info.description);
-
-  // 3. Canonical URL
-  let canonicalLink = document.querySelector('link[rel="canonical"]');
-  if (!canonicalLink) {
-    canonicalLink = document.createElement('link');
-    canonicalLink.setAttribute('rel', 'canonical');
-    document.head.appendChild(canonicalLink);
-  }
-  canonicalLink.setAttribute('href', info.canonical);
-
-  // 4. OpenGraph Meta Tags
-  setMetaProperty('og:title', info.title);
-  setMetaProperty('og:description', info.description);
-  setMetaProperty('og:url', info.canonical);
-  setMetaProperty('og:type', info.ogType || 'website');
-  setMetaProperty('og:site_name', 'سولمینت - SolMint');
-  setMetaProperty('og:locale', 'fa_IR');
-  if (info.ogImage) {
-    setMetaProperty('og:image', info.ogImage);
-  }
-
-  // 5. Inject JSON-LD Schema
-  injectJsonLdSchema(info);
 }
 
 function setMetaProperty(property: string, content: string) {
@@ -246,52 +166,110 @@ function setMetaProperty(property: string, content: string) {
   meta.setAttribute('content', content);
 }
 
-function injectJsonLdSchema(info: RouteSeoInfo) {
-  // Remove existing dynamic script
-  const existingScript = document.getElementById('solmint-dynamic-jsonld');
-  if (existingScript) {
-    existingScript.remove();
+function setMetaName(name: string, content: string) {
+  let meta = document.querySelector(`meta[name="${name}"]`);
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.setAttribute('name', name);
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute('content', content);
+}
+
+export function updateRouteSeo(path: string, articleData?: ArticleSeoData) {
+  if (typeof document === 'undefined') return;
+
+  const info = getRouteSeoInfo(path, articleData);
+  document.title = info.title;
+
+  setMetaName('description', info.description);
+  setMetaName('robots', info.is404 ? 'noindex, follow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+
+  let canonicalLink = document.querySelector('link[rel="canonical"]');
+  if (!canonicalLink) {
+    canonicalLink = document.createElement('link');
+    canonicalLink.setAttribute('rel', 'canonical');
+    document.head.appendChild(canonicalLink);
+  }
+  canonicalLink.setAttribute('href', info.canonical);
+
+  setMetaProperty('og:title', info.title);
+  setMetaProperty('og:description', info.description);
+  setMetaProperty('og:url', info.canonical);
+  setMetaProperty('og:type', info.ogType || 'website');
+  setMetaProperty('og:site_name', 'سولمینت - SolMint');
+  setMetaProperty('og:locale', 'fa_IR');
+  setMetaProperty('og:image', info.ogImage || `${SITE_DOMAIN}/images/blog-og.jpg`);
+  setMetaProperty('og:image:alt', info.title);
+
+  setMetaName('twitter:card', 'summary_large_image');
+  setMetaName('twitter:title', info.title);
+  setMetaName('twitter:description', info.description);
+  setMetaName('twitter:url', info.canonical);
+  setMetaName('twitter:image', info.ogImage || `${SITE_DOMAIN}/images/blog-og.jpg`);
+
+  if (articleData && info.ogType === 'article') {
+    if (articleData.publishedAtGregorian) setMetaProperty('article:published_time', articleData.publishedAtGregorian.replace(/\//g, '-'));
+    if (articleData.updatedAt) setMetaProperty('article:modified_time', articleData.updatedAt);
+    setMetaProperty('article:section', 'آموزش و تحلیل');
   }
 
+  injectJsonLdSchema(info, articleData);
+}
+
+function injectJsonLdSchema(info: RouteSeoInfo, articleData?: ArticleSeoData) {
+  const existingScript = document.getElementById('solmint-dynamic-jsonld');
+  if (existingScript) existingScript.remove();
+
   const schemas: any[] = [
-    // Organization Schema
     {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "SolMint",
-      "alternateName": "سولمینت",
-      "url": SITE_DOMAIN,
-      "logo": `${SITE_DOMAIN}/images/logo.png`,
-      "description": "پلتفرم رسمی و مرجع آموزشی اپلیکیشن غیرامانی سولانا و ساخت توکن SPL"
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      '@id': `${SITE_DOMAIN}#organization`,
+      name: 'SolMint',
+      alternateName: 'سولمینت',
+      url: SITE_DOMAIN,
+      logo: `${SITE_DOMAIN}/images/logo.png`,
+      description: 'پلتفرم و مرجع آموزشی اپلیکیشن غیرامانی سولانا و ساخت توکن SPL'
     },
-    // SoftwareApplication Schema (Android App explicitly)
     {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "SolMint Solana App",
-      "alternateName": "اپلیکیشن اندروید سولمینت",
-      "operatingSystem": "Android",
-      "applicationCategory": "FinanceApplication",
-      "downloadUrl": `${SITE_DOMAIN}/download`,
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "description": "اپلیکیشن غیرامانی سولانا برای مدیریت کیف پول، ساخت توکن SPL و میم کوین در سیستم‌عامل اندروید"
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      '@id': `${SITE_DOMAIN}#website`,
+      name: 'سولمینت',
+      url: SITE_DOMAIN,
+      inLanguage: 'fa-IR',
+      publisher: { '@id': `${SITE_DOMAIN}#organization` }
     },
-    // BreadcrumbList Schema
     {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": info.breadcrumbs.map((b, idx) => ({
-        "@type": "ListItem",
-        "position": idx + 1,
-        "name": b.name,
-        "item": b.url
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: info.breadcrumbs.map((b, idx) => ({
+        '@type': 'ListItem', position: idx + 1, name: b.name, item: b.url
       }))
     }
   ];
+
+  if (!info.is404 && articleData && info.ogType === 'article') {
+    schemas.push({
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      '@id': `${info.canonical}#article`,
+      headline: articleData.title,
+      description: articleData.summary,
+      image: articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
+      author: {
+        '@type': 'Person',
+        name: articleData.author?.name || 'تیم تحریریه سولمینت',
+        jobTitle: articleData.author?.role || 'تیم تحریریه'
+      },
+      publisher: { '@id': `${SITE_DOMAIN}#organization` },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': info.canonical },
+      datePublished: articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\//g, '-') : undefined,
+      dateModified: articleData.updatedAt || undefined,
+      inLanguage: 'fa-IR'
+    });
+  }
 
   const script = document.createElement('script');
   script.id = 'solmint-dynamic-jsonld';
