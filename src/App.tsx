@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { SolanaStatus, Article, MediaItem, Testimonial, UserAccount, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from './types';
 import { INITIAL_ARTICLES, INITIAL_MEDIA_ITEMS, INITIAL_TESTIMONIALS } from './data/initialBlogData';
-import { safeGetLocalStorage } from './utils/security';
+import { safeGetLocalStorage, safeSetLocalStorage } from './utils/security';
 import { ParticleCanvas } from './components/ParticleCanvas';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';

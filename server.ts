@@ -134,6 +134,16 @@ async function getAllPublishedArticles(): Promise<any[]> {
   return articles;
 }
 
+function xmlEscape(str: string): string {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 /**
  * Calculates accurate lastmod date for sitemap & JSON-LD
  */
@@ -2029,7 +2039,7 @@ async function startServer() {
     });
   });
 
-  // Dynamic Sitemap XML Endpoint fetching from REAL article data source
+  // Dynamic Sitemap XML Endpoint fetching from REAL article data source (Supabase)
   app.get("/sitemap.xml", async (req, res) => {
     const baseUrl = "https://solmint.ir";
 
@@ -2048,19 +2058,23 @@ async function startServer() {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-    // Static primary pages (no artificial lastmod, no priority, no changefreq)
+    // Static primary pages
     staticRoutes.forEach(r => {
       xml += `  <url>\n`;
       xml += `    <loc>${baseUrl}${r.path}</loc>\n`;
       xml += `  </url>\n`;
     });
 
-    // Dynamic Published Articles from REAL Database Data Source
+    // Dynamic Published Articles from REAL Database Data Source (Supabase)
     const allArticles = await getAllPublishedArticles();
     allArticles.forEach(art => {
+      if (art.isDraft) return;
+      const cleanSlug = (art.slug || "").trim().replace(/^\/+|\/+$/g, "");
+      if (!cleanSlug) return;
+
       const artLastMod = formatLastModDate(art);
       xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}/article/${art.slug}</loc>\n`;
+      xml += `    <loc>${baseUrl}/article/${xmlEscape(cleanSlug)}</loc>\n`;
       if (artLastMod) {
         xml += `    <lastmod>${artLastMod}</lastmod>\n`;
       }
@@ -2071,9 +2085,55 @@ async function startServer() {
 
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=3600");
     return res.type("xml").send(xml);
   });
+
+  // Dynamic RSS 2.0 Feed Endpoint
+  const rssHandler = async (req: any, res: any) => {
+    const baseUrl = "https://solmint.ir";
+    const allArticles = await getAllPublishedArticles();
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">\n`;
+    xml += `  <channel>\n`;
+    xml += `    <title>آکادمی و وبلاگ سولمینت</title>\n`;
+    xml += `    <link>${baseUrl}/blog</link>\n`;
+    xml += `    <description>مقالات تخصصی و آموزش‌های جامع سولانا، ساخت توکن، مدیریت کیف پول غیرامانی و امنیت کریپتو</description>\n`;
+    xml += `    <language>fa-ir</language>\n`;
+    xml += `    <atom:link href="${baseUrl}/rss.xml" rel="self" type="application/rss+xml" />\n`;
+
+    allArticles.forEach(art => {
+      if (art.isDraft) return;
+      const cleanSlug = (art.slug || "").trim().replace(/^\/+|\/+$/g, "");
+      if (!cleanSlug) return;
+
+      const artUrl = `${baseUrl}/article/${xmlEscape(cleanSlug)}`;
+      const rawDate = art.publishedAtGregorian || art.publishedAt || art.createdAt || art.created_at;
+      const parsedDate = rawDate ? new Date(rawDate) : new Date();
+      const pubDate = !isNaN(parsedDate.getTime()) ? parsedDate.toUTCString() : new Date().toUTCString();
+
+      xml += `    <item>\n`;
+      xml += `      <title>${xmlEscape(art.title)}</title>\n`;
+      xml += `      <link>${artUrl}</link>\n`;
+      xml += `      <guid isPermaLink="true">${artUrl}</guid>\n`;
+      xml += `      <description>${xmlEscape(art.summary || "")}</description>\n`;
+      xml += `      <pubDate>${pubDate}</pubDate>\n`;
+      xml += `    </item>\n`;
+    });
+
+    xml += `  </channel>\n`;
+    xml += `</rss>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=3600");
+    return res.type("xml").send(xml);
+  };
+
+  app.get("/rss.xml", rssHandler);
+  app.get("/feed.xml", rssHandler);
+  app.get("/feed", rssHandler);
 
   // Dynamic Robots.txt Endpoint
   app.get("/robots.txt", (req, res) => {
@@ -2097,7 +2157,7 @@ Sitemap: https://solmint.ir/sitemap.xml
 `;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Cache-Control", "public, max-age=3600");
     return res.type("text").send(robotsTxt);
   });
 

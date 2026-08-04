@@ -1,5 +1,58 @@
 [
   {
+    "id": "audit_draft_1785837352645",
+    "title": "مقاله پیش‌نویس محرمانه - نباید در سایت‌مپ باشد",
+    "slug": "test-audit-draft-secret-1785837352645",
+    "category": "پیش‌نویس",
+    "tags": [
+      "مخفی"
+    ],
+    "summary": "این پیش‌نویس نباید به هیچ عنوان در sitemap.xml قرار گیرد.",
+    "content": "محتوای محرمانه پیش‌نویس",
+    "coverImage": "/images/blog-og.jpg",
+    "author": {
+      "name": "نویسنده",
+      "role": "ویرایشگر",
+      "avatar": "⚡"
+    },
+    "publishedAt": "1405/05/13",
+    "publishedAtJalali": "1405/05/13",
+    "publishedAtGregorian": "2026-08-04",
+    "readTimeMinutes": 1,
+    "viewsCount": 0,
+    "comments": [],
+    "seoScore": 50,
+    "isDraft": true
+  },
+  {
+    "id": "audit_art_1785837352645",
+    "title": "تست اختصاصی بررسی سایت‌مپ و ایندکس گوگل",
+    "slug": "test-audit-solana-guide-1785837352645",
+    "category": "آموزش سولانا",
+    "tags": [
+      "سولانا",
+      "آزمایش",
+      "سایت‌مپ"
+    ],
+    "summary": "این مقاله برای تست خودکار سایت‌مپ و سوپابیس ایجاد شده است.",
+    "content": "محتوای مقاله تست که باید در سایت‌مپ و آراس‌اس و سئو سرور ثبت گردد.",
+    "coverImage": "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=1200&q=80",
+    "videoUrl": null,
+    "author": {
+      "name": "تیم ممیزی",
+      "role": "تستر آکادمی",
+      "avatar": "⚡"
+    },
+    "publishedAt": "1405/05/13 (2026-08-04)",
+    "publishedAtJalali": "1405/05/13",
+    "publishedAtGregorian": "2026-08-04",
+    "readTimeMinutes": 5,
+    "viewsCount": 1,
+    "comments": [],
+    "seoScore": 99,
+    "isDraft": false
+  },
+  {
     "id": "art_1785827056905",
     "title": "ساخت توکن سولانا بدون کدنویسی: راهنمای جامع با سولمینت",
     "slug": "ساخت-توکن-سولانا-بدون-کدنویسی-راهنمای-جامع-با-سولمینت-msebbjy9",
