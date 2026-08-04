@@ -59,7 +59,8 @@ export function renderMarkdownToHtml(markdown: string): string {
     const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
     if (heading) {
       flushParagraph();
-      const level = heading[1].length;
+      // The article title is the page-level H1. Shift Markdown headings down one level.
+      const level = Math.min(heading[1].length + 1, 6);
       out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
       i++;
       continue;
