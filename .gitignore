@@ -2,7 +2,12 @@ node_modules/
 build/
 dist/
 coverage/
+data/
 .DS_Store
 *.log
+*.tmp
 .env*
 !.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
