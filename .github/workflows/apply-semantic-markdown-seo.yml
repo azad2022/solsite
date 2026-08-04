@@ -1,0 +1,214 @@
+name: Apply semantic article rendering
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply semantic Markdown renderer
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          renderer = r'''export function escapeHtml(value: unknown): string {
+            return String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+          }
+
+          function safeUrl(raw: string): string {
+            const value = raw.trim();
+            if (/^(https?:|mailto:|tel:|\/|#)/i.test(value)) return escapeHtml(value);
+            return '#';
+          }
+
+          function inlineMarkdown(value: string): string {
+            let s = escapeHtml(value);
+            s = s.replace(/!\[([^\]]*)\]\(([^\s)]+)(?:\s+[\"']([^\"']*)[\"'])?\)/g,
+              (_m, alt, src, title) => `<img src="${safeUrl(src)}" alt="${alt}"${title ? ` title="${escapeHtml(title)}"` : ''} loading="lazy" decoding="async">`);
+            s = s.replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+[\"']([^\"']*)[\"'])?\)/g,
+              (_m, label, href, title) => `<a href="${safeUrl(href)}"${/^https?:/i.test(href) ? ' target="_blank" rel="noopener noreferrer nofollow"' : ''}${title ? ` title="${escapeHtml(title)}"` : ''}>${label}</a>`);
+            s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+            s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+            s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            s = s.replace(/_([^_]+)_/g, '<em>$1</em>');
+            s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+            return s;
+          }
+
+          export function renderMarkdownToHtml(markdown: string): string {
+            const source = String(markdown ?? '').replace(/\r\n?/g, '\n').trim();
+            if (!source) return '';
+            const lines = source.split('\n');
+            const out: string[] = [];
+            let i = 0;
+            let paragraph: string[] = [];
+
+            const flushParagraph = () => {
+              if (!paragraph.length) return;
+              const text = paragraph.join(' ').trim();
+              if (text) out.push(`<p>${inlineMarkdown(text)}</p>`);
+              paragraph = [];
+            };
+
+            while (i < lines.length) {
+              const line = lines[i];
+              if (/^\s*```/.test(line)) {
+                flushParagraph();
+                const language = line.replace(/^\s*```/, '').trim();
+                i++;
+                const code: string[] = [];
+                while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
+                if (i < lines.length) i++;
+                const langClass = language ? ` class="language-${escapeHtml(language.replace(/[^a-zA-Z0-9_-]/g, ''))}"` : '';
+                out.push(`<pre><code${langClass}>${escapeHtml(code.join('\n'))}</code></pre>`);
+                continue;
+              }
+              const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+              if (heading) {
+                flushParagraph();
+                const level = heading[1].length;
+                out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+                i++;
+                continue;
+              }
+              if (/^\s*(---+|\*\*\*+)\s*$/.test(line)) {
+                flushParagraph(); out.push('<hr>'); i++; continue;
+              }
+              if (/^\s*>/.test(line)) {
+                flushParagraph();
+                const quote: string[] = [];
+                while (i < lines.length && /^\s*>/.test(lines[i])) {
+                  quote.push(lines[i++].replace(/^\s*>\s?/, ''));
+                }
+                out.push(`<blockquote><p>${inlineMarkdown(quote.join(' '))}</p></blockquote>`);
+                continue;
+              }
+              const unordered = line.match(/^\s*[-*+]\s+(.+)$/);
+              const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+              if (unordered || ordered) {
+                flushParagraph();
+                const orderedList = Boolean(ordered);
+                const items: string[] = [];
+                while (i < lines.length) {
+                  const m = orderedList ? lines[i].match(/^\s*\d+[.)]\s+(.+)$/) : lines[i].match(/^\s*[-*+]\s+(.+)$/);
+                  if (!m) break;
+                  items.push(`<li>${inlineMarkdown(m[1])}</li>`); i++;
+                }
+                out.push(`<${orderedList ? 'ol' : 'ul'}>${items.join('')}</${orderedList ? 'ol' : 'ul'}>`);
+                continue;
+              }
+              if (!line.trim()) { flushParagraph(); i++; continue; }
+              paragraph.push(line.trim());
+              i++;
+            }
+            flushParagraph();
+            return out.join('\n');
+          }
+          '''
+          Path('src/utils/markdownRenderer.ts').write_text(renderer, encoding='utf-8')
+
+          blog = Path('src/components/BlogHub.tsx')
+          text = blog.read_text(encoding='utf-8')
+          if "../utils/markdownRenderer" not in text:
+              text = text.replace("import { addCommentApi } from '../utils/cmsApiClient';", "import { addCommentApi } from '../utils/cmsApiClient';\nimport { renderMarkdownToHtml } from '../utils/markdownRenderer';")
+          old = '''            {/* Main article body: larger mobile type, more line-height and a readable column. */}
+            <div className="prose prose-invert max-w-3xl mx-auto w-full text-slate-200 text-[15px] sm:text-base leading-8 sm:leading-8 space-y-5 whitespace-pre-line bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words">
+              {readingArticle.content}
+            </div>'''
+          new = '''            {/* Semantic article body: Markdown is rendered as real HTML for users and crawlers. */}
+            <div
+              className="article-content max-w-3xl mx-auto w-full bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words"
+              dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }}
+            />'''
+          if old not in text:
+              raise SystemExit('BlogHub article body block was not found; aborting.')
+          text = text.replace(old, new)
+          blog.write_text(text, encoding='utf-8')
+
+          server = Path('server.ts')
+          text = server.read_text(encoding='utf-8')
+          if 'from "./src/utils/markdownRenderer"' not in text:
+              anchor = 'import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from "./src/utils/seoManager";'
+              text = text.replace(anchor, anchor + '\nimport { escapeHtml, renderMarkdownToHtml } from "./src/utils/markdownRenderer";')
+          old = '''            <div style="font-size:1rem;line-height:1.8;color:#e2e8f0;white-space:pre-line;">
+              ${articleData.content}
+            </div>'''
+          new = '''            <div class="article-content" style="font-size:1rem;line-height:1.8;color:#e2e8f0;">
+              ${renderMarkdownToHtml(articleData.content)}
+            </div>'''
+          if old not in text:
+              raise SystemExit('server SSR article body block was not found; aborting.')
+          text = text.replace(old, new)
+          server.write_text(text, encoding='utf-8')
+
+          css = Path('src/index.css')
+          text = css.read_text(encoding='utf-8')
+          marker = '/* Article reader: isolate the scroll-lock rules to the article reader only.'
+          styles = r'''
+          /* Semantic article typography. This is intentionally independent of the Tailwind typography plugin. */
+          .article-content {
+            color: #e2e8f0;
+            font-size: 1rem;
+            line-height: 1.95;
+            direction: rtl;
+            text-align: right;
+            overflow-wrap: anywhere;
+          }
+          .article-content > * + * { margin-top: 1.25rem; }
+          .article-content h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); line-height: 1.45; font-weight: 800; color: #fff; margin-top: 2rem; }
+          .article-content h3 { font-size: clamp(1.15rem, 2.5vw, 1.45rem); line-height: 1.5; font-weight: 750; color: #f8fafc; margin-top: 1.75rem; }
+          .article-content h4, .article-content h5, .article-content h6 { font-weight: 700; color: #f8fafc; margin-top: 1.5rem; }
+          .article-content p { margin: 0; }
+          .article-content ul, .article-content ol { padding-right: 1.5rem; padding-left: 0; }
+          .article-content ul { list-style: disc; }
+          .article-content ol { list-style: decimal; }
+          .article-content li { padding-right: .35rem; margin-top: .45rem; }
+          .article-content a { color: #38bdf8; text-decoration: underline; text-underline-offset: 3px; }
+          .article-content strong { color: #fff; font-weight: 800; }
+          .article-content code { direction: ltr; unicode-bidi: plaintext; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: rgba(15,23,42,.9); border: 1px solid rgba(71,85,105,.6); border-radius: .45rem; padding: .12rem .35rem; }
+          .article-content pre { direction: ltr; text-align: left; overflow-x: auto; background: #020617; border: 1px solid rgba(71,85,105,.7); border-radius: .85rem; padding: 1rem; line-height: 1.7; white-space: pre; }
+          .article-content pre code { display: block; background: transparent; border: 0; padding: 0; color: #e2e8f0; }
+          .article-content blockquote { margin-right: 0; border-right: 3px solid #38bdf8; padding: .75rem 1rem; background: rgba(14,165,233,.06); color: #cbd5e1; }
+          .article-content hr { border: 0; border-top: 1px solid rgba(71,85,105,.7); }
+          .article-content img { display: block; max-width: 100%; height: auto; margin: 1.25rem auto; border-radius: .85rem; }
+          @media (max-width: 767px) {
+            .article-content { font-size: 1rem; line-height: 2; }
+            .article-content h2 { margin-top: 1.75rem; }
+            .article-content pre { font-size: .82rem; margin-left: -.25rem; margin-right: -.25rem; }
+          }
+
+          '''
+          if marker in text and '.article-content {' not in text:
+              text = text.replace(marker, styles + marker)
+          css.write_text(text, encoding='utf-8')
+
+          print('Semantic Markdown/SSR patch applied successfully.')
+          PY
+
+      - name: Typecheck and build
+        run: npm install && npm run lint && npm run build
+
+      - name: Commit production change
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/utils/markdownRenderer.ts src/components/BlogHub.tsx server.ts src/index.css
+          git diff --cached --quiet && { echo "No changes to commit."; exit 0; }
+          git commit -m "fix: render article markdown as semantic HTML for SEO"
+          git push origin HEAD:main
