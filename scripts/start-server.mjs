@@ -16,7 +16,11 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
 // and continuously mirror settings/users changes back to Supabase. This keeps the
 // existing synchronous serverDataStore API compatible while making Supabase the
 // durable production persistence layer.
-await import('./supabase-persistence-bridge.mjs');
+try {
+  await import('./supabase-persistence-bridge.mjs');
+} catch (error) {
+  console.error('⚠️ Supabase persistence bridge failed; continuing with local server persistence:', error?.message || error);
+}
 
 if (existsSync(new URL('../dist/server.cjs', import.meta.url))) {
   await import('../dist/server.cjs');
