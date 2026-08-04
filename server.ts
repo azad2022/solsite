@@ -207,7 +207,9 @@ async function startServer() {
   // Admin authentication check helper for sensitive API endpoints
   const isAuthorizedAdmin = (req: express.Request): boolean => {
     const cmsSettings = getCmsSettings();
-    const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").replace(/^["']|["']$/g, '').trim();
+    const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "").replace(/^["']|["']$/g, '').trim();
+
+    if (!currentAdminPasscode) return false;
 
     const passcodeHeader = (req.headers["x-admin-passcode"] as string || "").trim();
     const authHeader = (req.headers["authorization"] || "").trim();

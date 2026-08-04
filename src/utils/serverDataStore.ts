@@ -239,7 +239,7 @@ const DEFAULT_SETTINGS: ServerSettings = {
     iosPwaUrl: 'https://solmint.ir'
   },
   security: {
-    adminPasscode: process.env.ADMIN_PASSCODE || 'solmint1404'
+    adminPasscode: process.env.ADMIN_PASSCODE || ''
   }
 };
 
@@ -287,6 +287,7 @@ export function getCmsSettingsForClient(): ServerSettings {
   const settings = getCmsSettings();
   const dsKey = settings.deepseek.apiKey || '';
   const botKey = settings.chatbot.apiKey || '';
+  const adminCode = settings.security?.adminPasscode || '';
 
   const maskKey = (key: string) => {
     if (!key || key.length < 6) return '';
@@ -303,6 +304,10 @@ export function getCmsSettingsForClient(): ServerSettings {
     chatbot: {
       ...settings.chatbot,
       apiKey: maskKey(botKey)
+    },
+    security: {
+      ...settings.security,
+      adminPasscode: adminCode ? maskKey(adminCode) : ''
     }
   };
 }
@@ -323,6 +328,13 @@ export function saveCmsSettings(newSettings: Partial<ServerSettings>): ServerSet
     incomingBotKey = current.chatbot.apiKey;
   } else {
     incomingBotKey = incomingBotKey.trim();
+  }
+
+  let incomingAdminCode = newSettings.security?.adminPasscode;
+  if (!incomingAdminCode || incomingAdminCode.includes('****') || incomingAdminCode.trim() === '') {
+    incomingAdminCode = current.security?.adminPasscode || process.env.ADMIN_PASSCODE || '';
+  } else {
+    incomingAdminCode = incomingAdminCode.trim();
   }
 
   const updated: ServerSettings = {
@@ -352,7 +364,11 @@ export function saveCmsSettings(newSettings: Partial<ServerSettings>): ServerSet
       apiKey: incomingBotKey
     },
     downloads: { ...current.downloads, ...(newSettings.downloads || {}) },
-    security: { ...current.security, ...(newSettings.security || {}) }
+    security: {
+      ...current.security,
+      ...(newSettings.security || {}),
+      adminPasscode: incomingAdminCode
+    }
   };
 
   writeJsonFile('settings.json', updated);
