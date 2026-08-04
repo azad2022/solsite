@@ -103,5 +103,24 @@
   .animate-float {
     animation: none !important;
   }
+
+  /* The article reader locks body scrolling while open. The reader itself
+     must therefore have a definite viewport height so it becomes the single
+     touch-scroll container on mobile instead of growing with its content. */
+  div.fixed.inset-0.z-50 > article.glass-card {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
 }
 
+/* Keep the reader as the scroll boundary on larger screens as well. */
+div.fixed.inset-0.z-50 > article.glass-card {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
