@@ -1,0 +1,57 @@
+name: Apply DeepSeek Production Fix
+
+on:
+  push:
+    branches:
+      - fix/deepseek-autopublish-production
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-server:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Patch production scheduler and cron endpoint
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('server.ts')
+          text = path.read_text(encoding='utf-8')
+
+          if 'const requireAutoPublishCronAuth' not in text:
+              marker = '''  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {\n    if (!isAuthorizedAdmin(req)) {\n      return res.status(401).json({\n        success: false,\n        message: "دسترسی غیرمجاز. برای انجام این عملیات باید به عنوان مدیر سیستم احراز هویت شده باشید."\n      });\n    }\n    next();\n  };\n'''
+              addition = marker + '''\n  // Dedicated production cron authentication. This endpoint never accepts the public admin UI passcode.\n  const requireAutoPublishCronAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {\n    const configuredSecret = String(process.env.AUTOPUBLISH_CRON_SECRET || '').trim();\n    const suppliedSecret = String(req.headers['x-autopublish-cron-secret'] || '').trim();\n\n    if (!configuredSecret || !suppliedSecret || suppliedSecret !== configuredSecret) {\n      return res.status(401).json({\n        success: false,\n        code: 'AUTOPUBLISH_CRON_UNAUTHORIZED',\n        message: 'احراز هویت سرویس زمان‌بندی انتشار خودکار نامعتبر است.'\n      });\n    }\n\n    next();\n  };\n'''
+              if marker not in text:
+                  raise SystemExit('Admin auth marker was not found; refusing to patch server.ts')
+              text = text.replace(marker, addition, 1)
+
+          route_marker = '''  // API endpoint for triggering Server-Side Auto-Publishing\n  app.post("/api/deepseek/auto-publish", rateLimitMiddleware(15, 60000), async (req, res) => {\n'''
+          scheduled_route = '''  // Production cron endpoint: wake the scheduler without bypassing its due-time/idempotency checks.\n  app.post("/api/deepseek/auto-publish/scheduled", requireAutoPublishCronAuth, rateLimitMiddleware(30, 60000), async (req, res) => {\n    try {\n      await checkScheduledPublishing();\n      const latest = getCmsSettings().deepseek;\n      return res.json({\n        success: true,\n        status: latest?.lastExecutionStatus || 'idle',\n        message: latest?.lastExecutionMessage || 'بررسی زمان‌بندی انجام شد؛ در صورت رسیدن زمان انتشار، فرآیند اجرا خواهد شد.'\n      });\n    } catch (err: any) {\n      const message = err?.message || 'خطا در بررسی زمان‌بندی انتشار خودکار.';\n      console.error('[DeepSeek AutoPublish Cron] Scheduler error:', err);\n      return res.status(500).json({ success: false, code: 'AUTOPUBLISH_SCHEDULER_ERROR', message });\n    }\n  });\n\n'''
+          if '"/api/deepseek/auto-publish/scheduled"' not in text:
+              if route_marker not in text:
+                  raise SystemExit('Auto-publish endpoint marker was not found; refusing to patch server.ts')
+              text = text.replace(route_marker, scheduled_route + route_marker, 1)
+
+          path.write_text(text, encoding='utf-8')
+          print('server.ts patched successfully')
+
+      - name: Validate TypeScript
+        run: npm ci && npm run lint
+
+      - name: Commit production fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add server.ts
+          git diff --cached --quiet && echo 'No changes to commit.' || git commit -m 'fix: harden DeepSeek scheduled publishing trigger'
+          git push origin HEAD:${{ github.ref_name }}
