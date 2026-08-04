@@ -1,36 +1,32 @@
 import React from 'react';
 import { Article } from '../types';
-import { BookOpen, Clock, Eye, ArrowLeft, Video } from 'lucide-react';
+import { Clock, Eye, ArrowLeft, Video } from 'lucide-react';
 import { AuthorAvatar } from './AuthorAvatar';
 
 interface LatestArticlesSectionProps {
   articles: Article[];
   setArticles: React.Dispatch<React.SetStateAction<Article[]>>;
   onGoToBlog: () => void;
+  onNavigate: (path: string) => void;
 }
 
 /**
  * Homepage article preview.
  *
  * Article reading is intentionally handled by BlogHub so there is only one
- * article-reader implementation across the site. The homepage cards now
- * navigate to the real /article/:slug route instead of opening a second,
- * phone-like modal reader.
+ * article-reader implementation across the site. Homepage cards use the
+ * same SPA route handler as the rest of the application, preserving the
+ * exact article slug and avoiding a second reader implementation.
  */
 export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
   articles,
-  onGoToBlog
+  onGoToBlog,
+  onNavigate
 }) => {
   const latestArticles = articles.slice(0, 3);
 
   const navigateToArticle = (art: Article) => {
-    const path = `/article/${art.slug}`;
-
-    // Use a real browser navigation here. The homepage previously relied on
-    // manually dispatching a synthetic popstate event after pushState. That
-    // could leave React's route state out of sync on some mobile browsers,
-    // making the card appear clickable while keeping the homepage mounted.
-    window.location.assign(path);
+    onNavigate(`/article/${art.slug}`);
   };
 
   return (
