@@ -23,7 +23,7 @@ jobs:
           import json
           import os
           import subprocess
-          from datetime import datetime, timezone
+          from datetime import datetime
           from zoneinfo import ZoneInfo
 
           site = os.environ['SITE_URL'].rstrip('/')
@@ -59,8 +59,11 @@ jobs:
               print(f'[scheduler] Today ({current_day}) is not enabled for publishing.')
               raise SystemExit(0)
 
-          interval_hours = float(schedule.get('intervalHours') or ds.get('publishScheduleHours') or 6)
-          interval_hours = max(interval_hours, 1.0)
+          # The production configuration currently specifies intervalHours. Treat interval scheduling
+          # as the authoritative mode so the daily publishTime cannot cause duplicate publications.
+          interval_value = schedule.get('intervalHours') or ds.get('publishScheduleHours')
+          interval_hours = float(interval_value) if interval_value else 0.0
+          interval_hours = max(interval_hours, 1.0) if interval_hours else 0.0
 
           last_raw = ds.get('lastAutoPublishedAt')
           last_dt = None
@@ -72,22 +75,20 @@ jobs:
 
           hours_passed = 999.0 if last_dt is None else (now - last_dt).total_seconds() / 3600
 
-          publish_time = str(schedule.get('publishTime') or '10:00').strip()
-          try:
-              hh, mm = [int(x) for x in publish_time.split(':', 1)]
-          except Exception:
-              hh, mm = 10, 0
+          if interval_hours:
+              due = hours_passed >= interval_hours
+              print(f'[scheduler] mode=interval now={now.isoformat()} last={last_raw!r} hours_passed={hours_passed:.2f} interval={interval_hours} due={due}')
+          else:
+              publish_time = str(schedule.get('publishTime') or '10:00').strip()
+              try:
+                  hh, mm = [int(x) for x in publish_time.split(':', 1)]
+              except Exception:
+                  hh, mm = 10, 0
+              today_slot = f"slot_{now:%Y-%m-%d}_{publish_time}"
+              due = (now.hour * 60 + now.minute) >= (hh * 60 + mm) and ds.get('lastPublishedSlot') != today_slot
+              print(f'[scheduler] mode=daily now={now.isoformat()} last={last_raw!r} publish_time={publish_time} due={due}')
 
-          scheduled_due = (now.hour * 60 + now.minute) >= (hh * 60 + mm)
-          last_slot = ds.get('lastPublishedSlot') or ''
-          fixed_slot = f"slot_{now:%Y-%m-%d}_{publish_time}"
-
-          fixed_due = scheduled_due and last_slot != fixed_slot
-          interval_due = hours_passed >= interval_hours
-
-          print(f'[scheduler] now={now.isoformat()} last={last_raw!r} hours_passed={hours_passed:.2f} interval={interval_hours} fixed_due={fixed_due} interval_due={interval_due}')
-
-          if not (fixed_due or interval_due):
+          if not due:
               print('[scheduler] Publication is not due yet.')
               raise SystemExit(0)
 
