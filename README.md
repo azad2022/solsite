@@ -43,6 +43,8 @@ The repository contains a React/Vite frontend together with a custom Express ser
 - [Security Rules](#security-rules)
 - [Important Implementation Notes](#important-implementation-notes)
 - [Maintenance Guide](#maintenance-guide)
+- [Project Roadmap and Work Tracking](#project-roadmap-and-work-tracking)
+- [Feature and Change Planning Protocol](#feature-and-change-planning-protocol)
 - [License](#license)
 
 ---
@@ -400,6 +402,7 @@ The application server listens on the configured runtime port where supported by
 | `npm run preview` | Run Vite's preview server |
 | `npm run clean` | Remove generated build/server artifacts |
 | `npm run lint` | Run TypeScript checking without emitting files |
+| `npm test` | Run the project's TypeScript test suite |
 
 The `lint` script currently runs TypeScript's `--noEmit` check. It is therefore a type-checking step rather than a full ESLint configuration.
 
@@ -694,209 +697,134 @@ Maximum height: 1080 px
 Quality: 0.82
 ```
 
-These values can be changed in `src/utils/mediaService.ts` if the product requirements change.
-
-### SEO-friendly filenames
-
-The media service transliterates common Persian/Arabic characters and normalizes filenames.
-
-Example concept:
-
-```text
-تصویر تست مقاله جدید.png
-```
-
-becomes a Latin, URL-friendly filename similar to:
-
-```text
-tasvir-test-maghale-jadid.webp
-```
+These values can be changed in `src/utils/mediaService.ts`.
 
 ---
 
 ## Media Repository Migration
 
-The media architecture supports changing the GitHub repository used for image storage.
+The application supports migration between configured GitHub media repositories.
 
-The migration workflow is designed to:
+Migration is intentionally fail-safe.
 
-1. Read the current media assets.
-2. Send source/target configuration to the server.
-3. Copy/migrate assets to the target repository.
-4. Return migrated asset metadata.
-5. Update persistent media metadata.
-6. Refresh the local media cache.
+The expected flow is:
 
-This makes it possible to move the media library to another GitHub repository without manually re-uploading every image through the CMS.
+```text
+Current repository
+      |
+      v
+Read asset
+      |
+      v
+Write asset to target repository
+      |
+      v
+Verify target write
+      |
+      v
+Update metadata
+      |
+      v
+Only then remove obsolete source data where applicable
+```
 
-### Recommended migration procedure
-
-Before migration:
-
-- Back up the media metadata.
-- Confirm that the target repository exists.
-- Verify GitHub token permissions.
-- Test the target repository connection.
-- Avoid deleting the source repository until the migration has been independently verified.
+Never delete the source repository or its files before the target repository and metadata have been verified.
 
 ---
 
 ## Authentication and Security
 
-The server contains authentication middleware for sensitive administrative APIs.
+The server uses administrative authentication for sensitive operations.
 
-The primary server-side concept is:
+Protected operations include, depending on the endpoint:
 
-```text
-requireAdminAuth
-```
-
-It validates the configured admin credential against the request headers.
-
-The server also has a separate authentication mechanism for automated publishing:
-
-```text
-requireAutoPublishCronAuth
-```
-
-This is intentionally separate from the public admin passcode.
-
-### Protected operations
-
-Sensitive operations include areas such as:
-
-- CMS configuration writes.
 - Media upload.
 - Media deletion.
 - Media migration.
-- Media connection testing.
-- Other administrative mutations.
+- Administrative configuration changes.
+- Automated publishing.
+- Other production mutations.
 
-### Do not expose credentials
+Sensitive credentials must remain server-side.
 
-Never put these into frontend source code or public repositories:
-
-- GitHub personal access tokens.
-- DeepSeek API keys.
-- Gemini API keys.
-- Admin credentials.
-- Cron secrets.
-- Database service-role credentials.
-
-If a secret is compromised, rotate it immediately at the provider level and update the deployment environment.
+The database also uses Supabase Row Level Security (RLS) for access control. Production database policies must remain aligned with the API's intended public/private boundaries.
 
 ---
 
 ## AI and DeepSeek Integration
 
-The application includes server-side DeepSeek functionality for AI-assisted content workflows.
+DeepSeek functionality is exposed through server-side application logic rather than exposing the provider credential directly to the browser.
 
-The model configuration supports values such as:
+AI-related functionality can include:
 
-```text
-deepseek-chat
-deepseek-reasoner
-```
+- Content generation.
+- Article generation.
+- Topic and keyword processing.
+- SEO-related content assistance.
+- Automated publishing workflows.
+- Chatbot functionality.
 
-The configured DeepSeek endpoint defaults to:
-
-```text
-https://api.deepseek.com/v1
-```
-
-The AI content system can manage:
-
-- System prompts.
-- Target topics.
-- Target keywords.
-- Writing tone.
-- Target word count.
-- FAQ generation.
-- CTA generation.
-- Cover-image requirements.
-- Scheduled publishing.
-- Draft/publication mode.
-- Execution status and messages.
-
-### Automated publishing
-
-The server supports a dedicated cron authentication mechanism using:
-
-```text
-AUTOPUBLISH_CRON_SECRET
-```
-
-An external scheduler can call the protected endpoint using the corresponding header.
-
-The scheduler should never use a publicly exposed browser credential when a dedicated server-side cron secret is available.
+Provider credentials, quotas, model names, request limits, and error handling must be treated as production configuration.
 
 ---
 
 ## Supabase Integration
 
-Supabase is used as the persistent database layer for application data.
+Supabase/PostgreSQL is a core persistence layer.
 
-The project uses the Supabase JavaScript client.
+The production database should be treated as authoritative for persistent CMS data and metadata unless a feature explicitly documents another source of truth.
 
-Major data domains include:
+Important database areas include:
 
-- Articles.
-- Comments.
-- Media metadata.
-- CMS settings.
-- Other application persistence depending on the current implementation.
+- `articles`
+- `media_assets`
+- `media_config`
+- Other feature-specific tables/functions used by the current application
 
-### Article source of truth
+### Public access model
 
-For server-side public article aggregation, Supabase is treated as the primary dynamic source when it is configured and reachable.
+The current production security model is intentionally restrictive:
 
-The application also contains baseline article data so that the website has a known initial content set.
+- Public clients may read only data that is intended to be public.
+- Public clients must not directly mutate CMS or media-management data.
+- Private configuration such as `media_config` must not be exposed through anonymous API access.
+- Database functions that perform privileged operations must not be executable by anonymous users unless explicitly required and reviewed.
 
-### Failure behavior
+### Database change policy
 
-Supabase access is wrapped in error handling in the server code. Where a supported fallback exists, the application can use local/server data when the database is not configured or cannot be initialized.
+Any schema, RLS, policy, function, index, trigger, or permission change must be treated as a production change and documented in the project roadmap/changelog.
 
-Do not interpret fallback behavior as a replacement for production database availability. Production monitoring should still alert when Supabase is unavailable.
+After database changes, verify both:
+
+1. Database-side security/performance checks.
+2. Application compatibility with the new schema and policies.
 
 ---
 
 ## API Overview
 
-The application exposes server APIs under `/api/`.
-
-The exact endpoint list can evolve, but major API groups include:
+The server exposes application-specific APIs for areas such as:
 
 ```text
-/api/cms/*
-/api/users/*
-/api/articles/*
-/api/comments/*
-/api/media/*
-/api/deepseek/*
-/api/chatbot/*
+Articles
+Comments
+Users
+CMS settings
+Media
+AI
+SEO
+Redirects
+Automated publishing
 ```
 
-### CMS settings
+Sensitive operations must be authenticated.
 
-The server provides an endpoint for reading client-safe CMS settings and a protected endpoint for writing them.
-
-Conceptually:
+### Media API examples
 
 ```text
-GET  /api/cms/settings
-POST /api/cms/settings   [admin protected]
-```
-
-### Media
-
-The media service communicates with endpoints including operations conceptually equivalent to:
-
-```text
-GET/POST /api/media/config
-POST     /api/media/test-connection
-POST     /api/media/upload
-POST     /api/media/delete
-POST     /api/media/migrate
+POST   /api/media/upload
+DELETE /api/media/:id
+POST   /api/media/migrate
 ```
 
 All sensitive media operations should remain protected by admin authentication.
@@ -1005,14 +933,21 @@ Run the project's type check with:
 npm run lint
 ```
 
+Run the test suite with:
+
+```bash
+npm test
+```
+
 Before committing a significant change, the recommended minimum validation is:
 
 ```bash
 npm run lint
+npm test
 npm run build
 ```
 
-If either command fails, do not treat the change as production-ready.
+If any of these commands fails, do not treat the change as production-ready.
 
 ---
 
@@ -1032,6 +967,7 @@ A production deployment should provide:
 ```bash
 npm ci
 npm run lint
+npm test
 npm run build
 npm start
 ```
@@ -1064,6 +1000,7 @@ Also test a deliberately invalid route and verify that it produces a genuine HTT
 
 - [ ] `npm ci` succeeds.
 - [ ] `npm run lint` succeeds.
+- [ ] `npm test` succeeds.
 - [ ] `npm run build` succeeds.
 - [ ] All required production environment variables are configured.
 - [ ] No secrets are committed.
@@ -1089,6 +1026,7 @@ Also test a deliberately invalid route and verify that it produces a genuine HTT
 - [ ] Media deletion is consistent between GitHub and Supabase.
 - [ ] AI endpoints reject unauthorized/invalid requests as expected.
 - [ ] Automated publishing uses the dedicated cron secret.
+- [ ] Supabase security/performance advisors have been reviewed after significant database changes.
 
 ---
 
@@ -1341,6 +1279,126 @@ When changing Supabase tables:
 6. Test new records.
 7. Test null/missing values.
 8. Test production data compatibility.
+9. Review RLS/policies and database advisors.
+10. Record the change in the roadmap/changelog.
+
+---
+
+## Project Roadmap and Work Tracking
+
+This section is the persistent project backlog. It is intentionally kept in `README.md` so that the next development session can recover the project's state without relying on chat history.
+
+### Status definitions
+
+- **P0 — Critical:** Production/security/data-loss risk. Must be addressed before unrelated feature work.
+- **P1 — High:** Important for production reliability, maintainability, or operational safety.
+- **P2 — Medium:** Valuable engineering improvement that should be scheduled.
+- **P3 — Low:** Nice-to-have or cleanup work.
+- **DONE:** Implemented and verified.
+- **IN PROGRESS:** Actively being implemented.
+- **PLANNED:** Defined but not yet implemented.
+- **BLOCKED:** Requires an external decision, credential, provider capability, or other dependency.
+
+### Current verified status
+
+| Priority | Area | Status | Work item | Definition of done |
+|---|---|---|---|---|
+| P0 | Database security | DONE | Harden production RLS and public privileges for CMS/media data; restrict privileged DB function execution | Supabase policies/privileges verified and advisors reviewed |
+| P1 | Automated validation | PLANNED | Strengthen automated tests around critical APIs, authentication, article visibility, media operations, and failure paths | Critical flows have repeatable automated tests and pass in CI |
+| P1 | CI/CD quality gate | PLANNED | Ensure lint, tests, build, and relevant production checks run automatically before release | A failed quality gate prevents an unsafe release |
+| P1 | Production smoke tests | PLANNED | Add repeatable HTTP-level checks for public routes, 404s, redirects, sitemap, robots, and protected APIs | Production smoke suite can be run after every deployment |
+| P1 | Database/application contract | PLANNED | Continuously verify Supabase schema/RLS/policies/functions remain compatible with application expectations | Schema/API contract checks are documented and automated where practical |
+| P2 | Observability | PLANNED | Improve structured logging, error visibility, and operational diagnostics for server/API failures | Production failures can be diagnosed without reproducing locally |
+| P2 | Recovery/runbooks | PLANNED | Document backup, rollback, migration, media-recovery, credential-rotation, and incident procedures | Critical recovery procedures are documented and testable |
+| P2 | Dependency maintenance | PLANNED | Periodically review Node/npm/framework/dependency versions and security advisories | Dependencies are intentionally maintained and upgrades are validated |
+| P3 | Licensing | PLANNED | Decide and document the project's intended source-code license | Repository contains the intended license or an explicit proprietary notice |
+
+> **Important:** `PLANNED` items are not necessarily known bugs. They are remaining engineering work required or recommended to move the project toward a more mature production operating model.
+
+### Completed work record
+
+The following categories have already received production attention and should not be treated as unresolved simply because they remain documented here:
+
+- Media API authentication hardening.
+- Removal of client-side long-lived GitHub token handling.
+- Atomic/fail-safe media deletion behavior.
+- Fail-safe media repository migration behavior.
+- Article publication/draft filtering.
+- Public write restrictions for CMS/media tables.
+- Private handling of `media_config`.
+- Restriction of privileged database function execution.
+- SEO 404 handling and sitemap improvements documented elsewhere in this README.
+
+Future work should update the status rather than creating duplicate backlog entries.
+
+---
+
+## Feature and Change Planning Protocol
+
+**No significant feature, bug fix, database change, security change, or production configuration change should be implemented without a written plan.**
+
+For every new item, create or update a roadmap entry containing:
+
+1. **Problem / goal** — What is being fixed or built and why?
+2. **Scope** — Which frontend, backend, database, infrastructure, SEO, or external integrations are affected?
+3. **Dependencies** — What must exist or be decided before implementation?
+4. **Data impact** — Does it change schema, stored data, permissions, migrations, or external repositories?
+5. **Security impact** — Does it introduce new credentials, endpoints, permissions, file operations, or trust boundaries?
+6. **Implementation plan** — Ordered technical steps before coding.
+7. **Validation plan** — Unit/integration tests, type checks, builds, database checks, HTTP checks, or manual verification required.
+8. **Deployment plan** — How the change reaches production safely.
+9. **Rollback plan** — How to reverse the change if production behavior is incorrect.
+10. **Definition of done** — Objective conditions that must be true before marking the work complete.
+11. **Post-deployment verification** — What must be checked against the real production system.
+12. **README update** — Mark the item `DONE` only after implementation and verification; record important follow-up work as a new backlog item.
+
+### Standard implementation lifecycle
+
+```text
+Request / Problem
+       |
+       v
+Investigate current GitHub + Supabase state
+       |
+       v
+Write plan and define acceptance criteria
+       |
+       v
+Assess security / data / compatibility impact
+       |
+       v
+Implement the smallest safe change
+       |
+       v
+Run tests + type check + build
+       |
+       v
+Verify GitHub repository state
+       |
+       v
+Verify Supabase schema / RLS / advisors when relevant
+       |
+       v
+Deploy / merge
+       |
+       v
+Run production smoke checks
+       |
+       v
+Update README status and record remaining work
+```
+
+### Rules for future development sessions
+
+- Always read the roadmap before starting substantial work.
+- Never assume chat history is the project's source of truth; `README.md` is the persistent engineering record.
+- Do not mark a task complete merely because code was written. It must be tested and verified.
+- For database-related work, compare the repository's expected schema with the actual Supabase production state.
+- For security-related work, verify both application behavior and database permissions/RLS where applicable.
+- For production fixes, record any remaining risk or follow-up work in the roadmap.
+- If a task reveals a new issue, add it to the roadmap instead of silently leaving it undocumented.
+- When a task is completed, update its status and definition of done in the same change whenever practical.
+- Avoid broad rewrites when a focused, testable change can solve the problem safely.
 
 ---
 
@@ -1352,6 +1410,7 @@ For significant changes, validate at least the following:
 |---|---|
 | Build | `npm run build` |
 | Type checking | `npm run lint` |
+| Automated tests | `npm test` |
 | Homepage | HTTP 200 |
 | Public routes | HTTP 200 |
 | Unknown route | HTTP 404 |
@@ -1365,6 +1424,7 @@ For significant changes, validate at least the following:
 | Media migration | Source/target consistency |
 | AI | Valid and invalid API requests |
 | Database | Read/write/error behavior |
+| Supabase security | RLS, privileges, functions, advisors reviewed when relevant |
 
 ---
 
@@ -1379,6 +1439,7 @@ The project should remain:
 - Explicit about public vs private configuration.
 - Easy to deploy and recover.
 - Compatible with a modest publishing workload.
+- Documented so future development does not depend on undocumented chat history.
 
 When implementing new features, prefer a small, verifiable change over a broad rewrite of working infrastructure.
 
