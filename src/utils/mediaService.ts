@@ -14,11 +14,9 @@ import {
 export function generateSeoFilename(inputName: string, targetExt: string = 'webp'): string {
   if (!inputName) return `media-${Date.now()}.${targetExt}`;
 
-  // Extract base name without extension
   const lastDot = inputName.lastIndexOf('.');
   let baseName = lastDot > 0 ? inputName.substring(0, lastDot) : inputName;
 
-  // Simple Persian/Arabic character transliteration mapping
   const charMap: Record<string, string> = {
     'آ': 'a', 'ا': 'a', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ث': 's', 'ج': 'j', 'چ': 'ch',
     'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'ژ': 'zh', 'س': 's',
@@ -36,17 +34,10 @@ export function generateSeoFilename(inputName: string, targetExt: string = 'webp
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
-  if (!cleanStr) {
-    cleanStr = `image-${Date.now()}`;
-  }
-
+  if (!cleanStr) cleanStr = `image-${Date.now()}`;
   return `${cleanStr}.${targetExt}`;
 }
 
-/**
- * Client-side Canvas Image Optimization:
- * Converts uploaded File to optimized WebP base64 string, limiting dimensions and reducing file size.
- */
 export async function optimizeImageFile(
   file: File, 
   maxWidth: number = 1920, 
@@ -84,26 +75,17 @@ export async function optimizeImageFile(
 
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert canvas to WebP or fallback to JPEG
         let mimeType = 'image/webp';
         let dataUrl = canvas.toDataURL('image/webp', quality);
-
         if (!dataUrl.startsWith('data:image/webp')) {
           mimeType = 'image/jpeg';
           dataUrl = canvas.toDataURL('image/jpeg', quality);
         }
 
-        // Base64 part only
         const base64 = dataUrl.split(',')[1] || '';
         const sizeBytes = Math.round((base64.length * 3) / 4);
 
-        resolve({
-          base64,
-          width,
-          height,
-          mimeType,
-          sizeBytes
-        });
+        resolve({ base64, width, height, mimeType, sizeBytes });
       };
       img.onerror = () => reject(new Error('تصویر بارگذاری نشد'));
       img.src = e.target?.result as string;
@@ -113,66 +95,52 @@ export async function optimizeImageFile(
   });
 }
 
+/**
+ * Returns the admin credential supplied by the authenticated admin session.
+ * There is intentionally no built-in/default password. Missing credentials must
+ * fail closed instead of silently falling back to a shared development secret.
+ */
 function getAdminAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
   try {
-    let passcode = (localStorage.getItem('solmint_admin_passcode') || 'solmint1404').trim();
-    passcode = passcode.replace(/^["']|["']$/g, '').trim();
-    return {
-      'Content-Type': 'application/json',
-      'x-admin-passcode': passcode,
-      'Authorization': `Bearer ${passcode}`
-    };
-  } catch {
-    return {
-      'Content-Type': 'application/json',
-      'x-admin-passcode': 'solmint1404',
-      'Authorization': 'Bearer solmint1404'
-    };
+    const passcode = (localStorage.getItem('solmint_admin_passcode') || '').trim();
+    if (!passcode) {
+      throw new Error('Admin authentication is not configured in this browser session.');
+    }
+    headers['x-admin-passcode'] = passcode;
+    headers['Authorization'] = `Bearer ${passcode}`;
+    return headers;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not configured')) throw error;
+    throw new Error('Admin authentication is not available in this browser session.');
   }
 }
 
-/**
- * Fetch Media Storage Config from server or Supabase
- */
 export async function getMediaStorageConfig(): Promise<MediaStorageConfig> {
-  // Try server API first
   try {
-    const res = await fetch('/api/media/config', {
-      headers: getAdminAuthHeaders()
-    });
+    const res = await fetch('/api/media/config', { headers: getAdminAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
-      if (data && data.config) {
-        return data.config;
-      }
+      if (data && data.config) return data.config;
     }
   } catch (err) {
-    // ignore
+    // Fall back to persisted non-secret configuration below.
   }
 
-  // Fallback to Supabase
   const supaConfig = await fetchMediaConfigFromSupabase();
   if (supaConfig) return supaConfig;
 
-  // Fallback to LocalStorage
   const local = localStorage.getItem('solmint_media_config');
   if (local) {
-    try {
-      return JSON.parse(local);
-    } catch (e) {
-      // ignore
-    }
+    try { return JSON.parse(local); } catch (e) { /* ignore malformed cache */ }
   }
 
   return DEFAULT_MEDIA_STORAGE_CONFIG;
 }
 
-/**
- * Save Media Storage Config to server & DB
- */
 export async function saveMediaStorageConfig(config: MediaStorageConfig & { githubToken?: string }): Promise<boolean> {
   const token = config.githubToken;
-  // Clean public config (strip token from persistence to prevent secret exposure)
   const sanitizedConfig: MediaStorageConfig = {
     provider: config.provider || 'github',
     githubOwner: config.githubOwner,
@@ -189,12 +157,7 @@ export async function saveMediaStorageConfig(config: MediaStorageConfig & { gith
     const res = await fetch('/api/media/config', {
       method: 'POST',
       headers: getAdminAuthHeaders(),
-      body: JSON.stringify({ 
-        config: {
-          ...sanitizedConfig,
-          githubToken: token || undefined
-        } 
-      })
+      body: JSON.stringify({ config: { ...sanitizedConfig, githubToken: token || undefined } })
     });
     return res.ok;
   } catch (err) {
@@ -202,9 +165,6 @@ export async function saveMediaStorageConfig(config: MediaStorageConfig & { gith
   }
 }
 
-/**
- * Test Connection to GitHub Media Repository
- */
 export async function testMediaRepositoryConnection(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; details?: any }> {
   try {
     const res = await fetch('/api/media/test-connection', {
@@ -219,16 +179,10 @@ export async function testMediaRepositoryConnection(config: MediaStorageConfig &
       details: data.details
     };
   } catch (err: any) {
-    return {
-      success: false,
-      message: `خطای ارتباط با سرور: ${err.message || 'شبکه غیرقابل دسترس است'}`
-    };
+    return { success: false, message: `خطای ارتباط با سرور: ${err.message || 'شبکه غیرقابل دسترس است'}` };
   }
 }
 
-/**
- * Fetch all MediaAssets (combines Supabase with LocalStorage cache)
- */
 export async function getAllMediaAssets(): Promise<MediaAsset[]> {
   const supaAssets = await fetchMediaAssetsFromSupabase();
   if (supaAssets && supaAssets.length > 0) {
@@ -238,19 +192,12 @@ export async function getAllMediaAssets(): Promise<MediaAsset[]> {
 
   const cached = localStorage.getItem('solmint_media_assets_cache');
   if (cached) {
-    try {
-      return JSON.parse(cached);
-    } catch (e) {
-      // ignore
-    }
+    try { return JSON.parse(cached); } catch (e) { /* ignore malformed cache */ }
   }
 
   return [];
 }
 
-/**
- * Upload Image File to GitHub via Server API and register MediaAsset
- */
 export async function uploadMediaAsset(
   file: File,
   customSeoName?: string,
@@ -259,16 +206,10 @@ export async function uploadMediaAsset(
   overwrite: boolean = false
 ): Promise<{ success: boolean; asset?: MediaAsset; message: string; code?: string; existingSha?: string }> {
   try {
-    // 1. Optimize Image
     const optimized = await optimizeImageFile(file);
-
-    // 2. Determine SEO Filename
     const targetFilename = generateSeoFilename(customSeoName || file.name, 'webp');
-
-    // 3. Current storage config
     const config = await getMediaStorageConfig();
 
-    // 4. Send base64 to server API
     const res = await fetch('/api/media/upload', {
       method: 'POST',
       headers: getAdminAuthHeaders(),
@@ -287,49 +228,25 @@ export async function uploadMediaAsset(
     });
 
     const data = await res.json();
-
     if (res.status === 409 && data.code === 'FILE_EXISTS') {
-      return {
-        success: false,
-        code: 'FILE_EXISTS',
-        existingSha: data.existingSha,
-        message: data.message || 'فایلی با این نام در مخزن گیت‌هاب وجود دارد.'
-      };
+      return { success: false, code: 'FILE_EXISTS', existingSha: data.existingSha, message: data.message || 'فایلی با این نام در مخزن گیت‌هاب وجود دارد.' };
     }
-
     if (!res.ok || !data.success || !data.asset) {
-      return {
-        success: false,
-        message: data.message || 'خطا در آپلود فایل تصویر به مخزن گیت‌هاب'
-      };
+      return { success: false, message: data.message || 'خطا در آپلود فایل تصویر به مخزن گیت‌هاب' };
     }
 
     const asset: MediaAsset = data.asset;
-
-    // 5. Save metadata to Supabase DB
     await saveMediaAssetToSupabase(asset);
-
-    // Update local cache
     const existing = await getAllMediaAssets();
     const updated = [asset, ...existing.filter(a => a.id !== asset.id)];
     localStorage.setItem('solmint_media_assets_cache', JSON.stringify(updated));
 
-    return {
-      success: true,
-      asset,
-      message: data.message || 'تصویر با موفقیت در مخزن گیت‌هاب آپلود و ثبت گردید'
-    };
+    return { success: true, asset, message: data.message || 'تصویر با موفقیت در مخزن گیت‌هاب آپلود و ثبت گردید' };
   } catch (err: any) {
-    return {
-      success: false,
-      message: `خطای پردازش تصویر: ${err.message || 'ناشناخته'}`
-    };
+    return { success: false, message: `خطای پردازش تصویر: ${err.message || 'ناشناخته'}` };
   }
 }
 
-/**
- * Delete MediaAsset from GitHub & DB (Atomic)
- */
 export async function deleteMediaAsset(asset: MediaAsset, force: boolean = false): Promise<{ success: boolean; message: string }> {
   try {
     const res = await fetch('/api/media/delete', {
@@ -347,80 +264,41 @@ export async function deleteMediaAsset(asset: MediaAsset, force: boolean = false
     });
 
     const data = await res.json();
+    if (!res.ok || !data.success) return { success: false, message: data.message || 'حذف فایل تصویر از مخزن گیت‌هاب ناموفق بود.' };
 
-    if (!res.ok || !data.success) {
-      return {
-        success: false,
-        message: data.message || 'حذف فایل تصویر از مخزن گیت‌هاب ناموفق بود.'
-      };
-    }
-
-    // Atomic: ONLY delete from Supabase DB after GitHub deletion is verified
     await deleteMediaAssetFromSupabase(asset.id);
-
-    // Update local cache
     const existing = await getAllMediaAssets();
     const updated = existing.filter(a => a.id !== asset.id);
     localStorage.setItem('solmint_media_assets_cache', JSON.stringify(updated));
 
-    return {
-      success: true,
-      message: data.message || 'تصویر با موفقیت حذف گردید'
-    };
+    return { success: true, message: data.message || 'تصویر با موفقیت حذف گردید' };
   } catch (err: any) {
-    return {
-      success: false,
-      message: `خطای ارتباط سرور: ${err.message || 'ناشناخته'}`
-    };
+    return { success: false, message: `خطای ارتباط سرور: ${err.message || 'ناشناخته'}` };
   }
 }
 
-/**
- * Migrate assets from current repository to target repository
- */
 export async function migrateMediaRepository(
   sourceConfig: MediaStorageConfig,
   targetConfig: MediaStorageConfig
 ): Promise<{ success: boolean; message: string; results?: any }> {
   try {
     const assets = await getAllMediaAssets();
-
     const res = await fetch('/api/media/migrate', {
       method: 'POST',
       headers: getAdminAuthHeaders(),
-      body: JSON.stringify({
-        sourceConfig,
-        targetConfig,
-        assets
-      })
+      body: JSON.stringify({ sourceConfig, targetConfig, assets })
     });
 
     const data = await res.json();
+    if (!res.ok || !data.success) return { success: false, message: data.message || 'انتقال و مهاجرت مخزن با خطا مواجه شد' };
 
-    if (!res.ok || !data.success) {
-      return {
-        success: false,
-        message: data.message || 'انتقال و مهاجرت مخزن با خطا مواجه شد'
-      };
-    }
-
-    // Update database assets with new repository info
     if (data.migratedAssets && Array.isArray(data.migratedAssets)) {
-      for (const updatedAsset of data.migratedAssets) {
-        await saveMediaAssetToSupabase(updatedAsset);
-      }
+      for (const updatedAsset of data.migratedAssets) await saveMediaAssetToSupabase(updatedAsset);
       localStorage.setItem('solmint_media_assets_cache', JSON.stringify(data.migratedAssets));
     }
 
-    return {
-      success: true,
-      message: data.message || 'عملیات انتقال تصاویر با موفقیت تکمیل شد',
-      results: data.results
-    };
+    return { success: true, message: data.message || 'عملیات انتقال تصاویر با موفقیت تکمیل شد', results: data.results };
   } catch (err: any) {
-    return {
-      success: false,
-      message: `خطای سرور در انجام مهاجرت: ${err.message || 'ناشناخته'}`
-    };
+    return { success: false, message: `خطای سرور در انجام مهاجرت: ${err.message || 'ناشناخته'}` };
   }
 }
