@@ -81,18 +81,10 @@
   box-shadow: 0 0 30px rgba(153, 69, 255, 0.4);
 }
 
-/* Keyframe animations */
-@keyframes floatSlow {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
-}
-
-.animate-float {
-  animation: floatSlow 6s ease-in-out infinite;
-}
-
-/* Article reader: one and only one scroll container. */
-div.fixed.inset-0.z-50 {
+/* Article reader: isolate the scroll-lock rules to the article reader only.
+   Do NOT target every z-50 fixed modal: the admin CMS is also a fixed z-50
+   modal and must retain normal touch scrolling on mobile devices. */
+div.fixed.inset-0.z-50:has(> article.glass-card) {
   overflow: hidden !important;
   overscroll-behavior: none;
   touch-action: none;
