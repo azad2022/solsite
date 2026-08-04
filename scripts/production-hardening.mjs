@@ -18,6 +18,10 @@ function safeEqual(a, b) {
   return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
 }
 
+function sha256(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
+
 async function getAdminPasscode() {
   const now = Date.now();
   if (authCache.expiresAt > now && authCache.passcode) return authCache.passcode;
@@ -60,6 +64,39 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
+async function protectAdminLogin(req, res, next) {
+  const username = String(req.body?.username || '').trim().toLowerCase();
+  if (username !== 'admin') return next();
+
+  const configured = await getAdminPasscode();
+  if (!configured && !supabase) {
+    return res.status(503).json({ success: false, message: 'احراز هویت مدیر پیکربندی نشده است.' });
+  }
+
+  const suppliedPasscode = String(req.body?.passcode || '').trim();
+  const suppliedHash = String(req.body?.passwordHash || '').trim();
+  const suppliedPassword = String(req.body?.password || '').trim();
+
+  let storedHash = '';
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('users').select('password_hash,is_active').eq('username', 'admin').maybeSingle();
+      if (data?.is_active === false) return res.status(403).json({ success: false, message: 'حساب مدیر غیرفعال است.' });
+      storedHash = String(data?.password_hash || '').trim();
+    } catch (_) {}
+  }
+
+  const validPasscode = configured && safeEqual(suppliedPasscode, configured);
+  const validHash = storedHash && safeEqual(suppliedHash, storedHash);
+  const validPassword = storedHash && safeEqual(sha256(suppliedPassword), storedHash);
+
+  if (!validPasscode && !validHash && !validPassword) {
+    return res.status(401).json({ success: false, message: 'نام کاربری یا رمز عبور مدیر اشتباه است.' });
+  }
+
+  next();
+}
+
 async function getMediaConfig() {
   if (!supabase) return null;
   const { data, error } = await supabase
@@ -98,12 +135,9 @@ async function syncMediaConfigIntoServer(req) {
   const config = await getMediaConfig();
   if (!config) return;
 
-  // The existing media API keeps its active configuration in memory. Rehydrate it
-  // through its own authenticated endpoint before every mutating media operation.
   const port = Number(process.env.PORT || 3000);
-  const base = `http://127.0.0.1:${port}`;
   try {
-    await fetch(`${base}/api/media/config`, {
+    await fetch(`http://127.0.0.1:${port}/api/media/config`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -116,9 +150,46 @@ async function syncMediaConfigIntoServer(req) {
   }
 }
 
+async function moderatePublicComment(body, responseBody) {
+  const comment = responseBody?.comment;
+  if (!comment?.id) return responseBody;
+
+  const moderated = { ...comment, approved: false };
+  try {
+    const { saveComment } = await import('../src/utils/serverDataStore.ts');
+    saveComment(moderated);
+  } catch (_) {}
+
+  if (supabase) {
+    try {
+      await supabase.from('comments').update({ approved: false }).eq('id', String(comment.id));
+      const articleId = String(comment.articleId || body?.articleId || '');
+      if (articleId) {
+        const { data: article } = await supabase.from('articles').select('id,comments').or(`id.eq.${articleId},slug.eq.${articleId}`).maybeSingle();
+        if (article) {
+          const comments = Array.isArray(article.comments) ? article.comments : [];
+          const updated = comments.map((item) => item?.id === comment.id ? { ...item, approved: false } : item);
+          await supabase.from('articles').update({ comments: updated }).eq('id', article.id);
+        }
+      }
+    } catch (error) {
+      console.warn('Production hardening: comment moderation sync failed:', error?.message || error);
+    }
+  }
+
+  return {
+    ...responseBody,
+    comment: moderated,
+    comments: Array.isArray(responseBody.comments)
+      ? responseBody.comments.map((item) => item?.id === comment.id ? { ...item, approved: false } : item)
+      : responseBody.comments
+  };
+}
+
 const originalPost = express.application.post;
 const originalGet = express.application.get;
 const originalDelete = express.application.delete;
+const originalJson = express.response.json;
 
 const ADMIN_POST_PATHS = new Set([
   '/api/cms/settings',
@@ -142,21 +213,31 @@ const MEDIA_POST_PATHS = new Set([
 function wrapHandlers(path, handlers, options = {}) {
   const wrapped = [...handlers];
   if (options.admin) wrapped.unshift(requireAdmin);
-
   if (options.mediaSync) {
     wrapped.unshift(async (req, res, next) => {
-      try {
-        await syncMediaConfigIntoServer(req);
-      } finally {
-        next();
-      }
+      try { await syncMediaConfigIntoServer(req); } finally { next(); }
     });
   }
-
+  if (options.moderateComment) {
+    wrapped.unshift((req, res, next) => {
+      const sendJson = res.json.bind(res);
+      res.json = (body) => {
+        Promise.resolve(moderatePublicComment(req.body, body)).then(sendJson);
+        return res;
+      };
+      next();
+    });
+  }
   return wrapped;
 }
 
 express.application.post = function(path, ...handlers) {
+  if (path === '/api/users/login') {
+    return originalPost.call(this, path, protectAdminLogin, ...handlers);
+  }
+  if (path === '/api/comments/add') {
+    return originalPost.call(this, path, ...wrapHandlers(path, handlers, { moderateComment: true }));
+  }
   if (typeof path === 'string' && ADMIN_POST_PATHS.has(path)) {
     return originalPost.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
   }
@@ -167,7 +248,7 @@ express.application.post = function(path, ...handlers) {
 };
 
 express.application.delete = function(path, ...handlers) {
-  if (typeof path === 'string' && (path === '/api/articles/:id')) {
+  if (path === '/api/articles/:id') {
     return originalDelete.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
   }
   return originalDelete.call(this, path, ...handlers);
@@ -182,15 +263,11 @@ express.application.get = function(path, ...handlers) {
     const mediaGet = async (req, res, next) => {
       const config = await getMediaConfig();
       if (!config) return next();
-      const hasToken = Boolean(
-        process.env.GITHUB_MEDIA_TOKEN || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN
-      );
+      const hasToken = Boolean(process.env.GITHUB_MEDIA_TOKEN || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN);
       return res.json({
         config,
         hasToken,
-        notice: hasToken
-          ? 'کلید دسترسی (GitHub Token) در سرور فعال و متصل است.'
-          : 'توکن GITHUB_TOKEN هنوز تنظیم نشده است.'
+        notice: hasToken ? 'کلید دسترسی (GitHub Token) در سرور فعال و متصل است.' : 'توکن GITHUB_TOKEN هنوز تنظیم نشده است.'
       });
     };
     return originalGet.call(this, path, requireAdmin, mediaGet, ...handlers);
@@ -199,9 +276,7 @@ express.application.get = function(path, ...handlers) {
   return originalGet.call(this, path, ...handlers);
 };
 
-// Persist Media Library configuration after the existing endpoint accepts it.
-// This avoids storing GitHub secrets in Supabase; only non-secret configuration is persisted.
-const originalJson = express.response.json;
+// Persist non-secret Media Library configuration in Supabase. GitHub tokens are never stored here.
 express.response.json = function(body) {
   const req = this.req;
   const path = req?.path || req?.originalUrl?.split('?')[0];
@@ -213,9 +288,4 @@ express.response.json = function(body) {
   return originalJson.call(this, body);
 };
 
-// Public comments must enter moderation as pending. The legacy handler currently
-// marks them approved immediately, so normalize the stored/returned record here.
-const originalSend = express.response.json;
-void originalSend;
-
-console.info('✓ Production hardening layer loaded: admin API authorization + persistent media configuration.');
+console.info('✓ Production hardening layer loaded: admin API authorization, comment moderation, and persistent media configuration.');
