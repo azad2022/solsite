@@ -1,6 +1,8 @@
 name: Solmint DeepSeek Scheduled Publisher
 
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -68,14 +70,13 @@ jobs:
           set -euo pipefail
           if git diff --quiet -- server.ts; then
             echo 'No server.ts changes to commit.'
-            exit 0
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add server.ts
+            git commit -m 'fix: harden DeepSeek scheduled publishing trigger'
+            git push origin HEAD:main
           fi
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add server.ts
-          git commit -m 'fix: harden DeepSeek scheduled publishing trigger'
-          git push origin HEAD:main
 
       - name: Check production schedule and publish only when due
         env:
