@@ -270,6 +270,22 @@ async function startServer() {
     next();
   };
 
+  // Dedicated production cron authentication. This endpoint never accepts the public admin UI passcode.
+  const requireAutoPublishCronAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const configuredSecret = String(process.env.AUTOPUBLISH_CRON_SECRET || '').trim();
+    const suppliedSecret = String(req.headers['x-autopublish-cron-secret'] || '').trim();
+
+    if (!configuredSecret || !suppliedSecret || suppliedSecret !== configuredSecret) {
+      return res.status(401).json({
+        success: false,
+        code: 'AUTOPUBLISH_CRON_UNAUTHORIZED',
+        message: 'احراز هویت سرویس زمان‌بندی انتشار خودکار نامعتبر است.'
+      });
+    }
+
+    next();
+  };
+
   // Legacy Redirect Map for Server-side 301 Redirects
   const serverRedirects: Record<string, string> = {
     "/wallet": "/solana-wallet",
@@ -2015,6 +2031,23 @@ async function startServer() {
     } catch (error: any) {
       console.error("DeepSeek chat proxy error:", error);
       return res.status(500).json({ error: error?.message || "خطای سرور هنگام ارتباط با پشتیبان هوشمند" });
+    }
+  });
+
+  // Production cron endpoint: wake the scheduler without bypassing its due-time/idempotency checks.
+  app.post("/api/deepseek/auto-publish/scheduled", requireAutoPublishCronAuth, rateLimitMiddleware(30, 60000), async (req, res) => {
+    try {
+      await checkScheduledPublishing();
+      const latest = getCmsSettings().deepseek;
+      return res.json({
+        success: true,
+        status: latest?.lastExecutionStatus || 'idle',
+        message: latest?.lastExecutionMessage || 'بررسی زمان‌بندی انجام شد؛ در صورت رسیدن زمان انتشار، فرآیند اجرا خواهد شد.'
+      });
+    } catch (err: any) {
+      const message = err?.message || 'خطا در بررسی زمان‌بندی انتشار خودکار.';
+      console.error('[DeepSeek AutoPublish Cron] Scheduler error:', err);
+      return res.status(500).json({ success: false, code: 'AUTOPUBLISH_SCHEDULER_ERROR', message });
     }
   });
 
