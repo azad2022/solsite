@@ -12,10 +12,17 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not configured. Database writes will fail under hardened RLS policies.');
 }
 
+// Load the production hardening layer before Express registers its routes.
+// It enforces admin authorization and keeps media configuration persistent.
+try {
+  await import('./production-hardening.mjs');
+} catch (error) {
+  console.error('❌ Production hardening layer failed to load:', error?.message || error);
+  if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
 // Hydrate the server-side JSON persistence layer from Supabase before the app starts,
-// and continuously mirror settings/users changes back to Supabase. This keeps the
-// existing synchronous serverDataStore API compatible while making Supabase the
-// durable production persistence layer.
+// and continuously mirror settings/users changes back to Supabase.
 try {
   await import('./supabase-persistence-bridge.mjs');
 } catch (error) {
