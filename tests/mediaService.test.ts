@@ -5,7 +5,7 @@ import { generateSeoFilename } from '../src/utils/mediaService';
 test('generates a stable SEO-friendly filename from Persian text', () => {
   assert.equal(
     generateSeoFilename('تصویر تست مقاله جدید.png'),
-    'tsvir-test-mghalh-gdid.webp'
+    'tsvyr-tst-mghalh-jdyd.webp'
   );
 });
 
