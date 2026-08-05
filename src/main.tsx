@@ -12,6 +12,9 @@ function ErrorBoundary({ children }: ErrorBoundaryProps) {
 
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
+      // Broken image resources are handled by the article media guard below;
+      // they must never escalate into a full application error screen.
+      if (event.target instanceof HTMLImageElement) return;
       console.error('Captured runtime error:', event.error);
       setHasError(true);
     };
@@ -97,14 +100,10 @@ function installArticleImageGuard() {
     wrapper.setAttribute('data-image-failed', 'true');
     wrapper.style.display = 'none';
 
-    // Featured cards are a two-column layout. When their image fails, make
-    // the text column use the full card width rather than leaving a blank gap.
     const parentGrid = wrapper.parentElement;
     if (parentGrid instanceof HTMLElement && parentGrid.classList.contains('grid')) {
       const textColumn = Array.from(parentGrid.children).find(child => child !== wrapper) as HTMLElement | undefined;
-      if (textColumn) {
-        textColumn.style.gridColumn = '1 / -1';
-      }
+      if (textColumn) textColumn.style.gridColumn = '1 / -1';
     }
   };
 
