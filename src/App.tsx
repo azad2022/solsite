@@ -113,30 +113,16 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  // Keep the public chatbot feature flag synchronized with the server.
-  // This matters when an administrator disables the chatbot while visitors
-  // already have the site open in another tab/device. The local state still
-  // updates instantly from the admin panel; this polling closes the cross-tab
-  // and cross-device gap without requiring realtime subscriptions.
   useEffect(() => {
     let cancelled = false;
-
     const syncPublicChatbotState = async () => {
       try {
         const settings = await fetchCmsSettingsFromApi();
-        if (!cancelled && settings?.chatbot) {
-          setChatbotSettings(settings.chatbot as ChatbotSettings);
-        }
-      } catch {
-        // Keep the last known state during transient network failures.
-      }
+        if (!cancelled && settings?.chatbot) setChatbotSettings(settings.chatbot as ChatbotSettings);
+      } catch { /* Keep last known state during transient network failures. */ }
     };
-
     const intervalId = window.setInterval(syncPublicChatbotState, 15000);
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') void syncPublicChatbotState();
-    };
-
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') void syncPublicChatbotState(); };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       cancelled = true;
@@ -167,6 +153,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#08080f] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif] antialiased relative selection:bg-[#9945FF] selection:text-white">
+      <style>{`\n        @media (max-width: 767px) {\n          .admin-cms-mobile-host > .fixed.inset-0.z-50 {\n            padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));\n            overflow: hidden;\n          }\n          .admin-cms-mobile-host > .fixed.inset-0.z-50 > .glass-card {\n            width: 100%;\n            max-width: 100%;\n            height: calc(100dvh - 12px);\n            max-height: calc(100dvh - 12px);\n            margin: 0;\n            padding: 12px;\n            overflow-x: hidden;\n            overflow-y: auto;\n            overscroll-behavior: contain;\n            -webkit-overflow-scrolling: touch;\n            min-width: 0;\n          }\n          .admin-cms-mobile-host > .fixed.inset-0.z-50 > .glass-card > .flex.items-center.justify-between {\n            position: sticky;\n            top: 0;\n            z-index: 30;\n            margin: -12px -12px 0;\n            padding: 10px 12px 12px;\n            background: rgba(15, 23, 42, 0.96);\n            backdrop-filter: blur(12px);\n          }\n          .admin-cms-mobile-host input, .admin-cms-mobile-host select, .admin-cms-mobile-host textarea, .admin-cms-mobile-host button {\n            max-width: 100%;\n          }\n          .admin-cms-mobile-host pre { max-width: 100%; overflow-x: auto; }\n          .admin-cms-mobile-host img { max-width: 100%; }\n        }\n      `}</style>
       <ParticleCanvas />
       <Header solanaStatus={solanaStatus} refreshStatus={refreshSolanaStatus} currentPath={currentPath} onNavigate={handleNavigate} openAdminModal={openAdminModal} currentUser={currentUser} onLogout={handleLogout} />
       <main className="flex-1 relative z-10">
@@ -182,7 +169,7 @@ export default function App() {
           {(currentPath === '/blog' || currentPath.startsWith('/article/') || currentPath.startsWith('/blog/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
         </Suspense>
       </main>
-      {isAdminModalOpen && <Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense>}
+      {isAdminModalOpen && <div className="admin-cms-mobile-host"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense></div>}
       {!isAdminRoute && <Suspense fallback={null}><DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} /></Suspense>}
       <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
     </div>
