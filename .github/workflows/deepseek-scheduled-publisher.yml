@@ -3,6 +3,9 @@ name: Solmint DeepSeek Scheduled Publisher
 on:
   schedule:
     - cron: "*/5 * * * *"
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -20,12 +23,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The scheduler is intentionally a no-op until the production secret is configured.
-          # This prevents GitHub from generating repeated failure emails while keeping the
-          # workflow ready to activate once AUTOPUBLISH_CRON_SECRET is added.
           if [ -z "${CRON_SECRET}" ]; then
-            echo "AUTOPUBLISH_CRON_SECRET is not configured; scheduled publishing is currently disabled."
-            exit 0
+            echo "AUTOPUBLISH_CRON_SECRET is not configured in GitHub repository secrets." >&2
+            exit 1
           fi
 
           url="${SITE_URL%/}/api/deepseek/auto-publish/scheduled"
