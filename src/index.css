@@ -10,86 +10,24 @@
 }
 
 /* Custom Ultra-Clean Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #05050a;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e1e2d;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #9945FF;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #05050a; }
+::-webkit-scrollbar-thumb { background: #1e1e2d; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #9945FF; }
 
 /* Solmint Premium Glassmorphism & Micro-Glows */
-.glass-panel {
-  background: rgba(13, 14, 24, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-panel-interactive {
-  background: rgba(13, 14, 24, 0.65);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-panel-interactive:hover {
-  background: rgba(20, 22, 38, 0.85);
-  border-color: rgba(153, 69, 255, 0.4);
-  transform: translateY(-3px);
-  box-shadow: 0 16px 40px -12px rgba(153, 69, 255, 0.2);
-}
-
-.glass-card {
-  background: rgba(12, 13, 22, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glow-solana {
-  box-shadow: 0 0 50px -10px rgba(153, 69, 255, 0.25);
-}
-
-.glow-emerald {
-  box-shadow: 0 0 50px -10px rgba(20, 241, 149, 0.25);
-}
-
-.text-gradient-solana {
-  background: linear-gradient(135deg, #14F195 0%, #9945FF 50%, #00C2FF 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.btn-solana {
-  background: linear-gradient(135deg, #9945FF 0%, #14F195 100%);
-  color: #000000;
-  font-weight: 800;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.btn-solana:hover {
-  opacity: 0.92;
-  transform: scale(1.02);
-  box-shadow: 0 0 30px rgba(153, 69, 255, 0.4);
-}
+.glass-panel { background: rgba(13, 14, 24, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); }
+.glass-panel-interactive { background: rgba(13, 14, 24, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.glass-panel-interactive:hover { background: rgba(20, 22, 38, 0.85); border-color: rgba(153, 69, 255, 0.4); transform: translateY(-3px); box-shadow: 0 16px 40px -12px rgba(153, 69, 255, 0.2); }
+.glass-card { background: rgba(12, 13, 22, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+.glow-solana { box-shadow: 0 0 50px -10px rgba(153, 69, 255, 0.25); }
+.glow-emerald { box-shadow: 0 0 50px -10px rgba(20, 241, 149, 0.25); }
+.text-gradient-solana { background: linear-gradient(135deg, #14F195 0%, #9945FF 50%, #00C2FF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.btn-solana { background: linear-gradient(135deg, #9945FF 0%, #14F195 100%); color: #000000; font-weight: 800; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.btn-solana:hover { opacity: 0.92; transform: scale(1.02); box-shadow: 0 0 30px rgba(153, 69, 255, 0.4); }
 
 /* Semantic article typography. Independent of the Tailwind typography plugin. */
-.article-content {
-  color: #e2e8f0;
-  font-size: 1rem;
-  line-height: 1.95;
-  direction: rtl;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
+.article-content { color: #e2e8f0; font-size: 1rem; line-height: 1.95; direction: rtl; text-align: right; overflow-wrap: anywhere; }
 .article-content > * + * { margin-top: 1.25rem; }
 .article-content h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); line-height: 1.45; font-weight: 800; color: #fff; margin-top: 2rem; }
 .article-content h3 { font-size: clamp(1.15rem, 2.5vw, 1.45rem); line-height: 1.5; font-weight: 750; color: #f8fafc; margin-top: 1.75rem; }
@@ -108,40 +46,11 @@
 .article-content hr { border: 0; border-top: 1px solid rgba(71,85,105,.7); }
 .article-content img { display: block; max-width: 100%; height: auto; margin: 1.25rem auto; border-radius: .85rem; }
 
-/* Production article tables: semantic HTML, RTL-friendly and horizontally
-   scrollable on narrow screens without affecting the page's main scroll. */
-.article-table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  border: 1px solid rgba(71, 85, 105, .55);
-  border-radius: .9rem;
-  background: rgba(2, 6, 23, .55);
-}
-.article-content table {
-  width: 100%;
-  min-width: 620px;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: .95rem;
-  line-height: 1.75;
-}
-.article-content thead th {
-  background: rgba(30, 41, 59, .95);
-  color: #f8fafc;
-  font-weight: 800;
-  padding: .85rem 1rem;
-  border-bottom: 1px solid rgba(56, 189, 248, .35);
-  white-space: nowrap;
-}
-.article-content tbody td {
-  color: #cbd5e1;
-  padding: .8rem 1rem;
-  border-bottom: 1px solid rgba(71, 85, 105, .35);
-  vertical-align: top;
-}
+/* Production article tables */
+.article-table-wrapper { width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; border: 1px solid rgba(71, 85, 105, .55); border-radius: .9rem; background: rgba(2, 6, 23, .55); }
+.article-content table { width: 100%; min-width: 620px; border-collapse: separate; border-spacing: 0; font-size: .95rem; line-height: 1.75; }
+.article-content thead th { background: rgba(30, 41, 59, .95); color: #f8fafc; font-weight: 800; padding: .85rem 1rem; border-bottom: 1px solid rgba(56, 189, 248, .35); white-space: nowrap; }
+.article-content tbody td { color: #cbd5e1; padding: .8rem 1rem; border-bottom: 1px solid rgba(71, 85, 105, .35); vertical-align: top; }
 .article-content tbody tr:last-child td { border-bottom: 0; }
 .article-content tbody tr:nth-child(even) td { background: rgba(15, 23, 42, .35); }
 .article-content tbody tr:hover td { background: rgba(14, 165, 233, .06); }
@@ -151,68 +60,21 @@
   .article-content h2 { margin-top: 1.75rem; }
   .article-content pre { font-size: .82rem; margin-left: -.25rem; margin-right: -.25rem; }
   .article-content table { min-width: 560px; font-size: .86rem; }
-  .article-content thead th,
-  .article-content tbody td { padding: .7rem .75rem; }
+  .article-content thead th, .article-content tbody td { padding: .7rem .75rem; }
 }
 
-/* Article reader: isolate the scroll-lock rules to the article reader only.
-   Do NOT target every z-50 fixed modal: the admin CMS is also a fixed z-50
-   modal and must retain normal touch scrolling on mobile devices. */
-div.fixed.inset-0.z-50:has(> article.glass-card) {
-  overflow: hidden !important;
-  overscroll-behavior: none;
-  touch-action: none;
-}
+/* Article reader: isolate the scroll-lock rules to the article reader only. */
+div.fixed.inset-0.z-50:has(> article.glass-card) { overflow: hidden !important; overscroll-behavior: none; touch-action: none; }
+div.fixed.inset-0.z-50 > article.glass-card { height: 100dvh; max-height: 100dvh; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; scrollbar-gutter: stable; background: rgba(8, 8, 15, 0.98) !important; border: 0 !important; border-radius: 0 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
-div.fixed.inset-0.z-50 > article.glass-card {
-  height: 100dvh;
-  max-height: 100dvh;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  scrollbar-gutter: stable;
-
-  /* Editorial reader rather than a card/mobile-device mockup. */
-  background: rgba(8, 8, 15, 0.98) !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* Articles without a cover image must remain genuinely image-free in the
-   featured blog card: no decorative placeholder and no reserved image column.
-   :has() is supported by current evergreen browsers and keeps this rule
-   presentation-only without changing the article data model. */
-.featured-article-no-image-fix > div:first-child:not(:has(img)) {
-  display: none;
-}
-.featured-article-no-image-fix > div:first-child:not(:has(img)) + div {
-  grid-column: 1 / -1;
-}
+/* Articles without a cover image must be genuinely image-free in the
+   featured card: remove the empty visual column and let the content span it. */
+a[class*="rounded-3xl"][class*="grid-cols-12"] > div:first-child:not(:has(img)) { display: none; }
+a[class*="rounded-3xl"][class*="grid-cols-12"] > div:first-child:not(:has(img)) + div { grid-column: 1 / -1; }
 
 /* Mobile performance optimizations. */
 @media (max-width: 767px) {
-  .glass-panel,
-  .glass-panel-interactive,
-  .glass-card {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: rgba(13, 14, 24, 0.95) !important;
-  }
-
-  .animate-float {
-    animation: none !important;
-  }
-
-  div.fixed.inset-0.z-50 > article.glass-card {
-    width: 100%;
-    height: 100dvh;
-    max-height: 100dvh;
-    min-height: 0 !important;
-    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
-  }
+  .glass-panel, .glass-panel-interactive, .glass-card { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(13, 14, 24, 0.95) !important; }
+  .animate-float { animation: none !important; }
+  div.fixed.inset-0.z-50 > article.glass-card { width: 100%; height: 100dvh; max-height: 100dvh; min-height: 0 !important; padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
 }
