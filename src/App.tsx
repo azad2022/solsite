@@ -113,6 +113,38 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
+  // Keep the public chatbot feature flag synchronized with the server.
+  // This matters when an administrator disables the chatbot while visitors
+  // already have the site open in another tab/device. The local state still
+  // updates instantly from the admin panel; this polling closes the cross-tab
+  // and cross-device gap without requiring realtime subscriptions.
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncPublicChatbotState = async () => {
+      try {
+        const settings = await fetchCmsSettingsFromApi();
+        if (!cancelled && settings?.chatbot) {
+          setChatbotSettings(settings.chatbot as ChatbotSettings);
+        }
+      } catch {
+        // Keep the last known state during transient network failures.
+      }
+    };
+
+    const intervalId = window.setInterval(syncPublicChatbotState, 15000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void syncPublicChatbotState();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const refreshSolanaStatus = async () => {
     try {
       const res = await fetch('/api/solana/status');
