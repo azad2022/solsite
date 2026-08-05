@@ -71,10 +71,56 @@ function ErrorBoundary({ children }: ErrorBoundaryProps) {
   return <>{children}</>;
 }
 
+// Article media must fail closed. A stale/broken cover URL must never leave a
+// broken-image icon in the public UI. Hide the failed media container and let
+// the article text occupy the available space instead.
+function installArticleImageGuard() {
+  const handleImageError = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLImageElement)) return;
+
+    const image = target;
+    const wrapper = image.closest('figure') || image.parentElement;
+    if (!wrapper) {
+      image.style.display = 'none';
+      return;
+    }
+
+    const isArticleMedia = Boolean(
+      image.closest('article') ||
+      image.closest('[class*="article"]') ||
+      wrapper.classList.contains('relative')
+    );
+
+    if (!isArticleMedia) return;
+
+    wrapper.setAttribute('data-image-failed', 'true');
+    wrapper.style.display = 'none';
+
+    // Featured cards are a two-column layout. When their image fails, make
+    // the text column use the full card width rather than leaving a blank gap.
+    const parentGrid = wrapper.parentElement;
+    if (parentGrid instanceof HTMLElement && parentGrid.classList.contains('grid')) {
+      const textColumn = Array.from(parentGrid.children).find(child => child !== wrapper) as HTMLElement | undefined;
+      if (textColumn) {
+        textColumn.style.gridColumn = '1 / -1';
+      }
+    }
+  };
+
+  window.addEventListener('error', handleImageError, true);
+  return () => window.removeEventListener('error', handleImageError, true);
+}
+
+function Root() {
+  useEffect(() => installArticleImageGuard(), []);
+  return <App />;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <Root />
     </ErrorBoundary>
   </StrictMode>,
 );
