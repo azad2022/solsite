@@ -183,6 +183,17 @@ div.fixed.inset-0.z-50 > article.glass-card {
   -webkit-backdrop-filter: none !important;
 }
 
+/* Articles without a cover image must remain genuinely image-free in the
+   featured blog card: no decorative placeholder and no reserved image column.
+   :has() is supported by current evergreen browsers and keeps this rule
+   presentation-only without changing the article data model. */
+.featured-article-no-image-fix > div:first-child:not(:has(img)) {
+  display: none;
+}
+.featured-article-no-image-fix > div:first-child:not(:has(img)) + div {
+  grid-column: 1 / -1;
+}
+
 /* Mobile performance optimizations. */
 @media (max-width: 767px) {
   .glass-panel,
