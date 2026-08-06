@@ -18,7 +18,6 @@ import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
-const AdminAppShowcasePage = lazy(() => import('./components/AdminAppShowcasePage').then(m => ({ default: m.AdminAppShowcasePage })));
 const DeepSeekChatbot = lazy(() => import('./components/DeepSeekChatbot').then(m => ({ default: m.DeepSeekChatbot })));
 const SolanaWalletPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.SolanaWalletPage })));
 const SolanaTokenPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.SolanaTokenPage })));
@@ -66,12 +65,12 @@ export default function App() {
 
   const isAdminRoute = useMemo(() => {
     const lower = currentPath.toLowerCase();
-    return lower === '/admin' || lower === '/cms' || lower === '/login' || lower === '/dashboard' || lower === '/showcase-admin';
+    return lower === '/admin' || lower === '/cms' || lower === '/login' || lower === '/dashboard';
   }, [currentPath]);
 
   useEffect(() => {
-    if (isAdminRoute && currentPath !== '/showcase-admin') setIsAdminModalOpen(true);
-  }, [isAdminRoute, currentPath]);
+    if (isAdminRoute) setIsAdminModalOpen(true);
+  }, [isAdminRoute]);
 
   const activeArticleSlug = useMemo(() => {
     if (currentPath.startsWith('/article/')) return decodeRouteSegment(currentPath.slice('/article/'.length).trim());
@@ -169,7 +168,6 @@ export default function App() {
           {currentPath === '/download' && <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/faq' && <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/app-guide' && <AppUserGuidePage onNavigate={handleNavigate} />}
-          {currentPath === '/showcase-admin' && <AdminAppShowcasePage onNavigate={handleNavigate} />}
           {(currentPath === '/blog' || currentPath.startsWith('/article/') || currentPath.startsWith('/blog/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
         </Suspense>
       </main>
