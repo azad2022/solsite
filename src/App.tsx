@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { SolanaStatus, Article, MediaItem, Testimonial, UserAccount, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from './types';
 import { INITIAL_ARTICLES, INITIAL_MEDIA_ITEMS, INITIAL_TESTIMONIALS } from './data/initialBlogData';
-import { safeGetLocalStorage, safeSetLocalStorage } from './utils/security';
+import { safeGetLocalStorage } from './utils/security';
 import { ParticleCanvas } from './components/ParticleCanvas';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { AppFeaturesSection } from './components/AppFeaturesSection';
 import { AppShowcase } from './components/AppShowcase';
+import { AppShowcaseAdminPanel } from './components/AppShowcaseAdminPanel';
 import { SecuritySection } from './components/SecuritySection';
 import { RoadmapSection } from './components/RoadmapSection';
 import { FaqSection } from './components/FaqSection';
@@ -14,7 +15,6 @@ import { LatestArticlesSection } from './components/LatestArticlesSection';
 import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { updateRouteSeo } from './utils/seoManager';
-import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
@@ -34,10 +34,6 @@ const SuspenseFallback = () => (
   </div>
 );
 
-function decodeRouteSegment(value: string): string {
-  try { return decodeURIComponent(value); } catch { return value; }
-}
-
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/');
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => safeGetLocalStorage<UserAccount | null>('solmint_current_user', null));
@@ -49,6 +45,7 @@ export default function App() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => safeGetLocalStorage<MediaItem[]>('solmint_media', INITIAL_MEDIA_ITEMS));
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() => safeGetLocalStorage<Testimonial[]>('solmint_testimonials', INITIAL_TESTIMONIALS));
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isShowcaseAdminOpen, setIsShowcaseAdminOpen] = useState(false);
 
   const handleNavigate = (path: string) => {
     const normalizedPath = path || '/';
@@ -63,18 +60,9 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const isAdminRoute = useMemo(() => {
-    const lower = currentPath.toLowerCase();
-    return lower === '/admin' || lower === '/cms' || lower === '/login' || lower === '/dashboard';
-  }, [currentPath]);
-
-  useEffect(() => {
-    if (isAdminRoute) setIsAdminModalOpen(true);
-  }, [isAdminRoute]);
-
   const activeArticleSlug = useMemo(() => {
-    if (currentPath.startsWith('/article/')) return decodeRouteSegment(currentPath.slice('/article/'.length).trim());
-    if (currentPath.startsWith('/blog/')) return decodeRouteSegment(currentPath.slice('/blog/'.length).trim());
+    if (currentPath.startsWith('/article/')) return currentPath.slice('/article/'.length).trim();
+    if (currentPath.startsWith('/blog/')) return currentPath.slice('/blog/'.length).trim();
     return '';
   }, [currentPath]);
 
@@ -87,49 +75,17 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setIsShowcaseAdminOpen(false);
     localStorage.removeItem('solmint_current_user');
     localStorage.removeItem('solmint_admin_session');
   };
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadInitialServerData() {
-      try {
-        const dbArticles = await fetchArticlesFromActiveDatabase();
-        if (!cancelled && Array.isArray(dbArticles) && dbArticles.length > 0) {
-          setArticles(dbArticles);
-          safeSetLocalStorage('solmint_articles', dbArticles);
-        }
-      } catch (error) { console.warn('Initial article refresh failed; keeping cached articles.', error); }
-      try {
-        const settings = await fetchCmsSettingsFromApi();
-        if (!cancelled && settings) {
-          if (settings.deepseek) setDeepseekSettings(settings.deepseek as any);
-          if (settings.chatbot) setChatbotSettings(settings.chatbot as any);
-          if (settings.downloads) setDownloadLinks(settings.downloads as any);
-        }
-      } catch (error) { console.warn('Initial CMS settings refresh failed; keeping cached settings.', error); }
+    async function loadDatabaseArticles() {
+      const dbArticles = await fetchArticlesFromActiveDatabase();
+      if (dbArticles && dbArticles.length > 0) setArticles(dbArticles);
     }
-    loadInitialServerData();
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const syncPublicChatbotState = async () => {
-      try {
-        const settings = await fetchCmsSettingsFromApi();
-        if (!cancelled && settings?.chatbot) setChatbotSettings(settings.chatbot as ChatbotSettings);
-      } catch { /* Keep last known state during transient network failures. */ }
-    };
-    const intervalId = window.setInterval(syncPublicChatbotState, 15000);
-    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') void syncPublicChatbotState(); };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    loadDatabaseArticles();
   }, []);
 
   const refreshSolanaStatus = async () => {
@@ -145,6 +101,8 @@ export default function App() {
   }, []);
 
   const openAdminModal = () => setIsAdminModalOpen(true);
+  const isPrivilegedAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.username === 'admin';
+
   const scrollToFeatures = () => {
     if (currentPath !== '/') {
       handleNavigate('/');
@@ -154,12 +112,21 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#08080f] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif] antialiased relative selection:bg-[#9945FF] selection:text-white">
-      <style>{`\n        @media (max-width: 767px) {\n          .admin-cms-mobile-host > .fixed.inset-0.z-50 {\n            padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));\n            overflow: hidden;\n          }\n          .admin-cms-mobile-host > .fixed.inset-0.z-50 > .glass-card {\n            width: 100%;\n            max-width: 100%;\n            height: calc(100dvh - 12px);\n            max-height: calc(100dvh - 12px);\n            margin: 0;\n            padding: 12px;\n            overflow-x: hidden;\n            overflow-y: auto;\n            overscroll-behavior: contain;\n            -webkit-overflow-scrolling: touch;\n            min-width: 0;\n          }\n          .admin-cms-mobile-host > .fixed.inset-0.z-50 > .glass-card > .flex.items-center.justify-between {\n            position: sticky;\n            top: 0;\n            z-index: 30;\n            margin: -12px -12px 0;\n            padding: 10px 12px 12px;\n            background: rgba(15, 23, 42, 0.96);\n            backdrop-filter: blur(12px);\n          }\n          .admin-cms-mobile-host input, .admin-cms-mobile-host select, .admin-cms-mobile-host textarea, .admin-cms-mobile-host button {\n            max-width: 100%;\n          }\n          .admin-cms-mobile-host pre { max-width: 100%; overflow-x: auto; }\n          .admin-cms-mobile-host img { max-width: 100%; }\n        }\n      `}</style>
       <ParticleCanvas />
       <Header solanaStatus={solanaStatus} refreshStatus={refreshSolanaStatus} currentPath={currentPath} onNavigate={handleNavigate} openAdminModal={openAdminModal} currentUser={currentUser} onLogout={handleLogout} />
       <main className="flex-1 relative z-10">
         <Suspense fallback={<SuspenseFallback />}>
-          {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppShowcase /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
+          {currentPath === '/' && (
+            <>
+              <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
+              <AppShowcase />
+              <AppFeaturesSection />
+              <SecuritySection />
+              <RoadmapSection />
+              <FaqSection />
+              <LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} />
+            </>
+          )}
           {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-meme-coin' && <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
@@ -168,11 +135,59 @@ export default function App() {
           {currentPath === '/download' && <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/faq' && <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/app-guide' && <AppUserGuidePage onNavigate={handleNavigate} />}
-          {(currentPath === '/blog' || currentPath.startsWith('/article/') || currentPath.startsWith('/blog/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
+          {(currentPath === '/blog' || currentPath.startsWith('/article/') || currentPath.startsWith('/blog/')) && (
+            <div className="py-4">
+              <BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} />
+            </div>
+          )}
         </Suspense>
       </main>
-      {isAdminModalOpen && <div className="admin-cms-mobile-host"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense></div>}
-      {!isAdminRoute && <Suspense fallback={null}><DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} /></Suspense>}
+
+      {isAdminModalOpen && (
+        <div className="relative z-[60]">
+          <Suspense fallback={null}>
+            <AdminCmsModal
+              isOpen={isAdminModalOpen}
+              onClose={() => setIsAdminModalOpen(false)}
+              articles={articles}
+              setArticles={setArticles}
+              mediaItems={mediaItems}
+              setMediaItems={setMediaItems}
+              testimonials={testimonials}
+              setTestimonials={setTestimonials}
+              currentUser={currentUser}
+              setCurrentUser={setCurrentUser}
+              downloadLinks={downloadLinks}
+              setDownloadLinks={setDownloadLinks}
+              deepseekSettings={deepseekSettings}
+              setDeepseekSettings={setDeepseekSettings}
+              chatbotSettings={chatbotSettings}
+              setChatbotSettings={setChatbotSettings}
+              onGoToBlog={() => handleNavigate('/blog')}
+            />
+          </Suspense>
+
+          {isPrivilegedAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsShowcaseAdminOpen(true)}
+                className="fixed bottom-5 left-5 z-[80] px-4 py-3 rounded-2xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-xs shadow-2xl border border-white/10 flex items-center gap-2 hover:scale-[1.02] transition-transform"
+              >
+                <span aria-hidden="true">📱</span>
+                مدیریت نمایش اپلیکیشن
+              </button>
+              <AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} />
+            </>
+          )}
+        </div>
+      )}
+
+      {!isAdminModalOpen && (
+        <Suspense fallback={null}>
+          <DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} />
+        </Suspense>
+      )}
       <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
     </div>
   );
