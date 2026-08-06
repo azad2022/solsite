@@ -63,6 +63,16 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     h1: 'مدیریت و ضرب NFT در شبکه قدرتمند سولانا',
     breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'NFT سولانا', url: `${SITE_DOMAIN}/solana-nft` }]
   },
+  '/app-guide': {
+    path: '/app-guide',
+    title: 'راهنمای کامل اپلیکیشن سولمینت | آموزش کیف پول، Swap، توکن، NFT و نقدینگی',
+    description: 'راهنمای جامع استفاده از اپلیکیشن اندروید سولمینت؛ آموزش مرحله‌به‌مرحله کیف پول سولانا، ساخت توکن، Meme Coin، NFT، Swap، Burn، بازیابی Rent، انتقال گروهی و Raydium CPMM.',
+    canonical: `${SITE_DOMAIN}/app-guide`,
+    ogType: 'article',
+    ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+    h1: 'آموزش کامل اپلیکیشن سولمینت',
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'راهنمای کامل اپلیکیشن', url: `${SITE_DOMAIN}/app-guide` }]
+  },
   '/security': {
     path: '/security',
     title: 'معماری امنیتی غیرامانی سولمینت | حفظ و نگهداری کلید خصوصی',
