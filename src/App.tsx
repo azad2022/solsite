@@ -8,6 +8,8 @@ import { HeroSection } from './components/HeroSection';
 import { AppFeaturesSection } from './components/AppFeaturesSection';
 import { AppShowcase } from './components/AppShowcase';
 import { AppShowcaseAdminPanel } from './components/AppShowcaseAdminPanel';
+import { MemeTicker } from './components/MemeTicker';
+import { MemeTickerAdminPanel } from './components/MemeTickerAdminPanel';
 import { SecuritySection } from './components/SecuritySection';
 import { RoadmapSection } from './components/RoadmapSection';
 import { FaqSection } from './components/FaqSection';
@@ -46,6 +48,7 @@ export default function App() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() => safeGetLocalStorage<Testimonial[]>('solmint_testimonials', INITIAL_TESTIMONIALS));
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isShowcaseAdminOpen, setIsShowcaseAdminOpen] = useState(false);
+  const [isMemeTickerAdminOpen, setIsMemeTickerAdminOpen] = useState(false);
 
   const handleNavigate = (path: string) => {
     const normalizedPath = path || '/';
@@ -76,6 +79,7 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setIsShowcaseAdminOpen(false);
+    setIsMemeTickerAdminOpen(false);
     localStorage.removeItem('solmint_current_user');
     localStorage.removeItem('solmint_admin_session');
   };
@@ -120,6 +124,7 @@ export default function App() {
             <>
               <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
               <AppShowcase />
+              <MemeTicker />
               <AppFeaturesSection />
               <SecuritySection />
               <RoadmapSection />
@@ -169,14 +174,25 @@ export default function App() {
 
           {isPrivilegedAdmin && (
             <>
-              <button
-                type="button"
-                onClick={() => setIsShowcaseAdminOpen(true)}
-                className="fixed bottom-5 left-5 z-[80] px-4 py-3 rounded-2xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-xs shadow-2xl border border-white/10 flex items-center gap-2 hover:scale-[1.02] transition-transform"
-              >
-                <span aria-hidden="true">📱</span>
-                مدیریت نمایش اپلیکیشن
-              </button>
+              <div className="fixed bottom-5 left-5 z-[80] flex flex-col gap-2 items-start">
+                <button
+                  type="button"
+                  onClick={() => setIsMemeTickerAdminOpen(true)}
+                  className="px-4 py-3 rounded-2xl bg-slate-950 border border-[#14F195]/25 text-white font-black text-xs shadow-2xl flex items-center gap-2 hover:scale-[1.02] transition-transform"
+                >
+                  <span aria-hidden="true">📈</span>
+                  مدیریت نرخ بازار
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsShowcaseAdminOpen(true)}
+                  className="px-4 py-3 rounded-2xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-xs shadow-2xl border border-white/10 flex items-center gap-2 hover:scale-[1.02] transition-transform"
+                >
+                  <span aria-hidden="true">📱</span>
+                  مدیریت نمایش اپلیکیشن
+                </button>
+              </div>
+              <MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} />
               <AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} />
             </>
           )}
