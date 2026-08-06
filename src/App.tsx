@@ -6,6 +6,7 @@ import { ParticleCanvas } from './components/ParticleCanvas';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { AppFeaturesSection } from './components/AppFeaturesSection';
+import { AppShowcase } from './components/AppShowcase';
 import { SecuritySection } from './components/SecuritySection';
 import { RoadmapSection } from './components/RoadmapSection';
 import { FaqSection } from './components/FaqSection';
@@ -17,6 +18,7 @@ import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
+const AdminAppShowcasePage = lazy(() => import('./components/AdminAppShowcasePage').then(m => ({ default: m.AdminAppShowcasePage })));
 const DeepSeekChatbot = lazy(() => import('./components/DeepSeekChatbot').then(m => ({ default: m.DeepSeekChatbot })));
 const SolanaWalletPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.SolanaWalletPage })));
 const SolanaTokenPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.SolanaTokenPage })));
@@ -64,12 +66,12 @@ export default function App() {
 
   const isAdminRoute = useMemo(() => {
     const lower = currentPath.toLowerCase();
-    return lower === '/admin' || lower === '/cms' || lower === '/login' || lower === '/dashboard';
+    return lower === '/admin' || lower === '/cms' || lower === '/login' || lower === '/dashboard' || lower === '/showcase-admin';
   }, [currentPath]);
 
   useEffect(() => {
-    if (isAdminRoute) setIsAdminModalOpen(true);
-  }, [isAdminRoute]);
+    if (isAdminRoute && currentPath !== '/showcase-admin') setIsAdminModalOpen(true);
+  }, [isAdminRoute, currentPath]);
 
   const activeArticleSlug = useMemo(() => {
     if (currentPath.startsWith('/article/')) return decodeRouteSegment(currentPath.slice('/article/'.length).trim());
@@ -158,7 +160,7 @@ export default function App() {
       <Header solanaStatus={solanaStatus} refreshStatus={refreshSolanaStatus} currentPath={currentPath} onNavigate={handleNavigate} openAdminModal={openAdminModal} currentUser={currentUser} onLogout={handleLogout} />
       <main className="flex-1 relative z-10">
         <Suspense fallback={<SuspenseFallback />}>
-          {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
+          {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppShowcase /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
           {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-meme-coin' && <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
@@ -167,6 +169,7 @@ export default function App() {
           {currentPath === '/download' && <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/faq' && <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/app-guide' && <AppUserGuidePage onNavigate={handleNavigate} />}
+          {currentPath === '/showcase-admin' && <AdminAppShowcasePage onNavigate={handleNavigate} />}
           {(currentPath === '/blog' || currentPath.startsWith('/article/') || currentPath.startsWith('/blog/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
         </Suspense>
       </main>
