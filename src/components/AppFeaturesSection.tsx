@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Key, 
-  Layers, 
-  Image as ImageIcon, 
-  Repeat, 
-  Flame, 
-  Coins, 
-  Send, 
-  BarChart3, 
-  CheckCircle2, 
-  X, 
-  Shield, 
-  Sparkles,
+import {
+  Key,
+  Layers,
+  Image as ImageIcon,
+  Repeat,
+  Flame,
+  Coins,
+  Send,
+  BarChart3,
+  CheckCircle2,
+  X,
   ArrowLeft,
   Smartphone
 } from 'lucide-react';
@@ -32,171 +30,229 @@ interface FeatureItem {
 export const AppFeaturesSection: React.FC = () => {
   const [selectedFeature, setSelectedFeature] = useState<FeatureItem | null>(null);
 
+  // This list is intentionally limited to capabilities that are represented in the
+  // current Android application source. Marketing claims such as guaranteed prices,
+  // fixed execution times, specific DEX routing, or marketplace guarantees are not
+  // stated here unless they are directly represented by the app implementation.
   const features: FeatureItem[] = [
     {
       id: 'wallet',
-      title: 'کیف پول غیرمتمرکز و امن',
-      subtitle: 'Non-Custodial Wallet Engine',
-      badge: 'امنیت ۱۰۰٪',
+      title: 'کیف پول غیرامانی سولانا',
+      subtitle: 'Non-Custodial Wallet',
+      badge: 'کنترل کلیدها',
       badgeColor: 'text-[#14F195] bg-[#14F195]/10 border-[#14F195]/30',
       icon: Key,
-      description: 'مدیریت کامل کلیدهای خصوصی روی حافظه داخلی موبایل کاربر بدون ذخیره‌سازی روی هیچ سرور واسطه‌ای.',
+      description: 'سولمینت یک کیف پول اندرویدی برای مدیریت SOL و توکن‌های سولاناست. ایجاد کیف پول، مدیریت عبارت بازیابی و امضای تراکنش‌ها در خود اپلیکیشن انجام می‌شود.',
       detailedSteps: [
-        'تولید عبارت بازیابی (Seed Phrase) ۱۲ یا ۲۴ کلمه‌ای بر اساس پروتکل استاندارد BIP-39.',
-        'رمزنگاری AES-256 داده‌های کلید خصوصی روی چیپ امنیتی دستگاه.',
-        'امضای آفلاین تمامی تراکنش‌ها روی گوشی پیش از ارسال به شبکه سولانا.'
+        'ایجاد یا بازیابی کیف پول و مشتق‌سازی کلیدهای سولانا در دستگاه.',
+        'نمایش موجودی SOL و حساب‌های توکنی و مدیریت دارایی‌های کیف پول.',
+        'امضای تراکنش‌های ساخته‌شده در اپلیکیشن پیش از ارسال به RPC سولانا.'
       ],
       inAppBenefits: [
-        'کنترل مطلق و صددرصدی بر دارایی‌ها',
-        'عدم نیاز به احراز هویت (No KYC)',
-        'پشتیبانی از زیست‌سنجی (Fingerprint/FaceID)'
+        'مدیریت مستقیم کیف پول در Android',
+        'پشتیبانی از عملیات واقعی روی شبکه Solana',
+        'امضای تراکنش در سمت اپلیکیشن'
       ]
     },
     {
       id: 'token-creator',
-      title: 'ساخت توکن SPL و میم‌کوین',
-      subtitle: 'SPL Token Creator',
+      title: 'ساخت توکن سولانا',
+      subtitle: 'SPL Token Creation',
       badge: 'بدون کدنویسی',
       badgeColor: 'text-[#9945FF] bg-[#9945FF]/10 border-[#9945FF]/30',
       icon: Layers,
-      description: 'ساخت توکن اختصاصی شبکه سولانا با نام، نماد، تصویر، تعداد واحد و قابلیت‌های پیشرفته مدیریت دسترسی.',
+      description: 'اپلیکیشن امکان ساخت توکن روی سولانا را با تعیین اطلاعات اصلی Mint و عرضه اولیه فراهم می‌کند و تراکنش ساخت را مستقیماً از کیف پول کاربر امضا می‌کند.',
       detailedSteps: [
-        'وارد کردن نام، نماد (Symbol) و تعداد کاراکتر اعشار (Decimals).',
-        'آپلود لوگوی توکن روی شبکه غیرمتمرکز IPFS / Arweave.',
-        'تعیین اختیاری لغو Freeze Authority و Revoke Mint Authority برای جلب اعتماد خریداران.'
+        'تعیین اطلاعات توکن مانند نام، نماد، تعداد اعشار و مقدار عرضه.',
+        'ساخت حساب Mint، حساب توکن و عملیات مربوط به متادیتا در تراکنش سولانا.',
+        'امضای تراکنش و ارسال آن به شبکه از داخل اپلیکیشن.'
       ],
       inAppBenefits: [
-        'ساخت توکن کامل در کمتر از ۵ ثانیه',
-        'سازگاری ۱۰۰٪ با Raydium و Phantom',
-        'عدم نیاز به برنامه نویسی Rust یا Anchor'
+        'ساخت توکن از داخل Android',
+        'پردازش مقادیر خام با دقت integer در مسیرهای مالی حساس',
+        'ثبت نتیجه تراکنش در سابقه اپلیکیشن'
+      ]
+    },
+    {
+      id: 'meme-coin',
+      title: 'ساخت Meme Coin',
+      subtitle: 'Solana Meme Coin Creator',
+      badge: 'ابزار ساخت توکن',
+      badgeColor: 'text-amber-400 bg-amber-400/10 border-amber-400/30',
+      icon: Flame,
+      description: 'بخش Meme Coin برای ساخت توکن‌های سولانا و مدیریت تنظیمات مرتبط با Mint Authority و عرضه اولیه در اختیار کاربر است.',
+      detailedSteps: [
+        'ورود مشخصات توکن و تنظیمات عرضه و اعشار.',
+        'ساخت Mint و حساب توکن و ضرب مقدار اولیه موردنظر.',
+        'در صورت انتخاب کاربر، اعمال تنظیمات مربوط به authority در همان جریان تراکنش.'
+      ],
+      inAppBenefits: [
+        'ساخت مستقیم روی Solana',
+        'مدیریت authority در جریان ساخت',
+        'امضای تراکنش با کیف پول کاربر'
       ]
     },
     {
       id: 'nft-mint',
-      title: 'ضرب NFT با استاندارد متالپیکس',
-      subtitle: 'Metaplex NFT Minter',
-      badge: 'کارمزد < ۰.۵٪',
-      badgeColor: 'text-amber-400 bg-amber-400/10 border-amber-400/30',
+      title: 'ساخت و Mint کردن NFT',
+      subtitle: 'Metaplex NFT Minting',
+      badge: 'NFT روی سولانا',
+      badgeColor: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
       icon: ImageIcon,
-      description: 'تبدیل آثار هنری، عکس‌ها و فایل‌ها به NFT معتبر روی بلاکچین سولانا با تنظیم حق امتیاز سازنده.',
+      description: 'سولمینت دارای مسیر اختصاصی برای ساخت و Mint کردن NFT روی سولانا است و اطلاعات NFT و نتیجه آن در بخش‌های مربوط به مجموعه NFT مدیریت می‌شود.',
       detailedSteps: [
-        'انتخاب فایل تصویر یا اثر هنری از گالری موبایل.',
-        'وارد کردن متادیتا، خصوصیات (Attributes) و درصد Royalty برای فروش‌های بعدی.',
-        'ضرب مستقیم روی پروتکل Metaplex و اضافه شدن به کیف پول.'
+        'ورود اطلاعات NFT و داده‌های موردنیاز برای ساخت.',
+        'ساخت Mint با صفر decimal و ایجاد حساب مرتبط.',
+        'ایجاد metadata و Mint کردن یک واحد NFT از طریق تراکنش سولانا.'
       ],
       inAppBenefits: [
-        'نمایش فوری NFT در مارکت‌پلیس‌های Tensor و Magic Eden',
-        'کمترین کارمزد ساخت در شبکه سولانا',
-        'قابلیت انتقال و هدیه دادن آسان'
+        'مسیر اختصاصی Mint NFT',
+        'استفاده از Metaplex برای metadata',
+        'مدیریت NFTهای ساخته‌شده در اپلیکیشن'
       ]
     },
     {
       id: 'smart-swap',
-      title: 'سواپ هوشمند و سریع',
-      subtitle: 'DEX Aggregator Swap',
-      badge: 'بهترین نرخ',
+      title: 'Swap توکن‌های سولانا',
+      subtitle: 'Jupiter Swap Integration',
+      badge: 'Jupiter',
       badgeColor: 'text-sky-400 bg-sky-400/10 border-sky-400/30',
       icon: Repeat,
-      description: 'تبدیل آنی توکن‌ها به یکدیگر با مسیریابی هوشمند در میان صرافی‌های غیرمتمرکز سولانا.',
+      description: 'اپلیکیشن یک رابط Swap برای تبدیل توکن‌های سولانا دارد که از سرویس Jupiter برای دریافت Quote و ساخت تراکنش Swap استفاده می‌کند.',
       detailedSteps: [
-        'انتخاب توکن مبدا و مقصد (مانند SOL به USDC یا میم‌کوین‌ها).',
-        'یافتن بهترین مسیر معامله از بین استخرهای Raydium, Orca و Meteora.',
-        'انجام معامله با حداقل کارمزد شبکه و جلوگیری از Front-Running.'
+        'انتخاب توکن مبدا و مقصد و تعیین مقدار معامله.',
+        'دریافت Quote از سرویس Jupiter و نمایش مقدار و اطلاعات مسیر معامله.',
+        'دریافت تراکنش Swap، امضای آن با کیف پول و ارسال تراکنش به شبکه.'
       ],
       inAppBenefits: [
-        'کاهش لغزش قیمت (Slippage)',
-        'سرعت تسویه زیر ۱ ثانیه',
-        'بدون کارمزد مخفی واسطه'
+        'Quote و Swap از طریق Jupiter',
+        'تنظیم Slippage توسط کاربر',
+        'اجرای تراکنش از داخل کیف پول اپلیکیشن'
       ]
     },
     {
-      id: 'raydium-pool',
-      title: 'استخر نقدینگی و لیستینگ رایدیوم',
-      subtitle: 'Raydium Liquidity Pool',
-      badge: 'ارزش‌دهی فوری',
-      badgeColor: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
+      id: 'burn',
+      title: 'سوزاندن توکن',
+      subtitle: 'Single & Batch Token Burn',
+      badge: 'BurnChecked',
+      badgeColor: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
       icon: Flame,
-      description: 'ایجاد استخر نقدینگی و بازار خرید و فروش برای توکن‌های جدید ساخته‌شده در صرافی Raydium.',
+      description: 'سولمینت ابزار اختصاصی برای سوزاندن توکن دارد؛ هم برای یک توکن و هم برای پردازش گروهی. مقدارها در مسیر فعلی با واحد خام توکن پردازش می‌شوند و نتیجه تراکنش قابل پیگیری است.',
       detailedSteps: [
-        'اتصال توکن ساخته شده به مقدار مشخصی SOL یا USDC.',
-        'ایجاد OpenBook Market ID و واریز نقدینگی اولیه.',
-        'فعال‌سازی امکان معامله برای تمامی کاربران جهانی.'
+        'انتخاب حساب توکن و مقدار موردنظر برای Burn.',
+        'ساخت تراکنش BurnChecked با مقدار خام و decimals توکن.',
+        'ارسال و تأیید تراکنش و تولید رسید شامل اطلاعات مربوط به mint و وضعیت تأیید.'
       ],
       inAppBenefits: [
-        'لیست شدن خودکار در معتبرترین DEX سولانا',
-        'قابلیت قفل کردن نقدینگی (LP Lock)',
-        'قابلیت سوزاندن توکن‌های LP'
+        'Single Burn و Batch Burn',
+        'پشتیبانی از close authority متفاوت از owner',
+        'نمایش وضعیت تأیید on-chain در رسید'
       ]
     },
     {
       id: 'rent-recovery',
-      title: 'بازیابی کارمزد اجاره حساب‌ها',
-      subtitle: 'Solana Rent Claiming',
-      badge: 'بازپس‌گیری SOL',
+      title: 'بازیابی Rent حساب‌های توکن',
+      subtitle: 'Token Account Rent Recovery',
+      badge: 'بازیابی SOL',
       badgeColor: 'text-[#14F195] bg-[#14F195]/10 border-[#14F195]/30',
       icon: Coins,
-      description: 'شناسایی و بستن اتوماتیک حساب‌های Token Account بدون موجودی و بازگرداندن SOL قفل‌شده.',
+      description: 'بخش Rent Recovery حساب‌های توکن قابل‌بستن را پیدا می‌کند تا کاربر بتواند حساب‌های بدون موجودی را ببندد و SOL مربوط به Rent را بازیابی کند.',
       detailedSteps: [
-        'اسکن کامل آدرس کیف پول جهت یافتن حساب‌های ATA خالی از توکن.',
-        'محاسبه مقدار دقیق SOL قفل‌شده به عنوان Rent Exemption (حدود 0.002 SOL به ازای هر حساب).',
-        'بستن حساب‌ها با ۱ کلیک و انتقال SOL بازیابی شده به موجودی اصلی.'
+        'دریافت و بررسی Token Accountهای کیف پول.',
+        'شناسایی حساب‌هایی که شرایط لازم برای Close شدن را دارند.',
+        'ساخت و امضای دستور Close Account و ارسال آن به شبکه.'
       ],
       inAppBenefits: [
-        'آزادسازی رایگان سولانای قفل شده',
-        'تمیزسازی و بهینه‌سازی کیف پول',
-        'عملیات ۱۰۰٪ امن و برگشت‌پذیر'
+        'پاک‌سازی حساب‌های توکن',
+        'بازیابی SOL مربوط به Rent',
+        'مدیریت عملیات از داخل اپلیکیشن'
       ]
     },
     {
       id: 'airdrop-batch',
-      title: 'ارسال گروهی و ایردراپ',
-      subtitle: 'Batch Token Airdrop',
-      badge: 'توزیع انبوه',
+      title: 'ارسال گروهی SOL و توکن',
+      subtitle: 'Batch Transfer / Airdrop',
+      badge: 'Batch Operations',
       badgeColor: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
       icon: Send,
-      description: 'توزیع توکن یا SOL بین صدها آدرس مختلف در قالب یک تراکنش تجمیعی.',
+      description: 'اپلیکیشن ابزارهای ارسال گروهی برای انتقال SOL و توکن به چندین آدرس دارد و تراکنش‌های گروهی توسط SolanaWalletEngine ساخته می‌شوند.',
       detailedSteps: [
-        'وارد کردن لیست آدرس‌های دریافت‌کننده به صورت متنی یا فایل CSV.',
-        'تعیین مقدار توکن تخصیصی برای هر آدرس.',
-        'ارسال سریع ایردراپ با صرفه‌جویی در کارمزد تراکنش‌ها.'
+        'تعریف فهرست دریافت‌کنندگان و مقدار انتقال.',
+        'ساخت مجموعه دستورهای انتقال در یک جریان گروهی.',
+        'امضا و ارسال تراکنش و بررسی نتیجه عملیات.'
       ],
       inAppBenefits: [
-        'مناسب کمپین‌های مارکتینگ پروژه‌ها',
-        'کاهش ۹۰ درصدی زمان ارسال',
-        'تاییدیه دقیق گزارش ارسال'
+        'انتقال به چندین آدرس',
+        'پشتیبانی از SOL و SPL Token',
+        'ساخت تراکنش در خود اپلیکیشن'
       ]
     },
     {
-      id: 'portfolio-analytics',
-      title: 'مدیریت و تحلیل پورتفولیو',
-      subtitle: 'Portfolio & History Tracker',
-      badge: 'آمار زنده',
-      badgeColor: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/30',
-      icon: BarChart3,
-      description: 'نمایش آمار لحضه‌ای ارزش دارایی‌ها، نمودار تغییرات قیمت و تاریخچه دقیق تراکنش‌ها.',
+      id: 'cpmm-pool',
+      title: 'ساخت استخر Raydium CPMM',
+      subtitle: 'Raydium CPMM Pool',
+      badge: 'Liquidity',
+      badgeColor: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
+      icon: Layers,
+      description: 'سولمینت مسیر اختصاصی برای ایجاد استخر CPMM روی Raydium دارد و مقدار اولیه توکن و SOL را در جریان ساخت استخر مدیریت می‌کند.',
       detailedSteps: [
-        'استعلام قیمت زنده تمامی توکن‌ها از اوراکل‌های معتبر.',
-        'محاسبه مجموع ارزش کیف پول به دلار و تومان.',
-        'تفکیک تراکنش‌ها بر اساس واریز، برداشت، سواپ و ساخت توکن.'
+        'انتخاب توکن و مقدار نقدینگی اولیه.',
+        'ساخت حساب‌های موردنیاز استخر و LP Mint.',
+        'ساخت دستور Initialize Pool و امضای تراکنش از داخل کیف پول.'
       ],
       inAppBenefits: [
-        'رابط کاربری فوق‌العاده شیک و خوانا',
-        'بروزرسانی زنده بدون تاخیر',
-        'امکان خروجی گرفتن از گزارش‌ها'
+        'ایجاد استخر CPMM',
+        'پردازش مقدارهای خام توکن با دقت بالا',
+        'مدیریت استخرهای محلی در اپلیکیشن'
+      ]
+    },
+    {
+      id: 'lp-management',
+      title: 'مدیریت LP و عملیات مرتبط با استخر',
+      subtitle: 'LP Burn / Lock',
+      badge: 'Liquidity Tools',
+      badgeColor: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30',
+      icon: Layers,
+      description: 'اپلیکیشن علاوه بر ایجاد CPMM، صفحه‌ای برای عملیات مرتبط با LP Token دارد؛ از جمله مسیرهای Burn و Lock که در بخش مدیریت استخر ارائه شده‌اند.',
+      detailedSteps: [
+        'انتخاب استخر و بررسی اطلاعات LP مربوط به آن.',
+        'انتخاب عملیات موردنظر برای LP Token.',
+        'ساخت، امضا و ارسال تراکنش مربوط به عملیات LP.'
+      ],
+      inAppBenefits: [
+        'ابزارهای LP در داخل اپلیکیشن',
+        'اتصال به جریان تراکنش Solana',
+        'مدیریت عملیات استخر از موبایل'
+      ]
+    },
+    {
+      id: 'history',
+      title: 'تاریخچه و پیگیری تراکنش‌ها',
+      subtitle: 'Transaction History',
+      badge: 'On-chain Records',
+      badgeColor: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/30',
+      icon: BarChart3,
+      description: 'اپلیکیشن تراکنش‌های کیف پول و عملیات انجام‌شده را در بخش History مدیریت می‌کند و برای داده‌های تراکنشی از لایه RPC سولانا استفاده می‌شود.',
+      detailedSteps: [
+        'دریافت اطلاعات تراکنش از RPC سولانا.',
+        'تبدیل داده‌ها به مدل‌های قابل نمایش در اپلیکیشن.',
+        'نمایش تاریخچه و جزئیات عملیات کیف پول.'
+      ],
+      inAppBenefits: [
+        'نمایش تاریخچه تراکنش',
+        'اتصال مستقیم به داده‌های Solana RPC',
+        'نگهداری داده‌های مرتبط در لایه محلی اپلیکیشن'
       ]
     }
   ];
 
   return (
     <section id="app-features" className="py-20 border-b border-white/5 relative overflow-hidden">
-      {/* Background Subtle Gradient Blobs for dynamic scroll feel */}
       <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 bg-[#9945FF]/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-[#14F195]/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
-
-        {/* Section Title with Motion Scroll Effect */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 40, scale: 0.96 }}
           whileInView={{ opacity: 1, y: 0, scale: 1 }}
           viewport={{ once: false, margin: '-50px' }}
@@ -204,29 +260,22 @@ export const AppFeaturesSection: React.FC = () => {
           className="text-center space-y-4 max-w-3xl mx-auto"
         >
           <h2 className="text-[48px] font-bold text-white leading-[62.5px] text-center" style={{ fontSize: '48px', lineHeight: '62.5px' }}>
-            همه امکانات وب۳ سولانا <br className="hidden sm:block" />
-            در <span className="bg-gradient-to-r from-[#9945FF] to-[#14F195] bg-clip-text text-transparent">یک اپلیکیشن موبایل</span>
+            امکانات واقعی اپلیکیشن <br className="hidden sm:block" />
+            <span className="bg-gradient-to-r from-[#9945FF] to-[#14F195] bg-clip-text text-transparent">Solmint</span> در یک نگاه
           </h2>
 
-          <p className="text-slate-400 text-[12px] sm:text-[12px] leading-relaxed" style={{ fontSize: '12px' }}>
-            اپلیکیشن سولمینت تمامی پیچیدگی‌های بلاکچین سولانا را حذف کرده است. برای استفاده از هیچ‌یک از ابزارهای زیر نیازی به سیستم خانگی یا کدنویسی ندارید.
+          <p className="text-slate-400 text-[12px] sm:text-[13px] leading-relaxed" style={{ fontSize: '13px' }}>
+            این بخش بر اساس قابلیت‌های موجود در سورس فعلی اپلیکیشن اندروید تهیه شده است. جزئیاتی که وابسته به شرایط شبکه، نقدینگی یا سرویس‌های شخص ثالث هستند به‌عنوان تضمین قطعی ارائه نمی‌شوند.
           </p>
         </motion.div>
 
-        {/* Features Bento Grid with Staggered Scroll Animations */}
-        <motion.div 
+        <motion.div
           initial="hidden"
           whileInView="show"
           viewport={{ once: false, margin: '-60px' }}
           variants={{
             hidden: { opacity: 0 },
-            show: {
-              opacity: 1,
-              transition: {
-                staggerChildren: 0.08,
-                delayChildren: 0.1
-              }
-            }
+            show: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } }
           }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
         >
@@ -238,57 +287,37 @@ export const AppFeaturesSection: React.FC = () => {
                 onClick={() => setSelectedFeature(feat)}
                 variants={{
                   hidden: { opacity: 0, y: 35, scale: 0.94 },
-                  show: { 
-                    opacity: 1, 
-                    y: 0, 
-                    scale: 1,
-                    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }
-                  }
+                  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } }
                 }}
-                whileHover={{ 
-                  y: -8, 
-                  scale: 1.02,
-                  transition: { duration: 0.25, ease: 'easeOut' }
-                }}
+                whileHover={{ y: -8, scale: 1.02, transition: { duration: 0.25, ease: 'easeOut' } }}
                 whileTap={{ scale: 0.98 }}
                 className="glass-panel-interactive rounded-2xl p-6 flex flex-col justify-between group cursor-pointer border border-white/10 hover:border-[#14F195]/40 hover:shadow-xl hover:shadow-[#9945FF]/10 transition-colors"
               >
                 <div className="space-y-4">
-                  
-                  {/* Top Bar inside Card */}
                   <div className="flex items-center justify-between">
-                    <motion.div 
+                    <motion.div
                       whileHover={{ rotate: 12, scale: 1.1 }}
                       className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#9945FF]/20 to-[#14F195]/20 border border-white/10 text-[#14F195] flex items-center justify-center group-hover:border-[#9945FF]/40 transition-colors"
                     >
                       <IconComp className="w-5 h-5 stroke-[2]" />
                     </motion.div>
-
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${feat.badgeColor}`}>
                       {feat.badge}
                     </span>
                   </div>
 
-                  {/* Title & Subtitle */}
                   <div>
                     <h3 className="text-base font-bold text-white group-hover:text-[#14F195] transition-colors leading-snug">
                       {feat.title}
                     </h3>
-                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                      {feat.subtitle}
-                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">{feat.subtitle}</span>
                   </div>
 
-                  {/* Description */}
-                  <p className="text-slate-400 text-xs leading-relaxed line-clamp-3 font-normal">
-                    {feat.description}
-                  </p>
-
+                  <p className="text-slate-400 text-xs leading-relaxed line-clamp-3 font-normal">{feat.description}</p>
                 </div>
 
-                {/* Footer Link inside Card */}
                 <div className="pt-4 mt-4 border-t border-white/5 flex items-center justify-between text-xs font-semibold text-slate-400 group-hover:text-[#14F195] transition-colors">
-                  <span>بررسی قابلیت</span>
+                  <span>جزئیات قابلیت</span>
                   <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1.5 transition-transform" />
                 </div>
               </motion.div>
@@ -296,17 +325,16 @@ export const AppFeaturesSection: React.FC = () => {
           })}
         </motion.div>
 
-        {/* Feature Detail Modal with AnimatePresence */}
         <AnimatePresence>
           {selectedFeature && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedFeature(null)}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto"
             >
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -314,8 +342,6 @@ export const AppFeaturesSection: React.FC = () => {
                 onClick={(e) => e.stopPropagation()}
                 className="bg-[#101020] w-full max-w-2xl rounded-3xl border border-white/15 p-6 sm:p-8 space-y-6 text-slate-200 my-auto shadow-2xl relative"
               >
-                
-                {/* Modal Header */}
                 <div className="flex items-center justify-between pb-4 border-b border-white/10">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-[#9945FF]/20 text-[#14F195] border border-[#9945FF]/30 flex items-center justify-center font-bold">
@@ -330,34 +356,28 @@ export const AppFeaturesSection: React.FC = () => {
                   <button
                     onClick={() => setSelectedFeature(null)}
                     className="p-2 rounded-xl bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    aria-label="بستن"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                {/* Modal Body */}
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  {selectedFeature.description}
-                </p>
+                <p className="text-sm text-slate-300 leading-relaxed">{selectedFeature.description}</p>
 
-                {/* Steps inside App */}
                 <div className="space-y-3 bg-black/40 p-4 rounded-2xl border border-white/10">
                   <span className="text-xs font-bold text-white block">مراحل انجام کار داخل اپلیکیشن سولمینت:</span>
                   <ul className="space-y-2 text-xs text-slate-300">
                     {selectedFeature.detailedSteps.map((step, idx) => (
                       <li key={idx} className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-[#9945FF]/20 text-[#14F195] text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-                          {idx + 1}
-                        </span>
+                        <span className="w-5 h-5 rounded-full bg-[#9945FF]/20 text-[#14F195] text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</span>
                         <span>{step}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                {/* Benefits */}
                 <div className="space-y-2">
-                  <span className="text-xs font-bold text-emerald-400 block">مزایای اختصاصی اپلیکیشن:</span>
+                  <span className="text-xs font-bold text-emerald-400 block">جزئیات قابل توجه:</span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     {selectedFeature.inAppBenefits.map((ben, idx) => (
                       <div key={idx} className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-1.5">
@@ -368,7 +388,6 @@ export const AppFeaturesSection: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Download Footer inside Modal */}
                 <div className="pt-2">
                   <a
                     href="https://t.me/solmintchannel"
@@ -377,15 +396,13 @@ export const AppFeaturesSection: React.FC = () => {
                     className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:brightness-110 transition-all"
                   >
                     <Smartphone className="w-4 h-4" />
-                    <span>دانلود اپلیکیشن سولمینت از تلگرام</span>
+                    <span>دریافت اپلیکیشن سولمینت</span>
                   </a>
                 </div>
-
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
-
       </div>
     </section>
   );
