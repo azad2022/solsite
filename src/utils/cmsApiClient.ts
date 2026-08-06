@@ -1,10 +1,7 @@
 import { Article, UserAccount, ArticleComment, DeepSeekAiSettings, ChatbotSettings, DownloadLinks } from '../types';
 import { 
-  fetchUsersFromSupabase, 
   saveUserToSupabase, 
   deleteUserFromSupabase, 
-  fetchCmsSettingsFromSupabase, 
-  saveCmsSettingsToSupabase,
   fetchArticlesFromSupabase,
   saveArticleToSupabase,
   deleteArticleFromSupabase
@@ -47,7 +44,8 @@ async function safeFetchJson<T = any>(res: Response): Promise<{ ok: boolean; sta
 }
 
 /**
- * Fetch all CMS Settings from real backend database or Supabase
+ * Fetch all CMS Settings from the backend API only.
+ * Do not fall back to direct Supabase reads for cms_settings because the table is protected by RLS.
  */
 export async function fetchCmsSettingsFromApi(): Promise<CmsSettings | null> {
   try {
@@ -57,40 +55,33 @@ export async function fetchCmsSettingsFromApi(): Promise<CmsSettings | null> {
       return data.settings;
     }
   } catch (err) {
-    console.warn('Error fetching CMS settings from API, trying Supabase fallback:', err);
+    console.warn('Error fetching CMS settings from API:', err);
   }
-
-  // Fallback to Supabase
-  const supaSettings = await fetchCmsSettingsFromSupabase();
-  if (supaSettings) return supaSettings;
 
   return null;
 }
 
 /**
- * Save CMS Settings to real backend database and Supabase
+ * Save CMS Settings through the backend API only.
+ * The backend is the source of truth for settings writes.
  */
 export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Promise<boolean> {
-  let apiSuccess = false;
   try {
     const res = await fetch('/api/cms/settings', {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ settings })
     });
-    apiSuccess = res.ok;
+    return res.ok;
   } catch (err) {
     console.warn('Error saving CMS settings to API:', err);
+    return false;
   }
-
-  // Save to Supabase as well
-  const supaSuccess = await saveCmsSettingsToSupabase(settings);
-
-  return apiSuccess || supaSuccess;
 }
 
 /**
- * Register a new real user account in backend database and Supabase
+ * Register a new real user account in backend database.
+ * Avoid direct browser writes to Supabase users table because the table is protected.
  */
 export async function registerUserApi(payload: {
   username: string;
@@ -109,7 +100,7 @@ export async function registerUserApi(payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const { ok, data, status } = await safeFetchJson(res);
+    const { data, status } = await safeFetchJson(res);
     apiStatus = status;
     if (data && data.success) {
       apiData = data;
@@ -118,121 +109,40 @@ export async function registerUserApi(payload: {
     console.warn('Error registering user via /api/users/register:', err);
   }
 
-  // Always sync with Supabase
-  const newUserObj: UserAccount = {
-    id: apiData?.user?.id || 'usr-' + Date.now(),
-    username: payload.username,
-    fullName: payload.fullName,
-    passwordHash: payload.passwordHash,
-    role: (payload.role as any) || 'admin',
-    permissions: (payload.permissions as any) || ['articles', 'editor', 'comments', 'media', 'seo', 'audit', 'redirects', 'downloads', 'deepseek', 'chatbot', 'database', 'security', 'users'],
-    isActive: payload.isActive !== false,
-    createdAt: new Date().toLocaleDateString('fa-IR')
-  };
-
-  const supaSuccess = await saveUserToSupabase(newUserObj);
-
   if (apiData) return apiData;
-
-  if (supaSuccess) {
-    return {
-      success: true,
-      message: 'کاربر با موفقیت در دیتابیس سوپابیس ثبت گردید.',
-      user: newUserObj
-    };
-  }
 
   return {
     success: false,
     message: apiStatus === 405 || apiStatus === 404
-      ? 'اتصال به سرور API مستقیم برقرار نشد، اما داده‌ها در صورت تنظیم سوپابیس همگام‌سازی می‌شوند.'
+      ? 'اتصال به سرور API مستقیم برقرار نشد.'
       : `خطا در برقراری ارتباط با سرور (کد status: ${apiStatus || 'شبکه'})`
   };
 }
 
 /**
- * Authenticate user login against backend database AND Supabase
+ * Authenticate user login against backend database first.
+ * No direct Supabase fallback for users, because the users table is protected.
  */
 export async function loginUserApi(payload: {
   username?: string;
   passwordHash?: string;
   passcode?: string;
 }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean }> {
-  // 1. Try Express Backend API
   try {
     const res = await fetch('/api/users/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const { ok, data, status } = await safeFetchJson(res);
+    const { data, status } = await safeFetchJson(res);
     if (data && data.success) {
       return data;
     }
-    // If user specifically got 401 invalid credentials from server, return that message
     if (status === 401 && data && data.message) {
       return data;
     }
   } catch (err: any) {
     console.warn('Error calling /api/users/login:', err);
-  }
-
-  // 2. Fallback / Direct Supabase Auth Verification
-  try {
-    const cleanUsername = String(payload.username || '').trim().toLowerCase();
-    const suppliedPass = String(payload.passcode || '').trim();
-    const suppliedHash = String(payload.passwordHash || '').trim();
-
-    // Fetch users directly from Supabase
-    const supaUsers = await fetchUsersFromSupabase();
-
-    if (supaUsers && supaUsers.length > 0) {
-      // Check admin login
-      if (cleanUsername === 'admin') {
-        const adminInSupa = supaUsers.find(u => u.username.toLowerCase() === 'admin');
-        const defaultSuperAdmin: UserAccount = {
-          id: 'admin-1',
-          username: 'admin',
-          fullName: 'مدیر ارشد پلتفرم (SuperAdmin)',
-          passwordHash: 'admin_hash',
-          role: 'superadmin',
-          permissions: ['articles', 'editor', 'comments', 'media', 'seo', 'audit', 'redirects', 'downloads', 'deepseek', 'chatbot', 'database', 'security', 'users'],
-          isActive: true,
-          createdAt: '۱۴۰۴/۰۱/۰۱'
-        };
-
-        const targetAdmin = adminInSupa || defaultSuperAdmin;
-        
-        // Passcode match check
-        const isPassValid = 
-          suppliedPass === 'solmint1404' || 
-          (targetAdmin.passwordHash && (suppliedHash === targetAdmin.passwordHash || suppliedPass === targetAdmin.passwordHash));
-
-        if (isPassValid) {
-          return { success: true, user: targetAdmin, isSuperAdmin: true };
-        }
-      } else {
-        // Standard registered user in Supabase
-        const found = supaUsers.find(u => u.username.toLowerCase() === cleanUsername);
-        if (found) {
-          if (found.isActive === false) {
-            return { success: false, message: 'حساب کاربری شما غیرفعال شده است.' };
-          }
-          const isUserPassValid = 
-            (suppliedHash && found.passwordHash === suppliedHash) ||
-            (suppliedPass && found.passwordHash === suppliedPass) ||
-            (found.role === 'superadmin' && suppliedPass === 'solmint1404');
-
-          if (isUserPassValid) {
-            return { success: true, user: found, isSuperAdmin: found.role === 'superadmin' };
-          } else {
-            return { success: false, message: 'رمز عبور وارد شده اشتباه است.' };
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Supabase login check warning:', err);
   }
 
   return { 
@@ -242,28 +152,24 @@ export async function loginUserApi(payload: {
 }
 
 /**
- * Fetch all registered users from backend database or Supabase
+ * Fetch all registered users from backend database only.
  */
 export async function fetchUsersApi(): Promise<UserAccount[]> {
   try {
     const res = await fetch('/api/users');
     const { ok, data } = await safeFetchJson(res);
-    if (ok && data && Array.isArray(data.users) && data.users.length > 0) {
+    if (ok && data && Array.isArray(data.users)) {
       return data.users;
     }
   } catch (err) {
     console.warn('Error fetching users from /api/users:', err);
   }
 
-  // Fallback to Supabase
-  const supaUsers = await fetchUsersFromSupabase();
-  if (supaUsers) return supaUsers;
-
   return [];
 }
 
 /**
- * Update user role/permissions in backend database and Supabase
+ * Update user role/permissions in backend database only.
  */
 export async function updateUserApi(payload: {
   userId: string;
@@ -272,48 +178,34 @@ export async function updateUserApi(payload: {
   isActive?: boolean;
   passwordHash?: string;
 }): Promise<boolean> {
-  let apiSuccess = false;
   try {
     const res = await fetch('/api/users/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    apiSuccess = res.ok;
+    return res.ok;
   } catch (err) {
     console.warn('Error updating user via API:', err);
+    return false;
   }
-
-  // Also update in Supabase
-  const users = await fetchUsersFromSupabase();
-  if (users) {
-    const existing = users.find(u => u.id === payload.userId);
-    if (existing) {
-      if (payload.role) existing.role = payload.role;
-      if (payload.permissions) existing.permissions = payload.permissions;
-      if (typeof payload.isActive === 'boolean') existing.isActive = payload.isActive;
-      if (payload.passwordHash) existing.passwordHash = payload.passwordHash;
-      await saveUserToSupabase(existing);
-    }
-  }
-
-  return true;
 }
 
 /**
- * Delete user account from backend database and Supabase
+ * Delete user account from backend database only.
  */
 export async function deleteUserApi(userId: string): Promise<boolean> {
   try {
-    fetch('/api/users/delete', {
+    const res = await fetch('/api/users/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId })
-    }).catch(() => {});
-  } catch (e) {}
-
-  await deleteUserFromSupabase(userId);
-  return true;
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Error deleting user via API:', err);
+    return false;
+  }
 }
 
 /**
@@ -331,7 +223,7 @@ export async function addCommentApi(payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const { ok, data, status } = await safeFetchJson(res);
+    const { data, status } = await safeFetchJson(res);
     if (data) {
       return data;
     }
@@ -404,4 +296,3 @@ export async function deleteArticleFromApi(articleId: string): Promise<boolean> 
     return false;
   }
 }
-
