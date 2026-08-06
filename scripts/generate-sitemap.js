@@ -31,6 +31,7 @@ async function generate() {
     "/solana-token",
     "/solana-meme-coin",
     "/solana-nft",
+    "/app-guide",
     "/security",
     "/download",
     "/blog",
@@ -58,7 +59,6 @@ async function generate() {
     console.warn("⚠️ Exception fetching articles for sitemap generation:", err);
   }
 
-  // 1. Generate sitemap.xml
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
@@ -86,7 +86,6 @@ async function generate() {
 
   xml += `</urlset>`;
 
-  // 2. Generate robots.txt
   const robotsTxt = `# SolMint.ir Official Robots.txt
 User-agent: *
 Allow: /
@@ -94,6 +93,7 @@ Allow: /solana-wallet
 Allow: /solana-token
 Allow: /solana-meme-coin
 Allow: /solana-nft
+Allow: /app-guide
 Allow: /security
 Allow: /download
 Allow: /blog
@@ -106,7 +106,6 @@ Disallow: /api/
 Sitemap: https://solmint.ir/sitemap.xml
 `;
 
-  // Write to public/ directory
   const publicDir = path.join(process.cwd(), "public");
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
@@ -115,7 +114,6 @@ Sitemap: https://solmint.ir/sitemap.xml
   fs.writeFileSync(path.join(publicDir, "sitemap.xml"), xml, "utf-8");
   fs.writeFileSync(path.join(publicDir, "robots.txt"), robotsTxt, "utf-8");
 
-  // Write to dist/ directory if it exists
   const distDir = path.join(process.cwd(), "dist");
   if (fs.existsSync(distDir)) {
     fs.writeFileSync(path.join(distDir, "sitemap.xml"), xml, "utf-8");
