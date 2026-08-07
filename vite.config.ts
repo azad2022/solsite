@@ -60,6 +60,10 @@ function articleCategoryRegistryPlugin(): Plugin {
           /\{adminTab === 'seo' && \(\n\s*<div className="space-y-6 text-xs">/,
           "{adminTab === 'seo' && (\n              <div className=\"space-y-6 text-xs\">\n                <ArticleCategoryManager />"
         );
+        transformed = transformed.replace(
+          /(<span>افزودن مقاله دستی<\/span>\s*<\/button>)/,
+          "$1\n                    <button type=\"button\" onClick={() => setAdminTab('seo')} className=\"px-3 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 font-bold border border-cyan-500/30 flex items-center gap-1 cursor-pointer\">مدیریت دسته‌بندی‌ها</button>"
+        );
         if (transformed.includes('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}')) transformed = transformed.replace('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}', staticOptions);
         return transformed;
       }
