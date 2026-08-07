@@ -31,7 +31,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({ articles, setArticles, current
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [readingArticle]);
 
-  const categories = ['همه', 'آموزش سولانا', 'توسعه وب۳', 'امنیت', 'اخبار و تحلیل'];
+  const categories = ['همه', 'آموزش سولانا', 'توسعه وب۳', 'امنیت', 'اخبار و تحلیل', 'ترید', 'پراپ تریدینگ'];
   const allTags = Array.from(new Set(articles.flatMap(a => a.tags)));
   const filteredArticles = articles.filter(art => {
     const query = searchQuery.toLowerCase();
