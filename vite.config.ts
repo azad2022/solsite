@@ -8,8 +8,7 @@ function articleCategoryRegistryPlugin(): Plugin {
   const registryPath = path.resolve(__dirname, 'src/config/articleCategories.json');
   const categories = JSON.parse(fs.readFileSync(registryPath, 'utf8')) as string[];
   const allCategories = ['همه', ...categories];
-  const options = categories.map(category => `<option value="${category}">${category}</option>`).join('\n');
-  const union = categories.map(category => `'${category}'`).join(' | ');
+  const staticOptions = categories.map(category => `<option value="${category}">${category}</option>`).join('\n');
 
   return {
     name: 'solmint-article-category-registry',
@@ -19,11 +18,26 @@ function articleCategoryRegistryPlugin(): Plugin {
         return code.replace(/const categories = \[[\s\S]*?\];/, `const categories = ${JSON.stringify(allCategories)};`);
       }
       if (id.endsWith('/src/components/AdminCmsModal.tsx')) {
-        const categoryStatePattern = /useState<'آموزش سولانا' \| 'توسعه وب۳' \| 'امنیت' \| 'اخبار و تحلیل'>\('آموزش سولانا'\)/;
-        const optionBlockPattern = /<option value="آموزش سولانا">آموزش سولانا<\/option>\s*<option value="توسعه وب۳">توسعه وب۳<\/option>\s*<option value="امنیت">امنیت<\/option>\s*<option value="اخبار و تحلیل">اخبار و تحلیل<\/option>/;
-        return code
-          .replace(categoryStatePattern, `useState<${union}>('آموزش سولانا')`)
-          .replace(optionBlockPattern, options);
+        let transformed = code;
+        transformed = transformed.replace(
+          "import React, { useState, useEffect } from 'react';",
+          "import React, { useState, useEffect } from 'react';\nimport { ArticleCategoryManager, ArticleCategorySelect } from './ArticleCategoryManager';"
+        );
+        transformed = transformed.replace(
+          /const \[formCategory, setFormCategory\] = useState<'[^']+'(?: \| '[^']+')+>\('آموزش سولانا'\);/,
+          "const [formCategory, setFormCategory] = useState<string>('آموزش سولانا');"
+        );
+        transformed = transformed.replace(
+          /<select\n\s+value=\{formCategory\}\n\s+onChange=\{\(e\) => setFormCategory\(e\.target\.value as any\)\}\n\s+className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2\.5 text-slate-200"\n\s*>[\s\S]*?<\/select>/,
+          '<ArticleCategorySelect value={formCategory} onChange={setFormCategory} />'
+        );
+        transformed = transformed.replace(
+          /\{adminTab === 'seo' && \(\n\s*<div className="space-y-6 text-xs">/,
+          "{adminTab === 'seo' && (\n              <div className=\"space-y-6 text-xs\">\n                <ArticleCategoryManager />"
+        );
+        // Keep the static list as a build-time fallback only if a legacy editor fragment survives the transform.
+        if (transformed.includes('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}')) transformed = transformed.replace('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}', staticOptions);
+        return transformed;
       }
       return null;
     },
