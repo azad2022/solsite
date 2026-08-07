@@ -1,5 +1,6 @@
 import { Article } from '../types';
 import { fetchArticlesFromSupabase } from './supabaseClient';
+import { extractArticleKeywords } from './seoContentUtils';
 
 export type DatabaseProvider = 'supabase' | 'cloudflare_d1' | 'local';
 
@@ -168,25 +169,34 @@ function articleFunctionHeaders(): Record<string, string> {
 }
 
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
+  // The server is the final authority, but we also normalize empty/default tags here
+  // so the editor never publishes an article without useful topical taxonomy.
+  const preparedArticle: Article = {
+    ...article,
+    tags: article.tags?.length > 0 && article.tags.join(',') !== 'سولانا,سولمینت,وب۳'
+      ? article.tags
+      : extractArticleKeywords(article.title, article.content, article.summary, article.category)
+  };
+
   const config = getDatabaseConfig();
   if (config.provider === 'cloudflare_d1' && config.cloudflareWorkerEndpoint) {
     try {
-      const response = await fetch(`${config.cloudflareWorkerEndpoint}/api/articles`, { method: 'POST', headers: { Authorization: `Bearer ${config.cloudflareApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(article) });
+      const response = await fetch(`${config.cloudflareWorkerEndpoint}/api/articles`, { method: 'POST', headers: { Authorization: `Bearer ${config.cloudflareApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(preparedArticle) });
       const payload = await parseApiResponse(response);
       if (!response.ok || !payload?.success) throw new Error(`انتشار مقاله ناموفق بود: ${payload?.message || `HTTP ${response.status}`}`);
-      showSuccessPopup(payload?.message || `مقاله «${article.title}» با موفقیت منتشر شد.`);
+      showSuccessPopup(payload?.message || `مقاله «${preparedArticle.title}» با موفقیت منتشر شد.`);
       return true;
     } catch (err: any) { throw err instanceof Error ? err : new Error(`خطا در انتشار مقاله از طریق Cloudflare D1: ${err?.message || err}`); }
   }
 
   try {
-    const response = await fetch(ARTICLE_FUNCTION_URL, { method: 'POST', headers: articleFunctionHeaders(), body: JSON.stringify({ ...article, publish: !article.isDraft }) });
+    const response = await fetch(ARTICLE_FUNCTION_URL, { method: 'POST', headers: articleFunctionHeaders(), body: JSON.stringify({ ...preparedArticle, publish: !preparedArticle.isDraft }) });
     const payload = await parseApiResponse(response);
     if (!response.ok || !payload?.success) {
       const serverMessage = payload?.message || payload?.error || await getReadableResponseMessage(response, `HTTP ${response.status}`);
       throw new Error(`انتشار مقاله ناموفق بود: ${serverMessage}`);
     }
-    showSuccessPopup(payload?.message || `مقاله «${article.title}» با موفقیت منتشر شد.`);
+    showSuccessPopup(payload?.message || `مقاله «${preparedArticle.title}» با موفقیت منتشر شد.`);
     return true;
   } catch (err: any) { throw err instanceof Error ? err : new Error(`خطا در ارتباط با سرویس انتشار Supabase: ${err?.message || err}`); }
 }
