@@ -47,30 +47,27 @@ export const BlogHub: React.FC<BlogHubProps> = ({
   const [commentText, setCommentText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Sync the article reader with the real URL and prevent the background page
-  // from scrolling while the reader is open, especially on mobile browsers.
+  // Keep the reader state synchronized with the URL. Navigating to /blog from
+  // the site header must always close an open article reader.
   useEffect(() => {
-    if (initialArticleSlug) {
-      const matched = articles.find(a => a.slug === initialArticleSlug);
-      if (matched) setReadingArticle(matched);
+    if (!initialArticleSlug) {
+      setReadingArticle(null);
+      return;
     }
+
+    const matched = articles.find(a => a.slug === initialArticleSlug);
+    setReadingArticle(matched || null);
   }, [initialArticleSlug, articles]);
 
   useEffect(() => {
     if (!readingArticle) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') handleCloseArticle();
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [readingArticle]);
 
   const categories = ['همه', 'آموزش سولانا', 'توسعه وب۳', 'امنیت', 'اخبار و تحلیل'];
@@ -91,11 +88,8 @@ export const BlogHub: React.FC<BlogHubProps> = ({
   const gridArticles = filteredArticles.length > 1 ? filteredArticles.slice(1) : filteredArticles;
 
   const handleOpenArticle = (art: Article) => {
-    setReadingArticle(art);
     const targetPath = `/article/${art.slug}`;
-    if (window.location.pathname !== targetPath) {
-      window.history.pushState({}, '', targetPath);
-    }
+    setReadingArticle(art);
     onNavigate?.(targetPath);
 
     setArticles(prev => {
@@ -107,11 +101,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
   const handleCloseArticle = () => {
     setReadingArticle(null);
-    const targetPath = '/blog';
-    if (window.location.pathname !== targetPath) {
-      window.history.pushState({}, '', targetPath);
-    }
-    onNavigate?.(targetPath);
+    onNavigate?.('/blog');
   };
 
   const handleAddComment = async (e: React.FormEvent) => {
@@ -274,10 +264,9 @@ export const BlogHub: React.FC<BlogHubProps> = ({
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-medium">
                   <span className="text-sky-400 font-bold">{featuredArticle.category}</span>
                   <span>•</span>
-                  <span className="font-mono text-slate-200">{featuredArticle.publishedAtJalali || featuredArticle.publishedAt}</span>
-                  {featuredArticle.publishedAtGregorian && <span className="text-[11px] text-slate-400 font-mono">({featuredArticle.publishedAtGregorian})</span>}
+                  <time dateTime={featuredArticle.publishedAtGregorian || undefined} className="font-mono text-slate-200">{featuredArticle.publishedAtJalali || featuredArticle.publishedAt}</time>
                   <span>•</span>
-                  <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-slate-400" />{featuredArticle.readTimeMinutes} دقیقه مطالعه</span>
+                  <span className="flex items-center gap-1" aria-label={`زمان مطالعه ${featuredArticle.readTimeMinutes} دقیقه`}><Clock className="w-3 h-3 text-slate-400" aria-hidden="true" />{featuredArticle.readTimeMinutes} دقیقه مطالعه</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-extrabold text-white group-hover:text-sky-300 transition-colors leading-snug">{featuredArticle.title}</h3>
                 <p className="text-slate-300 text-xs sm:text-sm line-clamp-3 leading-relaxed">{featuredArticle.summary}</p>
@@ -328,12 +317,11 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
                 <div className="p-5 space-y-3">
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-medium">
-                    <span className="font-mono text-slate-300">{art.publishedAtJalali || art.publishedAt}</span>
-                    {art.publishedAtGregorian && <span className="text-[10px] text-slate-400 font-mono">({art.publishedAtGregorian})</span>}
+                    <time dateTime={art.publishedAtGregorian || undefined} className="font-mono text-slate-300">{art.publishedAtJalali || art.publishedAt}</time>
                     <span>•</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{art.readTimeMinutes} دقیقه</span>
+                    <span className="flex items-center gap-1" aria-label={`زمان مطالعه ${art.readTimeMinutes} دقیقه`}><Clock className="w-3 h-3" aria-hidden="true" />{art.readTimeMinutes} دقیقه</span>
                     <span>•</span>
-                    <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{art.viewsCount}</span>
+                    <span className="flex items-center gap-1" aria-label={`${art.viewsCount} بازدید`}><Eye className="w-3 h-3" aria-hidden="true" />{art.viewsCount}</span>
                   </div>
                   <h3 className="font-bold text-base text-white hover:text-sky-300 transition-colors line-clamp-2 leading-snug">{art.title}</h3>
                   <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed">{art.summary}</p>
@@ -355,7 +343,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
       {/* Article Reader */}
       {readingArticle && (
         <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4 overflow-y-auto overscroll-contain"
+          className="fixed inset-0 z-30 flex items-start sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4 overflow-y-auto overscroll-auto"
           role="dialog"
           aria-modal="true"
           aria-labelledby="article-reader-title"
@@ -363,34 +351,36 @@ export const BlogHub: React.FC<BlogHubProps> = ({
             if (e.target === e.currentTarget) handleCloseArticle();
           }}
         >
-          <article className="glass-card w-full max-w-5xl min-h-full sm:min-h-0 sm:max-h-[92vh] overflow-y-auto overscroll-contain rounded-none sm:rounded-3xl border-0 sm:border border-slate-700 p-4 sm:p-7 lg:p-10 space-y-5 sm:space-y-7 my-0 sm:my-auto text-slate-200 shadow-2xl">
-            {/* Reader header */}
+          <article
+            className="glass-card w-full max-w-5xl min-h-full sm:min-h-0 sm:max-h-[92vh] overflow-y-auto overscroll-auto rounded-none sm:rounded-3xl border-0 sm:border border-slate-700 p-4 sm:p-7 lg:p-10 space-y-5 sm:space-y-7 my-0 sm:my-auto text-slate-200 shadow-2xl"
+            itemScope
+            itemType="https://schema.org/Article"
+          >
             <header className="flex items-start justify-between gap-3 pb-4 sm:pb-5 border-b border-slate-800">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0 pr-2">
                 <span className="px-2.5 sm:px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 text-[11px] sm:text-xs font-bold border border-sky-500/20">{readingArticle.category}</span>
-                <span className="text-[11px] sm:text-xs text-slate-400 font-mono">{readingArticle.publishedAtJalali || readingArticle.publishedAt}</span>
-                <span className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-1"><Eye className="w-3.5 h-3.5" />{readingArticle.viewsCount} بازدید</span>
+                <time dateTime={readingArticle.publishedAtGregorian || undefined} itemProp="datePublished" className="text-[11px] sm:text-xs text-slate-400 font-mono">{readingArticle.publishedAtJalali || readingArticle.publishedAt}</time>
+                <span className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-1" aria-label={`${readingArticle.viewsCount} بازدید`}><Eye className="w-3.5 h-3.5" aria-hidden="true" />{readingArticle.viewsCount} بازدید</span>
               </div>
               <button
                 type="button"
                 onClick={handleCloseArticle}
-                aria-label="بستن مقاله"
+                aria-label="بستن مقاله و بازگشت به وبلاگ"
                 className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer flex items-center justify-center"
               >
                 <X className="w-5 h-5" />
               </button>
             </header>
 
-            <h1 id="article-reader-title" className="text-[1.65rem] sm:text-4xl lg:text-[2.7rem] font-extrabold text-white leading-[1.45] sm:leading-tight break-words">
+            <h1 id="article-reader-title" itemProp="headline" className="text-[1.65rem] sm:text-4xl lg:text-[2.7rem] font-extrabold text-white leading-[1.45] sm:leading-tight break-words">
               {readingArticle.title}
             </h1>
 
-            {/* Author and sharing actions */}
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-4 p-3.5 sm:p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
               <div className="flex items-center gap-3 min-w-0">
                 <AuthorAvatar author={readingArticle.author} size="lg" />
                 <div className="min-w-0">
-                  <span className="text-xs font-bold text-white block truncate">{readingArticle.author.name}</span>
+                  <span className="text-xs font-bold text-white block truncate" itemProp="author">{readingArticle.author.name}</span>
                   <span className="text-[11px] text-slate-400 block truncate">{readingArticle.author.role}</span>
                 </div>
               </div>
@@ -421,6 +411,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
                 <img
                   src={readingArticle.coverImage}
                   alt={readingArticle.title}
+                  itemProp="image"
                   className="w-full max-h-[52vh] sm:max-h-[30rem] object-cover"
                 />
               </figure>
@@ -438,13 +429,12 @@ export const BlogHub: React.FC<BlogHubProps> = ({
               </div>
             )}
 
-            {/* Semantic article body: Markdown is rendered as real HTML for users and crawlers. */}
             <div
               className="article-content max-w-3xl mx-auto w-full bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words"
+              itemProp="articleBody"
               dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }}
             />
 
-            {/* Comments */}
             <div className="pt-5 sm:pt-7 border-t border-slate-800 space-y-5 sm:space-y-6">
               <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-sky-400" />
