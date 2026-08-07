@@ -12,6 +12,40 @@ function getAdminPasscode(): string {
   ).trim();
 }
 
+function safeTextToJson(text: string | null | undefined): any | null {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
+
+async function extractResponseMessage(err: unknown, fallback: string): Promise<string> {
+  const error = err as any;
+  let message = error?.message || fallback;
+  try {
+    const context = error?.context;
+    if (context && typeof context.text === 'function') {
+      const raw = await context.text();
+      const parsed = safeTextToJson(raw);
+      if (parsed?.message) {
+        message = parsed.message;
+        if (parsed.errorCode && parsed.stage) {
+          message = `[${parsed.errorCode}] ${parsed.stage}: ${parsed.message}`;
+        }
+      } else if (typeof parsed?.raw === 'string' && parsed.raw.trim()) {
+        message = parsed.raw;
+      } else if (!raw) {
+        message = 'پاسخی از سرویس رسانه دریافت نشد.';
+      }
+    }
+  } catch {
+    // keep original message
+  }
+  return message;
+}
+
 async function invokeMediaGateway(action: string, body: Record<string, any> = {}) {
   const client = getSupabaseClient();
   if (!client) throw new Error('اتصال Supabase برای سرویس کتابخانه تصاویر در دسترس نیست.');
@@ -24,14 +58,7 @@ async function invokeMediaGateway(action: string, body: Record<string, any> = {}
   });
 
   if (error) {
-    let message = error.message || 'ارتباط با سرویس کتابخانه تصاویر ناموفق بود.';
-    try {
-      const context = (error as any).context;
-      if (context && typeof context.json === 'function') {
-        const payload = await context.json();
-        message = payload?.message || message;
-      }
-    } catch { /* keep original error */ }
+    const message = await extractResponseMessage(error, 'ارتباط با سرویس کتابخانه تصاویر ناموفق بود.');
     throw new Error(message);
   }
 
@@ -92,7 +119,9 @@ export async function getMediaStorageConfig(): Promise<MediaStorageConfig> {
       localStorage.setItem('solmint_media_config', JSON.stringify(data.config));
       return data.config as MediaStorageConfig;
     }
-  } catch { /* use cached/default config for resilient UI */ }
+  } catch {
+    // fall back to cache/default config
+  }
   const local = localStorage.getItem('solmint_media_config');
   if (local) { try { return JSON.parse(local); } catch { /* ignore malformed cache */ } }
   return DEFAULT_MEDIA_STORAGE_CONFIG;
@@ -107,14 +136,13 @@ export async function saveMediaStorageConfig(config: MediaStorageConfig & { gith
     basePath: (config.basePath || 'public/media/articles/').trim(),
     connectionStatus: config.connectionStatus || 'untested'
   };
-  // githubToken is intentionally ignored. GitHub credentials never enter browser requests.
   const data = await invokeMediaGateway('save-config', { config: sanitizedConfig });
   if (!data?.success) return false;
   localStorage.setItem('solmint_media_config', JSON.stringify(data.config || sanitizedConfig));
   return true;
 }
 
-export async function testMediaRepositoryConnection(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; details?: any }> {
+export async function testMediaRepositoryConnection(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; details?: any; diagnostics?: any[]; code?: string; stage?: string }> {
   try {
     const data = await invokeMediaGateway('test', {
       config: {
@@ -125,10 +153,32 @@ export async function testMediaRepositoryConnection(config: MediaStorageConfig &
         basePath: config.basePath
       }
     });
-    return { success: Boolean(data?.success), message: data?.message || 'اتصال با موفقیت برقرار شد.', details: data?.details };
+
+    const success = Boolean(data?.success);
+    const message = data?.message || (success ? 'اتصال با موفقیت برقرار شد.' : 'اتصال با موفقیت برقرار نشد.');
+    return {
+      success,
+      message,
+      details: data?.details,
+      diagnostics: data?.diagnostics,
+      code: data?.errorCode,
+      stage: data?.stage
+    };
   } catch (err: any) {
     return { success: false, message: err.message || 'برقراری ارتباط با مخزن گیت‌هاب ناموفق بود.' };
   }
+}
+
+export async function runMediaFullDiagnostic(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; diagnostics?: any[]; details?: any; code?: string; stage?: string }> {
+  const result = await testMediaRepositoryConnection(config);
+  return {
+    success: result.success,
+    message: result.message,
+    diagnostics: result.diagnostics,
+    details: result.details,
+    code: result.code,
+    stage: result.stage
+  };
 }
 
 export async function getAllMediaAssets(): Promise<MediaAsset[]> {
@@ -138,7 +188,9 @@ export async function getAllMediaAssets(): Promise<MediaAsset[]> {
       localStorage.setItem('solmint_media_assets_cache', JSON.stringify(data.assets));
       return data.assets as MediaAsset[];
     }
-  } catch { /* fall back to cache so the admin UI remains usable */ }
+  } catch {
+    // fall back to cache so the admin UI remains usable
+  }
   const cached = localStorage.getItem('solmint_media_assets_cache');
   if (cached) { try { return JSON.parse(cached); } catch { /* ignore malformed cache */ } }
   return [];
@@ -161,7 +213,7 @@ export async function uploadMediaAsset(file: File, customSeoName?: string, altTe
       overwrite,
       config
     });
-    if (!data?.success) return { success: false, code: data?.code, existingSha: data?.existingSha, message: data?.message || 'خطا در آپلود فایل تصویر به مخزن گیت‌هاب.' };
+    if (!data?.success) return { success: false, code: data?.code || data?.errorCode, existingSha: data?.existingSha, message: data?.message || 'خطا در آپلود فایل تصویر به مخزن گیت‌هاب.' };
     const asset = data.asset as MediaAsset;
     const existing = await getAllMediaAssets();
     localStorage.setItem('solmint_media_assets_cache', JSON.stringify([asset, ...existing.filter(a => a.id !== asset.id)]));
