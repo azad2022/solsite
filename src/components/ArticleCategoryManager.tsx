@@ -15,17 +15,41 @@ export interface ArticleCategory {
   updated_at: string;
 }
 
+const FALLBACK_CATEGORIES: ArticleCategory[] = [
+  { id: 'cat-solana', name: 'آموزش سولانا', slug: 'solana', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 10, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-web3', name: 'توسعه وب۳', slug: 'web3-development', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 20, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-security', name: 'امنیت', slug: 'security', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 30, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-news-analysis', name: 'اخبار و تحلیل', slug: 'crypto-news-analysis', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 40, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-trading', name: 'ترید', slug: 'trading', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 50, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-prop-trading', name: 'پراپ تریدینگ', slug: 'prop-trading', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 60, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-meme-coin', name: 'آموزش ساخت میم کوین', slug: 'meme-coin', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 70, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-nft', name: 'آموزش ساخت NFT', slug: 'nft', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 80, is_active: true, created_at: '', updated_at: '' },
+  { id: 'cat-wallet', name: 'کیف پول سولانا', slug: 'solana-wallet', description: '', seo_title: '', seo_description: '', parent_id: null, sort_order: 90, is_active: true, created_at: '', updated_at: '' }
+];
+
 const authHeaders = (): Record<string, string> => {
   const passcode = (localStorage.getItem('solmint_admin_passcode') || '').trim();
   return { 'Content-Type': 'application/json', ...(passcode ? { 'x-admin-passcode': passcode, Authorization: `Bearer ${passcode}` } : {}) };
 };
 
-export const fetchArticleCategories = async (includeInactive = false): Promise<ArticleCategory[]> => {
+export const fetchArticleCategories = async (includeInactive = false, allowFallback = false): Promise<ArticleCategory[]> => {
   const query = includeInactive ? '?includeInactive=true' : '';
-  const response = await fetch(`/api/article-categories${query}`, { headers: authHeaders() });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(payload?.message || `خطا در دریافت دسته‌بندی‌ها (${response.status})`);
-  return Array.isArray(payload?.categories) ? payload.categories : [];
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 7000);
+  try {
+    const response = await fetch(`/api/article-categories${query}`, { headers: authHeaders(), signal: controller.signal, cache: 'no-store' });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || `خطا در دریافت دسته‌بندی‌ها (${response.status})`);
+    const categories = Array.isArray(payload?.categories) ? payload.categories : [];
+    if (!categories.length) throw new Error('سرویس دسته‌بندی‌ها پاسخ خالی برگرداند.');
+    return categories;
+  } catch (error) {
+    if (allowFallback) return FALLBACK_CATEGORIES.filter(category => includeInactive || category.is_active);
+    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('دریافت دسته‌بندی‌ها بیش از ۷ ثانیه طول کشید. وضعیت اتصال API دسته‌بندی‌ها را بررسی کنید.');
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 };
 
 export const createArticleCategory = async (payload: Partial<ArticleCategory>): Promise<ArticleCategory> => {
@@ -127,7 +151,13 @@ export const ArticleCategoryManager: React.FC = () => {
 export const ArticleCategorySelect: React.FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => {
   const [categories, setCategories] = useState<ArticleCategory[]>([]);
   const [error, setError] = useState('');
-  useEffect(() => { fetchArticleCategories().then(setCategories).catch(e => setError(e?.message || 'خطا در دریافت دسته‌ها')); }, []);
+  useEffect(() => {
+    let mounted = true;
+    fetchArticleCategories(false, true)
+      .then(data => { if (mounted) setCategories(data); })
+      .catch(e => { if (mounted) setError(e?.message || 'خطا در دریافت دسته‌ها'); });
+    return () => { mounted = false; };
+  }, []);
   useEffect(() => { if (!value && categories[0]) onChange(categories[0].name); }, [categories, value, onChange]);
   return <div className="space-y-1"><select value={value} onChange={e => onChange(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" disabled={!categories.length}><option value="">{error || (categories.length ? 'انتخاب دسته‌بندی' : 'در حال دریافت دسته‌بندی‌ها...')}</option>{categories.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}</select>{error && <span className="text-[10px] text-rose-400">{error}</span>}</div>;
 };
