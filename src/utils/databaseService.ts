@@ -27,14 +27,6 @@ function getAdminPasscode(): string {
   ).trim();
 }
 
-function getAdminHeaders(): Record<string, string> {
-  const passcode = getAdminPasscode();
-  return {
-    'Content-Type': 'application/json',
-    ...(passcode ? { 'x-admin-passcode': passcode } : {})
-  };
-}
-
 async function parseApiResponse(res: Response): Promise<any> {
   try {
     const text = await res.text();
@@ -124,8 +116,7 @@ CREATE TABLE IF NOT EXISTS cms_settings (
 
 /**
  * Reads articles through the trusted backend API. Browser code must not write
- * directly to Supabase because the articles table is protected by RLS and the
- * server owns the privileged database credential.
+ * directly to Supabase because the articles table is protected by RLS.
  */
 export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | null> {
   try {
@@ -158,8 +149,9 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
 }
 
 /**
- * Manual article publishing is server-only. This prevents the browser from
- * sending an anon/publishable Supabase key to an INSERT/UPSERT endpoint.
+ * Manual Supabase publishing goes directly to the hardened Edge Function.
+ * This avoids depending on the hosting platform's Express runtime having the
+ * privileged Supabase key configured and never exposes that key to the browser.
  */
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
   const config = getDatabaseConfig();
@@ -182,27 +174,55 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
   }
 
   try {
-    const res = await fetch('/api/articles', {
-      method: 'POST',
-      headers: getAdminHeaders(),
-      body: JSON.stringify(article)
-    });
-    const data = await parseApiResponse(res);
-
-    if (!res.ok) {
-      console.error('Article publish API failed:', data?.message || `HTTP ${res.status}`);
+    const passcode = getAdminPasscode();
+    if (!passcode) {
+      console.error('Article publish failed: admin passcode is missing from the current admin session.');
       return false;
     }
 
-    return Boolean(data?.success);
+    const response = await fetch(`${config.supabaseUrl}/functions/v1/article-publish-api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': passcode
+      },
+      body: JSON.stringify({
+        id: article.id,
+        title: article.title,
+        slug: article.slug,
+        category: article.category,
+        tags: article.tags,
+        summary: article.summary,
+        content: article.content,
+        coverImage: article.coverImage,
+        videoUrl: article.videoUrl,
+        author: article.author,
+        publishedAt: article.publishedAt,
+        publishedAtJalali: article.publishedAtJalali,
+        publishedAtGregorian: article.publishedAtGregorian,
+        readTimeMinutes: article.readTimeMinutes,
+        viewsCount: article.viewsCount,
+        comments: article.comments,
+        seoScore: article.seoScore,
+        publish: !article.isDraft
+      })
+    });
+    const data = await parseApiResponse(response);
+
+    if (!response.ok || !data?.success) {
+      console.error('Article publish Edge Function failed:', data?.message || `HTTP ${response.status}`);
+      return false;
+    }
+
+    return true;
   } catch (err) {
-    console.error('Error saving article through server API:', err);
+    console.error('Error saving article through Supabase Edge Function:', err);
     return false;
   }
 }
 
 /**
- * Manual article deletion is also server-only for the same RLS/security reason.
+ * Manual article deletion remains server-only for the same RLS/security reason.
  */
 export async function deleteArticleFromActiveDatabase(articleId: string): Promise<boolean> {
   const config = getDatabaseConfig();
@@ -223,11 +243,14 @@ export async function deleteArticleFromActiveDatabase(articleId: string): Promis
   try {
     const res = await fetch(`/api/articles/${encodeURIComponent(articleId)}`, {
       method: 'DELETE',
-      headers: getAdminHeaders()
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getAdminPasscode() ? { 'x-admin-passcode': getAdminPasscode() } : {})
+      }
     });
     return res.ok;
   } catch (err) {
-    console.warn('Error deleting article from server API:', err);
+    console.warn('Error deleting article from server:', err);
     return false;
   }
 }
