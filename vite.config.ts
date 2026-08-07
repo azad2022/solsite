@@ -34,11 +34,15 @@ function articleCategoryRegistryPlugin(): Plugin {
         let transformed = code;
         transformed = transformed.replace(
           "import React, { useState, useEffect } from 'react';",
-          "import React, { useState, useEffect } from 'react';\nimport { ArticleCategoryManager, ArticleCategorySelect } from './ArticleCategoryManager';"
+          "import React, { useState, useEffect } from 'react';\nimport { ArticleCategoryManager, ArticleCategorySelect, fetchArticleCategories } from './ArticleCategoryManager';"
         );
         transformed = transformed.replace(
           /const \[formCategory, setFormCategory\] = useState<'[^']+'(?: \| '[^']+')+>\('آموزش سولانا'\);/,
           "const [formCategory, setFormCategory] = useState<string>('آموزش سولانا');"
+        );
+        transformed = transformed.replace(
+          "if (generated.category) setFormCategory(generated.category as any);",
+          "if (generated.category) { const availableCategories = await fetchArticleCategories(); const exact = availableCategories.find(item => item.name.trim() === String(generated.category).trim()); setFormCategory(exact?.name || availableCategories[0]?.name || 'آموزش سولانا'); }"
         );
         transformed = transformed.replace(
           /<select\n\s+value=\{formCategory\}\n\s+onChange=\{\(e\) => setFormCategory\(e\.target\.value as any\)\}\n\s+className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2\.5 text-slate-200"\n\s*>[\s\S]*?<\/select>/,
