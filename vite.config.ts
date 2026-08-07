@@ -18,7 +18,7 @@ function articleCategoryRegistryPlugin(): Plugin {
         let transformed = code;
         transformed = transformed.replace(
           "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';",
-          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';\nimport { ArticleCategory, fetchArticleCategories } from './ArticleCategoryManager';"
+          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';\nimport { fetchArticleCategories } from './ArticleCategoryManager';\nimport type { ArticleCategory } from './ArticleCategoryManager';"
         );
         transformed = transformed.replace(
           "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');",
