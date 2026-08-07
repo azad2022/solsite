@@ -6,6 +6,7 @@ const root = process.cwd();
 function patchServer(filePath) {
   if (!fs.existsSync(filePath)) return false;
   let source = fs.readFileSync(filePath, 'utf8');
+  if (source.includes('  // 3. PRODUCTION COMMENTS ENDPOINTS')) return false;
   const original = source;
 
   const commentsStart = source.indexOf('  // 3. REAL COMMENTS ENDPOINTS');
@@ -189,6 +190,7 @@ function patchServer(filePath) {
 function patchBlogHub(filePath) {
   if (!fs.existsSync(filePath)) return false;
   let source = fs.readFileSync(filePath, 'utf8');
+  if (source.includes('<CommentsSection articleId={readingArticle.id}')) return false;
   const original = source;
 
   if (!source.includes("./CommentsSection")) {
