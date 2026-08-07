@@ -63,6 +63,14 @@ const builtServer = resolve(__dirname, '../dist/server.cjs');
 ensureArticlePublishFix(sourceServer);
 ensureArticlePublishFix(builtServer);
 
+// Apply the production comments/replies/votes implementation before the server is loaded.
+try {
+  await import('./production-comments-patch.mjs');
+} catch (error) {
+  console.error('❌ Production comments layer failed to load:', error?.message || error);
+  if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
 // Load the production hardening layer before Express registers its routes.
 // It enforces admin authorization and keeps media configuration persistent.
 try {
