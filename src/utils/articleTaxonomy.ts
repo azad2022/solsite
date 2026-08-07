@@ -1,26 +1,32 @@
+import { generateSlugFromTitle } from './slugUtils';
+
 export interface ArticleTaxonomyItem {
   slug: string;
   name: string;
   type: 'category' | 'tag';
 }
 
-const slugify = (value: string): string =>
-  value
-    .trim()
-    .toLocaleLowerCase('fa-IR')
-    .normalize('NFKC')
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+const CATEGORY_SLUGS: Record<string, string> = {
+  'آموزش سولانا': 'solana',
+  'توسعه وب۳': 'web3-development',
+  'امنیت': 'security',
+  'اخبار و تحلیل': 'crypto-news-analysis',
+  'آموزش ساخت میم کوین': 'meme-coin',
+  'آموزش ساخت NFT': 'nft',
+  'کیف پول سولانا': 'solana-wallet',
+  'ترید': 'trading',
+  'پراپ تریدینگ': 'prop-trading'
+};
 
 export const getArticleCategoryTaxonomy = (category?: string): ArticleTaxonomyItem | null => {
-  if (!category?.trim()) return null;
-  return { slug: slugify(category), name: category.trim(), type: 'category' };
+  const name = category?.trim();
+  if (!name) return null;
+  return { slug: CATEGORY_SLUGS[name] || generateSlugFromTitle(name), name, type: 'category' };
 };
 
 export const getArticleTagTaxonomy = (tags: string[] = []): ArticleTaxonomyItem[] =>
   Array.from(new Set(tags.map(tag => tag.trim()).filter(Boolean))).map(tag => ({
-    slug: slugify(tag),
+    slug: generateSlugFromTitle(tag),
     name: tag,
     type: 'tag'
   }));
