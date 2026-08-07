@@ -1,4 +1,5 @@
 import { Article } from '../types';
+import { fetchArticlesFromSupabase } from './supabaseClient';
 
 export type DatabaseProvider = 'supabase' | 'cloudflare_d1' | 'local';
 
@@ -115,8 +116,9 @@ CREATE TABLE IF NOT EXISTS cms_settings (
 `;
 
 /**
- * Reads articles through the trusted backend API. Browser code must not write
- * directly to Supabase because the articles table is protected by RLS.
+ * Reads articles through the trusted backend API first.
+ * If the API path is unavailable, fall back to direct Supabase reads so the
+ * public site can still render the latest published content.
  */
 export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | null> {
   try {
@@ -145,13 +147,19 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
     }
   }
 
+  try {
+    const directArticles = await fetchArticlesFromSupabase();
+    if (directArticles !== null) return directArticles;
+  } catch (err) {
+    console.warn('Error fetching articles directly from Supabase:', err);
+  }
+
   return null;
 }
 
 /**
- * Manual Supabase publishing goes directly to the hardened Edge Function.
- * This avoids depending on the hosting platform's Express runtime having the
- * privileged Supabase key configured and never exposes that key to the browser.
+ * Manual article publishing goes through the trusted backend API.
+ * The browser never writes directly to the protected Supabase table.
  */
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
   const config = getDatabaseConfig();
@@ -180,43 +188,24 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
       return false;
     }
 
-    const response = await fetch(`${config.supabaseUrl}/functions/v1/article-publish-api`, {
+    const response = await fetch('/api/articles', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-admin-passcode': passcode
       },
-      body: JSON.stringify({
-        id: article.id,
-        title: article.title,
-        slug: article.slug,
-        category: article.category,
-        tags: article.tags,
-        summary: article.summary,
-        content: article.content,
-        coverImage: article.coverImage,
-        videoUrl: article.videoUrl,
-        author: article.author,
-        publishedAt: article.publishedAt,
-        publishedAtJalali: article.publishedAtJalali,
-        publishedAtGregorian: article.publishedAtGregorian,
-        readTimeMinutes: article.readTimeMinutes,
-        viewsCount: article.viewsCount,
-        comments: article.comments,
-        seoScore: article.seoScore,
-        publish: !article.isDraft
-      })
+      body: JSON.stringify(article)
     });
     const data = await parseApiResponse(response);
 
     if (!response.ok || !data?.success) {
-      console.error('Article publish Edge Function failed:', data?.message || `HTTP ${response.status}`);
+      console.error('Article publish API failed:', data?.message || `HTTP ${response.status}`);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error('Error saving article through Supabase Edge Function:', err);
+    console.error('Error saving article through server API:', err);
     return false;
   }
 }
