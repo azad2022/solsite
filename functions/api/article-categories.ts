@@ -1,12 +1,4 @@
-type Env = {
-  SUPABASE_URL?: string;
-  VITE_SUPABASE_URL?: string;
-  SUPABASE_ANON_KEY?: string;
-  VITE_SUPABASE_ANON_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
-  ADMIN_PASSCODE?: string;
-};
-
+type Env = { SUPABASE_URL?: string; VITE_SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string; VITE_SUPABASE_ANON_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; ADMIN_PASSCODE?: string };
 type PagesContext = { request: Request; env: Env; params?: Record<string, string | string[] | undefined> };
 type Category = { id: string; name: string; slug: string; description?: string; seo_title?: string; seo_description?: string; parent_id?: string | null; sort_order?: number; is_active?: boolean; created_at?: string; updated_at?: string };
 
@@ -14,9 +6,23 @@ const fallbackUrl = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const fallbackAnon = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
 const envValue = (env: Env, key: keyof Env, fallback = '') => String(env[key] || fallback).trim();
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=UTF-8', 'Cache-Control': 'no-store' } });
-const adminAuthorized = (request: Request, env: Env) => { const expected = envValue(env, 'ADMIN_PASSCODE'); const supplied = (request.headers.get('x-admin-passcode') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '').trim(); return Boolean(expected && supplied && supplied === expected); };
+const suppliedPasscode = (request: Request) => (request.headers.get('x-admin-passcode') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '').trim();
 const supabase = (env: Env) => { const url = envValue(env, 'SUPABASE_URL', envValue(env, 'VITE_SUPABASE_URL', fallbackUrl)).replace(/\/$/, ''); const key = envValue(env, 'SUPABASE_SERVICE_ROLE_KEY', envValue(env, 'SUPABASE_ANON_KEY', envValue(env, 'VITE_SUPABASE_ANON_KEY', fallbackAnon))); return { url, key }; };
 async function db(env: Env, path: string, init: RequestInit = {}) { const { url, key } = supabase(env); const headers = new Headers(init.headers); headers.set('apikey', key); headers.set('Authorization', `Bearer ${key}`); headers.set('Accept', 'application/json'); if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json'); return fetch(`${url}/rest/v1/${path}`, { ...init, headers }); }
+async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
+  const supplied = suppliedPasscode(request);
+  if (!supplied) return false;
+  const configured = envValue(env, 'ADMIN_PASSCODE');
+  if (configured) return supplied === configured;
+  if (!envValue(env, 'SUPABASE_SERVICE_ROLE_KEY')) return false;
+  try {
+    const response = await db(env, 'cms_settings?id=eq.main_settings&select=settings_json&limit=1');
+    if (!response.ok) return false;
+    const rows = await response.json().catch(() => []);
+    const expected = rows?.[0]?.settings_json?.security?.adminPasscode;
+    return Boolean(expected && supplied === String(expected).trim());
+  } catch { return false; }
+}
 function cleanCategory(input: any): Category { return { id: String(input.id || `cat-${crypto.randomUUID()}`), name: String(input.name || '').trim(), slug: String(input.slug || '').trim().toLowerCase(), description: String(input.description || '').trim(), seo_title: String(input.seo_title || '').trim(), seo_description: String(input.seo_description || '').trim(), parent_id: input.parent_id ? String(input.parent_id) : null, sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : 100, is_active: input.is_active !== false }; }
 function validate(category: Category) { if (!category.name || category.name.length > 120) return 'نام دسته‌بندی باید بین ۱ تا ۱۲۰ کاراکتر باشد.'; if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(category.slug) || category.slug.length > 160) return 'Slug فقط باید شامل حروف انگلیسی کوچک، عدد و خط تیره باشد.'; if (category.parent_id === category.id) return 'دسته‌بندی نمی‌تواند والد خودش باشد.'; return null; }
 
@@ -31,7 +37,7 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
       if (!response.ok) return json({ success: false, message: 'دریافت دسته‌بندی‌ها از Supabase ناموفق بود.', details: data }, response.status);
       return json({ success: true, categories: data });
     }
-    if (!adminAuthorized(request, env)) return json({ success: false, message: 'دسترسی مدیریت دسته‌بندی‌ها غیرمجاز است.' }, 401);
+    if (!(await adminAuthorized(request, env))) return json({ success: false, message: 'دسترسی مدیریت دسته‌بندی‌ها غیرمجاز است.' }, 401);
     if (method === 'POST') {
       const category = cleanCategory(await request.json()); const error = validate(category); if (error) return json({ success: false, message: error }, 400);
       const response = await db(env, 'article_categories', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(category) }); const data = await response.json().catch(() => null);
