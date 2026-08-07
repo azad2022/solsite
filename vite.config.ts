@@ -18,15 +18,19 @@ function articleCategoryRegistryPlugin(): Plugin {
         let transformed = code;
         transformed = transformed.replace(
           "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';",
-          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';\nimport { fetchArticleCategories } from './ArticleCategoryManager';"
+          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';\nimport { ArticleCategory, fetchArticleCategories } from './ArticleCategoryManager';"
         );
         transformed = transformed.replace(
           "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');",
-          "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');\n  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);"
+          "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');\n  const [dynamicCategoryItems, setDynamicCategoryItems] = useState<ArticleCategory[]>([]);"
         );
         transformed = transformed.replace(
           "  const categories = ['همه', 'آموزش سولانا', 'توسعه وب۳', 'امنیت', 'اخبار و تحلیل', 'ترید', 'پراپ تریدینگ'];",
-          "  useEffect(() => { fetchArticleCategories().then(items => setDynamicCategories(items.map(item => item.name))).catch(() => setDynamicCategories([])); }, []);\n\n  const categories = dynamicCategories.length ? ['همه', ...dynamicCategories] : " + JSON.stringify(allCategories) + ";"
+          "  useEffect(() => { fetchArticleCategories().then(items => setDynamicCategoryItems(items)).catch(() => setDynamicCategoryItems([])); }, []);\n\n  const categories = dynamicCategoryItems.length ? ['همه', ...dynamicCategoryItems.map(item => item.name)] : " + JSON.stringify(allCategories) + ";"
+        );
+        transformed = transformed.replace(
+          "const item = type === 'category' ? getArticleCategoryTaxonomy(value) : getArticleTagTaxonomy([value])[0];",
+          "const item = type === 'category' ? (dynamicCategoryItems.find(category => category.name === value) || getArticleCategoryTaxonomy(value)) : getArticleTagTaxonomy([value])[0];"
         );
         return transformed;
       }
