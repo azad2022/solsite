@@ -37,6 +37,38 @@ async function parseApiResponse(res: Response): Promise<any> {
   }
 }
 
+async function readResponseText(res: Response): Promise<string> {
+  try {
+    return await res.clone().text();
+  } catch {
+    return '';
+  }
+}
+
+async function getReadableResponseMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const parsed = await parseApiResponse(res.clone());
+    if (parsed && typeof parsed === 'object') {
+      const candidates = [parsed.message, parsed.error, parsed.detail, parsed.reason]
+        .filter(v => typeof v === 'string' && v.trim().length > 0) as string[];
+      if (candidates.length > 0) return candidates[0].trim();
+      if (typeof parsed.code === 'string' && parsed.code.trim()) return parsed.code.trim();
+    }
+  } catch {
+    // ignore parsing issues and fall back to raw text below
+  }
+
+  const raw = (await readResponseText(res)).trim();
+  if (raw) return raw;
+  return fallback;
+}
+
+function showSuccessPopup(message: string): void {
+  if (typeof window !== 'undefined') {
+    window.alert(message);
+  }
+}
+
 export function getDatabaseConfig(): DatabaseConfig {
   const metaEnv = (import.meta as any).env || {};
   const storedProvider = localStorage.getItem('solmint_db_provider') as DatabaseProvider | null;
@@ -160,6 +192,9 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
 /**
  * Manual article publishing goes through the trusted backend API.
  * The browser never writes directly to the protected Supabase table.
+ *
+ * On success this function shows a production popup. On failure it throws a
+ * detailed error so the admin panel can display the real server-side reason.
  */
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
   const config = getDatabaseConfig();
@@ -174,18 +209,24 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
         },
         body: JSON.stringify(article)
       });
-      return response.ok;
-    } catch (err) {
-      console.warn('Error saving to Cloudflare D1:', err);
-      return false;
+
+      const payload = await parseApiResponse(response);
+      if (!response.ok || !payload?.success) {
+        const message = payload?.message || `HTTP ${response.status}`;
+        throw new Error(`انتشار مقاله ناموفق بود: ${message}`);
+      }
+
+      showSuccessPopup(payload?.message || `مقاله «${article.title}» با موفقیت منتشر شد.`);
+      return true;
+    } catch (err: any) {
+      throw err instanceof Error ? err : new Error(`خطا در انتشار مقاله از طریق Cloudflare D1: ${err?.message || err}`);
     }
   }
 
   try {
     const passcode = getAdminPasscode();
     if (!passcode) {
-      console.error('Article publish failed: admin passcode is missing from the current admin session.');
-      return false;
+      throw new Error('رمز ادمین در نشست فعلی پیدا نشد. لطفاً دوباره وارد پنل شوید.');
     }
 
     const response = await fetch('/api/articles', {
@@ -199,14 +240,14 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
     const data = await parseApiResponse(response);
 
     if (!response.ok || !data?.success) {
-      console.error('Article publish API failed:', data?.message || `HTTP ${response.status}`);
-      return false;
+      const serverMessage = data?.message || data?.error || `HTTP ${response.status}`;
+      throw new Error(`انتشار مقاله ناموفق بود: ${serverMessage}`);
     }
 
+    showSuccessPopup(data?.message || `مقاله «${article.title}» با موفقیت منتشر شد.`);
     return true;
-  } catch (err) {
-    console.error('Error saving article through server API:', err);
-    return false;
+  } catch (err: any) {
+    throw err instanceof Error ? err : new Error(`خطا در انتشار مقاله از طریق سرور: ${err?.message || err}`);
   }
 }
 
