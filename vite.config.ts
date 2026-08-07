@@ -45,6 +45,10 @@ function articleCategoryRegistryPlugin(): Plugin {
           "if (generated.category) { const availableCategories = await fetchArticleCategories(); const exact = availableCategories.find(item => item.name.trim() === String(generated.category).trim()); setFormCategory(exact?.name || availableCategories[0]?.name || 'آموزش سولانا'); }"
         );
         transformed = transformed.replace(
+          "const category = aiArticle.category || 'آموزش سولانا';",
+          "const availableCategories = await fetchArticleCategories(); const exactCategory = availableCategories.find(item => item.name.trim() === String(aiArticle.category || '').trim()); const category = exactCategory?.name || availableCategories[0]?.name || 'آموزش سولانا';"
+        );
+        transformed = transformed.replace(
           /<select\n\s+value=\{formCategory\}\n\s+onChange=\{\(e\) => setFormCategory\(e\.target\.value as any\)\}\n\s+className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2\.5 text-slate-200"\n\s*>[\s\S]*?<\/select>/,
           '<ArticleCategorySelect value={formCategory} onChange={setFormCategory} />'
         );
