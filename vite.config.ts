@@ -1,15 +1,48 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
+import fs from 'node:fs';
+import path from 'node:path';
+import { defineConfig, type Plugin } from 'vite';
+
+function articleCategoryRegistryPlugin(): Plugin {
+  const registryPath = path.resolve(__dirname, 'src/config/articleCategories.json');
+  const categories = JSON.parse(fs.readFileSync(registryPath, 'utf8')) as string[];
+  const allCategories = ['همه', ...categories];
+  const options = categories.map(category => `<option value="${category}">${category}</option>`).join('\n');
+  const union = categories.map(category => `'${category}'`).join(' | ');
+
+  return {
+    name: 'solmint-article-category-registry',
+    enforce: 'pre',
+    transform(code, id) {
+      if (id.endsWith('/src/components/BlogHub.tsx')) {
+        return code.replace(
+          /const categories = \[[\s\S]*?\];/,
+          `const categories = ${JSON.stringify(allCategories)};`
+        );
+      }
+      if (id.endsWith('/src/components/AdminCmsModal.tsx')) {
+        const nextCode = code
+          .replace(
+            /useState<'آموزش سولانا' \| 'توسعه وب۳' \| 'امنیت' \| 'اخبار و تحلیل'>\('آموزش سولانا'\)/,
+            `useState<${union}>('آموزش سولانا')`
+          )
+          .replace(
+            /<option value=\\"آموزش سولانا\\">آموزش سولانا<\\/option>\n\s*<option value=\\"توسعه وب۳\\">توسعه وب۳<\\/option>\n\s*<option value=\\"امنیت\\">امنیت<\\/option>\n\s*<option value=\\"اخبار و تحلیل\\">اخبار و تحلیل<\\/option>/,
+            options
+          );
+        return nextCode;
+      }
+      return null;
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [articleCategoryRegistryPlugin(), react(), tailwindcss()],
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
+      alias: { '@': path.resolve(__dirname, '.') },
     },
     build: {
       target: 'esnext',
@@ -31,10 +64,7 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };
