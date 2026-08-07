@@ -8,7 +8,6 @@ import {
   Search,
   BookOpen,
   Clock,
-  Eye,
   MessageSquare,
   Send,
   Copy,
@@ -22,6 +21,7 @@ import {
   UserPlus,
   Sparkles
 } from 'lucide-react';
+import { formatArticleDisplayDate, getArticleDateTime } from '../utils/articleDate';
 
 interface BlogHubProps {
   articles: Article[];
@@ -47,8 +47,6 @@ export const BlogHub: React.FC<BlogHubProps> = ({
   const [commentText, setCommentText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Keep the reader state synchronized with the URL. Navigating to /blog from
-  // the site header must always close an open article reader.
   useEffect(() => {
     if (!initialArticleSlug) {
       setReadingArticle(null);
@@ -264,7 +262,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-medium">
                   <span className="text-sky-400 font-bold">{featuredArticle.category}</span>
                   <span>•</span>
-                  <time dateTime={featuredArticle.publishedAtGregorian || undefined} className="font-mono text-slate-200">{featuredArticle.publishedAtJalali || featuredArticle.publishedAt}</time>
+                  <time dateTime={getArticleDateTime(featuredArticle) || undefined} className="font-mono text-slate-200">{formatArticleDisplayDate(featuredArticle)}</time>
                   <span>•</span>
                   <span className="flex items-center gap-1" aria-label={`زمان مطالعه ${featuredArticle.readTimeMinutes} دقیقه`}><Clock className="w-3 h-3 text-slate-400" aria-hidden="true" />{featuredArticle.readTimeMinutes} دقیقه مطالعه</span>
                 </div>
@@ -317,11 +315,9 @@ export const BlogHub: React.FC<BlogHubProps> = ({
 
                 <div className="p-5 space-y-3">
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-medium">
-                    <time dateTime={art.publishedAtGregorian || undefined} className="font-mono text-slate-300">{art.publishedAtJalali || art.publishedAt}</time>
+                    <time dateTime={getArticleDateTime(art) || undefined} className="font-mono text-slate-300">{formatArticleDisplayDate(art)}</time>
                     <span>•</span>
                     <span className="flex items-center gap-1" aria-label={`زمان مطالعه ${art.readTimeMinutes} دقیقه`}><Clock className="w-3 h-3" aria-hidden="true" />{art.readTimeMinutes} دقیقه</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1" aria-label={`${art.viewsCount} بازدید`}><Eye className="w-3 h-3" aria-hidden="true" />{art.viewsCount}</span>
                   </div>
                   <h3 className="font-bold text-base text-white hover:text-sky-300 transition-colors line-clamp-2 leading-snug">{art.title}</h3>
                   <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed">{art.summary}</p>
@@ -340,7 +336,6 @@ export const BlogHub: React.FC<BlogHubProps> = ({
         </div>
       </div>
 
-      {/* Article Reader */}
       {readingArticle && (
         <div
           className="fixed inset-0 z-30 flex items-start sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4 overflow-y-auto overscroll-auto"
@@ -359,8 +354,7 @@ export const BlogHub: React.FC<BlogHubProps> = ({
             <header className="flex items-start justify-between gap-3 pb-4 sm:pb-5 border-b border-slate-800">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0 pr-2">
                 <span className="px-2.5 sm:px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 text-[11px] sm:text-xs font-bold border border-sky-500/20">{readingArticle.category}</span>
-                <time dateTime={readingArticle.publishedAtGregorian || undefined} itemProp="datePublished" className="text-[11px] sm:text-xs text-slate-400 font-mono">{readingArticle.publishedAtJalali || readingArticle.publishedAt}</time>
-                <span className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-1" aria-label={`${readingArticle.viewsCount} بازدید`}><Eye className="w-3.5 h-3.5" aria-hidden="true" />{readingArticle.viewsCount} بازدید</span>
+                <time dateTime={getArticleDateTime(readingArticle) || undefined} itemProp="datePublished" className="text-[11px] sm:text-xs text-slate-400 font-mono">{formatArticleDisplayDate(readingArticle)}</time>
               </div>
               <button
                 type="button"
