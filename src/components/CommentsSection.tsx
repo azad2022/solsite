@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, ThumbsDown, MessageCircle, Reply, Send, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface CommentItem {
@@ -19,6 +19,7 @@ interface CommentItem {
   likeCount?: number;
   dislike_count?: number;
   dislikeCount?: number;
+  userVote?: number;
 }
 
 interface Props {
@@ -32,13 +33,47 @@ interface Props {
 const getParentId = (comment: CommentItem) => comment.parent_id ?? comment.parentId ?? null;
 const getName = (comment: CommentItem) => comment.user_name || comment.userName || 'کاربر سولمینت';
 
-export const CommentsSection: React.FC<Props> = ({ articleId, comments, currentUser, openAuthModal, onCommentCreated }) => {
+export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialComments, currentUser, openAuthModal, onCommentCreated }) => {
+  const [comments, setComments] = useState<CommentItem[]>(initialComments || []);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [voteState, setVoteState] = useState<Record<string, number>>({});
   const [voteCounts, setVoteCounts] = useState<Record<string, { like: number; dislike: number }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        await fetch('/api/comments/session', { credentials: 'same-origin' });
+        const response = await fetch(`/api/comments?articleId=${encodeURIComponent(articleId)}`, { credentials: 'same-origin' });
+        const data = await response.json().catch(() => null);
+        if (!cancelled && response.ok && data?.success && Array.isArray(data.comments)) {
+          setComments(data.comments);
+          const nextVotes: Record<string, number> = {};
+          const nextCounts: Record<string, { like: number; dislike: number }> = {};
+          data.comments.forEach((comment: CommentItem) => {
+            nextVotes[comment.id] = Number(comment.userVote || 0);
+            nextCounts[comment.id] = {
+              like: Number(comment.likeCount ?? comment.like_count ?? 0),
+              dislike: Number(comment.dislikeCount ?? comment.dislike_count ?? 0)
+            };
+          });
+          setVoteState(nextVotes);
+          setVoteCounts(nextCounts);
+        }
+      } catch {
+        // The server-provided article comments remain a safe fallback.
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [articleId]);
+
+  useEffect(() => {
+    setComments(initialComments || []);
+  }, [initialComments]);
 
   const roots = useMemo(() => comments.filter(comment => !getParentId(comment)), [comments]);
   const children = useMemo(() => {
@@ -57,17 +92,19 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments, currentU
 
   const submit = async (parentId: string | null) => {
     if (!currentUser) return openAuthModal();
-    const token = String(currentUser.commentToken || '');
-    if (!token) return openAuthModal();
     const text = draft.trim();
-    if (text.length < 3 || text.length > 4000) return;
+    if (text.length < 3 || text.length > 4000) {
+      window.alert('متن دیدگاه باید بین ۳ تا ۴۰۰۰ کاراکتر باشد.');
+      return;
+    }
 
     setBusy(parentId || 'root');
     try {
       const response = await fetch('/api/comments/add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ articleId, userId: currentUser.id, parentId, text })
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articleId, userName: currentUser.fullName || currentUser.username, parentId, text })
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.success) throw new Error(data?.message || 'خطا در ثبت دیدگاه');
@@ -83,14 +120,13 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments, currentU
 
   const vote = async (comment: CommentItem, nextVote: number) => {
     if (!currentUser) return openAuthModal();
-    const token = String(currentUser.commentToken || '');
-    if (!token) return openAuthModal();
     setBusy(`vote:${comment.id}`);
     try {
       const response = await fetch('/api/comments/vote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ userId: currentUser.id, commentId: comment.id, vote: nextVote })
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId: comment.id, vote: nextVote })
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.success) throw new Error(data?.message || 'خطا در ثبت رأی');
@@ -106,7 +142,7 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments, currentU
   const renderComment = (comment: CommentItem, depth = 0): React.ReactNode => {
     const replies = children[comment.id] || [];
     const counts = countFor(comment);
-    const currentVote = voteState[comment.id] || 0;
+    const currentVote = voteState[comment.id] ?? Number(comment.userVote || 0);
     const canReply = depth < 3;
 
     return (
@@ -134,7 +170,7 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments, currentU
 
   return (
     <section className="pt-5 sm:pt-7 border-t border-slate-800 space-y-5 sm:space-y-6" aria-labelledby="article-comments-title">
-      <div className="flex items-center justify-between gap-3"><h3 id="article-comments-title" className="text-base sm:text-lg font-bold text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-sky-400" />دیدگاه‌های کاربران ({comments.length})</h3><span className="text-[10px] text-slate-500">دیدگاه‌ها پس از تأیید منتشر می‌شوند</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="article-comments-title" className="text-base sm:text-lg font-bold text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-sky-400" />دیدگاه‌های کاربران ({comments.length})</h3><span className="text-[10px] text-slate-500">دیدگاه‌ها پس از تأیید منتشر می‌شوند</span></div>
       {currentUser ? <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"><div className="text-xs font-bold text-slate-300">ثبت دیدگاه جدید</div><div className="flex gap-2"><textarea value={replyTo ? '' : draft} onChange={event => { if (!replyTo) setDraft(event.target.value); }} rows={4} maxLength={4000} placeholder="نظر تخصصی خود را بنویسید..." className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 resize-y focus:outline-none focus:border-sky-500/50" /><button type="button" disabled={busy === 'root'} onClick={() => submit(null)} className="self-end shrink-0 px-4 py-3 rounded-xl bg-sky-500 text-white text-xs font-bold"><Send className="w-4 h-4" /></button></div></div> : <button type="button" onClick={openAuthModal} className="w-full p-4 rounded-2xl bg-slate-900 border border-amber-500/30 text-amber-300 text-xs font-bold">برای ثبت نظر، ورود یا ثبت‌نام کنید.</button>}
       <div className="space-y-3">{roots.length ? roots.map(comment => renderComment(comment)) : <div className="text-center py-8 text-slate-500 text-xs">هنوز دیدگاه تأییدشده‌ای ثبت نشده است.</div>}</div>
     </section>
