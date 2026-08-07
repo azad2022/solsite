@@ -1,7 +1,8 @@
 import React from 'react';
 import { Article } from '../types';
-import { Clock, Eye, ArrowLeft, Video } from 'lucide-react';
+import { Clock, ArrowLeft, Video } from 'lucide-react';
 import { AuthorAvatar } from './AuthorAvatar';
+import { formatArticleDisplayDate } from '../utils/articleDate';
 
 interface LatestArticlesSectionProps {
   articles: Article[];
@@ -93,17 +94,12 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
 
                 <div className="p-5 space-y-3">
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-medium">
-                    <span className="font-mono text-slate-300">{art.publishedAtJalali || art.publishedAt}</span>
-                    {art.publishedAtGregorian && (
-                      <span className="text-[10px] text-slate-400 font-mono">({art.publishedAtGregorian})</span>
-                    )}
+                    <time className="font-mono text-slate-300">
+                      {formatArticleDisplayDate(art)}
+                    </time>
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3 text-slate-400" /> {art.readTimeMinutes} دقیقه
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-3 h-3 text-[#14F195]" /> {art.viewsCount}
                     </span>
                   </div>
 
