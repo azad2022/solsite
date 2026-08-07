@@ -16,56 +16,44 @@ function articleCategoryRegistryPlugin(): Plugin {
     enforce: 'pre',
     transform(code, id) {
       if (id.endsWith('/src/components/BlogHub.tsx')) {
-        return code.replace(
-          /const categories = \[[\s\S]*?\];/,
-          `const categories = ${JSON.stringify(allCategories)};`
-        );
+        return code.replace(/const categories = \[[\s\S]*?\];/, `const categories = ${JSON.stringify(allCategories)};`);
       }
       if (id.endsWith('/src/components/AdminCmsModal.tsx')) {
-        const nextCode = code
-          .replace(
-            /useState<'آموزش سولانا' \| 'توسعه وب۳' \| 'امنیت' \| 'اخبار و تحلیل'>\('آموزش سولانا'\)/,
-            `useState<${union}>('آموزش سولانا')`
-          )
-          .replace(
-            /<option value=\\"آموزش سولانا\\">آموزش سولانا<\\/option>\n\s*<option value=\\"توسعه وب۳\\">توسعه وب۳<\\/option>\n\s*<option value=\\"امنیت\\">امنیت<\\/option>\n\s*<option value=\\"اخبار و تحلیل\\">اخبار و تحلیل<\\/option>/,
-            options
-          );
-        return nextCode;
+        const categoryStatePattern = /useState<'آموزش سولانا' \| 'توسعه وب۳' \| 'امنیت' \| 'اخبار و تحلیل'>\('آموزش سولانا'\)/;
+        const optionBlockPattern = /<option value="آموزش سولانا">آموزش سولانا<\/option>\s*<option value="توسعه وب۳">توسعه وب۳<\/option>\s*<option value="امنیت">امنیت<\/option>\s*<option value="اخبار و تحلیل">اخبار و تحلیل<\/option>/;
+        return code
+          .replace(categoryStatePattern, `useState<${union}>('آموزش سولانا')`)
+          .replace(optionBlockPattern, options);
       }
       return null;
     },
   };
 }
 
-export default defineConfig(() => {
-  return {
-    plugins: [articleCategoryRegistryPlugin(), react(), tailwindcss()],
-    resolve: {
-      alias: { '@': path.resolve(__dirname, '.') },
-    },
-    build: {
-      target: 'esnext',
-      minify: 'esbuild' as const,
-      cssCodeSplit: true,
-      sourcemap: true,
-      chunkSizeWarningLimit: 1000,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('lucide-react')) return 'vendor-lucide';
-              if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
-              if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
-              return 'vendor-core';
-            }
-          },
+export default defineConfig(() => ({
+  plugins: [articleCategoryRegistryPlugin(), react(), tailwindcss()],
+  resolve: { alias: { '@': path.resolve(__dirname, '.') } },
+  build: {
+    target: 'esnext',
+    minify: 'esbuild' as const,
+    cssCodeSplit: true,
+    sourcemap: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('lucide-react')) return 'vendor-lucide';
+            if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
+            if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
+            return 'vendor-core';
+          }
         },
       },
     },
-    server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
-  };
-});
+  },
+  server: {
+    hmr: process.env.DISABLE_HMR !== 'true',
+    watch: process.env.DISABLE_HMR === 'true' ? null : {},
+  },
+}));
