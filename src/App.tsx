@@ -17,6 +17,7 @@ import { LatestArticlesSection } from './components/LatestArticlesSection';
 import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { updateRouteSeo } from './utils/seoManager';
+import { ArticleTaxonomyPage } from './components/ArticleTaxonomyPage';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
@@ -63,25 +64,27 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const activeArticleSlug = useMemo(() => {
-    if (currentPath.startsWith('/article/')) return currentPath.slice('/article/'.length).trim();
-    if (currentPath.startsWith('/blog/')) return currentPath.slice('/blog/'.length).trim();
-    return '';
+  const activeArticleSlug = useMemo(() => currentPath.startsWith('/article/') ? currentPath.slice('/article/'.length).trim() : '', [currentPath]);
+  const taxonomyMatch = useMemo(() => {
+    const match = currentPath.match(/^\/blog\/(category|tag)\/([^/]+)\/?$/);
+    if (!match) return null;
+    return { type: match[1] as 'category' | 'tag', slug: decodeURIComponent(match[2]) };
   }, [currentPath]);
-
   const activeArticle = useMemo(() => activeArticleSlug ? articles.find(a => a.slug === activeArticleSlug) || null : null, [activeArticleSlug, articles]);
 
   useEffect(() => {
-    if (activeArticle) updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
+    if (taxonomyMatch) {
+      const itemArticles = articles.filter(article => taxonomyMatch.type === 'category'
+        ? article.category && article.category.trim().toLocaleLowerCase('fa-IR') === articles.find(a => a.slug === taxonomyMatch.slug)?.category?.trim().toLocaleLowerCase('fa-IR')
+        : article.tags.some(tag => tag.trim().toLocaleLowerCase('fa-IR') === articles.find(a => a.tags.some(t => t === tag && t === taxonomyMatch.slug))?.tags.find(t => t === taxonomyMatch.slug));
+      updateRouteSeo(currentPath, undefined, { type: taxonomyMatch.type, slug: taxonomyMatch.slug, count: itemArticles.length });
+    } else if (activeArticle) updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
     else updateRouteSeo(currentPath);
-  }, [currentPath, activeArticle]);
+  }, [currentPath, activeArticle, taxonomyMatch, articles]);
 
   const handleLogout = () => {
-    setCurrentUser(null);
-    setIsShowcaseAdminOpen(false);
-    setIsMemeTickerAdminOpen(false);
-    localStorage.removeItem('solmint_current_user');
-    localStorage.removeItem('solmint_admin_session');
+    setCurrentUser(null); setIsShowcaseAdminOpen(false); setIsMemeTickerAdminOpen(false);
+    localStorage.removeItem('solmint_current_user'); localStorage.removeItem('solmint_admin_session');
   };
 
   useEffect(() => {
@@ -92,27 +95,11 @@ export default function App() {
     loadDatabaseArticles();
   }, []);
 
-  const refreshSolanaStatus = async () => {
-    try {
-      const res = await fetch('/api/solana/status');
-      if (res.ok) setSolanaStatus(await res.json());
-    } catch { /* Keep cached status safely. */ }
-  };
-
-  useEffect(() => {
-    const interval = setInterval(refreshSolanaStatus, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
+  const refreshSolanaStatus = async () => { try { const res = await fetch('/api/solana/status'); if (res.ok) setSolanaStatus(await res.json()); } catch { /* Keep cached status safely. */ } };
+  useEffect(() => { const interval = setInterval(refreshSolanaStatus, 10000); return () => clearInterval(interval); }, []);
   const openAdminModal = () => setIsAdminModalOpen(true);
   const isPrivilegedAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.username === 'admin';
-
-  const scrollToFeatures = () => {
-    if (currentPath !== '/') {
-      handleNavigate('/');
-      setTimeout(() => document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }), 150);
-    } else document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToFeatures = () => { if (currentPath !== '/') { handleNavigate('/'); setTimeout(() => document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }), 150); } else document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }); };
 
   return (
     <div className="min-h-screen bg-[#08080f] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif] antialiased relative selection:bg-[#9945FF] selection:text-white">
@@ -120,18 +107,7 @@ export default function App() {
       <Header solanaStatus={solanaStatus} refreshStatus={refreshSolanaStatus} currentPath={currentPath} onNavigate={handleNavigate} openAdminModal={openAdminModal} currentUser={currentUser} onLogout={handleLogout} />
       <main className="flex-1 relative z-10">
         <Suspense fallback={<SuspenseFallback />}>
-          {currentPath === '/' && (
-            <>
-              <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
-              <AppShowcase />
-              <MemeTicker />
-              <AppFeaturesSection />
-              <SecuritySection />
-              <RoadmapSection />
-              <FaqSection />
-              <LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} />
-            </>
-          )}
+          {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppShowcase /><MemeTicker /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
           {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-meme-coin' && <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
@@ -140,70 +116,12 @@ export default function App() {
           {currentPath === '/download' && <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/faq' && <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/app-guide' && <AppUserGuidePage onNavigate={handleNavigate} />}
-          {(currentPath === '/blog' || currentPath.startsWith('/article/') || currentPath.startsWith('/blog/')) && (
-            <div className="py-4">
-              <BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} />
-            </div>
-          )}
+          {taxonomyMatch && <ArticleTaxonomyPage articles={articles} type={taxonomyMatch.type} slug={taxonomyMatch.slug} onNavigate={handleNavigate} />}
+          {(currentPath === '/blog' || currentPath.startsWith('/article/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
         </Suspense>
       </main>
-
-      {isAdminModalOpen && (
-        <div className="relative z-[60]">
-          <Suspense fallback={null}>
-            <AdminCmsModal
-              isOpen={isAdminModalOpen}
-              onClose={() => setIsAdminModalOpen(false)}
-              articles={articles}
-              setArticles={setArticles}
-              mediaItems={mediaItems}
-              setMediaItems={setMediaItems}
-              testimonials={testimonials}
-              setTestimonials={setTestimonials}
-              currentUser={currentUser}
-              setCurrentUser={setCurrentUser}
-              downloadLinks={downloadLinks}
-              setDownloadLinks={setDownloadLinks}
-              deepseekSettings={deepseekSettings}
-              setDeepseekSettings={setDeepseekSettings}
-              chatbotSettings={chatbotSettings}
-              setChatbotSettings={setChatbotSettings}
-              onGoToBlog={() => handleNavigate('/blog')}
-            />
-          </Suspense>
-
-          {isPrivilegedAdmin && (
-            <>
-              <div className="fixed bottom-5 left-5 z-[80] flex flex-col gap-2 items-start">
-                <button
-                  type="button"
-                  onClick={() => setIsMemeTickerAdminOpen(true)}
-                  className="px-4 py-3 rounded-2xl bg-slate-950 border border-[#14F195]/25 text-white font-black text-xs shadow-2xl flex items-center gap-2 hover:scale-[1.02] transition-transform"
-                >
-                  <span aria-hidden="true">📈</span>
-                  مدیریت نرخ بازار
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsShowcaseAdminOpen(true)}
-                  className="px-4 py-3 rounded-2xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-xs shadow-2xl border border-white/10 flex items-center gap-2 hover:scale-[1.02] transition-transform"
-                >
-                  <span aria-hidden="true">📱</span>
-                  مدیریت نمایش اپلیکیشن
-                </button>
-              </div>
-              <MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} />
-              <AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} />
-            </>
-          )}
-        </div>
-      )}
-
-      {!isAdminModalOpen && (
-        <Suspense fallback={null}>
-          <DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} />
-        </Suspense>
-      )}
+      {isAdminModalOpen && <div className="relative z-[60]"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense>{isPrivilegedAdmin && <><div className="fixed bottom-5 left-5 z-[80] flex flex-col gap-2 items-start"><button type="button" onClick={() => setIsMemeTickerAdminOpen(true)} className="px-4 py-3 rounded-2xl bg-slate-950 border border-[#14F195]/25 text-white font-black text-xs shadow-2xl flex items-center gap-2 hover:scale-[1.02] transition-transform"><span aria-hidden="true">📈</span>مدیریت نرخ بازار</button><button type="button" onClick={() => setIsShowcaseAdminOpen(true)} className="px-4 py-3 rounded-2xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-xs shadow-2xl border border-white/10 flex items-center gap-2 hover:scale-[1.02] transition-transform"><span aria-hidden="true">📱</span>مدیریت نمایش اپلیکیشن</button></div><MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} /><AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} /></>}</div>}
+      {!isAdminModalOpen && <Suspense fallback={null}><DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} /></Suspense>}
       <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
     </div>
   );
