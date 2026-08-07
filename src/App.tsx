@@ -18,6 +18,8 @@ import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { updateRouteSeo } from './utils/seoManager';
 import { ArticleTaxonomyPage } from './components/ArticleTaxonomyPage';
+import { getArticleCategoryTaxonomy, getArticleTagTaxonomy } from './utils/articleTaxonomy';
+import { updateTaxonomySeo } from './utils/taxonomySeo';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
@@ -31,11 +33,7 @@ const OfficialDownloadPage = lazy(() => import('./components/landing/LandingPage
 const FaqPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.FaqPage })));
 const AppUserGuidePage = lazy(() => import('./components/AppUserGuidePage').then(m => ({ default: m.AppUserGuidePage })));
 
-const SuspenseFallback = () => (
-  <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm">
-    <div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" />
-  </div>
-);
+const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/');
@@ -67,34 +65,36 @@ export default function App() {
   const activeArticleSlug = useMemo(() => currentPath.startsWith('/article/') ? currentPath.slice('/article/'.length).trim() : '', [currentPath]);
   const taxonomyMatch = useMemo(() => {
     const match = currentPath.match(/^\/blog\/(category|tag)\/([^/]+)\/?$/);
-    if (!match) return null;
-    return { type: match[1] as 'category' | 'tag', slug: decodeURIComponent(match[2]) };
+    return match ? { type: match[1] as 'category' | 'tag', slug: decodeURIComponent(match[2]) } : null;
   }, [currentPath]);
   const activeArticle = useMemo(() => activeArticleSlug ? articles.find(a => a.slug === activeArticleSlug) || null : null, [activeArticleSlug, articles]);
+  const activeTaxonomy = useMemo(() => {
+    if (!taxonomyMatch) return null;
+    const candidates = taxonomyMatch.type === 'category'
+      ? articles.map(article => getArticleCategoryTaxonomy(article.category)).filter(Boolean)
+      : articles.flatMap(article => getArticleTagTaxonomy(article.tags));
+    return candidates.find(item => item?.slug === taxonomyMatch.slug) || null;
+  }, [articles, taxonomyMatch]);
+  const taxonomyArticleCount = useMemo(() => {
+    if (!taxonomyMatch) return 0;
+    return articles.filter(article => taxonomyMatch.type === 'category'
+      ? getArticleCategoryTaxonomy(article.category)?.slug === taxonomyMatch.slug
+      : getArticleTagTaxonomy(article.tags).some(item => item.slug === taxonomyMatch.slug)
+    ).length;
+  }, [articles, taxonomyMatch]);
 
   useEffect(() => {
-    if (taxonomyMatch) {
-      const itemArticles = articles.filter(article => taxonomyMatch.type === 'category'
-        ? article.category && article.category.trim().toLocaleLowerCase('fa-IR') === articles.find(a => a.slug === taxonomyMatch.slug)?.category?.trim().toLocaleLowerCase('fa-IR')
-        : article.tags.some(tag => tag.trim().toLocaleLowerCase('fa-IR') === articles.find(a => a.tags.some(t => t === tag && t === taxonomyMatch.slug))?.tags.find(t => t === taxonomyMatch.slug));
-      updateRouteSeo(currentPath, undefined, { type: taxonomyMatch.type, slug: taxonomyMatch.slug, count: itemArticles.length });
-    } else if (activeArticle) updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
-    else updateRouteSeo(currentPath);
-  }, [currentPath, activeArticle, taxonomyMatch, articles]);
-
-  const handleLogout = () => {
-    setCurrentUser(null); setIsShowcaseAdminOpen(false); setIsMemeTickerAdminOpen(false);
-    localStorage.removeItem('solmint_current_user'); localStorage.removeItem('solmint_admin_session');
-  };
-
-  useEffect(() => {
-    async function loadDatabaseArticles() {
-      const dbArticles = await fetchArticlesFromActiveDatabase();
-      if (dbArticles && dbArticles.length > 0) setArticles(dbArticles);
+    if (taxonomyMatch && activeTaxonomy) {
+      updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount });
+    } else if (activeArticle) {
+      updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
+    } else {
+      updateRouteSeo(currentPath);
     }
-    loadDatabaseArticles();
-  }, []);
+  }, [currentPath, activeArticle, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
 
+  const handleLogout = () => { setCurrentUser(null); setIsShowcaseAdminOpen(false); setIsMemeTickerAdminOpen(false); localStorage.removeItem('solmint_current_user'); localStorage.removeItem('solmint_admin_session'); };
+  useEffect(() => { async function loadDatabaseArticles() { const dbArticles = await fetchArticlesFromActiveDatabase(); if (dbArticles && dbArticles.length > 0) setArticles(dbArticles); } loadDatabaseArticles(); }, []);
   const refreshSolanaStatus = async () => { try { const res = await fetch('/api/solana/status'); if (res.ok) setSolanaStatus(await res.json()); } catch { /* Keep cached status safely. */ } };
   useEffect(() => { const interval = setInterval(refreshSolanaStatus, 10000); return () => clearInterval(interval); }, []);
   const openAdminModal = () => setIsAdminModalOpen(true);
@@ -116,7 +116,7 @@ export default function App() {
           {currentPath === '/download' && <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/faq' && <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/app-guide' && <AppUserGuidePage onNavigate={handleNavigate} />}
-          {taxonomyMatch && <ArticleTaxonomyPage articles={articles} type={taxonomyMatch.type} slug={taxonomyMatch.slug} onNavigate={handleNavigate} />}
+          {taxonomyMatch && activeTaxonomy && <ArticleTaxonomyPage articles={articles} type={taxonomyMatch.type} slug={taxonomyMatch.slug} onNavigate={handleNavigate} />}
           {(currentPath === '/blog' || currentPath.startsWith('/article/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
         </Suspense>
       </main>
