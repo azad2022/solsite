@@ -4,11 +4,23 @@ type Category = { id: string; name: string; slug: string; description?: string; 
 
 const fallbackUrl = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const fallbackAnon = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
+const FALLBACK_CATEGORIES: Category[] = [
+  { id: 'cat-solana', name: 'آموزش سولانا', slug: 'solana', sort_order: 10, is_active: true },
+  { id: 'cat-web3', name: 'توسعه وب۳', slug: 'web3-development', sort_order: 20, is_active: true },
+  { id: 'cat-security', name: 'امنیت', slug: 'security', sort_order: 30, is_active: true },
+  { id: 'cat-news-analysis', name: 'اخبار و تحلیل', slug: 'crypto-news-analysis', sort_order: 40, is_active: true },
+  { id: 'cat-trading', name: 'ترید', slug: 'trading', sort_order: 50, is_active: true },
+  { id: 'cat-prop-trading', name: 'پراپ تریدینگ', slug: 'prop-trading', sort_order: 60, is_active: true },
+  { id: 'cat-meme-coin', name: 'آموزش ساخت میم کوین', slug: 'meme-coin', sort_order: 70, is_active: true },
+  { id: 'cat-nft', name: 'آموزش ساخت NFT', slug: 'nft', sort_order: 80, is_active: true },
+  { id: 'cat-wallet', name: 'کیف پول سولانا', slug: 'solana-wallet', sort_order: 90, is_active: true }
+];
+
 const envValue = (env: Env, key: keyof Env, fallback = '') => String(env[key] || fallback).trim();
-const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=UTF-8', 'Cache-Control': 'no-store' } });
+const json = (data: unknown, status = 200, extraHeaders: Record<string, string> = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=UTF-8', 'Cache-Control': 'no-store', ...extraHeaders } });
 const suppliedPasscode = (request: Request) => (request.headers.get('x-admin-passcode') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '').trim();
 const supabase = (env: Env) => { const url = envValue(env, 'SUPABASE_URL', envValue(env, 'VITE_SUPABASE_URL', fallbackUrl)).replace(/\/$/, ''); const key = envValue(env, 'SUPABASE_SERVICE_ROLE_KEY', envValue(env, 'SUPABASE_ANON_KEY', envValue(env, 'VITE_SUPABASE_ANON_KEY', fallbackAnon))); return { url, key }; };
-async function db(env: Env, path: string, init: RequestInit = {}) { const { url, key } = supabase(env); const headers = new Headers(init.headers); headers.set('apikey', key); headers.set('Authorization', `Bearer ${key}`); headers.set('Accept', 'application/json'); if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json'); return fetch(`${url}/rest/v1/${path}`, { ...init, headers }); }
+async function db(env: Env, path: string, init: RequestInit = {}) { const { url, key } = supabase(env); const headers = new Headers(init.headers); headers.set('apikey', key); headers.set('Authorization', `Bearer ${key}`); headers.set('Accept', 'application/json'); if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json'); const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 8000); try { return await fetch(`${url}/rest/v1/${path}`, { ...init, headers, signal: controller.signal }); } finally { clearTimeout(timeout); } }
 async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
   const supplied = suppliedPasscode(request);
   if (!supplied) return false;
@@ -33,9 +45,14 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
     if (method === 'GET') {
       const includeInactive = new URL(request.url).searchParams.get('includeInactive') === 'true';
       const query = includeInactive ? 'select=*&order=sort_order.asc,name.asc' : 'select=*&is_active=eq.true&order=sort_order.asc,name.asc';
-      const response = await db(env, `article_categories?${query}`); const data = await response.json().catch(() => []);
-      if (!response.ok) return json({ success: false, message: 'دریافت دسته‌بندی‌ها از Supabase ناموفق بود.', details: data }, response.status);
-      return json({ success: true, categories: data });
+      try {
+        const response = await db(env, `article_categories?${query}`);
+        const data = await response.json().catch(() => []);
+        if (!response.ok) return json({ success: true, categories: FALLBACK_CATEGORIES.filter(c => includeInactive || c.is_active), degraded: true, warning: 'Supabase دسته‌بندی‌ها را در دسترس قرار نداد.' }, 200, { 'X-Category-Source': 'fallback' });
+        return json({ success: true, categories: Array.isArray(data) ? data : [], degraded: false }, 200, { 'X-Category-Source': 'supabase' });
+      } catch {
+        return json({ success: true, categories: FALLBACK_CATEGORIES.filter(c => includeInactive || c.is_active), degraded: true, warning: 'اتصال به Supabase برای دسته‌بندی‌ها برقرار نشد؛ دسته‌های پایه بارگذاری شدند.' }, 200, { 'X-Category-Source': 'fallback' });
+      }
     }
     if (!(await adminAuthorized(request, env))) return json({ success: false, message: 'دسترسی مدیریت دسته‌بندی‌ها غیرمجاز است.' }, 401);
     if (method === 'POST') {
