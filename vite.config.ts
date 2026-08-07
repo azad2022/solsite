@@ -15,7 +15,20 @@ function articleCategoryRegistryPlugin(): Plugin {
     enforce: 'pre',
     transform(code, id) {
       if (id.endsWith('/src/components/BlogHub.tsx')) {
-        return code.replace(/const categories = \[[\s\S]*?\];/, `const categories = ${JSON.stringify(allCategories)};`);
+        let transformed = code;
+        transformed = transformed.replace(
+          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';",
+          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';\nimport { fetchArticleCategories } from './ArticleCategoryManager';"
+        );
+        transformed = transformed.replace(
+          "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');",
+          "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');\n  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);"
+        );
+        transformed = transformed.replace(
+          "  const categories = ['همه', 'آموزش سولانا', 'توسعه وب۳', 'امنیت', 'اخبار و تحلیل', 'ترید', 'پراپ تریدینگ'];",
+          "  useEffect(() => { fetchArticleCategories().then(items => setDynamicCategories(items.map(item => item.name))).catch(() => setDynamicCategories([])); }, []);\n\n  const categories = dynamicCategories.length ? ['همه', ...dynamicCategories] : " + JSON.stringify(allCategories) + ";"
+        );
+        return transformed;
       }
       if (id.endsWith('/src/components/AdminCmsModal.tsx')) {
         let transformed = code;
@@ -35,7 +48,6 @@ function articleCategoryRegistryPlugin(): Plugin {
           /\{adminTab === 'seo' && \(\n\s*<div className="space-y-6 text-xs">/,
           "{adminTab === 'seo' && (\n              <div className=\"space-y-6 text-xs\">\n                <ArticleCategoryManager />"
         );
-        // Keep the static list as a build-time fallback only if a legacy editor fragment survives the transform.
         if (transformed.includes('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}')) transformed = transformed.replace('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}', staticOptions);
         return transformed;
       }
