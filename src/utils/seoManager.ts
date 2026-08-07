@@ -120,10 +120,48 @@ type ArticleSeoData = {
   summary: string;
   slug: string;
   coverImage?: string;
+  publishedAt?: string;
   publishedAtGregorian?: string;
   updatedAt?: string | null;
   author?: { name?: string; role?: string };
+  category?: string;
+  tags?: string[];
+  content?: string;
 };
+
+function cleanText(value: string): string {
+  return value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function buildArticleTitle(title: string): string {
+  const cleanTitle = cleanText(title);
+  if (!cleanTitle) return 'مقاله | سولمینت';
+  if (/سولمینت|solmint/i.test(cleanTitle)) return cleanTitle;
+  return `${cleanTitle} | سولمینت`;
+}
+
+function buildArticleDescription(summary: string, title: string): string {
+  const fallback = `راهنمای تخصصی ${cleanText(title)} در وبلاگ سولمینت؛ آموزش، نکات کاربردی و اطلاعات مرتبط با سولانا و وب۳.`;
+  const value = cleanText(summary) || fallback;
+  return value.length > 180 ? `${value.slice(0, 177).trim()}...` : value;
+}
+
+function toIsoDate(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const raw = String(value).trim();
+  const normalized = raw.replace(/\//g, '-');
+  const date = new Date(normalized);
+  if (!Number.isNaN(date.getTime())) return date.toISOString();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return `${normalized}T00:00:00+03:30`;
+  return undefined;
+}
+
+function countWords(content?: string): number | undefined {
+  if (!content) return undefined;
+  const text = cleanText(content);
+  if (!text) return undefined;
+  return text.split(/\s+/u).filter(Boolean).length;
+}
 
 export function getRouteSeoInfo(path: string, articleData?: ArticleSeoData): RouteSeoInfo {
   let info = ROUTES_SEO_MAP[path];
@@ -131,8 +169,8 @@ export function getRouteSeoInfo(path: string, articleData?: ArticleSeoData): Rou
   if (!info && (path.startsWith('/article/') || path.startsWith('/blog/')) && articleData) {
     info = {
       path: `/article/${articleData.slug}`,
-      title: `${articleData.title} | وبلاگ و آموزش سولمینت`,
-      description: articleData.summary,
+      title: buildArticleTitle(articleData.title),
+      description: buildArticleDescription(articleData.summary, articleData.title),
       canonical: `${SITE_DOMAIN}/article/${articleData.slug}`,
       ogType: 'article',
       ogImage: articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
@@ -194,6 +232,7 @@ export function updateRouteSeo(path: string, articleData?: ArticleSeoData) {
 
   setMetaName('description', info.description);
   setMetaName('robots', info.is404 ? 'noindex, follow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+  if (articleData?.author?.name) setMetaName('author', articleData.author.name);
 
   let canonicalLink = document.querySelector('link[rel="canonical"]');
   if (!canonicalLink) {
@@ -210,7 +249,7 @@ export function updateRouteSeo(path: string, articleData?: ArticleSeoData) {
   setMetaProperty('og:site_name', 'سولمینت - SolMint');
   setMetaProperty('og:locale', 'fa_IR');
   setMetaProperty('og:image', info.ogImage || `${SITE_DOMAIN}/images/blog-og.jpg`);
-  setMetaProperty('og:image:alt', info.title);
+  setMetaProperty('og:image:alt', articleData?.title || info.title);
 
   setMetaName('twitter:card', 'summary_large_image');
   setMetaName('twitter:title', info.title);
@@ -219,9 +258,12 @@ export function updateRouteSeo(path: string, articleData?: ArticleSeoData) {
   setMetaName('twitter:image', info.ogImage || `${SITE_DOMAIN}/images/blog-og.jpg`);
 
   if (articleData && info.ogType === 'article') {
-    if (articleData.publishedAtGregorian) setMetaProperty('article:published_time', articleData.publishedAtGregorian.replace(/\//g, '-'));
-    if (articleData.updatedAt) setMetaProperty('article:modified_time', articleData.updatedAt);
-    setMetaProperty('article:section', 'آموزش و تحلیل');
+    const published = toIsoDate(articleData.publishedAt || articleData.publishedAtGregorian);
+    const modified = toIsoDate(articleData.updatedAt) || published;
+    if (published) setMetaProperty('article:published_time', published);
+    if (modified) setMetaProperty('article:modified_time', modified);
+    if (articleData.category) setMetaProperty('article:section', articleData.category);
+    (articleData.tags || []).slice(0, 8).forEach((tag, index) => setMetaProperty(`article:tag:${index}`, tag));
   }
 
   injectJsonLdSchema(info, articleData);
@@ -261,24 +303,31 @@ function injectJsonLdSchema(info: RouteSeoInfo, articleData?: ArticleSeoData) {
   ];
 
   if (!info.is404 && articleData && info.ogType === 'article') {
-    schemas.push({
+    const published = toIsoDate(articleData.publishedAt || articleData.publishedAtGregorian);
+    const modified = toIsoDate(articleData.updatedAt) || published;
+    const articleSchema: any = {
       '@context': 'https://schema.org',
-      '@type': 'Article',
+      '@type': 'BlogPosting',
       '@id': `${info.canonical}#article`,
-      headline: articleData.title,
-      description: articleData.summary,
-      image: articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`,
+      url: info.canonical,
+      headline: cleanText(articleData.title),
+      description: buildArticleDescription(articleData.summary, articleData.title),
+      image: [articleData.coverImage || `${SITE_DOMAIN}/images/blog-og.jpg`],
       author: {
-        '@type': 'Person',
-        name: articleData.author?.name || 'تیم تحریریه سولمینت',
-        jobTitle: articleData.author?.role || 'تیم تحریریه'
+        '@type': 'Organization',
+        name: articleData.author?.name || 'تیم تحریریه سولمینت'
       },
       publisher: { '@id': `${SITE_DOMAIN}#organization` },
       mainEntityOfPage: { '@type': 'WebPage', '@id': info.canonical },
-      datePublished: articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\//g, '-') : undefined,
-      dateModified: articleData.updatedAt || undefined,
       inLanguage: 'fa-IR'
-    });
+    };
+    if (published) articleSchema.datePublished = published;
+    if (modified) articleSchema.dateModified = modified;
+    if (articleData.category) articleSchema.articleSection = articleData.category;
+    if (articleData.tags?.length) articleSchema.keywords = articleData.tags.slice(0, 8).join(', ');
+    const wordCount = countWords(articleData.content);
+    if (wordCount) articleSchema.wordCount = wordCount;
+    schemas.push(articleSchema);
   }
 
   if (!info.is404 && info.path === '/faq') {
@@ -304,7 +353,7 @@ function injectJsonLdSchema(info: RouteSeoInfo, articleData?: ArticleSeoData) {
       ['LP Token چیست و چه ارتباطی با استخر نقدینگی دارد؟', 'LP Token معمولاً نماینده سهم کاربر در یک استخر نقدینگی است و مدیریت آن باید با دقت انجام شود.'],
       ['چگونه وضعیت تراکنش‌های سولمینت را بررسی کنم؟', 'پس از ارسال تراکنش، Signature را می‌توانید برای پیگیری وضعیت آن در شبکه Solana استفاده کنید. سولمینت همچنین بخش تاریخچه تراکنش‌ها را در اختیار کاربر قرار می‌دهد.'],
       ['کارمزد استفاده از سولمینت چقدر است؟', 'هزینه نهایی هر عملیات به نوع تراکنش، وضعیت شبکه Solana، عملیات پروتکل‌های شخص ثالث و پارامترهای همان سرویس بستگی دارد.'],
-      ['اگر یک تراکنش در سولمینت ناموفق شود چه کاری انجام دهم؟', 'ابتدا Signature تراکنش و وضعیت آن را روی شبکه بررسی کنید، سپس موجودی SOL، Token Account، حساب مقصد، مقدار دارایی و پارامترهای عملیات را بررسی کنید.'],
+      ['اگر یک تراکنش در سولمینت ناموفق شود چه کاری انجام دهم؟', 'ابتدا Signature تراکنش و وضعیت آن روی شبکه بررسی کنید، سپس موجودی SOL، Token Account، حساب مقصد، مقدار دارایی و پارامترهای عملیات را بررسی کنید.'],
       ['چرا یک توکن در کیف پول من نمایش داده نمی‌شود؟', 'نمایش توکن به وجود Token Account مناسب، اطلاعات Mint، وضعیت شبکه و اطلاعات دریافت‌شده از RPC وابسته است.'],
       ['آیا سولمینت می‌تواند دارایی‌های کیف پول من را بدون اجازه من منتقل کند؟', 'در مدل غیرامانی، انتقال دارایی‌های متعلق به کیف پول به امضای معتبر تراکنش نیاز دارد. همیشه جزئیات تراکنش و مقصد را قبل از امضا بررسی کنید.'],
       ['اپلیکیشن سولمینت را از کجا دانلود کنم؟', 'برای کاهش ریسک دریافت نسخه جعلی، نسخه رسمی اپلیکیشن را فقط از مسیرهای دانلود رسمی معرفی‌شده در وب‌سایت solmint.ir دریافت کنید.'],
