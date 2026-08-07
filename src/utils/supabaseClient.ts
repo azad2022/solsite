@@ -3,6 +3,32 @@ import { Article } from '../types';
 
 let supabase: SupabaseClient | null = null;
 
+function getAdminPasscode(): string {
+  if (typeof window === 'undefined') return '';
+  return (
+    localStorage.getItem('solmint_admin_passcode') ||
+    localStorage.getItem('solmint_passcode') ||
+    ''
+  ).trim();
+}
+
+function getAdminHeaders(): Record<string, string> {
+  const passcode = getAdminPasscode();
+  return {
+    'Content-Type': 'application/json',
+    ...(passcode ? { 'x-admin-passcode': passcode } : {})
+  };
+}
+
+async function safeReadJson<T = any>(res: Response): Promise<T | null> {
+  try {
+    const text = await res.text();
+    return text ? (JSON.parse(text) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getSupabaseClient(): SupabaseClient | null {
   if (supabase) return supabase;
 
@@ -24,151 +50,90 @@ export function getSupabaseClient(): SupabaseClient | null {
 }
 
 /**
- * SQL script to setup the articles table in Supabase
+ * SQL script to setup the tables used by the CMS.
+ * Keep this available for admin copy/paste flows.
  */
-export const SUPABASE_ARTICLES_TABLE_SQL = `-- 1. ساخت جدول مقالات سولمینت
-CREATE TABLE IF NOT EXISTS public.articles (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    slug TEXT NOT NULL,
-    category TEXT,
-    tags JSONB DEFAULT '[]'::jsonb,
-    summary TEXT,
-    content TEXT,
-    cover_image TEXT,
-    cover_image_asset_id TEXT,
-    video_url TEXT,
-    author JSONB,
-    published_at TEXT,
-    published_at_jalali TEXT,
-    published_at_gregorian TEXT,
-    read_time_minutes INT DEFAULT 5,
-    views_count INT DEFAULT 0,
-    comments JSONB DEFAULT '[]'::jsonb,
-    seo_score INT DEFAULT 90,
-    is_draft BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+export const SUPABASE_ARTICLES_TABLE_SQL = `CREATE TABLE IF NOT EXISTS public.articles (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  category TEXT,
+  tags JSONB DEFAULT '[]'::jsonb,
+  summary TEXT,
+  content TEXT,
+  cover_image TEXT,
+  cover_image_asset_id TEXT,
+  video_url TEXT,
+  author JSONB,
+  published_at TEXT,
+  published_at_jalali TEXT,
+  published_at_gregorian TEXT,
+  read_time_minutes INT DEFAULT 5,
+  views_count INT DEFAULT 0,
+  comments JSONB DEFAULT '[]'::jsonb,
+  seo_score INT DEFAULT 90,
+  is_draft BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- افزودن ستون‌های جدید در صورت وجود قبلی جدول
-ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS cover_image_asset_id TEXT;
-
--- 2. فعال‌سازی دسترسی خواندن و نوشتن همگانی (Row Level Security Policy)
-ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Public Read Articles" ON public.articles;
-CREATE POLICY "Public Read Articles" ON public.articles FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Public Insert Articles" ON public.articles;
-CREATE POLICY "Public Insert Articles" ON public.articles FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Public Update Articles" ON public.articles;
-CREATE POLICY "Public Update Articles" ON public.articles FOR UPDATE USING (true);
-
-DROP POLICY IF EXISTS "Public Delete Articles" ON public.articles;
-CREATE POLICY "Public Delete Articles" ON public.articles FOR DELETE USING (true);
-
--- 3. ساخت جدول مدیریت رسانه‌های گیت‌هاب (Media Assets)
 CREATE TABLE IF NOT EXISTS public.media_assets (
-    id TEXT PRIMARY KEY,
-    provider TEXT DEFAULT 'github',
-    github_owner TEXT NOT NULL,
-    github_repository TEXT NOT NULL,
-    branch TEXT NOT NULL DEFAULT 'main',
-    path TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    public_url TEXT NOT NULL,
-    mime_type TEXT,
-    file_size INT DEFAULT 0,
-    width INT DEFAULT 0,
-    height INT DEFAULT 0,
-    sha TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    original_filename TEXT,
-    alt_text TEXT DEFAULT '',
-    title TEXT DEFAULT ''
+  id TEXT PRIMARY KEY,
+  provider TEXT DEFAULT 'github',
+  github_owner TEXT NOT NULL,
+  github_repository TEXT NOT NULL,
+  branch TEXT NOT NULL DEFAULT 'main',
+  path TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  public_url TEXT NOT NULL,
+  mime_type TEXT,
+  file_size INT DEFAULT 0,
+  width INT DEFAULT 0,
+  height INT DEFAULT 0,
+  sha TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  original_filename TEXT,
+  alt_text TEXT DEFAULT '',
+  title TEXT DEFAULT ''
 );
 
-ALTER TABLE public.media_assets ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Read Media Assets" ON public.media_assets;
-CREATE POLICY "Public Read Media Assets" ON public.media_assets FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Public Write Media Assets" ON public.media_assets;
-CREATE POLICY "Public Write Media Assets" ON public.media_assets FOR ALL USING (true);
-
--- 4. ساخت جدول تنظیمات مخزن رسانه (Media Config)
 CREATE TABLE IF NOT EXISTS public.media_config (
-    id TEXT PRIMARY KEY DEFAULT 'active_config',
-    provider TEXT DEFAULT 'github',
-    github_owner TEXT NOT NULL,
-    github_repository TEXT NOT NULL,
-    branch TEXT NOT NULL DEFAULT 'main',
-    base_path TEXT NOT NULL DEFAULT 'articles/',
-    connection_status TEXT DEFAULT 'untested',
-    last_test_at TIMESTAMP WITH TIME ZONE
+  id TEXT PRIMARY KEY DEFAULT 'active_config',
+  provider TEXT DEFAULT 'github',
+  github_owner TEXT NOT NULL,
+  github_repository TEXT NOT NULL,
+  branch TEXT NOT NULL DEFAULT 'main',
+  base_path TEXT NOT NULL DEFAULT 'articles/',
+  connection_status TEXT DEFAULT 'untested',
+  last_test_at TIMESTAMP WITH TIME ZONE
 );
 
-ALTER TABLE public.media_config ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Read Media Config" ON public.media_config;
-CREATE POLICY "Public Read Media Config" ON public.media_config FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Public Write Media Config" ON public.media_config;
-CREATE POLICY "Public Write Media Config" ON public.media_config FOR ALL USING (true);
-
--- 5. ساخت جدول کاربران و اعضای تیم در سوپابیس (Users & Roles)
 CREATE TABLE IF NOT EXISTS public.users (
-    id TEXT PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    full_name TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT DEFAULT 'admin',
-    permissions JSONB DEFAULT '[]'::jsonb,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT DEFAULT 'admin',
+  permissions JSONB DEFAULT '[]'::jsonb,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Read Write Users" ON public.users;
-CREATE POLICY "Public Read Write Users" ON public.users FOR ALL USING (true);
-
--- ثبت کاربر مدیر ارشد پیش‌فرض در صورت عدم وجود
-INSERT INTO public.users (id, username, full_name, password_hash, role, permissions, is_active)
-VALUES (
-  'admin-1',
-  'admin',
-  'مدیر ارشد پلتفرم (SuperAdmin)',
-  'e6b8c8d0e7e1f2a3',
-  'superadmin',
-  '["articles","editor","comments","media","seo","audit","redirects","downloads","deepseek","chatbot","database","security","users"]'::jsonb,
-  true
-)
-ON CONFLICT (username) DO NOTHING;
-
--- 6. ساخت جدول تنظیمات سی‌ام‌اس (CMS Settings)
 CREATE TABLE IF NOT EXISTS public.cms_settings (
-    id TEXT PRIMARY KEY DEFAULT 'main_settings',
-    settings_json JSONB NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id TEXT PRIMARY KEY DEFAULT 'main_settings',
+  settings_json JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-ALTER TABLE public.cms_settings ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Read Write Settings" ON public.cms_settings;
-CREATE POLICY "Public Read Write Settings" ON public.cms_settings FOR ALL USING (true);
-
--- 7. ساخت جدول دیدگاه‌های مقالات (Comments)
 CREATE TABLE IF NOT EXISTS public.comments (
-    id TEXT PRIMARY KEY,
-    article_id TEXT NOT NULL,
-    user_name TEXT NOT NULL,
-    user_id TEXT,
-    text TEXT NOT NULL,
-    approved BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Read Write Comments" ON public.comments;
-CREATE POLICY "Public Read Write Comments" ON public.comments FOR ALL USING (true);
-`;
+  id TEXT PRIMARY KEY,
+  article_id TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  user_id TEXT,
+  text TEXT NOT NULL,
+  approved BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);`;
 
 /**
  * Fetch articles from Supabase table 'articles'
@@ -185,7 +150,7 @@ export async function fetchArticlesFromSupabase(): Promise<Article[] | null> {
 
     if (error) {
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        console.warn('⚠️ جدول articles در Supabase هنوز ساخته نشده است. لطفاً کدهای SQL ساخت جدول را در Supabase اجرا کنید.');
+        console.warn('⚠️ جدول articles در Supabase هنوز ساخته نشده است.');
       } else {
         console.warn('⚠️ عدم امکان دریافت مقالات از Supabase:', error.message || error);
       }
@@ -194,7 +159,6 @@ export async function fetchArticlesFromSupabase(): Promise<Article[] | null> {
 
     if (!data) return [];
 
-    // Map database snake_case fields back to Article object
     return data.map((item: any) => ({
       id: item.id,
       title: item.title,
@@ -222,17 +186,32 @@ export async function fetchArticlesFromSupabase(): Promise<Article[] | null> {
 }
 
 /**
- * Save or update a single article in Supabase
+ * Save or update a single article.
+ * Browser executions must use the trusted server API so the client never
+ * writes directly to the protected Supabase table.
  */
 export async function saveArticleToSupabase(article: Article): Promise<boolean> {
-  const client = getSupabaseClient();
-  if (!client) {
-    console.error('❌ Supabase client unavailable for saveArticleToSupabase');
-    return false;
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/articles', {
+        method: 'POST',
+        headers: getAdminHeaders(),
+        body: JSON.stringify(article)
+      });
+      if (!res.ok) return false;
+      const data = await safeReadJson<{ success?: boolean }>(res);
+      return Boolean(data?.success ?? true);
+    } catch (err) {
+      console.error('Error saving article through server API:', err);
+      return false;
+    }
   }
 
+  const client = getSupabaseClient();
+  if (!client) return false;
+
   try {
-    const dbPayload = {
+    const { error } = await client.from('articles').upsert({
       id: article.id,
       title: article.title,
       slug: article.slug,
@@ -252,11 +231,7 @@ export async function saveArticleToSupabase(article: Article): Promise<boolean> 
       comments: article.comments,
       seo_score: article.seoScore || 90,
       is_draft: article.isDraft ? 1 : 0
-    };
-
-    const { error } = await client
-      .from('articles')
-      .upsert(dbPayload, { onConflict: 'id' });
+    }, { onConflict: 'id' });
 
     if (error) {
       console.error('❌ Supabase article upsert error:', error.message || error);
@@ -271,18 +246,29 @@ export async function saveArticleToSupabase(article: Article): Promise<boolean> 
 }
 
 /**
- * Delete an article from Supabase
+ * Delete an article.
  */
 export async function deleteArticleFromSupabase(articleId: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch(`/api/articles/${encodeURIComponent(articleId)}`, {
+        method: 'DELETE',
+        headers: getAdminHeaders()
+      });
+      if (!res.ok) return false;
+      const data = await safeReadJson<{ success?: boolean }>(res);
+      return Boolean(data?.success ?? true);
+    } catch (err) {
+      console.error('Error deleting article through server API:', err);
+      return false;
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return false;
 
   try {
-    const { error } = await client
-      .from('articles')
-      .delete()
-      .eq('id', articleId);
-
+    const { error } = await client.from('articles').delete().eq('id', articleId);
     if (error) {
       console.warn('Supabase delete warning:', error.message || error);
       return false;
@@ -302,16 +288,11 @@ export async function fetchMediaAssetsFromSupabase(): Promise<any[] | null> {
   if (!client) return null;
 
   try {
-    const { data, error } = await client
-      .from('media_assets')
-      .select('*')
-      .order('created_at', { ascending: false });
-
+    const { data, error } = await client.from('media_assets').select('*').order('created_at', { ascending: false });
     if (error) {
       console.warn('⚠️ Could not fetch media assets from Supabase:', error.message);
       return null;
     }
-
     if (!data) return [];
 
     return data.map((item: any) => ({
@@ -340,15 +321,12 @@ export async function fetchMediaAssetsFromSupabase(): Promise<any[] | null> {
   }
 }
 
-/**
- * Save or update a MediaAsset in Supabase
- */
 export async function saveMediaAssetToSupabase(asset: any): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) return false;
 
   try {
-    const dbPayload = {
+    const { error } = await client.from('media_assets').upsert({
       id: asset.id,
       provider: asset.provider || 'github',
       github_owner: asset.githubOwner,
@@ -366,11 +344,7 @@ export async function saveMediaAssetToSupabase(asset: any): Promise<boolean> {
       alt_text: asset.altText || '',
       title: asset.title || '',
       updated_at: new Date().toISOString()
-    };
-
-    const { error } = await client
-      .from('media_assets')
-      .upsert(dbPayload, { onConflict: 'id' });
+    }, { onConflict: 'id' });
 
     if (error) {
       console.warn('Supabase media asset upsert warning:', error.message);
@@ -383,19 +357,12 @@ export async function saveMediaAssetToSupabase(asset: any): Promise<boolean> {
   }
 }
 
-/**
- * Delete a MediaAsset from Supabase
- */
 export async function deleteMediaAssetFromSupabase(assetId: string): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) return false;
 
   try {
-    const { error } = await client
-      .from('media_assets')
-      .delete()
-      .eq('id', assetId);
-
+    const { error } = await client.from('media_assets').delete().eq('id', assetId);
     if (error) {
       console.warn('Supabase media asset delete warning:', error.message);
       return false;
@@ -407,22 +374,13 @@ export async function deleteMediaAssetFromSupabase(assetId: string): Promise<boo
   }
 }
 
-/**
- * Fetch MediaStorageConfig from Supabase
- */
 export async function fetchMediaConfigFromSupabase(): Promise<any | null> {
   const client = getSupabaseClient();
   if (!client) return null;
 
   try {
-    const { data, error } = await client
-      .from('media_config')
-      .select('*')
-      .eq('id', 'active_config')
-      .single();
-
+    const { data, error } = await client.from('media_config').select('*').eq('id', 'active_config').single();
     if (error || !data) return null;
-
     return {
       provider: data.provider || 'github',
       githubOwner: data.github_owner,
@@ -432,20 +390,17 @@ export async function fetchMediaConfigFromSupabase(): Promise<any | null> {
       connectionStatus: data.connection_status || 'untested',
       lastTestAt: data.last_test_at || null
     };
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
-/**
- * Save MediaStorageConfig to Supabase
- */
 export async function saveMediaConfigToSupabase(config: any): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) return false;
 
   try {
-    const dbPayload = {
+    const { error } = await client.from('media_config').upsert({
       id: 'active_config',
       provider: config.provider || 'github',
       github_owner: config.githubOwner,
@@ -454,11 +409,7 @@ export async function saveMediaConfigToSupabase(config: any): Promise<boolean> {
       base_path: config.basePath || 'articles/',
       connection_status: config.connectionStatus || 'untested',
       last_test_at: config.lastTestAt || new Date().toISOString()
-    };
-
-    const { error } = await client
-      .from('media_config')
-      .upsert(dbPayload, { onConflict: 'id' });
+    }, { onConflict: 'id' });
 
     if (error) {
       console.warn('Supabase media config upsert warning:', error.message);
@@ -471,26 +422,17 @@ export async function saveMediaConfigToSupabase(config: any): Promise<boolean> {
   }
 }
 
-/**
- * Fetch all Users from Supabase table 'users'
- */
 export async function fetchUsersFromSupabase(): Promise<any[] | null> {
   const client = getSupabaseClient();
   if (!client) return null;
 
   try {
-    const { data, error } = await client
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false });
-
+    const { data, error } = await client.from('users').select('*').order('created_at', { ascending: false });
     if (error) {
       console.warn('⚠️ Could not fetch users from Supabase:', error.message);
       return null;
     }
-
     if (!data) return [];
-
     return data.map((item: any) => ({
       id: item.id,
       username: item.username,
@@ -507,15 +449,12 @@ export async function fetchUsersFromSupabase(): Promise<any[] | null> {
   }
 }
 
-/**
- * Save or update a User account in Supabase
- */
 export async function saveUserToSupabase(user: any): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) return false;
 
   try {
-    const dbPayload = {
+    const { error } = await client.from('users').upsert({
       id: user.id || 'usr-' + Date.now(),
       username: String(user.username).trim(),
       full_name: String(user.fullName || user.full_name || '').trim(),
@@ -523,11 +462,7 @@ export async function saveUserToSupabase(user: any): Promise<boolean> {
       role: user.role || 'admin',
       permissions: user.permissions || [],
       is_active: user.isActive !== false
-    };
-
-    const { error } = await client
-      .from('users')
-      .upsert(dbPayload, { onConflict: 'username' });
+    }, { onConflict: 'username' });
 
     if (error) {
       console.warn('Supabase user upsert warning:', error.message);
@@ -540,19 +475,12 @@ export async function saveUserToSupabase(user: any): Promise<boolean> {
   }
 }
 
-/**
- * Delete a User account from Supabase
- */
 export async function deleteUserFromSupabase(userId: string): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) return false;
 
   try {
-    const { error } = await client
-      .from('users')
-      .delete()
-      .eq('id', userId);
-
+    const { error } = await client.from('users').delete().eq('id', userId);
     if (error) {
       console.warn('Supabase user delete warning:', error.message);
       return false;
@@ -564,45 +492,29 @@ export async function deleteUserFromSupabase(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Fetch CMS Settings from Supabase table 'cms_settings'
- */
 export async function fetchCmsSettingsFromSupabase(): Promise<any | null> {
   const client = getSupabaseClient();
   if (!client) return null;
 
   try {
-    const { data, error } = await client
-      .from('cms_settings')
-      .select('*')
-      .eq('id', 'main_settings')
-      .single();
-
+    const { data, error } = await client.from('cms_settings').select('*').eq('id', 'main_settings').single();
     if (error || !data || !data.settings_json) return null;
-
     return typeof data.settings_json === 'string' ? JSON.parse(data.settings_json) : data.settings_json;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
-/**
- * Save CMS Settings to Supabase
- */
 export async function saveCmsSettingsToSupabase(settings: any): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) return false;
 
   try {
-    const dbPayload = {
+    const { error } = await client.from('cms_settings').upsert({
       id: 'main_settings',
       settings_json: settings,
       updated_at: new Date().toISOString()
-    };
-
-    const { error } = await client
-      .from('cms_settings')
-      .upsert(dbPayload, { onConflict: 'id' });
+    }, { onConflict: 'id' });
 
     if (error) {
       console.warn('Supabase cms_settings upsert warning:', error.message);
@@ -614,5 +526,3 @@ export async function saveCmsSettingsToSupabase(settings: any): Promise<boolean>
     return false;
   }
 }
-
-
