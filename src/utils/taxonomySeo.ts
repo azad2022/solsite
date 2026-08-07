@@ -29,24 +29,7 @@ function setProperty(property: string, content: string) {
   meta.setAttribute('content', content);
 }
 
-export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput) {
-  if (typeof document === 'undefined') return;
-
-  const url = buildTaxonomyUrl({ type, slug, name });
-  const canonical = `${SITE_DOMAIN}${url}`;
-  const label = type === 'category' ? 'دسته‌بندی' : 'برچسب';
-  const description = `مقالات مرتبط با ${label} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;
-  const indexable = count >= 2;
-
-  document.title = `${name} | ${label} مقالات سولمینت`;
-  setMeta('description', description);
-  setMeta('robots', indexable ? 'index,follow,max-image-preview:large' : 'noindex,follow');
-  setProperty('og:title', document.title);
-  setProperty('og:description', description);
-  setProperty('og:type', 'website');
-  setProperty('og:url', canonical);
-  setProperty('og:image', `${SITE_DOMAIN}/images/blog-og.jpg`);
-
+function setCanonical(canonical: string) {
   let canonicalEl = document.querySelector('link[rel="canonical"]');
   if (!canonicalEl) {
     canonicalEl = document.createElement('link');
@@ -54,4 +37,71 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
     document.head.appendChild(canonicalEl);
   }
   canonicalEl.setAttribute('href', canonical);
+}
+
+function setJsonLd(id: string, value: unknown) {
+  const existing = document.getElementById(id);
+  if (existing) existing.remove();
+
+  const script = document.createElement('script');
+  script.id = id;
+  script.type = 'application/ld+json';
+  script.text = JSON.stringify(value);
+  document.head.appendChild(script);
+}
+
+export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput) {
+  if (typeof document === 'undefined') return;
+
+  const url = buildTaxonomyUrl({ type, slug, name });
+  const canonical = `${SITE_DOMAIN}${url}`;
+  const label = type === 'category' ? 'دسته‌بندی' : 'برچسب';
+  const indexable = count >= 2;
+  const title = `${name} | ${label} مقالات سولمینت`;
+  const description = `مقالات مرتبط با ${label} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;
+
+  document.title = title;
+  setMeta('description', description);
+  setMeta('robots', indexable ? 'index,follow,max-image-preview:large,max-snippet:-1' : 'noindex,follow');
+  setMeta('twitter:card', 'summary_large_image');
+  setMeta('twitter:title', title);
+  setMeta('twitter:description', description);
+  setMeta('twitter:url', canonical);
+  setMeta('twitter:image', `${SITE_DOMAIN}/images/blog-og.jpg`);
+
+  setProperty('og:title', title);
+  setProperty('og:description', description);
+  setProperty('og:type', 'website');
+  setProperty('og:url', canonical);
+  setProperty('og:site_name', 'سولمینت - SolMint');
+  setProperty('og:locale', 'fa_IR');
+  setProperty('og:image', `${SITE_DOMAIN}/images/blog-og.jpg`);
+  setProperty('og:image:alt', title);
+  setCanonical(canonical);
+
+  if (!indexable) {
+    const existingSchema = document.getElementById('solmint-taxonomy-jsonld');
+    if (existingSchema) existingSchema.remove();
+    return;
+  }
+
+  setJsonLd('solmint-taxonomy-jsonld', {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    '@id': `${canonical}#collection`,
+    url: canonical,
+    name: title,
+    description,
+    inLanguage: 'fa-IR',
+    isPartOf: {
+      '@type': 'WebSite',
+      '@id': `${SITE_DOMAIN}#website`,
+      url: SITE_DOMAIN,
+      name: 'سولمینت'
+    },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: count
+    }
+  });
 }
