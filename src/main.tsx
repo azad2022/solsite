@@ -1,4 +1,4 @@
-import React, { StrictMode, useState, useEffect, ReactNode } from 'react';
+import React, { Component, StrictMode, ReactNode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -7,76 +7,88 @@ interface ErrorBoundaryProps {
   children: ReactNode;
 }
 
-function ErrorBoundary({ children }: ErrorBoundaryProps) {
-  const [hasError, setHasError] = useState(false);
+interface ErrorBoundaryState {
+  hasError: boolean;
+  errorMessage: string;
+}
 
-  useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      // Broken image resources are handled by the article media guard below;
-      // they must never escalate into a full application error screen.
-      if (event.target instanceof HTMLImageElement) return;
-      console.error('Captured runtime error:', event.error);
-      setHasError(true);
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, errorMessage: '' };
+
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    return {
+      hasError: true,
+      errorMessage: error instanceof Error ? error.message : 'خطای ناشناخته در اجرای صفحه'
     };
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
+  }
 
-  if (hasError) {
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
+    console.error('Solmint React render error:', error, errorInfo);
+  }
+
+  handleReload = () => window.location.reload();
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
     return (
-      <div style={{
-        minHeight: '100vh',
-        backgroundColor: '#08080f',
-        color: '#ffffff',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-        fontFamily: 'Vazirmatn, sans-serif',
-        textAlign: 'center',
-        direction: 'rtl'
-      }}>
-        <div style={{
-          maxWidth: '500px',
-          backgroundColor: '#11111f',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '24px',
-          padding: '32px',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
-        }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '12px', color: '#14F195' }}>
-            سولمینت - بارگذاری مجدد
-          </h2>
-          <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '24px', lineHeight: '1.6' }}>
-            مشکلی در بارگذاری اولیه رخ داده است. لطفاً حافظه کش مرورگر را بروزرسانی کنید.
+      <div
+        dir="rtl"
+        style={{
+          minHeight: '100vh',
+          background: '#08080f',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          fontFamily: 'Vazirmatn, sans-serif',
+          textAlign: 'center'
+        }}
+      >
+        <section
+          style={{
+            width: '100%',
+            maxWidth: 560,
+            padding: 32,
+            borderRadius: 24,
+            background: '#11111f',
+            border: '1px solid rgba(255,255,255,.1)',
+            boxShadow: '0 24px 60px rgba(0,0,0,.45)'
+          }}
+        >
+          <h1 style={{ color: '#14F195', fontSize: 22, margin: '0 0 12px', fontWeight: 800 }}>
+            خطا در بارگذاری صفحه
+          </h1>
+          <p style={{ color: '#94a3b8', lineHeight: 1.9, margin: '0 0 20px' }}>
+            اجرای رابط کاربری با خطا متوقف شد. این خطا ثبت شده و صفحه می‌تواند دوباره بارگذاری شود.
           </p>
           <button
-            onClick={() => window.location.reload()}
+            type="button"
+            onClick={this.handleReload}
             style={{
-              backgroundColor: '#9945FF',
-              color: '#ffffff',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '12px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '14px'
+              border: 0,
+              borderRadius: 12,
+              padding: '11px 22px',
+              background: '#9945FF',
+              color: '#fff',
+              fontWeight: 800,
+              cursor: 'pointer'
             }}
           >
-            تلاش مجدد (Reload)
+            بارگذاری مجدد
           </button>
-        </div>
+          {import.meta.env.DEV && this.state.errorMessage && (
+            <pre style={{ marginTop: 20, color: '#fca5a5', whiteSpace: 'pre-wrap', direction: 'ltr', textAlign: 'left' }}>
+              {this.state.errorMessage}
+            </pre>
+          )}
+        </section>
       </div>
     );
   }
-
-  return <>{children}</>;
 }
 
-// Article media must fail closed. A stale/broken cover URL must never leave a
-// broken-image icon in the public UI. Hide the failed media container and let
-// the article text occupy the available space instead.
 function installArticleImageGuard() {
   const handleImageError = (event: Event) => {
     const target = event.target;
@@ -121,5 +133,5 @@ createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <Root />
     </ErrorBoundary>
-  </StrictMode>,
+  </StrictMode>
 );
