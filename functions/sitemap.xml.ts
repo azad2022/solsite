@@ -17,7 +17,7 @@ type ArticleRow = {
 
 const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-ZwqYhdkVw_cOwO9OLt';
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
@@ -54,6 +54,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   const anonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
   const staticRoutes = [
     '/',
+    '/solana-price',
     '/solana-wallet',
     '/solana-token',
     '/solana-meme-coin',
