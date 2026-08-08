@@ -20,6 +20,7 @@ import { updateRouteSeo } from './utils/seoManager';
 import { ArticleTaxonomyPage } from './components/ArticleTaxonomyPage';
 import { getArticleCategoryTaxonomy, getArticleTagTaxonomy } from './utils/articleTaxonomy';
 import { updateTaxonomySeo } from './utils/taxonomySeo';
+import { SolanaPricePage } from './components/SolanaPricePage';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
@@ -32,7 +33,6 @@ const SecurityPage = lazy(() => import('./components/landing/LandingPages').then
 const OfficialDownloadPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.OfficialDownloadPage })));
 const FaqPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.FaqPage })));
 const AppUserGuidePage = lazy(() => import('./components/AppUserGuidePage').then(m => ({ default: m.AppUserGuidePage })));
-const SolanaPricePage = lazy(() => import('./components/SolanaPricePage').then(m => ({ default: m.SolanaPricePage })));
 
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
 
