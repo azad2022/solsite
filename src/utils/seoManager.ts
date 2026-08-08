@@ -33,6 +33,16 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     h1: 'کیف پول غیرامانی و امن سولانا در اپلیکیشن سولمینت',
     breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'کیف پول سولانا', url: `${SITE_DOMAIN}/solana-wallet` }]
   },
+  '/solana-price': {
+    path: '/solana-price',
+    title: 'قیمت لحظه‌ای سولانا (SOL) | نمودار زنده و قیمت امروز | سولمینت',
+    description: 'قیمت لحظه‌ای سولانا (SOL) به دلار، نمودار زنده و کندلی، تغییرات بازار، تایم‌فریم‌های مختلف و اطلاعات به‌روز قیمت سولانا در سولمینت.',
+    canonical: `${SITE_DOMAIN}/solana-price`,
+    ogType: 'website',
+    ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+    h1: 'قیمت لحظه‌ای سولانا (SOL) و نمودار زنده',
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'قیمت لحظه‌ای سولانا', url: `${SITE_DOMAIN}/solana-price` }]
+  },
   '/solana-token': {
     path: '/solana-token',
     title: 'ساخت توکن سولانا (SPL Token) | راهنما و ابزار اپلیکیشن - سولمینت',
