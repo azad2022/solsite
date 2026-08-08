@@ -89,7 +89,7 @@ export default function App() {
       updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount });
     } else if (activeArticle) {
       updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
-    } else {
+    } else if (currentPath !== '/solana-price') {
       updateRouteSeo(currentPath);
     }
   }, [currentPath, activeArticle, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
