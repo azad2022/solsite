@@ -32,6 +32,7 @@ const SecurityPage = lazy(() => import('./components/landing/LandingPages').then
 const OfficialDownloadPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.OfficialDownloadPage })));
 const FaqPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.FaqPage })));
 const AppUserGuidePage = lazy(() => import('./components/AppUserGuidePage').then(m => ({ default: m.AppUserGuidePage })));
+const SolanaPricePage = lazy(() => import('./components/SolanaPricePage').then(m => ({ default: m.SolanaPricePage })));
 
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -108,6 +109,7 @@ export default function App() {
       <main className="flex-1 relative z-10">
         <Suspense fallback={<SuspenseFallback />}>
           {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppShowcase /><MemeTicker /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
+          {currentPath === '/solana-price' && <SolanaPricePage onNavigate={handleNavigate} />}
           {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-meme-coin' && <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
@@ -125,14 +127,9 @@ export default function App() {
           <AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} />
         </Suspense>
         {isPrivilegedAdmin && <>
-          {/* Main admin settings shortcuts: kept with the CMS modal instead of floating at the bottom of the mobile viewport. */}
           <div className="fixed top-[96px] left-2 right-2 sm:left-auto sm:right-8 sm:top-8 z-[80] flex flex-wrap justify-center sm:justify-end gap-2 pointer-events-none">
-            <button type="button" onClick={() => setIsMemeTickerAdminOpen(true)} className="pointer-events-auto px-3 py-2 rounded-xl bg-slate-950/95 border border-[#14F195]/25 text-white font-black text-[11px] shadow-2xl backdrop-blur flex items-center gap-2 hover:bg-slate-900 transition-colors">
-              <span aria-hidden="true">📈</span> مدیریت نرخ بازار
-            </button>
-            <button type="button" onClick={() => setIsShowcaseAdminOpen(true)} className="pointer-events-auto px-3 py-2 rounded-xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-[11px] shadow-2xl border border-white/10 flex items-center gap-2 hover:opacity-95 transition-opacity">
-              <span aria-hidden="true">📱</span> مدیریت نمایش اپلیکیشن
-            </button>
+            <button type="button" onClick={() => setIsMemeTickerAdminOpen(true)} className="pointer-events-auto px-3 py-2 rounded-xl bg-slate-950/95 border border-[#14F195]/25 text-white font-black text-[11px] shadow-2xl backdrop-blur flex items-center gap-2 hover:bg-slate-900 transition-colors"><span aria-hidden="true">📈</span> مدیریت نرخ بازار</button>
+            <button type="button" onClick={() => setIsShowcaseAdminOpen(true)} className="pointer-events-auto px-3 py-2 rounded-xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-[11px] shadow-2xl border border-white/10 flex items-center gap-2 hover:opacity-95 transition-opacity"><span aria-hidden="true">📱</span> مدیریت نمایش اپلیکیشن</button>
           </div>
           <MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} />
           <AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} />
