@@ -19,7 +19,7 @@ type ArticleRecord = {
 type PageContext = { request: Request; next: () => Promise<Response>; env?: Record<string, string | undefined>; params: { slug: string } };
 
 const SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
+const SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-ZwqYhdkVw_cOwO9OLt';
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -45,8 +45,6 @@ function inlineMarkdown(value: string): string {
 function renderArticleBody(source: string): string {
   const normalized = String(source || '').replace(/\r\n?/g, '\n').trim();
   if (!normalized) return '';
-  // Server-side rendering intentionally uses a strict Markdown subset. The source is escaped first,
-  // so CMS/AI HTML cannot become executable markup before the browser hydrates the application.
   const lines = normalized.split('\n');
   const output: string[] = [];
   let paragraph: string[] = [];
@@ -169,6 +167,10 @@ function injectArticleShell(html: string, article: ArticleRecord): string {
 export async function onRequest(context: PageContext): Promise<Response> {
   const slug = decodeURIComponent(String(context.params.slug || '')).trim();
   if (!slug || slug.length > 200) return context.next();
+
+  if (slug === 'solana-price-live-today') {
+    return Response.redirect('https://solmint.ir/solana-price', 301);
+  }
 
   const env = context.env || {};
   const baseUrl = env.SUPABASE_URL || SUPABASE_URL;
