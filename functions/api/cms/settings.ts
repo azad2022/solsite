@@ -6,12 +6,8 @@ type CmsSettingsRow = {
 type UserRow = {
   id: string;
   username: string;
-  full_name: string;
   password_hash: string;
-  role: string;
-  permissions: unknown;
   is_active: boolean;
-  created_at: string;
 };
 
 interface Env {
@@ -58,7 +54,7 @@ async function getSettings(env: Env): Promise<Record<string, any>> {
 
 async function getAdminUser(env: Env): Promise<UserRow | null> {
   const { base, headers } = db(env);
-  const response = await fetch(`${base}/rest/v1/users?select=id,username,full_name,password_hash,role,permissions,is_active,created_at&username=eq.admin&limit=1`, { headers });
+  const response = await fetch(`${base}/rest/v1/users?select=id,username,password_hash,is_active&username=eq.admin&limit=1`, { headers });
   if (!response.ok) throw new Error(await response.text());
   const rows = await response.json() as UserRow[];
   return rows[0] || null;
@@ -70,8 +66,7 @@ async function authorizeAdmin(request: Request, env: Env): Promise<boolean> {
   const user = await getAdminUser(env);
   if (!user || user.is_active === false) return false;
   const hashed = await sha256(supplied);
-  // Support the legacy plaintext/placeholder row during migration, but all new passwords are SHA-256.
-  return supplied === user.password_hash || hashed === user.password_hash || supplied === String((globalThis as any).ADMIN_PASSCODE || '');
+  return supplied === user.password_hash || hashed === user.password_hash;
 }
 
 export const onRequestGet = async ({ env }: { env: Env }) => {
@@ -96,6 +91,14 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
 
     const current = await getSettings(env);
     const incoming = body.settings;
+    const newAdminPasscode = typeof incoming.security?.adminPasscode === 'string'
+      ? incoming.security.adminPasscode.trim()
+      : '';
+
+    if (newAdminPasscode && newAdminPasscode.length < 8) {
+      return jsonResponse({ success: false, message: 'رمز عبور مدیر باید حداقل ۸ کاراکتر باشد.' }, 400);
+    }
+
     const updated = {
       ...current,
       ...incoming,
@@ -105,14 +108,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       security: { ...(current.security || {}), ...(incoming.security || {}) }
     };
 
-    // Never persist a string such as "false" as an enabled flag.
-    updated.chatbot.enabled = incoming.chatbot?.enabled === true;
-
-    // The admin password belongs in the users table, not in public CMS settings.
-    const newAdminPasscode = typeof incoming.security?.adminPasscode === 'string'
-      ? incoming.security.adminPasscode.trim()
-      : '';
+    // Password is never stored in cms_settings. It belongs to users.password_hash.
     delete updated.security.adminPasscode;
+    updated.chatbot.enabled = incoming.chatbot?.enabled === true;
 
     const { base, headers } = db(env);
     const settingsResponse = await fetch(`${base}/rest/v1/cms_settings`, {
@@ -123,9 +121,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     if (!settingsResponse.ok) throw new Error(await settingsResponse.text());
 
     if (newAdminPasscode) {
-      if (newAdminPasscode.length < 8) {
-        return jsonResponse({ success: false, message: 'رمز عبور مدیر باید حداقل ۸ کاراکتر باشد.' }, 400);
-      }
       const passwordHash = await sha256(newAdminPasscode);
       const userResponse = await fetch(`${base}/rest/v1/users?username=eq.admin`, {
         method: 'PATCH',
