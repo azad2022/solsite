@@ -49,10 +49,10 @@ source = source.replace(
 );
 
 // Explicitly prevent unsafe HTML protocols in user-controlled text if rendered by a future markdown/HTML path.
-source = source.replace(
-  /const normalizeCommentText = \(value: unknown\) => String\(value \|\| ''\)\.replace\(\\r\\n/g, '\\n'\)\.trim\(\);/,
-  `const normalizeCommentText = (value: unknown) => String(value || '').replace(/\\r\\n/g, '\\n').replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]/g, '').trim();`
-);
+// Use a string target instead of a regex literal because the target itself contains a slash in /\\r\\n/g.
+const unsafeTextTarget = "const normalizeCommentText = (value: unknown) => String(value || '').replace(/\\r\\n/g, '\\n').trim();";
+const unsafeTextReplacement = "const normalizeCommentText = (value: unknown) => String(value || '').replace(/\\r\\n/g, '\\n').replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]/g, '').trim();";
+source = source.replace(unsafeTextTarget, unsafeTextReplacement);
 
 if (source === original) {
   console.log('Comments security hardening: no changes needed.');
