@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import { createPortal } from 'react-dom';
 import { SolanaStatus, Article, MediaItem, Testimonial, UserAccount, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from './types';
 import { INITIAL_ARTICLES, INITIAL_MEDIA_ITEMS, INITIAL_TESTIMONIALS } from './data/initialBlogData';
 import { safeGetLocalStorage } from './utils/security';
@@ -39,6 +40,75 @@ const AppUserGuidePage = lazy(() => import('./components/AppUserGuidePage').then
 
 const normalizePath = (path: string) => { const withoutQuery = (path || '/').split('?')[0].split('#')[0]; const normalized = withoutQuery.replace(/\/+$/, ''); return normalized || '/'; };
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
+
+/**
+ * Mounts the two secondary admin controls directly into the existing CMS
+ * navigation container. This keeps them in the same responsive button list
+ * instead of rendering them as fixed/floating controls over the mobile UI.
+ */
+const AdminQuickActionsPortal: React.FC<{
+  enabled: boolean;
+  onOpenMarket: () => void;
+  onOpenShowcase: () => void;
+}> = ({ enabled, onOpenMarket, onOpenShowcase }) => {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setTarget(null);
+      return;
+    }
+
+    let attempts = 0;
+    let timer: number | undefined;
+
+    const findTarget = () => {
+      const cards = Array.from(document.querySelectorAll<HTMLElement>('.glass-card'));
+      const card = cards.find(el => el.textContent?.includes('انتخاب بخش مدیریت:') || el.textContent?.includes('مقالات'));
+      if (!card) {
+        if (attempts++ < 30) timer = window.setTimeout(findTarget, 50);
+        return;
+      }
+
+      const candidates = Array.from(card.querySelectorAll<HTMLElement>('div'));
+      const nav = candidates.find(el => {
+        const text = el.textContent || '';
+        const cls = el.className || '';
+        return text.includes('مقالات') && text.includes('چت‌بات') && cls.includes('bg-slate-900');
+      });
+
+      if (nav) setTarget(nav);
+      else if (attempts++ < 30) timer = window.setTimeout(findTarget, 50);
+    };
+
+    findTarget();
+    return () => { if (timer) window.clearTimeout(timer); };
+  }, [enabled]);
+
+  if (!enabled || !target) return null;
+
+  return createPortal(
+    <div className="flex flex-wrap items-center gap-1.5 basis-full w-full pt-1 mt-1 border-t border-slate-800/70">
+      <button
+        type="button"
+        onClick={onOpenMarket}
+        className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 border border-transparent"
+      >
+        <span aria-hidden="true">📈</span>
+        <span>مدیریت نرخ بازار</span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenShowcase}
+        className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 border border-transparent"
+      >
+        <span aria-hidden="true">📱</span>
+        <span>مدیریت نمایش اپلیکیشن</span>
+      </button>
+    </div>,
+    target
+  );
+};
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePath(window.location.pathname || '/'));
@@ -103,7 +173,7 @@ export default function App() {
       {taxonomyMatch && activeTaxonomy && <ArticleTaxonomyPage articles={articles} type={taxonomyMatch.type} slug={taxonomyMatch.slug} onNavigate={handleNavigate} />}
       {(currentPath === '/blog' || currentPath.startsWith('/article/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
     </Suspense></main>
-    {isAdminModalOpen && <div className="relative z-[60]"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense>{isPrivilegedAdmin && <><div className="fixed top-[96px] left-2 right-2 sm:left-auto sm:right-8 sm:top-8 z-[80] flex flex-wrap justify-center sm:justify-end gap-2 pointer-events-none"><button type="button" onClick={() => setIsMemeTickerAdminOpen(true)} className="pointer-events-auto px-3 py-2 rounded-xl bg-slate-950/95 border border-[#14F195]/25 text-white font-black text-[11px] shadow-2xl backdrop-blur flex items-center gap-2 hover:bg-slate-900 transition-colors">📈 مدیریت نرخ بازار</button><button type="button" onClick={() => setIsShowcaseAdminOpen(true)} className="pointer-events-auto px-3 py-2 rounded-xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 font-black text-[11px] shadow-2xl border border-white/10 flex items-center gap-2 hover:opacity-95 transition-opacity">📱 مدیریت نمایش اپلیکیشن</button></div><MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} /><AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} /></>}</div>}
+    {isAdminModalOpen && <div className="relative z-[60]"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense><AdminQuickActionsPortal enabled={isPrivilegedAdmin} onOpenMarket={() => setIsMemeTickerAdminOpen(true)} onOpenShowcase={() => setIsShowcaseAdminOpen(true)} />{isPrivilegedAdmin && <><MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} /><AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} /></>}</div>}
     {!isAdminModalOpen && <Suspense fallback={null}><DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} /></Suspense>}
     <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
   </div>;
