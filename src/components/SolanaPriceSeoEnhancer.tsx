@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 
 const SITE_URL = 'https://solmint.ir';
 const PAGE_URL = `${SITE_URL}/solana-price`;
+const MARKET_DATA_LICENSE_URL = 'https://www.kraken.com/legal';
 
 const FAQ = [
   {
@@ -112,6 +113,7 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
           name: 'داده زنده قیمت و بازار سولانا (SOL/USD)',
           description: 'داده‌های OHLC و حجم معاملات SOL/USD که برای نمایش نمودار زنده قیمت سولانا استفاده می‌شوند.',
           url: PAGE_URL,
+          license: MARKET_DATA_LICENSE_URL,
           inLanguage: 'fa-IR',
           temporalCoverage: 'ongoing',
           isAccessibleForFree: true,
