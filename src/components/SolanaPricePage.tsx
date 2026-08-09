@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, BarChart3, Clock3, ExternalLink, Gauge, LineChart, Maximize2, ShieldCheck } from 'lucide-react';
+import { Activity, BarChart3, Clock3, ExternalLink, Gauge, Maximize2, ShieldCheck } from 'lucide-react';
 
 const PRICE_CARD_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/solana-price-card';
 const KRAKEN_OHLC_URL = 'https://api.kraken.com/0/public/OHLC';
+const REFRESH_MS = 20_000;
 
 type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
 type ChartProps = { initialInterval: number; showControls?: boolean; height?: number };
@@ -46,6 +47,7 @@ function formatCompact(value: number) {
 const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls = true, height = 430 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inFlightRef = useRef(false);
   const [interval, setIntervalValue] = useState(initialInterval);
   const [data, setData] = useState<Candle[]>([]);
   const [emaVisible, setEmaVisible] = useState(true);
@@ -53,8 +55,11 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
   const [error, setError] = useState('');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setLoading(true);
     try {
       const response = await fetch(`${KRAKEN_OHLC_URL}?pair=SOLUSD&interval=${interval}&_=${Date.now()}`, { cache: 'no-store', signal });
@@ -64,35 +69,39 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
       const key = Object.keys(json?.result ?? {}).find((item) => item !== 'last');
       if (!key || !Array.isArray(json.result[key])) throw new Error('No OHLC data');
       const candles: Candle[] = json.result[key].slice(-240).map((row: unknown[]) => ({
-        time: Number(row[0]),
-        open: Number(row[1]),
-        high: Number(row[2]),
-        low: Number(row[3]),
-        close: Number(row[4]),
-        volume: Number(row[6]) || 0,
+        time: Number(row[0]), open: Number(row[1]), high: Number(row[2]), low: Number(row[3]), close: Number(row[4]), volume: Number(row[6]) || 0,
       })).filter((candle: Candle) => [candle.time, candle.open, candle.high, candle.low, candle.close, candle.volume].every(Number.isFinite));
       if (!candles.length) throw new Error('Empty OHLC data');
       setData(candles);
       setError('');
+      setLastUpdated(Date.now());
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') setError('دریافت داده بازار موقتاً ناموفق بود');
     } finally {
+      inFlightRef.current = false;
       if (!signal?.aborted) setLoading(false);
     }
   }, [interval]);
 
   useEffect(() => {
     const controller = new AbortController();
+    let timer: number | undefined;
+    const refresh = () => {
+      void load(controller.signal);
+      timer = window.setTimeout(refresh, REFRESH_MS);
+    };
     void load(controller.signal);
-    const timer = window.setInterval(() => void load(), 20000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    timer = window.setTimeout(refresh, REFRESH_MS);
+    return () => {
+      controller.abort();
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [load]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container || !data.length) return;
-
     const rect = container.getBoundingClientRect();
     const width = Math.max(320, Math.floor(rect.width));
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -100,7 +109,6 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
     canvas.height = Math.floor(height * dpr);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -115,7 +123,6 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
     const plotBottom = volumeTop - 12;
     const plotWidth = Math.max(20, right - left);
     const plotHeight = Math.max(20, plotBottom - top);
-
     ctx.fillStyle = '#071016';
     ctx.fillRect(0, 0, width, height);
 
@@ -130,11 +137,10 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
     const step = plotWidth / Math.max(1, data.length - 1);
     const candleWidth = Math.max(2, Math.min(10, step * 0.68));
     const maxVolume = Math.max(...data.map((c) => c.volume), 1);
-
-    // Header inside the chart: a compact professional OHLC readout.
     const headerCandle = hoverIndex !== null && data[hoverIndex] ? data[hoverIndex] : data[data.length - 1];
     const headerUp = headerCandle.close >= headerCandle.open;
     const headerChange = headerCandle.open ? ((headerCandle.close / headerCandle.open) - 1) * 100 : 0;
+
     ctx.font = '10px system-ui, sans-serif';
     ctx.fillStyle = '#7f909b';
     ctx.fillText(hoverIndex !== null ? 'OHLC · انتخاب‌شده' : 'OHLC · آخرین کندل', left, 15);
@@ -143,9 +149,8 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
     ctx.fillText(`${headerUp ? '▲' : '▼'} ${headerChange >= 0 ? '+' : ''}${headerChange.toFixed(2)}%`, left + 88, 15);
     ctx.fillStyle = '#cbd5dc';
     ctx.font = '10px system-ui, sans-serif';
-    ctx.fillText(`O ${formatPrice(headerCandle.open)}   H ${formatPrice(headerCandle.high)}   L ${formatPrice(headerCandle.low)}   C ${formatPrice(headerCandle.close)}`, left + 160, 15);
+    if (width >= 720) ctx.fillText(`O ${formatPrice(headerCandle.open)}   H ${formatPrice(headerCandle.high)}   L ${formatPrice(headerCandle.low)}   C ${formatPrice(headerCandle.close)}`, left + 160, 15);
 
-    // Grid and price axis.
     ctx.strokeStyle = '#12232c';
     ctx.lineWidth = 1;
     ctx.font = '10px system-ui, sans-serif';
@@ -165,7 +170,6 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
       ctx.fillText(new Date(item.time * 1000).toLocaleDateString('fa-IR', { month: 'short', day: 'numeric' }), Math.max(left, x - 18), height - 9);
     }
 
-    // Volume panel.
     ctx.fillStyle = '#52646e';
     ctx.fillText('VOL', left, volumeTop + 11);
     data.forEach((candle, index) => {
@@ -175,7 +179,6 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
       ctx.fillRect(x - Math.max(1, candleWidth / 2), bottom - h, Math.max(1, candleWidth), h);
     });
 
-    // Candles.
     data.forEach((candle, index) => {
       const x = xFor(index);
       const openY = priceToY(candle.open);
@@ -196,63 +199,30 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
       }
     });
 
-    // EMA with a subtle glow.
     if (emaVisible && data.length > 1) {
       const ema = calculateEma(data);
-      ctx.strokeStyle = '#f59e0b22';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ema.forEach((value, index) => { const x = xFor(index); const y = priceToY(value); if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
-      ctx.stroke();
-      ctx.strokeStyle = '#f6b94a';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ema.forEach((value, index) => { const x = xFor(index); const y = priceToY(value); if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
-      ctx.stroke();
+      ctx.strokeStyle = '#f59e0b22'; ctx.lineWidth = 6; ctx.beginPath();
+      ema.forEach((value, index) => { const x = xFor(index); const y = priceToY(value); if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
+      ctx.strokeStyle = '#f6b94a'; ctx.lineWidth = 1.8; ctx.beginPath();
+      ema.forEach((value, index) => { const x = xFor(index); const y = priceToY(value); if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
     }
 
-    // Current-price line and tag.
     const last = data[data.length - 1];
     const lastY = priceToY(last.close);
-    ctx.setLineDash([5, 5]);
-    ctx.strokeStyle = '#14F19566';
-    ctx.beginPath(); ctx.moveTo(left, lastY); ctx.lineTo(right, lastY); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#14F195';
-    ctx.beginPath(); ctx.roundRect(right + 2, lastY - 10, Math.min(68, width - right - 4), 20, 5); ctx.fill();
-    ctx.fillStyle = '#03100a';
-    ctx.font = 'bold 10px system-ui, sans-serif';
-    ctx.fillText(`$${formatPrice(last.close)}`, right + 7, lastY + 3);
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = '#14F19566'; ctx.beginPath(); ctx.moveTo(left, lastY); ctx.lineTo(right, lastY); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#14F195'; ctx.beginPath(); ctx.roundRect(right + 2, lastY - 10, Math.min(68, width - right - 4), 20, 5); ctx.fill();
+    ctx.fillStyle = '#03100a'; ctx.font = 'bold 10px system-ui, sans-serif'; ctx.fillText(`$${formatPrice(last.close)}`, right + 7, lastY + 3);
 
-    // Crosshair + tooltip.
     if (hoverIndex !== null && data[hoverIndex]) {
-      const candle = data[hoverIndex];
-      const x = xFor(hoverIndex);
-      const y = priceToY(candle.close);
-      ctx.strokeStyle = '#cbd5dc55';
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
-      ctx.setLineDash([]);
-
-      const boxW = Math.min(206, width - 20);
-      const boxH = 84;
-      const boxX = Math.min(Math.max(left, x - boxW / 2), width - boxW - 8);
-      const boxY = y > 112 ? y - boxH - 12 : y + 12;
-      ctx.fillStyle = '#0a151c';
-      ctx.strokeStyle = '#2b414d';
-      ctx.shadowColor = '#00000088';
-      ctx.shadowBlur = 14;
-      ctx.beginPath(); ctx.roundRect(boxX, boxY, boxW, boxH, 9); ctx.fill(); ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#dbe5ea';
-      ctx.font = '10px system-ui, sans-serif';
+      const candle = data[hoverIndex]; const x = xFor(hoverIndex); const y = priceToY(candle.close);
+      ctx.strokeStyle = '#cbd5dc55'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); ctx.setLineDash([]);
+      const boxW = Math.min(206, width - 20); const boxH = 84; const boxX = Math.min(Math.max(left, x - boxW / 2), width - boxW - 8); const boxY = y > 112 ? y - boxH - 12 : y + 12;
+      ctx.fillStyle = '#0a151c'; ctx.strokeStyle = '#2b414d'; ctx.shadowColor = '#00000088'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.roundRect(boxX, boxY, boxW, boxH, 9); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#dbe5ea'; ctx.font = '10px system-ui, sans-serif';
       ctx.fillText(`O  $${formatPrice(candle.open)}   H  $${formatPrice(candle.high)}`, boxX + 10, boxY + 21);
       ctx.fillText(`L  $${formatPrice(candle.low)}   C  $${formatPrice(candle.close)}`, boxX + 10, boxY + 39);
-      ctx.fillStyle = candle.close >= candle.open ? '#4ade80' : '#f87171';
-      ctx.fillText(`حجم ${formatCompact(candle.volume)} SOL`, boxX + 10, boxY + 57);
-      ctx.fillStyle = '#72848e';
-      ctx.fillText(new Date(candle.time * 1000).toLocaleString('fa-IR'), boxX + 10, boxY + 74);
+      ctx.fillStyle = candle.close >= candle.open ? '#4ade80' : '#f87171'; ctx.fillText(`حجم ${formatCompact(candle.volume)} SOL`, boxX + 10, boxY + 57);
+      ctx.fillStyle = '#72848e'; ctx.fillText(new Date(candle.time * 1000).toLocaleString('fa-IR'), boxX + 10, boxY + 74);
     }
   }, [data, emaVisible, height, hoverIndex]);
 
@@ -275,15 +245,14 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
   };
 
   const chartHeight = fullscreen ? Math.max(520, window.innerHeight - 140) : height;
+  const updatedLabel = lastUpdated ? new Date(lastUpdated).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 
   return (
     <div className={`${fullscreen ? 'fixed inset-3 z-50 rounded-2xl border border-slate-700 shadow-2xl' : ''} bg-[#071016]`}>
       {showControls && (
         <div className="flex items-center gap-2 flex-wrap px-3 py-2.5 border-b border-slate-800 bg-[#09141b]">
           <span className="text-[10px] font-bold text-slate-500 ml-1">بازه</span>
-          {INTERVALS.map((item) => (
-            <button key={item.value} type="button" onClick={() => setIntervalValue(item.value)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-all ${interval === item.value ? 'bg-[#9945FF]/15 border-[#9945FF] text-white shadow-[0_0_16px_rgba(153,69,255,.12)]' : 'border-[#263943] bg-[#0d1b22] text-slate-400 hover:text-white hover:border-slate-600'}`}>{item.label}</button>
-          ))}
+          {INTERVALS.map((item) => <button key={item.value} type="button" onClick={() => setIntervalValue(item.value)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-all ${interval === item.value ? 'bg-[#9945FF]/15 border-[#9945FF] text-white shadow-[0_0_16px_rgba(153,69,255,.12)]' : 'border-[#263943] bg-[#0d1b22] text-slate-400 hover:text-white hover:border-slate-600'}`}>{item.label}</button>)}
           <button type="button" onClick={() => setEmaVisible((visible) => !visible)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-all ${emaVisible ? 'bg-[#f59e0b]/10 border-[#f59e0b] text-[#fbbf24]' : 'border-[#263943] text-slate-500'}`}>EMA 20</button>
           <button type="button" onClick={() => setFullscreen((value) => !value)} className="mr-auto inline-flex items-center gap-1.5 border border-[#263943] bg-[#0d1b22] text-slate-400 hover:text-white rounded-lg px-2.5 py-1.5 text-[10px] font-bold"><Maximize2 className="w-3 h-3" /> {fullscreen ? 'بستن' : 'تمام صفحه'}</button>
           <span className="text-[10px] text-slate-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE · Kraken</span>
@@ -293,45 +262,54 @@ const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls =
         <canvas ref={canvasRef} className="block w-full h-full touch-none cursor-crosshair" onPointerMove={onPointerMove} onPointerLeave={() => setHoverIndex(null)} aria-label="نمودار کندلی زنده SOL/USD" />
         {loading && !data.length && <div className="absolute inset-0 grid place-items-center text-xs text-slate-500"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#14F195] animate-pulse" /> در حال دریافت داده بازار...</div></div>}
         {error && data.length === 0 && <div className="absolute inset-0 grid place-items-center text-xs text-red-300">{error}</div>}
-        {!loading && !error && data.length > 0 && <div className="absolute left-3 bottom-2 text-[9px] text-slate-600">OHLC + حجم واقعی · بروزرسانی خودکار هر ۲۰ ثانیه</div>}
+        {data.length > 0 && <div className="absolute left-3 bottom-2 text-[9px] text-slate-600">OHLC + حجم واقعی · بروزرسانی خودکار هر ۲۰ ثانیه{updatedLabel ? ` · آخرین دریافت ${updatedLabel}` : ''}</div>}
       </div>
     </div>
   );
+};
+
+const LivePriceCard: React.FC = () => {
+  const [nonce, setNonce] = useState(() => Date.now());
+  const [updated, setUpdated] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => { const now = Date.now(); setNonce(now); setUpdated(now); }, REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden">
+    <div className="flex items-center justify-between mb-2"><span className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div>
+    <img key={nonce} src={`${PRICE_CARD_URL}?style=hero&v=${nonce}`} alt="قیمت لحظه‌ای سولانا SOL به دلار" className="w-full h-auto block rounded-xl" loading="eager" referrerPolicy="no-referrer" />
+    <p className="mt-2 text-[11px] text-slate-500">قیمت بدون رفرش صفحه، به‌صورت خودکار به‌روزرسانی می‌شود.{updated ? ` آخرین دریافت: ${new Date(updated).toLocaleTimeString('fa-IR')}` : ''}</p>
+  </div>;
 };
 
 export const SolanaPricePage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
   <div className="min-h-screen bg-[#070910] text-slate-100" dir="rtl">
     <section className="relative overflow-hidden border-b border-white/[0.07]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(153,69,255,.18),transparent_35%),radial-gradient(circle_at_85%_30%,rgba(20,241,149,.10),transparent_35%)]" aria-hidden="true" />
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-        <div className="max-w-4xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#14F195]/25 bg-[#14F195]/10 text-[#7fffd0] text-xs font-bold mb-5"><span className="w-2 h-2 rounded-full bg-[#14F195] animate-pulse" /> داده زنده بازار · SOL/USD</div>
-          <div className="flex items-center gap-4 mb-5"><div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#9945FF] to-[#14F195] p-3 shadow-2xl shadow-[#9945FF]/20"><SolanaMark /></div><div><p className="text-sm text-slate-400">Solana · SOL</p><h1 className="text-3xl sm:text-5xl font-black tracking-tight">قیمت لحظه‌ای سولانا</h1></div></div>
-          <p className="text-slate-300 leading-8 text-sm sm:text-base max-w-3xl">قیمت لحظه‌ای سولانا (SOL) به دلار را همراه با نمودار واقعی کندلی، تایم‌فریم‌های مختلف، EMA 20، حجم معاملات و اطلاعات بازار مشاهده کنید. داده‌های این صفحه از بازار واقعی دریافت می‌شوند و این صفحه برای بررسی اطلاعات بازار طراحی شده است.</p>
-        </div>
-      </div>
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14"><div className="max-w-4xl">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#14F195]/25 bg-[#14F195]/10 text-[#7fffd0] text-xs font-bold mb-5"><span className="w-2 h-2 rounded-full bg-[#14F195] animate-pulse" /> داده زنده بازار · SOL/USD</div>
+        <div className="flex items-center gap-4 mb-5"><div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#9945FF] to-[#14F195] p-3 shadow-2xl shadow-[#9945FF]/20"><SolanaMark /></div><div><p className="text-sm text-slate-400">Solana · SOL</p><h1 className="text-3xl sm:text-5xl font-black tracking-tight">قیمت لحظه‌ای سولانا</h1></div></div>
+        <p className="text-slate-300 leading-8 text-sm sm:text-base max-w-3xl">قیمت لحظه‌ای سولانا (SOL) به دلار را همراه با نمودار واقعی کندلی، تایم‌فریم‌های مختلف، EMA 20، حجم معاملات و اطلاعات بازار مشاهده کنید. داده‌های این صفحه از بازار واقعی دریافت می‌شوند و برای بررسی اطلاعات بازار طراحی شده‌اند.</p>
+      </div></div>
     </section>
 
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8">
       <section aria-labelledby="live-price-heading" className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden"><div className="flex items-center justify-between mb-2"><span id="live-price-heading" className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div><img src={`${PRICE_CARD_URL}?style=hero&v=live`} alt="قیمت لحظه‌ای سولانا SOL به دلار" className="w-full h-auto block rounded-xl" loading="eager" referrerPolicy="no-referrer" /><p className="mt-2 text-[11px] text-slate-500">قیمت از منبع بازار دریافت می‌شود؛ عدد ثابت یا ساختگی نیست.</p></div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="flex items-center gap-2 text-xs text-slate-400 mb-3"><Clock3 className="w-4 h-4" aria-hidden="true" /> بروزرسانی خودکار</div><p className="text-xl font-black">داده زنده بازار</p><p className="mt-2 text-xs text-slate-500 leading-6">نمودار مستقیماً داده جدید بازار را دریافت می‌کند و در صورت اختلال منبع، عدد جعلی نمایش نمی‌دهد.</p></div>
+        <div id="live-price-heading"><LivePriceCard /></div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="flex items-center gap-2 text-xs text-slate-400 mb-3"><Clock3 className="w-4 h-4" aria-hidden="true" /> بروزرسانی خودکار</div><p className="text-xl font-black">بدون نیاز به رفرش</p><p className="mt-2 text-xs text-slate-500 leading-6">نمودار و کارت قیمت در پس‌زمینه داده جدید بازار را دریافت می‌کنند. در صورت اختلال منبع، آخرین داده معتبر حفظ می‌شود و عدد جعلی نمایش داده نمی‌شود.</p></div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="flex items-center gap-2 text-xs text-slate-400 mb-3"><ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" /> منبع داده</div><p className="text-xl font-black">Kraken · SOL/USD</p><p className="mt-2 text-xs text-slate-500 leading-6">داده OHLC و حجم بازار برای نمودار کندلی استفاده می‌شود.</p></div>
       </section>
 
       <section className="rounded-3xl border border-slate-800 bg-[#091017] overflow-hidden shadow-2xl" aria-labelledby="chart-heading">
         <div className="p-5 sm:p-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><div className="flex items-center gap-2"><BarChart3 className="w-5 h-5 text-[#14F195]" aria-hidden="true" /><h2 id="chart-heading" className="text-xl sm:text-2xl font-black">نمودار زنده قیمت سولانا</h2></div><p className="text-xs text-slate-500 mt-2">کندل‌های واقعی SOL/USD · حجم معاملات · تایم‌فریم‌های 1 دقیقه تا روزانه · EMA 20</p></div><span className="inline-flex items-center gap-2 text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE MARKET</span></div>
-        <LiveSolanaChart initialInterval={60} height={Math.min(560, 560)} />
+        <LiveSolanaChart initialInterval={60} height={560} />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 overflow-hidden"><div className="p-5 border-b border-slate-800"><h2 className="font-black flex items-center gap-2"><LineChart className="w-5 h-5 text-[#9945FF]" aria-hidden="true" /> نمای ۴ ساعته قیمت سولانا</h2><p className="text-xs text-slate-500 mt-1">نمای دوم برای بررسی ساختار میان‌مدت SOL</p></div><LiveSolanaChart initialInterval={240} showControls={false} height={400} /></div>
-        <div className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-950 to-[#101521] p-6 sm:p-7"><div className="flex items-center gap-3 mb-5"><Gauge className="w-6 h-6 text-[#14F195]" aria-hidden="true" /><h2 className="text-xl font-black">راهنمای استفاده از نمودار</h2></div><div className="space-y-4 text-sm text-slate-300 leading-7"><p><strong className="text-white">تایم‌فریم:</strong> از 1 دقیقه تا 1 روز انتخاب کنید تا ساختار کوتاه‌مدت یا بلندمدت بازار را ببینید.</p><p><strong className="text-white">کندل:</strong> هر کندل بازشدن، بیشترین، کمترین و بسته‌شدن قیمت را در بازه انتخاب‌شده نشان می‌دهد.</p><p><strong className="text-white">حجم:</strong> پایین نمودار، حجم واقعی هر کندل برای تشخیص قدرت حرکت قیمت نمایش داده می‌شود.</p><p><strong className="text-white">EMA 20:</strong> میانگین متحرک نمایی ۲۰ دوره‌ای روی داده واقعی قیمت محاسبه می‌شود و فقط ابزار اطلاعاتی است.</p><p><strong className="text-white">کراس‌هیر:</strong> نشانگر را روی نمودار حرکت دهید تا OHLC، حجم و زمان دقیق هر کندل را ببینید.</p></div></div>
-      </section>
+      <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-950 to-[#101521] p-6 sm:p-7"><div className="flex items-center gap-3 mb-5"><Gauge className="w-6 h-6 text-[#14F195]" aria-hidden="true" /><h2 className="text-xl font-black">راهنمای استفاده از نمودار</h2></div><div className="grid md:grid-cols-2 gap-4 text-sm text-slate-300 leading-7"><p><strong className="text-white">تایم‌فریم:</strong> از 1 دقیقه تا 1 روز انتخاب کنید تا ساختار کوتاه‌مدت یا بلندمدت بازار را ببینید.</p><p><strong className="text-white">کندل:</strong> هر کندل بازشدن، بیشترین، کمترین و بسته‌شدن قیمت را در بازه انتخاب‌شده نشان می‌دهد.</p><p><strong className="text-white">حجم:</strong> پایین نمودار، حجم واقعی هر کندل برای تشخیص قدرت حرکت قیمت نمایش داده می‌شود.</p><p><strong className="text-white">EMA 20:</strong> میانگین متحرک نمایی ۲۰ دوره‌ای روی داده واقعی قیمت محاسبه می‌شود.</p><p><strong className="text-white">کراس‌هیر:</strong> نشانگر را روی نمودار حرکت دهید تا OHLC، حجم و زمان دقیق هر کندل را ببینید.</p><p><strong className="text-white">بروزرسانی:</strong> داده‌ها بدون رفرش صفحه هر ۲۰ ثانیه بررسی می‌شوند و درخواست‌های هم‌زمان روی هم انباشته نمی‌شوند.</p></div></section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6"><h2 className="text-xl font-black mb-4">قیمت سولانا امروز</h2><p className="text-sm text-slate-300 leading-8">قیمت SOL در طول روز با عرضه و تقاضا، حجم معاملات و شرایط کلی بازار تغییر می‌کند. به همین دلیل این صفحه به یک عدد ثابت در متن متکی نیست و داده بازار را هنگام مشاهده ابزار قیمت و نمودار دریافت می‌کند.</p></div><div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6"><h2 className="text-xl font-black mb-4">قیمت SOL به دلار</h2><p className="text-sm text-slate-300 leading-8">مرجع نمودار این صفحه جفت معاملاتی SOL/USD است. اختلاف جزئی قیمت بین بازارها ممکن است به دلیل تفاوت نقدینگی، حجم معاملات و زمان به‌روزرسانی ایجاد شود.</p></div></section>
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6"><h2 className="text-xl font-black mb-4">قیمت سولانا امروز</h2><p className="text-sm text-slate-300 leading-8">قیمت SOL با عرضه و تقاضا، حجم معاملات و شرایط بازار تغییر می‌کند؛ بنابراین این صفحه به عدد ثابت در متن متکی نیست و داده بازار را هنگام مشاهده ابزار قیمت و نمودار دریافت می‌کند.</p></div><div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6"><h2 className="text-xl font-black mb-4">قیمت SOL به دلار</h2><p className="text-sm text-slate-300 leading-8">مرجع نمودار این صفحه جفت معاملاتی SOL/USD است. اختلاف جزئی قیمت بین بازارها می‌تواند به دلیل تفاوت نقدینگی، حجم معاملات و زمان به‌روزرسانی ایجاد شود.</p></div></section>
 
-      <section className="rounded-3xl border border-slate-800 bg-[#0b1018] p-6 sm:p-8"><h2 className="text-2xl font-black mb-6">سوالات متداول درباره قیمت سولانا</h2><div className="grid md:grid-cols-2 gap-6"><div><h3 className="font-bold text-white mb-2">قیمت لحظه‌ای سولانا از کجا می‌آید؟</h3><p className="text-sm text-slate-400 leading-7">کارت قیمت و نمودار این صفحه به زیرساخت داده بازار سولمینت متصل‌اند و برای SOL/USD از داده بازار Kraken استفاده می‌کنند.</p></div><div><h3 className="font-bold text-white mb-2">آیا نمودار قیمت سولانا واقعی است؟</h3><p className="text-sm text-slate-400 leading-7">بله. کندل‌ها و حجم از داده OHLC بازار ساخته می‌شوند و نمودار از داده از پیش‌ساخته یا مقادیر نمایشی استفاده نمی‌کند.</p></div><div><h3 className="font-bold text-white mb-2">آیا قیمت سولانا ثابت می‌ماند؟</h3><p className="text-sm text-slate-400 leading-7">خیر. قیمت بازار تغییر می‌کند و ابزار زنده با دریافت داده جدید، اطلاعات خود را به‌روزرسانی می‌کند.</p></div><div><h3 className="font-bold text-white mb-2">آیا این صفحه توصیه خرید یا فروش است؟</h3><p className="text-sm text-slate-400 leading-7">خیر. این صفحه برای نمایش و بررسی داده‌های بازار طراحی شده و توصیه سرمایه‌گذاری ارائه نمی‌کند.</p></div></div></section>
+      <section className="rounded-3xl border border-slate-800 bg-[#0b1018] p-6 sm:p-8"><h2 className="text-2xl font-black mb-6">سوالات متداول درباره قیمت سولانا</h2><div className="grid md:grid-cols-2 gap-6"><div><h3 className="font-bold text-white mb-2">قیمت لحظه‌ای سولانا از کجا می‌آید؟</h3><p className="text-sm text-slate-400 leading-7">کارت قیمت و نمودار این صفحه برای SOL/USD از داده بازار Kraken استفاده می‌کنند.</p></div><div><h3 className="font-bold text-white mb-2">آیا نمودار قیمت سولانا واقعی است؟</h3><p className="text-sm text-slate-400 leading-7">بله. کندل‌ها و حجم از داده OHLC بازار ساخته می‌شوند و از مقادیر نمایشی استفاده نمی‌کنند.</p></div><div><h3 className="font-bold text-white mb-2">آیا قیمت سولانا ثابت می‌ماند؟</h3><p className="text-sm text-slate-400 leading-7">خیر. ابزار زنده بدون نیاز به رفرش صفحه داده جدید دریافت می‌کند.</p></div><div><h3 className="font-bold text-white mb-2">آیا این صفحه توصیه خرید یا فروش است؟</h3><p className="text-sm text-slate-400 leading-7">خیر. این صفحه برای نمایش و بررسی داده‌های بازار طراحی شده و توصیه سرمایه‌گذاری ارائه نمی‌کند.</p></div></div></section>
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#9945FF]/20 bg-[#9945FF]/5 p-5"><div><p className="font-bold">آموزش‌ها و مطالب تخصصی سولانا</p><p className="text-xs text-slate-500 mt-1">برای محتوای آموزشی و تحلیلی به آکادمی سولمینت بروید.</p></div><button type="button" onClick={() => onNavigate('/blog')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#9945FF] to-[#14F195] text-slate-950 text-xs font-black">مشاهده آکادمی <ExternalLink className="w-4 h-4" aria-hidden="true" /></button></div>
     </main>
