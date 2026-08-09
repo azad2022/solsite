@@ -1,16 +1,8 @@
-# SolMint.ir Official Robots.txt
+# SolMint.ir - Production robots.txt
 User-agent: *
 Allow: /
-Allow: /solana-wallet
-Allow: /solana-token
-Allow: /solana-meme-coin
-Allow: /solana-nft
-Allow: /security
-Allow: /download
-Allow: /blog
-Allow: /article/
-Allow: /faq
 
+# Private application and API endpoints are not public content.
 Disallow: /admin
 Disallow: /api/
 
