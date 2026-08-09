@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "node scripts/production-comments-client-patch.mjs && node scripts/production-comments-patch.mjs && node scripts/comments-security-hardening.mjs && npm run lint && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/production-comments-client-patch.mjs && node scripts/repair-production-comments-patch.mjs && node scripts/production-comments-patch.mjs && node scripts/comments-security-hardening.mjs && npm run lint && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -34,7 +34,6 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.21",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2"
