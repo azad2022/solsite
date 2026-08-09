@@ -1,4 +1,4 @@
-import React, { Component, StrictMode, ReactNode, useEffect } from 'react';
+import React, { Component, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -13,7 +13,13 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  private readonly childContent: ReactNode;
   state: ErrorBoundaryState = { hasError: false, errorMessage: '' };
+
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.childContent = props.children;
+  }
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
     return {
@@ -29,7 +35,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   handleReload = () => window.location.reload();
 
   render() {
-    if (!this.state.hasError) return this.props.children;
+    if (!this.state.hasError) return this.childContent;
 
     return (
       <div
@@ -101,37 +107,23 @@ function installArticleImageGuard() {
       return;
     }
 
-    const isArticleMedia = Boolean(
-      image.closest('article') ||
-      image.closest('[class*="article"]') ||
-      wrapper.classList.contains('relative')
-    );
-
-    if (!isArticleMedia) return;
-
-    wrapper.setAttribute('data-image-failed', 'true');
-    wrapper.style.display = 'none';
-
-    const parentGrid = wrapper.parentElement;
-    if (parentGrid instanceof HTMLElement && parentGrid.classList.contains('grid')) {
-      const textColumn = Array.from(parentGrid.children).find(child => child !== wrapper) as HTMLElement | undefined;
-      if (textColumn) textColumn.style.gridColumn = '1 / -1';
-    }
+    const fallback = document.createElement('div');
+    fallback.setAttribute('role', 'img');
+    fallback.setAttribute('aria-label', 'تصویر مقاله در دسترس نیست');
+    fallback.textContent = 'تصویر در دسترس نیست';
+    fallback.style.cssText = 'padding:24px;text-align:center;color:#94a3b8;background:#111827;border-radius:12px;';
+    image.replaceWith(fallback);
   };
 
-  window.addEventListener('error', handleImageError, true);
-  return () => window.removeEventListener('error', handleImageError, true);
+  document.addEventListener('error', handleImageError, true);
 }
 
-function Root() {
-  useEffect(() => installArticleImageGuard(), []);
-  return <App />;
-}
+installArticleImageGuard();
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+  <React.StrictMode>
     <ErrorBoundary>
-      <Root />
+      <App />
     </ErrorBoundary>
-  </StrictMode>
+  </React.StrictMode>
 );
