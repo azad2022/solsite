@@ -21,6 +21,7 @@ import { ArticleTaxonomyPage } from './components/ArticleTaxonomyPage';
 import { getArticleCategoryTaxonomy, getArticleTagTaxonomy } from './utils/articleTaxonomy';
 import { updateTaxonomySeo } from './utils/taxonomySeo';
 import { SolanaPricePage } from './components/SolanaPricePage';
+import { SolanaPriceSeoEnhancer } from './components/SolanaPriceSeoEnhancer';
 import { SolanaMarketComments, SolanaMarketInsights } from './components/SolanaMarketInsights';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
@@ -116,7 +117,7 @@ export default function App() {
       <main className="flex-1 relative z-10">
         <Suspense fallback={<SuspenseFallback />}>
           {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppShowcase /><MemeTicker /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
-          {currentPath === '/solana-price' && <><SolanaPricePage onNavigate={handleNavigate} /><SolanaMarketInsights /><SolanaMarketComments currentUser={currentUser} openAuthModal={openAdminModal} /></>}
+          {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /><SolanaMarketComments currentUser={currentUser} openAuthModal={openAdminModal} /></>}
           {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
           {currentPath === '/solana-meme-coin' && <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
