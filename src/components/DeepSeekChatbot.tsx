@@ -38,7 +38,12 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({ chatbotSetting
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen, isLoading]);
 
-  if (!chatbotSettings?.enabled) return null;
+  // The setting may come from persisted JSON or legacy storage, so accept only
+  // the literal boolean true (or the exact string "true"). Values such as
+  // "false" must never be treated as enabled by JavaScript truthiness.
+  const isChatbotEnabled = chatbotSettings?.enabled === true || chatbotSettings?.enabled === 'true';
+
+  if (!isChatbotEnabled) return null;
 
   const handleSendMessage = async () => {
     const text = inputMessage.trim();
