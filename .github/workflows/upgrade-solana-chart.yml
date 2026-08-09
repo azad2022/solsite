@@ -1,0 +1,230 @@
+name: Upgrade Solana chart UX
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply chart UX upgrade
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/SolanaPricePage.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          if 'chartZoomRef' in text:
+              print('Chart UX upgrade already applied.')
+              raise SystemExit(0)
+
+          text = text.replace(
+              "function formatCompact(value: number) {\n  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;\n  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;\n  return value.toFixed(0);\n}\n",
+              "function formatCompact(value: number) {\n  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;\n  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;\n  return value.toFixed(0);\n}\n\nfunction calculateSma(data: Candle[], period = 50) {\n  return data.map((_, index) => {\n    if (index < period - 1) return null;\n    let total = 0;\n    for (let i = index - period + 1; i <= index; i += 1) total += data[i].close;\n    return total / period;\n  });\n}\n"
+          )
+
+          text = text.replace(
+              "  const [fullscreen, setFullscreen] = useState(false);\n",
+              "  const [fullscreen, setFullscreen] = useState(false);\n  const [smaVisible, setSmaVisible] = useState(false);\n  const chartZoomRef = useRef(1);\n  const chartPanRef = useRef(0);\n  const dragRef = useRef<{ active: boolean; x: number }>({ active: false, x: 0 });\n"
+          )
+
+          old = """    const minLow = Math.min(...data.map((c) => c.low));
+    const maxHigh = Math.max(...data.map((c) => c.high));
+    const range = Math.max(0.000001, maxHigh - minLow);
+    const padding = Math.max(range * 0.055, maxHigh * 0.00035);
+    const minPrice = minLow - padding;
+    const maxPrice = maxHigh + padding;
+    const priceToY = (price: number) => top + ((maxPrice - price) / (maxPrice - minPrice)) * plotHeight;
+    const xFor = (index: number) => left + (index / Math.max(1, data.length - 1)) * plotWidth;
+    const step = plotWidth / Math.max(1, data.length - 1);
+"""
+          new = """    const totalSpan = Math.max(1, data.length - 1);
+    const zoom = Math.max(1, Math.min(8, chartZoomRef.current));
+    const visibleSpan = totalSpan / zoom;
+    const maxPan = Math.max(0, totalSpan - visibleSpan);
+    const pan = Math.max(0, Math.min(maxPan, chartPanRef.current));
+    chartPanRef.current = pan;
+    const visibleStart = pan;
+    const visibleEnd = pan + visibleSpan;
+    const visibleStartIndex = Math.max(0, Math.floor(visibleStart));
+    const visibleEndIndex = Math.min(data.length - 1, Math.ceil(visibleEnd));
+    const visibleData = data.slice(visibleStartIndex, visibleEndIndex + 1);
+    const minLow = Math.min(...visibleData.map((c) => c.low));
+    const maxHigh = Math.max(...visibleData.map((c) => c.high));
+    const range = Math.max(0.000001, maxHigh - minLow);
+    const padding = Math.max(range * 0.055, maxHigh * 0.00035);
+    const minPrice = minLow - padding;
+    const maxPrice = maxHigh + padding;
+    const priceToY = (price: number) => top + ((maxPrice - price) / (maxPrice - minPrice)) * plotHeight;
+    const xFor = (index: number) => left + ((index - visibleStart) / Math.max(1, visibleSpan)) * plotWidth;
+    const step = plotWidth / Math.max(1, visibleSpan);
+"""
+          if old not in text:
+              raise SystemExit('Expected chart scale block not found')
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              "    // Current-price line and tag.\n",
+              """    // SMA 50: slower trend reference for the medium-term structure.
+    if (smaVisible && data.length >= 50) {
+      const sma = calculateSma(data);
+      ctx.strokeStyle = '#60a5fa88';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      sma.forEach((value, index) => {
+        if (value === null || index < visibleStartIndex || index > visibleEndIndex) return;
+        const x = xFor(index);
+        const y = priceToY(value);
+        if (index === visibleStartIndex || sma[index - 1] === null) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      sma.forEach((value, index) => {
+        if (value === null || index < visibleStartIndex || index > visibleEndIndex) return;
+        const x = xFor(index);
+        const y = priceToY(value);
+        if (index === visibleStartIndex || sma[index - 1] === null) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    // Current-price line and tag.
+"""
+          )
+
+          text = text.replace(
+              "  }, [data, emaVisible, height, hoverIndex]);\n",
+              "  }, [data, emaVisible, height, hoverIndex, smaVisible]);\n"
+          )
+
+          old_pointer = """  const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !data.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const left = 14;
+    const right = rect.width - (rect.width < 600 ? 62 : 76);
+    const ratio = Math.max(0, Math.min(1, (x - left) / Math.max(1, right - left)));
+    setHoverIndex(Math.round(ratio * (data.length - 1)));
+  };
+"""
+          new_pointer = """  const getChartGeometry = (width: number) => {
+    const left = 14;
+    const right = width - (width < 600 ? 62 : 76);
+    const totalSpan = Math.max(1, data.length - 1);
+    const zoom = Math.max(1, Math.min(8, chartZoomRef.current));
+    const visibleSpan = totalSpan / zoom;
+    const maxPan = Math.max(0, totalSpan - visibleSpan);
+    const pan = Math.max(0, Math.min(maxPan, chartPanRef.current));
+    return { left, right, visibleSpan, pan };
+  };
+
+  const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    dragRef.current = { active: true, x: event.clientX };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !data.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const geometry = getChartGeometry(rect.width);
+    const x = event.clientX - rect.left;
+    if (dragRef.current.active) {
+      const deltaX = event.clientX - dragRef.current.x;
+      const spanPerPixel = geometry.visibleSpan / Math.max(1, geometry.right - geometry.left);
+      const maxPan = Math.max(0, data.length - 1 - geometry.visibleSpan);
+      chartPanRef.current = Math.max(0, Math.min(maxPan, chartPanRef.current - deltaX * spanPerPixel));
+      dragRef.current.x = event.clientX;
+      draw();
+    }
+    const ratio = Math.max(0, Math.min(1, (x - geometry.left) / Math.max(1, geometry.right - geometry.left)));
+    const index = Math.round(geometry.pan + ratio * geometry.visibleSpan);
+    setHoverIndex(Math.max(0, Math.min(data.length - 1, index)));
+  };
+
+  const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    dragRef.current.active = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+
+  const onWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
+    if (!data.length) return;
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const geometry = getChartGeometry(rect.width);
+    const x = event.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, (x - geometry.left) / Math.max(1, geometry.right - geometry.left)));
+    const anchor = geometry.pan + ratio * geometry.visibleSpan;
+    const nextZoom = Math.max(1, Math.min(8, chartZoomRef.current * (event.deltaY < 0 ? 1.22 : 1 / 1.22)));
+    const nextSpan = Math.max(1, (data.length - 1) / nextZoom);
+    const maxPan = Math.max(0, data.length - 1 - nextSpan);
+    chartZoomRef.current = nextZoom;
+    chartPanRef.current = Math.max(0, Math.min(maxPan, anchor - ratio * nextSpan));
+    draw();
+  };
+
+  const resetView = () => {
+    chartZoomRef.current = 1;
+    chartPanRef.current = 0;
+    setHoverIndex(null);
+    draw();
+  };
+"""
+          if old_pointer not in text:
+              raise SystemExit('Expected pointer handler not found')
+          text = text.replace(old_pointer, new_pointer, 1)
+
+          text = text.replace(
+              "          <button type=\"button\" onClick={() => setEmaVisible((visible) => !visible)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-all ${emaVisible ? 'bg-[#f59e0b]/10 border-[#f59e0b] text-[#fbbf24]' : 'border-[#263943] text-slate-500'}`}>EMA 20</button>\n",
+              """          <button type=\"button\" onClick={() => setEmaVisible((visible) => !visible)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-all ${emaVisible ? 'bg-[#f59e0b]/10 border-[#f59e0b] text-[#fbbf24]' : 'border-[#263943] text-slate-500'}`}>EMA 20</button>
+          <button type=\"button\" onClick={() => setSmaVisible((visible) => !visible)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-all ${smaVisible ? 'bg-[#60a5fa]/10 border-[#60a5fa] text-[#93c5fd]' : 'border-[#263943] text-slate-500'}`}>SMA 50</button>
+          <button type=\"button\" onClick={resetView} className=\"border border-[#263943] bg-[#0d1b22] text-slate-400 hover:text-white rounded-lg px-2.5 py-1.5 text-[10px] font-bold\">۱× بازنشانی</button>
+"""
+          )
+
+          old_canvas = '<canvas ref={canvasRef} className="block w-full h-full touch-none cursor-crosshair" onPointerMove={onPointerMove} onPointerLeave={() => setHoverIndex(null)} aria-label="نمودار کندلی زنده SOL/USD" />'
+          new_canvas = '<canvas ref={canvasRef} className="block w-full h-full touch-none cursor-crosshair select-none" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel} onPointerLeave={() => { dragRef.current.active = false; setHoverIndex(null); }} aria-label="نمودار کندلی زنده SOL/USD" />'
+          if old_canvas not in text:
+              raise SystemExit('Expected canvas element not found')
+          text = text.replace(old_canvas, new_canvas, 1)
+
+          text = text.replace(
+              "<div ref={containerRef} className=\"relative w-full overflow-hidden\" style={{ height: chartHeight }}>",
+              "<div ref={containerRef} className=\"relative w-full overflow-hidden\" style={{ height: chartHeight }} title=\"برای بزرگ‌نمایی از چرخ ماوس و برای جابه‌جایی از کشیدن نمودار استفاده کنید\">"
+          )
+
+          path.write_text(text, encoding='utf-8')
+          print('Applied professional chart interaction upgrade.')
+      - name: Validate
+        run: |
+          bun install --frozen-lockfile
+          bun run lint
+      - name: Commit upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/SolanaPricePage.tsx
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "feat: add chart zoom pan and SMA interaction"
+          git push
+      - name: Remove one-time workflow
+        if: success()
+        run: |
+          git rm .github/workflows/upgrade-solana-chart.yml
+          git commit -m "chore: remove one-time chart upgrade workflow"
+          git push
