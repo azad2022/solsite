@@ -1,16 +1,244 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, BarChart3, Clock3, ExternalLink, Gauge, LineChart, ShieldCheck } from 'lucide-react';
 
-const CHART_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/solana-live-chart-v3';
 const PRICE_CARD_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/solana-price-card';
+const KRAKEN_OHLC_URL = 'https://api.kraken.com/0/public/OHLC';
+
+type Candle = { time: number; open: number; high: number; low: number; close: number };
+type ChartProps = { initialInterval: number; showControls?: boolean; height?: number };
+
+const INTERVALS = [
+  { value: 1, label: '1m' },
+  { value: 5, label: '5m' },
+  { value: 15, label: '15m' },
+  { value: 60, label: '1H' },
+  { value: 240, label: '4H' },
+  { value: 1440, label: '1D' },
+];
 
 const SolanaMark: React.FC<{ className?: string }> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 397 311" className={className} role="img" aria-label="Solana">
     <path d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1l62.7-62.7z" fill="#00FFA3" />
-    <path d="M64.6 3.8C67 1.4 70.3 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7 7-4.6 11.1l62.7-62.7z" fill="#DC1FFF" />
+    <path d="M64.6 3.8C67 1.4 70.3 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1l62.7-62.7z" fill="#DC1FFF" />
     <path d="M332.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H5.5c-5.8 0-8.7 5.8-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-7 4.6-11.1l-62.7-62.7z" fill="#00FFA3" />
   </svg>
 );
+
+function formatPrice(value: number) {
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function calculateEma(data: Candle[], period = 20) {
+  const k = 2 / (period + 1);
+  let previous: number | null = null;
+  return data.map((candle) => {
+    previous = previous === null ? candle.close : candle.close * k + previous * (1 - k);
+    return previous;
+  });
+}
+
+const LiveSolanaChart: React.FC<ChartProps> = ({ initialInterval, showControls = true, height = 430 }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [interval, setIntervalValue] = useState(initialInterval);
+  const [data, setData] = useState<Candle[]>([]);
+  const [emaVisible, setEmaVisible] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${KRAKEN_OHLC_URL}?pair=SOLUSD&interval=${interval}&_=${Date.now()}`, {
+        cache: 'no-store',
+        signal,
+      });
+      if (!response.ok) throw new Error('Market request failed');
+      const json = await response.json();
+      if (Array.isArray(json?.error) && json.error.length) throw new Error('Kraken returned an error');
+      const key = Object.keys(json?.result ?? {}).find((item) => item !== 'last');
+      if (!key || !Array.isArray(json.result[key])) throw new Error('No OHLC data');
+      const candles: Candle[] = json.result[key].slice(-180).map((row: unknown[]) => ({
+        time: Number(row[0]),
+        open: Number(row[1]),
+        high: Number(row[2]),
+        low: Number(row[3]),
+        close: Number(row[4]),
+      })).filter((candle: Candle) => [candle.time, candle.open, candle.high, candle.low, candle.close].every(Number.isFinite));
+      if (!candles.length) throw new Error('Empty OHLC data');
+      setData(candles);
+      setError('');
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') setError('دریافت داده بازار موقتاً ناموفق بود');
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, [interval]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    const timer = window.setInterval(() => void load(), 20000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [load]);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || !data.length) return;
+    const rect = container.getBoundingClientRect();
+    const width = Math.max(320, Math.floor(rect.width));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#071016';
+    ctx.fillRect(0, 0, width, height);
+
+    const left = 12;
+    const right = width - 68;
+    const top = 18;
+    const bottom = height - 34;
+    const plotWidth = Math.max(20, right - left);
+    const plotHeight = Math.max(20, bottom - top);
+    const minLow = Math.min(...data.map((c) => c.low));
+    const maxHigh = Math.max(...data.map((c) => c.high));
+    const padding = Math.max((maxHigh - minLow) * 0.06, maxHigh * 0.0005);
+    const minPrice = minLow - padding;
+    const maxPrice = maxHigh + padding;
+    const priceToY = (price: number) => top + ((maxPrice - price) / (maxPrice - minPrice)) * plotHeight;
+    const xFor = (index: number) => left + (index / Math.max(1, data.length - 1)) * plotWidth;
+
+    ctx.strokeStyle = '#102028';
+    ctx.lineWidth = 1;
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = '#71828d';
+    for (let i = 0; i <= 5; i += 1) {
+      const y = top + (plotHeight / 5) * i;
+      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      const price = maxPrice - ((maxPrice - minPrice) / 5) * i;
+      ctx.fillText(`$${formatPrice(price)}`, right + 7, y + 3);
+    }
+    for (let i = 0; i <= 6; i += 1) {
+      const x = left + (plotWidth / 6) * i;
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+    }
+
+    const step = plotWidth / Math.max(1, data.length - 1);
+    const candleWidth = Math.max(2, Math.min(12, step * 0.64));
+    data.forEach((candle, index) => {
+      const x = xFor(index);
+      const openY = priceToY(candle.open);
+      const closeY = priceToY(candle.close);
+      const highY = priceToY(candle.high);
+      const lowY = priceToY(candle.low);
+      const rising = candle.close >= candle.open;
+      ctx.strokeStyle = rising ? '#22c55e' : '#ef4444';
+      ctx.fillStyle = rising ? '#22c55e' : '#ef4444';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, highY); ctx.lineTo(x, lowY); ctx.stroke();
+      const bodyTop = Math.min(openY, closeY);
+      const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+    });
+
+    if (emaVisible && data.length > 1) {
+      const ema = calculateEma(data);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ema.forEach((value, index) => {
+        const x = xFor(index);
+        const y = priceToY(value);
+        if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    const last = data[data.length - 1];
+    const lastY = priceToY(last.close);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = '#14F19566';
+    ctx.beginPath(); ctx.moveTo(left, lastY); ctx.lineTo(right, lastY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#14F195';
+    ctx.fillRect(right + 2, lastY - 9, 62, 18);
+    ctx.fillStyle = '#04100b';
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillText(`$${formatPrice(last.close)}`, right + 6, lastY + 3);
+
+    if (hoverIndex !== null && data[hoverIndex]) {
+      const candle = data[hoverIndex];
+      const x = xFor(hoverIndex);
+      const y = priceToY(candle.close);
+      ctx.strokeStyle = '#94a3b855';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      const boxW = 178;
+      const boxH = 74;
+      const boxX = Math.min(Math.max(left, x - boxW / 2), width - boxW - 8);
+      const boxY = Math.max(8, Math.min(height - boxH - 8, y - boxH - 10));
+      ctx.fillStyle = '#0b151c';
+      ctx.strokeStyle = '#263943';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(boxX, boxY, boxW, boxH, 8); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#d7e0e6';
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.fillText(`O $${formatPrice(candle.open)}   H $${formatPrice(candle.high)}`, boxX + 10, boxY + 21);
+      ctx.fillText(`L $${formatPrice(candle.low)}   C $${formatPrice(candle.close)}`, boxX + 10, boxY + 39);
+      ctx.fillStyle = '#71828d';
+      ctx.fillText(new Date(candle.time * 1000).toLocaleString('fa-IR'), boxX + 10, boxY + 58);
+    }
+  }, [data, emaVisible, height, hoverIndex]);
+
+  useEffect(() => {
+    draw();
+    const observer = new ResizeObserver(() => draw());
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [draw]);
+
+  const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !data.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const left = 12;
+    const right = rect.width - 68;
+    const ratio = Math.max(0, Math.min(1, (x - left) / Math.max(1, right - left)));
+    setHoverIndex(Math.round(ratio * (data.length - 1)));
+  };
+
+  return (
+    <div className="bg-[#071016]">
+      {showControls && (
+        <div className="flex items-center gap-2 flex-wrap px-3 py-2 border-b border-slate-800 bg-[#09141b]">
+          {INTERVALS.map((item) => (
+            <button key={item.value} type="button" onClick={() => setIntervalValue(item.value)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${interval === item.value ? 'bg-[#9945FF]/15 border-[#9945FF] text-white' : 'border-[#263943] bg-[#0d1b22] text-slate-400 hover:text-white'}`}>{item.label}</button>
+          ))}
+          <button type="button" onClick={() => setEmaVisible((visible) => !visible)} className={`border rounded-lg px-2.5 py-1.5 text-[10px] font-bold ${emaVisible ? 'bg-[#f59e0b]/10 border-[#f59e0b] text-[#fbbf24]' : 'border-[#263943] text-slate-500'}`}>EMA 20</button>
+          <span className="mr-auto text-[10px] text-slate-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE · Kraken</span>
+        </div>
+      )}
+      <div ref={containerRef} className="relative w-full overflow-hidden" style={{ height }}>
+        <canvas ref={canvasRef} className="block w-full h-full touch-none" onPointerMove={onPointerMove} onPointerLeave={() => setHoverIndex(null)} aria-label="نمودار کندلی زنده SOL/USD" />
+        {loading && !data.length && <div className="absolute inset-0 grid place-items-center text-xs text-slate-500">در حال دریافت داده بازار...</div>}
+        {error && data.length === 0 && <div className="absolute inset-0 grid place-items-center text-xs text-red-300">{error}</div>}
+        {!loading && !error && data.length > 0 && <div className="absolute left-3 bottom-2 text-[9px] text-slate-600">OHLC واقعی · بروزرسانی خودکار هر ۲۰ ثانیه</div>}
+      </div>
+    </div>
+  );
+};
 
 export const SolanaPricePage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
   <div className="min-h-screen bg-[#070910] text-slate-100" dir="rtl">
@@ -19,10 +247,7 @@ export const SolanaPricePage: React.FC<{ onNavigate: (path: string) => void }> =
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
         <div className="max-w-4xl">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#14F195]/25 bg-[#14F195]/10 text-[#7fffd0] text-xs font-bold mb-5"><span className="w-2 h-2 rounded-full bg-[#14F195] animate-pulse" /> داده زنده بازار · SOL/USD</div>
-          <div className="flex items-center gap-4 mb-5">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#9945FF] to-[#14F195] p-3 shadow-2xl shadow-[#9945FF]/20"><SolanaMark /></div>
-            <div><p className="text-sm text-slate-400">Solana · SOL</p><h1 className="text-3xl sm:text-5xl font-black tracking-tight">قیمت لحظه‌ای سولانا</h1></div>
-          </div>
+          <div className="flex items-center gap-4 mb-5"><div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#9945FF] to-[#14F195] p-3 shadow-2xl shadow-[#9945FF]/20"><SolanaMark /></div><div><p className="text-sm text-slate-400">Solana · SOL</p><h1 className="text-3xl sm:text-5xl font-black tracking-tight">قیمت لحظه‌ای سولانا</h1></div></div>
           <p className="text-slate-300 leading-8 text-sm sm:text-base max-w-3xl">قیمت لحظه‌ای سولانا (SOL) به دلار را همراه با نمودار واقعی کندلی، تایم‌فریم‌های مختلف، EMA 20 و اطلاعات بازار مشاهده کنید. داده‌های این صفحه از بازار واقعی دریافت می‌شوند و این صفحه برای بررسی اطلاعات بازار طراحی شده است.</p>
         </div>
       </div>
@@ -30,25 +255,18 @@ export const SolanaPricePage: React.FC<{ onNavigate: (path: string) => void }> =
 
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8">
       <section aria-labelledby="live-price-heading" className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden">
-          <div className="flex items-center justify-between mb-2"><span id="live-price-heading" className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div>
-          <img src={`${PRICE_CARD_URL}?style=hero&v=live`} alt="قیمت لحظه‌ای سولانا SOL به دلار" className="w-full h-auto block rounded-xl" loading="eager" referrerPolicy="no-referrer" />
-          <p className="mt-2 text-[11px] text-slate-500">قیمت از منبع بازار دریافت می‌شود؛ عدد ثابت یا ساختگی نیست.</p>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="flex items-center gap-2 text-xs text-slate-400 mb-3"><Clock3 className="w-4 h-4" aria-hidden="true" /> بروزرسانی خودکار</div><p className="text-xl font-black">داده زنده بازار</p><p className="mt-2 text-xs text-slate-500 leading-6">نمودار به‌صورت دوره‌ای داده جدید دریافت می‌کند و در صورت اختلال منبع، عدد جعلی نمایش نمی‌دهد.</p></div>
+        <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden"><div className="flex items-center justify-between mb-2"><span id="live-price-heading" className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div><img src={`${PRICE_CARD_URL}?style=hero&v=live`} alt="قیمت لحظه‌ای سولانا SOL به دلار" className="w-full h-auto block rounded-xl" loading="eager" referrerPolicy="no-referrer" /><p className="mt-2 text-[11px] text-slate-500">قیمت از منبع بازار دریافت می‌شود؛ عدد ثابت یا ساختگی نیست.</p></div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="flex items-center gap-2 text-xs text-slate-400 mb-3"><Clock3 className="w-4 h-4" aria-hidden="true" /> بروزرسانی خودکار</div><p className="text-xl font-black">داده زنده بازار</p><p className="mt-2 text-xs text-slate-500 leading-6">نمودار مستقیماً داده جدید بازار را دریافت می‌کند و در صورت اختلال منبع، عدد جعلی نمایش نمی‌دهد.</p></div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="flex items-center gap-2 text-xs text-slate-400 mb-3"><ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" /> منبع داده</div><p className="text-xl font-black">Kraken · SOL/USD</p><p className="mt-2 text-xs text-slate-500 leading-6">داده OHLC بازار برای نمودار کندلی و داده زنده قیمت استفاده می‌شود.</p></div>
       </section>
 
       <section className="rounded-3xl border border-slate-800 bg-[#091017] overflow-hidden shadow-2xl" aria-labelledby="chart-heading">
-        <div className="p-5 sm:p-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div><div className="flex items-center gap-2"><BarChart3 className="w-5 h-5 text-[#14F195]" aria-hidden="true" /><h2 id="chart-heading" className="text-xl sm:text-2xl font-black">نمودار زنده قیمت سولانا</h2></div><p className="text-xs text-slate-500 mt-2">کندل‌های واقعی SOL/USD · تایم‌فریم‌های 1 دقیقه تا روزانه · EMA 20</p></div>
-          <span className="inline-flex items-center gap-2 text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE MARKET</span>
-        </div>
-        <div className="w-full bg-[#071016] min-h-[330px]"><iframe title="نمودار زنده قیمت سولانا SOL/USD" src={`${CHART_URL}?interval=60`} className="w-full border-0 block" style={{ height: 'min(72vw, 520px)', minHeight: 330 }} loading="eager" referrerPolicy="strict-origin-when-cross-origin" allow="fullscreen" /></div>
+        <div className="p-5 sm:p-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><div className="flex items-center gap-2"><BarChart3 className="w-5 h-5 text-[#14F195]" aria-hidden="true" /><h2 id="chart-heading" className="text-xl sm:text-2xl font-black">نمودار زنده قیمت سولانا</h2></div><p className="text-xs text-slate-500 mt-2">کندل‌های واقعی SOL/USD · تایم‌فریم‌های 1 دقیقه تا روزانه · EMA 20</p></div><span className="inline-flex items-center gap-2 text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE MARKET</span></div>
+        <LiveSolanaChart initialInterval={60} height={Math.min(520, 560)} />
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 overflow-hidden"><div className="p-5 border-b border-slate-800"><h2 className="font-black flex items-center gap-2"><LineChart className="w-5 h-5 text-[#9945FF]" aria-hidden="true" /> نمای ۴ ساعته قیمت سولانا</h2><p className="text-xs text-slate-500 mt-1">نمای دوم برای بررسی ساختار میان‌مدت SOL</p></div><iframe title="نمودار چهار ساعته قیمت سولانا" src={`${CHART_URL}?interval=240`} className="w-full border-0 block" style={{ height: 'min(90vw, 430px)', minHeight: 320 }} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allow="fullscreen" /></div>
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 overflow-hidden"><div className="p-5 border-b border-slate-800"><h2 className="font-black flex items-center gap-2"><LineChart className="w-5 h-5 text-[#9945FF]" aria-hidden="true" /> نمای ۴ ساعته قیمت سولانا</h2><p className="text-xs text-slate-500 mt-1">نمای دوم برای بررسی ساختار میان‌مدت SOL</p></div><LiveSolanaChart initialInterval={240} showControls={false} height={400} /></div>
         <div className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-950 to-[#101521] p-6 sm:p-7"><div className="flex items-center gap-3 mb-5"><Gauge className="w-6 h-6 text-[#14F195]" aria-hidden="true" /><h2 className="text-xl font-black">راهنمای استفاده از نمودار</h2></div><div className="space-y-4 text-sm text-slate-300 leading-7"><p><strong className="text-white">تایم‌فریم:</strong> از 1 دقیقه تا 1 روز انتخاب کنید تا ساختار کوتاه‌مدت یا بلندمدت بازار را ببینید.</p><p><strong className="text-white">کندل:</strong> هر کندل بازشدن، بیشترین، کمترین و بسته‌شدن قیمت را در بازه انتخاب‌شده نشان می‌دهد.</p><p><strong className="text-white">EMA 20:</strong> میانگین متحرک نمایی ۲۰ دوره‌ای روی داده واقعی قیمت محاسبه می‌شود و فقط ابزار اطلاعاتی است.</p><p><strong className="text-white">بروزرسانی:</strong> نمودار داده جدید بازار را دریافت می‌کند و در صورت خطای منبع، مقدار ساختگی تولید نمی‌شود.</p></div></div>
       </section>
 
