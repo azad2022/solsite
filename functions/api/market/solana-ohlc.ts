@@ -14,10 +14,15 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
 
   const url = `${env.KRAKEN_API_BASE || KRAKEN_API_BASE}?pair=SOLUSD&interval=${interval}`;
   try {
-    const response = await fetch(url, {
+    // Cloudflare Pages Functions supports the `cf` fetch option at runtime,
+    // but the project's TypeScript lib uses the standard RequestInit type.
+    // Keep the Cloudflare cache controls while extending the init object only
+    // at this boundary so `tsc` can validate the rest of the request normally.
+    const fetchInit: RequestInit & { cf?: { cacheTtl: number; cacheEverything: boolean } } = {
       headers: { Accept: 'application/json', 'User-Agent': 'SolMint/1.0 market-data-proxy' },
       cf: { cacheTtl: 15, cacheEverything: true }
-    });
+    };
+    const response = await fetch(url, fetchInit);
     const body = await response.text();
     return new Response(body, {
       status: response.status,
