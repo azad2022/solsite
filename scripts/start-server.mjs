@@ -86,6 +86,14 @@ try {
   console.error('⚠️ Supabase persistence bridge failed; continuing with local server persistence:', error?.message || error);
 }
 
+// Never let a missing chatbot object fall back to the historical enabled=true default.
+// This runs after Supabase hydration and before Express is loaded.
+try {
+  await import('./normalize-cms-settings.mjs');
+} catch (error) {
+  console.error('⚠️ CMS settings normalization failed; continuing with existing settings:', error?.message || error);
+}
+
 if (existsSync(builtServer)) {
   await import('../dist/server.cjs');
 } else {
