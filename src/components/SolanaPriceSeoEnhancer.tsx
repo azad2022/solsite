@@ -52,7 +52,7 @@ function upsertCanonical(href: string) {
   node.setAttribute('href', href);
 }
 
-export const SolanaPriceSeoEnhancer: React.FC<{ children: ReactNode }> = ({ children }) => {
+export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (window.location.pathname.replace(/\/+$/, '') !== '/solana-price') return;
 
@@ -77,8 +77,7 @@ export const SolanaPriceSeoEnhancer: React.FC<{ children: ReactNode }> = ({ chil
     upsertMeta('twitter:image', `${SITE_URL}/images/solmint-banner.jpg`);
     upsertCanonical(PAGE_URL);
 
-    const existing = document.getElementById('solmint-solana-price-jsonld');
-    existing?.remove();
+    document.getElementById('solmint-solana-price-jsonld')?.remove();
 
     const jsonLd = {
       '@context': 'https://schema.org',
@@ -141,10 +140,8 @@ export const SolanaPriceSeoEnhancer: React.FC<{ children: ReactNode }> = ({ chil
     script.textContent = JSON.stringify(jsonLd);
     document.head.appendChild(script);
 
-    return () => {
-      document.getElementById('solmint-solana-price-jsonld')?.remove();
-    };
+    return () => document.getElementById('solmint-solana-price-jsonld')?.remove();
   }, []);
 
   return <>{children}</>;
-};
+}
