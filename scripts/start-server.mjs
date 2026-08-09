@@ -16,15 +16,6 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not configured. Database writes will fail under hardened RLS policies.');
 }
 
-/**
- * Repair the deployed server artifact/source before loading it.
- *
- * The articles table uses PostgreSQL boolean for is_draft. Older server builds
- * sent 1/0, which PostgreSQL rejects before RLS/UPSERT can complete. The same
- * route also needs the server-side privileged Supabase credential and admin
- * authorization. This startup guard makes the production entrypoint resilient
- * even when a stale dist/server.cjs is deployed.
- */
 function ensureArticlePublishFix(filePath) {
   if (!existsSync(filePath)) return;
 
@@ -46,7 +37,6 @@ function ensureArticlePublishFix(filePath) {
     'app.delete($1/api/articles/:id$1, requireAdminAuth, async (req, res)'
   );
 
-  // When server.ts is run directly, prefer the privileged server key.
   source = source.replace(
     /const SUPABASE_ANON_KEY\s*=\s*process\.env\.VITE_SUPABASE_ANON_KEY\s*\|\|\s*process\.env\.SUPABASE_ANON_KEY\s*\|\|/,
     'const SUPABASE_ANON_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY ||'
@@ -71,8 +61,16 @@ try {
   if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 
+// The market-price page is a virtual public page, not an articles-table row.
+// Patch the production comments layer after it is generated and before Express loads.
+try {
+  await import('./market-comments-production-fix.mjs');
+} catch (error) {
+  console.error('❌ Solana market comments fix failed to load:', error?.message || error);
+  if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
 // Load the production hardening layer before Express registers its routes.
-// It enforces admin authorization and keeps media configuration persistent.
 try {
   await import('./production-hardening.mjs');
 } catch (error) {
