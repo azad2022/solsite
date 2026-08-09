@@ -1,5 +1,13 @@
 {
   "version": 1,
-  "include": ["/sitemap.xml", "/article/*", "/api/article-categories*"],
+  "include": [
+    "/sitemap.xml",
+    "/article/*",
+    "/api/article-categories*",
+    "/solana-token",
+    "/solana-wallet",
+    "/solana-nft",
+    "/faq"
+  ],
   "exclude": []
 }
