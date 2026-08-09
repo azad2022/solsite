@@ -34,10 +34,16 @@ const OfficialDownloadPage = lazy(() => import('./components/landing/LandingPage
 const FaqPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.FaqPage })));
 const AppUserGuidePage = lazy(() => import('./components/AppUserGuidePage').then(m => ({ default: m.AppUserGuidePage })));
 
+const normalizePath = (path: string) => {
+  const withoutQuery = (path || '/').split('?')[0].split('#')[0];
+  const normalized = withoutQuery.replace(/\/+$/, '');
+  return normalized || '/';
+};
+
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
 
 export default function App() {
-  const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/');
+  const [currentPath, setCurrentPath] = useState<string>(() => normalizePath(window.location.pathname || '/'));
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => safeGetLocalStorage<UserAccount | null>('solmint_current_user', null));
   const [downloadLinks, setDownloadLinks] = useState<DownloadLinks>(() => safeGetLocalStorage<DownloadLinks>('solmint_download_links', DEFAULT_DOWNLOAD_LINKS));
   const [deepseekSettings, setDeepseekSettings] = useState<DeepSeekAiSettings>(() => safeGetLocalStorage<DeepSeekAiSettings>('solmint_deepseek_settings', DEFAULT_DEEPSEEK_SETTINGS));
@@ -51,14 +57,14 @@ export default function App() {
   const [isMemeTickerAdminOpen, setIsMemeTickerAdminOpen] = useState(false);
 
   const handleNavigate = (path: string) => {
-    const normalizedPath = path || '/';
+    const normalizedPath = normalizePath(path);
     setCurrentPath(normalizedPath);
-    if (window.location.pathname !== normalizedPath) window.history.pushState({}, '', normalizedPath);
+    if (normalizePath(window.location.pathname) !== normalizedPath) window.history.pushState({}, '', normalizedPath);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
-    const handlePopState = () => setCurrentPath(window.location.pathname || '/');
+    const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname || '/'));
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
