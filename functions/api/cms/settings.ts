@@ -1,14 +1,25 @@
-import { createClient } from '@supabase/supabase-js';
-
 type CmsSettingsRow = {
   id: string;
   settings_json: Record<string, any> | null;
 };
 
-const SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
+type UserRow = {
+  id: string;
+  username: string;
+  full_name: string;
+  password_hash: string;
+  role: string;
+  permissions: unknown;
+  is_active: boolean;
+  created_at: string;
+};
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+interface Env {
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+}
+
+const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 
 function jsonResponse(body: unknown, status = 200) {
   return Response.json(body, {
@@ -21,97 +32,112 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-async function getSettings(): Promise<Record<string, any>> {
-  const { data, error } = await supabase
-    .from('cms_settings')
-    .select('id, settings_json')
-    .eq('id', 'main_settings')
-    .maybeSingle<CmsSettingsRow>();
+function db(env: Env) {
+  const key = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured in Cloudflare.');
+  const base = (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, '');
+  return { base, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } };
+}
 
-  if (error) throw error;
+async function sha256(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
-  const settings = data?.settings_json && typeof data.settings_json === 'object'
-    ? data.settings_json
-    : {};
-
-  if (!settings.chatbot || typeof settings.chatbot !== 'object') {
-    settings.chatbot = {};
-  }
-
-  // Never let a missing/invalid flag enable the public chatbot.
+async function getSettings(env: Env): Promise<Record<string, any>> {
+  const { base, headers } = db(env);
+  const response = await fetch(`${base}/rest/v1/cms_settings?select=id,settings_json&id=eq.main_settings&limit=1`, { headers });
+  if (!response.ok) throw new Error(await response.text());
+  const rows = await response.json() as CmsSettingsRow[];
+  const settings = rows[0]?.settings_json && typeof rows[0].settings_json === 'object' ? rows[0].settings_json : {};
+  settings.chatbot = settings.chatbot && typeof settings.chatbot === 'object' ? settings.chatbot : {};
   settings.chatbot.enabled = settings.chatbot.enabled === true;
   return settings;
 }
 
-export const onRequestGet = async () => {
+async function getAdminUser(env: Env): Promise<UserRow | null> {
+  const { base, headers } = db(env);
+  const response = await fetch(`${base}/rest/v1/users?select=id,username,full_name,password_hash,role,permissions,is_active,created_at&username=eq.admin&limit=1`, { headers });
+  if (!response.ok) throw new Error(await response.text());
+  const rows = await response.json() as UserRow[];
+  return rows[0] || null;
+}
+
+async function authorizeAdmin(request: Request, env: Env): Promise<boolean> {
+  const supplied = String(request.headers.get('x-admin-passcode') || '').trim();
+  if (!supplied) return false;
+  const user = await getAdminUser(env);
+  if (!user || user.is_active === false) return false;
+  const hashed = await sha256(supplied);
+  // Support the legacy plaintext/placeholder row during migration, but all new passwords are SHA-256.
+  return supplied === user.password_hash || hashed === user.password_hash || supplied === String((globalThis as any).ADMIN_PASSCODE || '');
+}
+
+export const onRequestGet = async ({ env }: { env: Env }) => {
   try {
-    const settings = await getSettings();
-    return jsonResponse({ success: true, settings });
+    return jsonResponse({ success: true, settings: await getSettings(env) });
   } catch (error) {
     console.error('CMS settings GET failed:', error);
-    return jsonResponse({ success: false, message: 'CMS settings temporarily unavailable.' }, 503);
+    return jsonResponse({ success: false, message: 'اتصال به دیتابیس تنظیمات برقرار نشد.' }, 503);
   }
 };
 
-export const onRequestPost = async ({ request }: { request: Request }) => {
+export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   try {
-    const suppliedPasscode = String(request.headers.get('x-admin-passcode') || '').trim();
-    const current = await getSettings();
-    const configuredPasscode = String(current.security?.adminPasscode || '').trim();
-
-    if (!suppliedPasscode || !configuredPasscode || suppliedPasscode !== configuredPasscode) {
-      return jsonResponse({ success: false, message: 'Unauthorized' }, 401);
+    if (!(await authorizeAdmin(request, env))) {
+      return jsonResponse({ success: false, message: 'نشست مدیر معتبر نیست. لطفاً دوباره وارد شوید.' }, 401);
     }
 
     const body = await request.json() as { settings?: Record<string, any> };
     if (!body?.settings || typeof body.settings !== 'object') {
-      return jsonResponse({ success: false, message: 'Invalid settings payload.' }, 400);
+      return jsonResponse({ success: false, message: 'داده تنظیمات نامعتبر است.' }, 400);
     }
 
+    const current = await getSettings(env);
     const incoming = body.settings;
     const updated = {
       ...current,
       ...incoming,
-      chatbot: {
-        ...(current.chatbot || {}),
-        ...(incoming.chatbot || {})
-      },
-      deepseek: {
-        ...(current.deepseek || {}),
-        ...(incoming.deepseek || {})
-      },
-      downloads: {
-        ...(current.downloads || {}),
-        ...(incoming.downloads || {})
-      },
-      security: {
-        ...(current.security || {}),
-        ...(incoming.security || {})
-      }
+      chatbot: { ...(current.chatbot || {}), ...(incoming.chatbot || {}) },
+      deepseek: { ...(current.deepseek || {}), ...(incoming.deepseek || {}) },
+      downloads: { ...(current.downloads || {}), ...(incoming.downloads || {}) },
+      security: { ...(current.security || {}), ...(incoming.security || {}) }
     };
 
-    // The public visibility flag is persisted as a real boolean only.
+    // Never persist a string such as "false" as an enabled flag.
     updated.chatbot.enabled = incoming.chatbot?.enabled === true;
 
-    const { data, error } = await supabase
-      .from('cms_settings')
-      .upsert({
-        id: 'main_settings',
-        settings_json: updated,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'id' })
-      .select('id, settings_json')
-      .single<CmsSettingsRow>();
+    // The admin password belongs in the users table, not in public CMS settings.
+    const newAdminPasscode = typeof incoming.security?.adminPasscode === 'string'
+      ? incoming.security.adminPasscode.trim()
+      : '';
+    delete updated.security.adminPasscode;
 
-    if (error) throw error;
-
-    return jsonResponse({
-      success: true,
-      settings: data?.settings_json || updated,
-      message: 'Settings saved to Supabase.'
+    const { base, headers } = db(env);
+    const settingsResponse = await fetch(`${base}/rest/v1/cms_settings`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ id: 'main_settings', settings_json: updated, updated_at: new Date().toISOString() })
     });
+    if (!settingsResponse.ok) throw new Error(await settingsResponse.text());
+
+    if (newAdminPasscode) {
+      if (newAdminPasscode.length < 8) {
+        return jsonResponse({ success: false, message: 'رمز عبور مدیر باید حداقل ۸ کاراکتر باشد.' }, 400);
+      }
+      const passwordHash = await sha256(newAdminPasscode);
+      const userResponse = await fetch(`${base}/rest/v1/users?username=eq.admin`, {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=minimal' },
+        body: JSON.stringify({ password_hash: passwordHash })
+      });
+      if (!userResponse.ok) throw new Error(await userResponse.text());
+    }
+
+    return jsonResponse({ success: true, settings: updated, message: 'تنظیمات با موفقیت در Supabase ذخیره شد.' });
   } catch (error) {
     console.error('CMS settings POST failed:', error);
-    return jsonResponse({ success: false, message: 'CMS settings could not be saved.' }, 500);
+    return jsonResponse({ success: false, message: 'ذخیره تنظیمات در دیتابیس انجام نشد.' }, 500);
   }
 };
