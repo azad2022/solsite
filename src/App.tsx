@@ -57,7 +57,8 @@ export default function App() {
   const handleNavigate = (path: string) => { const normalizedPath = normalizePath(path); setCurrentPath(normalizedPath); if (normalizePath(window.location.pathname) !== normalizedPath) window.history.pushState({}, '', normalizedPath); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   useEffect(() => { const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname || '/')); window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState); }, []);
 
-  // Public site settings are server-authoritative. LocalStorage is only a bootstrap cache and never overrides the server value.
+  // The public website treats the server as the source of truth for chatbot visibility.
+  // LocalStorage is only the initial UI bootstrap and is overwritten by the server response.
   useEffect(() => {
     let cancelled = false;
     const syncPublicSettings = async () => {
@@ -76,7 +77,6 @@ export default function App() {
   const activeArticle = useMemo(() => activeArticleSlug ? articles.find(a => a.slug === activeArticleSlug) || null : null, [activeArticleSlug, articles]);
   const activeTaxonomy = useMemo(() => { if (!taxonomyMatch) return null; const candidates = taxonomyMatch.type === 'category' ? articles.map(article => getArticleCategoryTaxonomy(article.category)).filter(Boolean) : articles.flatMap(article => getArticleTagTaxonomy(article.tags)); return candidates.find(item => item?.slug === taxonomyMatch.slug) || null; }, [articles, taxonomyMatch]);
   const taxonomyArticleCount = useMemo(() => { if (!taxonomyMatch) return 0; return articles.filter(article => taxonomyMatch.type === 'category' ? getArticleCategoryTaxonomy(article.category)?.slug === taxonomyMatch.slug : getArticleTagTaxonomy(article.tags).some(item => item.slug === taxonomyMatch.slug)).length; }, [articles, taxonomyMatch]);
-
   useEffect(() => { if (taxonomyMatch && activeTaxonomy) updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount }); else if (activeArticle) updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle); else if (currentPath !== '/solana-price') updateRouteSeo(currentPath); }, [currentPath, activeArticle, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
   const handleLogout = () => { setCurrentUser(null); setIsShowcaseAdminOpen(false); setIsMemeTickerAdminOpen(false); localStorage.removeItem('solmint_current_user'); localStorage.removeItem('solmint_admin_session'); };
   useEffect(() => { async function loadDatabaseArticles() { const dbArticles = await fetchArticlesFromActiveDatabase(); if (dbArticles && dbArticles.length > 0) setArticles(dbArticles); } loadDatabaseArticles(); }, []);
@@ -91,7 +91,7 @@ export default function App() {
     <Header solanaStatus={solanaStatus} refreshStatus={refreshSolanaStatus} currentPath={currentPath} onNavigate={handleNavigate} openAdminModal={openAdminModal} currentUser={currentUser} onLogout={handleLogout} />
     <main className="flex-1 relative z-10"><Suspense fallback={<SuspenseFallback />}>
       {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppShowcase /><MemeTicker /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
-      {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} downloadLinks={downloadLinks} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /><SolanaMarketComments currentUser={currentUser} openAuthModal={openAdminModal} /></>}
+      {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /><SolanaMarketComments currentUser={currentUser} openAuthModal={openAdminModal} /></>}
       {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/solana-meme-coin' && <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
