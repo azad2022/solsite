@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 const SITE_URL = 'https://solmint.ir';
 const PAGE_URL = `${SITE_URL}/solana-price`;
@@ -52,7 +52,7 @@ function upsertCanonical(href: string) {
   node.setAttribute('href', href);
 }
 
-export const SolanaPriceSeoEnhancer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const SolanaPriceSeoEnhancer: React.FC<{ children: ReactNode }> = ({ children }) => {
   useEffect(() => {
     if (window.location.pathname.replace(/\/+$/, '') !== '/solana-price') return;
 
