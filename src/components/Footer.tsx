@@ -42,21 +42,21 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
           <a href="https://www.producthunt.com/products/solmint-3?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-solmint-2" target="_blank" rel="noopener noreferrer" aria-label="Solmint on Product Hunt" className="inline-block transition-opacity hover:opacity-90">
             <img alt="solmint - solana web3 wallet | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1218856&amp;theme=light&amp;t=1786302074692" />
           </a>
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub"
+            title="GitHub"
+            className="flex items-center justify-center text-slate-300 hover:text-white transition-colors mt-1"
+          >
+            <Github className="w-[54px] h-[54px]" aria-hidden="true" />
+          </a>
         </div>
 
         <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-300 text-xs">
           <span>تمامی حقوق برای برند و پلتفرم سولمینت (solmint.ir) محفوظ است</span>
           <div className="flex items-center gap-4">
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="GitHub"
-              title="GitHub"
-              className="text-slate-300 hover:text-white transition-colors"
-            >
-              <Github className="w-5 h-5" aria-hidden="true" />
-            </a>
             <span className="flex items-center gap-1 font-mono text-slate-200">Solmint Wallet — Official Android Web3 Platform</span>
           </div>
         </div>
