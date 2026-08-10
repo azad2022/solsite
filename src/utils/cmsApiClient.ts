@@ -1,7 +1,7 @@
 import { Article, UserAccount, ArticleComment, DeepSeekAiSettings, ChatbotSettings, DownloadLinks } from '../types';
-import { 
-  saveUserToSupabase, 
-  deleteUserFromSupabase, 
+import {
+  saveUserToSupabase,
+  deleteUserFromSupabase,
   fetchArticlesFromSupabase,
   saveArticleToSupabase,
   deleteArticleFromSupabase
@@ -17,9 +17,7 @@ export interface CmsSettings {
 const authFetchInit = (init: RequestInit = {}): RequestInit => ({
   ...init,
   credentials: 'include',
-  headers: {
-    ...(init.headers || {})
-  },
+  headers: { ...(init.headers || {}) },
   cache: init.cache || 'no-store'
 });
 
@@ -50,21 +48,47 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
 }
 
 export async function registerUserApi(payload: { username: string; fullName: string; passwordHash?: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
-  try {
-    const res = await fetch('/api/users/register', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }));
-    const { data, status } = await safeFetchJson(res);
-    if (data) return data;
-    return { success: false, message: `خطا در برقراری ارتباط با سرور (کد ${status || 'شبکه'})` };
-  } catch (err: any) { return { success: false, message: err?.message || 'خطا در برقراری ارتباط با سرور.' }; }
+  const res = await fetch('/api/users/register', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }));
+  const { data, status } = await safeFetchJson(res);
+  if (data) return data;
+  throw new Error(`خطا در ثبت حساب روی سرور (کد ${status || 'شبکه'}). ثبت‌نام محلی مجاز نیست.`);
 }
 
+/**
+ * The server is authoritative. A failed authentication is deliberately returned
+ * as a non-authenticated result with no user so legacy UI fallback branches
+ * cannot turn an unavailable/invalid server into a local login.
+ */
 export async function loginUserApi(payload: { username?: string; password?: string; passwordHash?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean }> {
   try {
-    const res = await fetch('/api/users/login', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: payload.username, password: payload.password || payload.passcode }) }));
+    const res = await fetch('/api/users/login', authFetchInit({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: payload.username, password: payload.password || payload.passcode })
+    }));
     const { data, status } = await safeFetchJson(res);
-    if (data) return data;
-    return { success: false, message: status >= 500 ? 'ارتباط با دیتابیس احراز هویت برقرار نشد.' : 'نام کاربری یا رمز عبور اشتباه است.' };
-  } catch (err: any) { console.warn('Error calling /api/users/login:', err); return { success: false, message: 'ارتباط با سرور احراز هویت برقرار نشد.' }; }
+
+    if (data?.success && data.user) return data;
+
+    // IMPORTANT: never return success:false here. The legacy modal contains
+    // a fallback branch; this prevents that branch from ever authenticating.
+    return {
+      success: true,
+      user: undefined,
+      isSuperAdmin: false,
+      message: data?.message || (status >= 500
+        ? 'سرویس احراز هویت در دسترس نیست.'
+        : 'نام کاربری یا رمز عبور اشتباه است.')
+    };
+  } catch (err) {
+    console.warn('Error calling /api/users/login:', err);
+    return {
+      success: true,
+      user: undefined,
+      isSuperAdmin: false,
+      message: 'ارتباط با سرور احراز هویت برقرار نشد.'
+    };
+  }
 }
 
 export async function fetchUsersApi(): Promise<UserAccount[]> {
