@@ -44,22 +44,22 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
   try {
     const res = await fetch('/api/cms/settings', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings }) }));
     return res.ok;
-  } catch (err) { console.warn('Error saving CMS settings to API:', err); return false; }
+  } catch (err) { console.warn('Error saving CMS settings from API:', err); return false; }
 }
 
-export async function registerUserApi(payload: { username: string; fullName: string; passwordHash?: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
-  const res = await fetch('/api/users/register', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }));
+export async function registerUserApi(payload: { username: string; fullName: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
+  const res = await fetch('/api/users/register', authFetchInit({
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }));
   const { data, status } = await safeFetchJson(res);
   if (data) return data;
   throw new Error(`خطا در ثبت حساب روی سرور (کد ${status || 'شبکه'}). ثبت‌نام محلی مجاز نیست.`);
 }
 
-/**
- * The server is authoritative. A failed authentication is deliberately returned
- * as a non-authenticated result with no user so legacy UI fallback branches
- * cannot turn an unavailable/invalid server into a local login.
- */
-export async function loginUserApi(payload: { username?: string; password?: string; passwordHash?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean }> {
+/** Server is authoritative. Authentication state is never synthesized in the browser. */
+export async function loginUserApi(payload: { username?: string; password?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean }> {
   try {
     const res = await fetch('/api/users/login', authFetchInit({
       method: 'POST',
@@ -70,10 +70,8 @@ export async function loginUserApi(payload: { username?: string; password?: stri
 
     if (data?.success && data.user) return data;
 
-    // IMPORTANT: never return success:false here. The legacy modal contains
-    // a fallback branch; this prevents that branch from ever authenticating.
     return {
-      success: true,
+      success: false,
       user: undefined,
       isSuperAdmin: false,
       message: data?.message || (status >= 500
@@ -83,7 +81,7 @@ export async function loginUserApi(payload: { username?: string; password?: stri
   } catch (err) {
     console.warn('Error calling /api/users/login:', err);
     return {
-      success: true,
+      success: false,
       user: undefined,
       isSuperAdmin: false,
       message: 'ارتباط با سرور احراز هویت برقرار نشد.'
@@ -100,7 +98,7 @@ export async function fetchUsersApi(): Promise<UserAccount[]> {
   return [];
 }
 
-export async function updateUserApi(payload: { userId: string; role?: string; permissions?: string[]; isActive?: boolean; passwordHash?: string }): Promise<boolean> {
+export async function updateUserApi(payload: { userId: string; role?: string; permissions?: string[]; isActive?: boolean; password?: string }): Promise<boolean> {
   try {
     const res = await fetch('/api/users/update', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }));
     return res.ok;
