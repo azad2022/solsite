@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "npm run lint && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/harden-admin-frontend-auth.mjs && npm run lint && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -18,7 +18,7 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@supabase/supabase-js": "^2.111.0",
-    "@tailwindcss/vite": "^4.1.14",
+    "@tailwindcss/vite": "^6.2.3",
     "@vitejs/plugin-react": "^5.0.4",
     "compression": "^1.8.1",
     "dotenv": "^17.2.3",
