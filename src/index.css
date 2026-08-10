@@ -1,56 +1,117 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: dark;
+  --page-bg: #05050a;
+  --page-text: #f1f5f9;
+  --panel: rgba(13, 14, 24, 0.7);
+  --panel-strong: rgba(12, 13, 22, 0.85);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --muted-text: #94a3b8;
+  --heading-text: #f8fafc;
+  --soft-surface: rgba(15, 23, 42, 0.55);
+  --scroll-track: #05050a;
+  --scroll-thumb: #1e1e2d;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page-bg: #f5f7fb;
+  --page-text: #172033;
+  --panel: rgba(255, 255, 255, 0.88);
+  --panel-strong: rgba(255, 255, 255, 0.96);
+  --panel-border: rgba(15, 23, 42, 0.1);
+  --muted-text: #526074;
+  --heading-text: #101827;
+  --soft-surface: rgba(241, 245, 249, 0.92);
+  --scroll-track: #eef2f7;
+  --scroll-thumb: #b8c1cf;
+}
+
 @layer base {
+  html { background: var(--page-bg); }
   body {
-    background-color: #05050a;
-    color: #f1f5f9;
+    background-color: var(--page-bg);
+    color: var(--page-text);
     font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, sans-serif;
     overflow-x: hidden;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
 /* Custom Ultra-Clean Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #05050a; }
-::-webkit-scrollbar-thumb { background: #1e1e2d; border-radius: 9999px; }
+::-webkit-scrollbar-track { background: var(--scroll-track); }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: #9945FF; }
 
 /* Solmint Premium Glassmorphism & Micro-Glows */
-.glass-panel { background: rgba(13, 14, 24, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); }
-.glass-panel-interactive { background: rgba(13, 14, 24, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-.glass-panel-interactive:hover { background: rgba(20, 22, 38, 0.85); border-color: rgba(153, 69, 255, 0.4); transform: translateY(-3px); box-shadow: 0 16px 40px -12px rgba(153, 69, 255, 0.2); }
-.glass-card { background: rgba(12, 13, 22, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+.glass-panel { background: var(--panel); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--panel-border); }
+.glass-panel-interactive { background: var(--panel); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--panel-border); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.glass-panel-interactive:hover { background: var(--panel-strong); border-color: rgba(153, 69, 255, 0.4); transform: translateY(-3px); box-shadow: 0 16px 40px -12px rgba(153, 69, 255, 0.2); }
+.glass-card { background: var(--panel-strong); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--panel-border); }
 .glow-solana { box-shadow: 0 0 50px -10px rgba(153, 69, 255, 0.25); }
 .glow-emerald { box-shadow: 0 0 50px -10px rgba(20, 241, 149, 0.25); }
 .text-gradient-solana { background: linear-gradient(135deg, #14F195 0%, #9945FF 50%, #00C2FF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .btn-solana { background: linear-gradient(135deg, #9945FF 0%, #14F195 100%); color: #000000; font-weight: 800; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .btn-solana:hover { opacity: 0.92; transform: scale(1.02); box-shadow: 0 0 30px rgba(153, 69, 255, 0.4); }
 
+/* Light theme: preserve contrast for existing Tailwind utility classes. */
+:root[data-theme="light"] .text-white { color: #111827 !important; }
+:root[data-theme="light"] .text-slate-50 { color: #111827 !important; }
+:root[data-theme="light"] .text-slate-100 { color: #172033 !important; }
+:root[data-theme="light"] .text-slate-200 { color: #273449 !important; }
+:root[data-theme="light"] .text-slate-300 { color: #3f4d61 !important; }
+:root[data-theme="light"] .text-slate-400 { color: #526074 !important; }
+:root[data-theme="light"] .text-slate-500 { color: #64748b !important; }
+:root[data-theme="light"] .bg-black { background-color: #ffffff !important; }
+:root[data-theme="light"] .bg-slate-950 { background-color: #f8fafc !important; }
+:root[data-theme="light"] .bg-slate-900 { background-color: #f1f5f9 !important; }
+:root[data-theme="light"] .bg-slate-800 { background-color: #e2e8f0 !important; }
+:root[data-theme="light"] .border-white\/5 { border-color: rgba(15, 23, 42, .07) !important; }
+:root[data-theme="light"] .border-white\/10 { border-color: rgba(15, 23, 42, .1) !important; }
+:root[data-theme="light"] .border-slate-700 { border-color: #d7dee8 !important; }
+:root[data-theme="light"] .border-slate-800 { border-color: #e2e8f0 !important; }
+:root[data-theme="light"] .bg-white\/5 { background-color: rgba(15, 23, 42, .035) !important; }
+:root[data-theme="light"] .bg-white\/10 { background-color: rgba(15, 23, 42, .06) !important; }
+:root[data-theme="light"] .bg-white\/20 { background-color: rgba(15, 23, 42, .1) !important; }
+:root[data-theme="light"] .hover\:bg-white\/5:hover { background-color: rgba(15, 23, 42, .045) !important; }
+:root[data-theme="light"] .hover\:bg-white\/10:hover { background-color: rgba(15, 23, 42, .075) !important; }
+:root[data-theme="light"] .placeholder\:text-slate-500::placeholder { color: #64748b !important; }
+
+/* Keep deliberately dark code/data surfaces dark in the light theme. */
+:root[data-theme="light"] .article-content pre,
+:root[data-theme="light"] .article-content code {
+  color: #e2e8f0;
+  background: #0f172a;
+}
+:root[data-theme="light"] .article-content pre code { background: transparent; }
+
 /* Semantic article typography. Independent of the Tailwind typography plugin. */
-.article-content { color: #e2e8f0; font-size: 1rem; line-height: 1.95; direction: rtl; text-align: right; overflow-wrap: anywhere; }
+.article-content { color: var(--page-text); font-size: 1rem; line-height: 1.95; direction: rtl; text-align: right; overflow-wrap: anywhere; }
 .article-content > * + * { margin-top: 1.25rem; }
-.article-content h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); line-height: 1.45; font-weight: 800; color: #fff; margin-top: 2rem; }
-.article-content h3 { font-size: clamp(1.15rem, 2.5vw, 1.45rem); line-height: 1.5; font-weight: 750; color: #f8fafc; margin-top: 1.75rem; }
-.article-content h4, .article-content h5, .article-content h6 { font-weight: 700; color: #f8fafc; margin-top: 1.5rem; }
+.article-content h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); line-height: 1.45; font-weight: 800; color: var(--heading-text); margin-top: 2rem; }
+.article-content h3 { font-size: clamp(1.15rem, 2.5vw, 1.45rem); line-height: 1.5; font-weight: 750; color: var(--heading-text); margin-top: 1.75rem; }
+.article-content h4, .article-content h5, .article-content h6 { font-weight: 700; color: var(--heading-text); margin-top: 1.5rem; }
 .article-content p { margin: 0; }
 .article-content ul, .article-content ol { padding-right: 1.5rem; padding-left: 0; }
 .article-content ul { list-style: disc; }
 .article-content ol { list-style: decimal; }
 .article-content li { padding-right: .35rem; margin-top: .45rem; }
-.article-content a { color: #38bdf8; text-decoration: underline; text-underline-offset: 3px; }
-.article-content strong { color: #fff; font-weight: 800; }
+.article-content a { color: #0284c7; text-decoration: underline; text-underline-offset: 3px; }
+.article-content strong { color: var(--heading-text); font-weight: 800; }
 .article-content code { direction: ltr; unicode-bidi: plaintext; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: rgba(15,23,42,.9); border: 1px solid rgba(71,85,105,.6); border-radius: .45rem; padding: .12rem .35rem; }
 .article-content pre { direction: ltr; text-align: left; overflow-x: auto; background: #020617; border: 1px solid rgba(71,85,105,.7); border-radius: .85rem; padding: 1rem; line-height: 1.7; white-space: pre; }
 .article-content pre code { display: block; background: transparent; border: 0; padding: 0; color: #e2e8f0; }
-.article-content blockquote { margin-right: 0; border-right: 3px solid #38bdf8; padding: .75rem 1rem; background: rgba(14,165,233,.06); color: #cbd5e1; }
+.article-content blockquote { margin-right: 0; border-right: 3px solid #38bdf8; padding: .75rem 1rem; background: rgba(14,165,233,.06); color: var(--muted-text); }
 .article-content hr { border: 0; border-top: 1px solid rgba(71,85,105,.7); }
 .article-content img { display: block; max-width: 100%; height: auto; margin: 1.25rem auto; border-radius: .85rem; }
 
 /* Production article tables */
-.article-table-wrapper { width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; border: 1px solid rgba(71, 85, 105, .55); border-radius: .9rem; background: rgba(2, 6, 23, .55); }
+.article-table-wrapper { width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; border: 1px solid rgba(71, 85, 105, .55); border-radius: .9rem; background: var(--soft-surface); }
 .article-content table { width: 100%; min-width: 620px; border-collapse: separate; border-spacing: 0; font-size: .95rem; line-height: 1.75; }
 .article-content thead th { background: rgba(30, 41, 59, .95); color: #f8fafc; font-weight: 800; padding: .85rem 1rem; border-bottom: 1px solid rgba(56, 189, 248, .35); white-space: nowrap; }
-.article-content tbody td { color: #cbd5e1; padding: .8rem 1rem; border-bottom: 1px solid rgba(71, 85, 105, .35); vertical-align: top; }
+.article-content tbody td { color: var(--page-text); padding: .8rem 1rem; border-bottom: 1px solid rgba(71, 85, 105, .35); vertical-align: top; }
 .article-content tbody tr:last-child td { border-bottom: 0; }
 .article-content tbody tr:nth-child(even) td { background: rgba(15, 23, 42, .35); }
 .article-content tbody tr:hover td { background: rgba(14, 165, 233, .06); }
@@ -65,16 +126,15 @@
 
 /* Article reader: isolate the scroll-lock rules to the article reader only. */
 div.fixed.inset-0.z-50:has(> article.glass-card) { overflow: hidden !important; overscroll-behavior: none; touch-action: none; }
-div.fixed.inset-0.z-50 > article.glass-card { height: 100dvh; max-height: 100dvh; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; scrollbar-gutter: stable; background: rgba(8, 8, 15, 0.98) !important; border: 0 !important; border-radius: 0 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+div.fixed.inset-0.z-50 > article.glass-card { height: 100dvh; max-height: 100dvh; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; scrollbar-gutter: stable; background: var(--panel-strong) !important; border: 0 !important; border-radius: 0 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
-/* Articles without a cover image must be genuinely image-free in the
-   featured card: remove the empty visual column and let the content span it. */
+/* Articles without a cover image must be genuinely image-free in the featured card: remove the empty visual column and let the content span it. */
 a[class*="rounded-3xl"][class*="grid-cols-12"] > div:first-child:not(:has(img)) { display: none; }
 a[class*="rounded-3xl"][class*="grid-cols-12"] > div:first-child:not(:has(img)) + div { grid-column: 1 / -1; }
 
 /* Mobile performance optimizations. */
 @media (max-width: 767px) {
-  .glass-panel, .glass-panel-interactive, .glass-card { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(13, 14, 24, 0.95) !important; }
+  .glass-panel, .glass-panel-interactive, .glass-card { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: var(--panel-strong) !important; }
   .animate-float { animation: none !important; }
   div.fixed.inset-0.z-50 > article.glass-card { width: 100%; height: 100dvh; max-height: 100dvh; min-height: 0 !important; padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
 }
