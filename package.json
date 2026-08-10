@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "tsx --test tests/**/*.test.ts",
+    "deploy:pages": "npx wrangler pages deploy dist"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -30,10 +31,9 @@
   "devDependencies": {
     "@types/compression": "^1.8.1",
     "@types/node": "^22.14.0",
-    "autoprefixer": "^10.4.21",
+    "autoprefixer": "10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.21",
-    "tsx": "^4.21.0",
     "typescript": "~5.8.2"
   }
 }
