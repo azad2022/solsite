@@ -961,13 +961,13 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       return;
     }
 
-    const passHash = await hashPasscode(regPassword.trim());
+    const passHash = regPassword.trim();
 
     // Register user in real server database
     const regRes = await registerUserApi({
       username: cleanUsername,
       fullName: cleanFullName,
-      passwordHash: passHash,
+      password: passHash,
       role: 'user'
     });
 
@@ -1314,7 +1314,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
 
     let passHash = '';
     if (memberPassword.trim()) {
-      passHash = await hashPasscode(memberPassword.trim());
+      passHash = memberPassword.trim();
     }
 
     if (editingUserId) {
@@ -1327,7 +1327,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
             role: memberRole,
             permissions: memberPermissions,
             isActive: memberIsActive,
-            ...(passHash ? { passwordHash: passHash } : {})
+            ...(passHash ? { password: passHash } : {})
           };
         }
         return u;
