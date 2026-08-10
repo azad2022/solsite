@@ -2,55 +2,6 @@ import React, { Component, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import './theme.css';
-
-/**
- * Solmint follows the local device clock:
- * 06:00–17:59 => light theme
- * 18:00–05:59 => dark theme
- *
- * The attribute is applied before React mounts so users do not see a flash
- * of the wrong theme during navigation or a full page reload.
- */
-function getScheduledTheme(): 'light' | 'dark' {
-  const hour = new Date().getHours();
-  return hour >= 6 && hour < 18 ? 'light' : 'dark';
-}
-
-function applyScheduledTheme() {
-  const theme = getScheduledTheme();
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme;
-
-  const themeColor = theme === 'light' ? '#f8fafc' : '#05050a';
-  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  if (!meta) {
-    meta = document.createElement('meta');
-    meta.name = 'theme-color';
-    document.head.appendChild(meta);
-  }
-  meta.content = themeColor;
-}
-
-applyScheduledTheme();
-
-let scheduledThemeTimer: number | undefined;
-function scheduleThemeRefresh() {
-  window.clearTimeout(scheduledThemeTimer);
-  const now = new Date();
-  const nextBoundary = new Date(now);
-  nextBoundary.setMinutes(0, 0, 0);
-  nextBoundary.setHours(now.getHours() + (now.getMinutes() >= 0 ? 1 : 0));
-
-  // Re-evaluate at least once per minute and exactly at the next hour.
-  const delay = Math.max(1000, nextBoundary.getTime() - now.getTime() + 50);
-  scheduledThemeTimer = window.setTimeout(() => {
-    applyScheduledTheme();
-    scheduleThemeRefresh();
-  }, delay);
-}
-
-scheduleThemeRefresh();
 
 interface ErrorBoundaryProps {
   children: ReactNode;
