@@ -25,6 +25,7 @@ jobs:
       - name: Apply authentication hardening
         run: |
           node scripts/harden-admin-frontend-v2.mjs
+          node scripts/final-auth-cleanup.mjs
           node scripts/harden-server-auth-v2.mjs
 
       - name: Commit hardened source
