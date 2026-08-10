@@ -17,7 +17,7 @@ export interface AuthUser {
 }
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
-const SESSION_COOKIE = 'solmint_session';
+const SESSION_COOKIE = '__Host-solmint_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
 
 export function jsonResponse(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
@@ -40,21 +40,18 @@ async function pbkdf2(value: string, saltHex: string, iterations: number): Promi
 
 function bytesToHex(bytes: Uint8Array): string { return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(''); }
 function hexToBytes(hex: string): Uint8Array { const out = new Uint8Array(hex.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16); return out; }
-
 async function randomHex(bytes = 16): Promise<string> { const data = new Uint8Array(bytes); crypto.getRandomValues(data); return bytesToHex(data); }
 
 function scryptDerive(password: string, salt: Uint8Array, N: number, r: number, p: number, dkLen: number): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     nodeScrypt(Buffer.from(password, 'utf8'), Buffer.from(salt), dkLen, { N, r, p, maxmem: Math.max(32 * 1024 * 1024, 128 * N * r + 1024 * 1024) }, (error, derivedKey) => {
-      if (error) reject(error);
-      else resolve(new Uint8Array(derivedKey));
+      if (error) reject(error); else resolve(new Uint8Array(derivedKey));
     });
   });
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<{ valid: boolean; upgradedHash?: string }> {
   if (!password || !stored) return { valid: false };
-
   if (/^[a-f0-9]{64}$/i.test(stored)) {
     const legacy = await sha256(password);
     if (legacy !== stored.toLowerCase()) return { valid: false };
@@ -63,35 +60,24 @@ export async function verifyPassword(password: string, stored: string): Promise<
     const derived = await pbkdf2(password, salt, iterations);
     return { valid: true, upgradedHash: `pbkdf2-sha256$${iterations}$${salt}$${derived}` };
   }
-
   const pbkdf2Match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]+)\$([a-f0-9]+)$/i.exec(stored);
   if (pbkdf2Match) {
     const derived = await pbkdf2(password, pbkdf2Match[3], Number(pbkdf2Match[1]));
     return { valid: derived === pbkdf2Match[4].toLowerCase() };
   }
-
-  // Compatibility with the initial production admin record. New passwords are upgraded to PBKDF2 after login.
   const scryptMatch = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(stored);
   if (scryptMatch) {
     try {
-      const N = Number(scryptMatch[1]);
-      const r = Number(scryptMatch[2]);
-      const p = Number(scryptMatch[3]);
-      const salt = Buffer.from(scryptMatch[4], 'base64url');
-      const expected = Buffer.from(scryptMatch[5], 'base64url');
+      const N = Number(scryptMatch[1]); const r = Number(scryptMatch[2]); const p = Number(scryptMatch[3]);
+      const salt = Buffer.from(scryptMatch[4], 'base64url'); const expected = Buffer.from(scryptMatch[5], 'base64url');
       const derived = await scryptDerive(password, salt, N, r, p, expected.length);
       if (derived.length !== expected.length) return { valid: false };
-      let diff = 0;
-      for (let i = 0; i < expected.length; i++) diff |= derived[i] ^ expected[i];
+      let diff = 0; for (let i = 0; i < expected.length; i++) diff |= derived[i] ^ expected[i];
       if (diff !== 0) return { valid: false };
-      const newSalt = await randomHex(16);
-      const newDerived = await pbkdf2(password, newSalt, 310000);
+      const newSalt = await randomHex(16); const newDerived = await pbkdf2(password, newSalt, 310000);
       return { valid: true, upgradedHash: `pbkdf2-sha256$310000$${newSalt}$${newDerived}` };
-    } catch {
-      return { valid: false };
-    }
+    } catch { return { valid: false }; }
   }
-
   return { valid: false };
 }
 
@@ -101,7 +87,11 @@ async function supabaseRequest(env: Env, path: string, init: RequestInit = {}) {
   return fetch(`${getBaseUrl(env)}${path}`, { ...init, headers: { apikey: secret, Authorization: `Bearer ${secret}`, ...(init.headers || {}) } });
 }
 
-export function getSessionToken(request: Request): string { const cookie = request.headers.get('Cookie') || ''; const match = cookie.match(/(?:^|;\s*)solmint_session=([^;]+)/); return match ? decodeURIComponent(match[1]) : ''; }
+export function getSessionToken(request: Request): string {
+  const cookie = request.headers.get('Cookie') || '';
+  const match = cookie.match(/(?:^|;\s*)__Host-solmint_session=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
 
 export async function createSession(env: Env, user: AuthUser): Promise<string> {
   const rawToken = `${await randomHex(32)}${await randomHex(32)}`;
@@ -121,12 +111,10 @@ export async function getAuthenticatedUser(env: Env, request: Request): Promise<
   const response = await supabaseRequest(env, `/rest/v1/auth_sessions?select=user_id,expires_at&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`);
   if (!response.ok) return null;
   const sessions = await response.json() as Array<{ user_id: string; expires_at: string }>;
-  const session = sessions[0];
-  if (!session || Date.parse(session.expires_at) <= Date.now()) return null;
+  const session = sessions[0]; if (!session || Date.parse(session.expires_at) <= Date.now()) return null;
   const userResponse = await supabaseRequest(env, `/rest/v1/users?select=id,username,full_name,role,permissions,is_active,created_at&id=eq.${encodeURIComponent(session.user_id)}&limit=1`);
   if (!userResponse.ok) return null;
-  const users = await userResponse.json() as AuthUser[];
-  const user = users[0];
+  const users = await userResponse.json() as AuthUser[]; const user = users[0];
   if (!user || user.is_active === false) return null;
   await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ last_seen_at: new Date().toISOString() }) }).catch(() => {});
   return user;
