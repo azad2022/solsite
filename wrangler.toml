@@ -1,3 +1,5 @@
-# Cloudflare Pages/Workers compatibility for server-side cryptography used by authentication.
+# Solmint production deployment uses Cloudflare Pages Functions for edge authentication.
+# The Node/Express server remains a separate Node runtime and is not deployed as a Worker.
 compatibility_date = "2026-08-10"
 compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
