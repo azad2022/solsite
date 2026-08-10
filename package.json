@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "tsx --test tests/**/*.test.ts",
+    "deploy:pages": "npx wrangler pages deploy dist --project-name=solmint"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
