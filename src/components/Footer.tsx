@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Send, ShieldCheck, Lock, Smartphone } from 'lucide-react';
+import { Zap, Send, ShieldCheck, Lock, Smartphone, Github } from 'lucide-react';
 
 interface FooterProps {
   onNavigate?: (path: string) => void;
@@ -46,7 +46,19 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
 
         <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-300 text-xs">
           <span>تمامی حقوق برای برند و پلتفرم سولمینت (solmint.ir) محفوظ است</span>
-          <span className="flex items-center gap-1 font-mono text-slate-200">Solmint Wallet — Official Android Web3 Platform</span>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://github.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="GitHub"
+              title="GitHub"
+              className="text-slate-300 hover:text-white transition-colors"
+            >
+              <Github className="w-5 h-5" aria-hidden="true" />
+            </a>
+            <span className="flex items-center gap-1 font-mono text-slate-200">Solmint Wallet — Official Android Web3 Platform</span>
+          </div>
         </div>
       </div>
     </footer>
