@@ -412,6 +412,7 @@ async function startServer() {
   // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
   // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
   // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
+  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
   app.post("/api/users/login", (req, res) => res.status(410).json({ success: false, code: "LEGACY_AUTH_DISABLED", message: "این مسیر احراز هویت قدیمی غیرفعال است." }));
 
   app.post("/api/users/update", requireAdminAuth, (req, res) => {
