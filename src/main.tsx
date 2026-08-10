@@ -2,6 +2,7 @@ import React, { Component, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './theme.css';
 
 /**
  * Solmint follows the local device clock:
