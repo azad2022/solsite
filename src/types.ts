@@ -32,7 +32,7 @@ export interface RentAccount {
   id: string;
   mintAddress: string;
   tokenName: string;
-  tokenSymbol: string;
+  symbol: string;
   balance: number;
   rentSol: number;
   status: 'empty' | 'active';
@@ -134,8 +134,15 @@ export interface MediaStorageConfig {
   lastTestAt?: string;
 }
 
+// The production media library uses the main website repository itself.
+// GitHub credentials are kept server-side in Supabase (GITHUB_MEDIA_TOKEN).
 export const DEFAULT_MEDIA_STORAGE_CONFIG: MediaStorageConfig = {
-  provider: 'github', githubOwner: 'azad2022', githubRepository: 'solmint-media', branch: 'main', basePath: 'articles/', connectionStatus: 'untested'
+  provider: 'github',
+  githubOwner: 'azad2022',
+  githubRepository: 'solsite',
+  branch: 'main',
+  basePath: 'public/media/articles/',
+  connectionStatus: 'untested'
 };
 
 export interface MediaItem { id: string; name: string; type: 'image' | 'video'; url: string; uploadedAt: string; uploadedAtJalali?: string; uploadedAtGregorian?: string; sizeMb: number; }
