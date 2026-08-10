@@ -80,7 +80,7 @@ replace(/  \/\/ UNIFIED AUTH: LOGIN FOR ADMIN AND USERS[\s\S]*?\n  \/\/ REGISTER
       setLockoutTimer(60);
       setAuthError('تعداد تلاش‌های ناموفق بیش از حد مجاز است. سیستم برای ۶۰ ثانیه قفل شد.');
     } else {
-      setAuthError(authRes.message || `اطلاعات ورود نادرست است. (${3 - attempts} تلاش باقی مانده)`);
+      setAuthError(authRes.message || ('اطلاعات ورود نادرست است. (' + (3 - attempts) + ' تلاش باقی مانده)'));
     }
   };
 
