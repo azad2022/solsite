@@ -218,8 +218,6 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
 
-  const [storedPassHash, setStoredPassHash] = useState('');
-
   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(currentUser));
 
   const [authError, setAuthError] = useState('');
@@ -277,7 +275,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         if (serverUsers && serverUsers.length > 0) {
           setUsers(serverUsers);
           try {
-            localStorage.setItem('solmint_users', JSON.stringify(serverUsers));
+
           } catch (e) {}
         }
       });
@@ -938,73 +936,37 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     e.preventDefault();
     const cleanFullName = sanitizeText(regFullName);
     const cleanUsername = sanitizeText(regUsername);
-
     if (!cleanFullName || !cleanUsername || !regPassword.trim()) {
       alert('لطفا تمامی فیلدها را به دقت تکمیل نمایید.');
       return;
     }
-
     const usernameVal = validateUsername(cleanUsername);
-    if (!usernameVal.valid) {
-      alert(usernameVal.error);
-      return;
-    }
-
+    if (!usernameVal.valid) { alert(usernameVal.error); return; }
     const passVal = validatePassword(regPassword);
-    if (!passVal.valid) {
-      alert(passVal.error);
-      return;
-    }
-
+    if (!passVal.valid) { alert(passVal.error); return; }
     if (regPassword !== regConfirmPassword) {
       alert('رمز عبور و تکرار آن مطابقت ندارند.');
       return;
     }
-
-    const passHash = regPassword.trim();
-
-    // Register user in real server database
     const regRes = await registerUserApi({
       username: cleanUsername,
       fullName: cleanFullName,
-      password: passHash,
+      password: regPassword.trim(),
       role: 'user'
     });
-
-    let newUser = regRes.user;
-    if (!regRes.success || !newUser) {
-      if (users.some(u => u.username.toLowerCase() === cleanUsername.toLowerCase())) {
-        alert('این نام کاربری قبلاً ثبت شده است.');
-        return;
-      }
-      newUser = {
-        id: 'usr_' + Date.now(),
-        username: cleanUsername,
-        fullName: cleanFullName,
-        passwordHash: passHash,
-        role: 'user',
-        permissions: ['articles'],
-        isActive: true,
-        createdAt: new Date().toLocaleDateString('fa-IR')
-      };
+    if (!regRes.success || !regRes.user) {
+      alert(regRes.message || 'ثبت‌نام در سرور انجام نشد.');
+      return;
     }
-
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    safeSetLocalStorage('solmint_users', updatedUsers);
-
-    // Log in immediately
-    setCurrentUser(newUser);
-    safeSetLocalStorage('solmint_current_user', newUser);
-
-    // Reset reg state
+    setUsers(prev => [regRes.user!, ...prev.filter(u => u.id !== regRes.user!.id)]);
+    setCurrentUser(regRes.user);
+    setIsAuthenticated(true);
     setRegFullName('');
     setRegUsername('');
     setRegPassword('');
     setRegConfirmPassword('');
-    alert('ثبت‌نام حساب کاربری شما با موفقیت در دیتابیس سرور انجام شد.');
+    alert('ثبت‌نام حساب کاربری با موفقیت در سرور انجام شد.');
   };
-
   const handleLogout = async () => {
     try { await fetch('/api/users/logout', { method: 'POST', credentials: 'include' }); } catch {}
     setIsAuthenticated(false);
@@ -1301,77 +1263,32 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     e.preventDefault();
     const cleanName = sanitizeText(memberFullName);
     const cleanUser = sanitizeText(memberUsername);
-
-    if (!cleanName || !cleanUser) {
-      alert('لطفا نام و نام کاربری را وارد کنید.');
-      return;
-    }
-
-    if (!editingUserId && !memberPassword.trim()) {
-      alert('لطفا رمز عبور کاربر جدید را مشخص کنید.');
-      return;
-    }
-
-    let passHash = '';
-    if (memberPassword.trim()) {
-      passHash = memberPassword.trim();
-    }
-
+    if (!cleanName || !cleanUser) { alert('لطفا نام و نام کاربری را وارد کنید.'); return; }
+    if (!editingUserId && !memberPassword.trim()) { alert('لطفا رمز عبور کاربر جدید را مشخص کنید.'); return; }
     if (editingUserId) {
-      const updated = users.map(u => {
-        if (u.id === editingUserId) {
-          return {
-            ...u,
-            fullName: cleanName,
-            username: cleanUser,
-            role: memberRole,
-            permissions: memberPermissions,
-            isActive: memberIsActive,
-            ...(passHash ? { password: passHash } : {})
-          };
-        }
-        return u;
-      });
-      setUsers(updated);
-      safeSetLocalStorage('solmint_users', updated);
-      updateUserApi({
+      const ok = await updateUserApi({
         userId: editingUserId,
         role: memberRole,
         permissions: memberPermissions,
         isActive: memberIsActive,
-        ...(passHash ? { password: passHash } : {})
+        ...(memberPassword.trim() ? { password: memberPassword.trim() } : {})
       });
-      setUserManagementNotice(`اطلاعات و دسترسی‌های کاربر "${cleanName}" با موفقیت به‌روزرسانی شد.`);
+      if (!ok) { alert('ذخیره تغییرات کاربر در سرور انجام نشد.'); return; }
+      setUsers(await fetchUsersApi());
+      setUserManagementNotice('اطلاعات و دسترسی‌های کاربر با موفقیت در سرور به‌روزرسانی شد.');
     } else {
-      if (users.some(u => u.username.toLowerCase() === cleanUser.toLowerCase())) {
-        alert('کاربری با این نام کاربری قبلا ثبت شده است.');
-        return;
-      }
       const regRes = await registerUserApi({
         username: cleanUser,
         fullName: cleanName,
-        passwordHash: passHash,
+        password: memberPassword.trim(),
         role: memberRole,
         permissions: memberPermissions,
         isActive: memberIsActive
       });
-
-      const newUser: UserAccount = regRes.user || {
-        id: 'usr-' + Date.now(),
-        fullName: cleanName,
-        username: cleanUser,
-        passwordHash: passHash,
-        role: memberRole,
-        permissions: memberPermissions,
-        isActive: memberIsActive,
-        createdAt: new Date().toLocaleDateString('fa-IR')
-      };
-      const updated = [newUser, ...users];
-      setUsers(updated);
-      safeSetLocalStorage('solmint_users', updated);
-      setUserManagementNotice(`نویسنده/همکار جدید "${cleanName}" با موفقیت در دیتابیس سرور اضافه شد.`);
+      if (!regRes.success || !regRes.user) { alert(regRes.message || 'ایجاد کاربر در سرور انجام نشد.'); return; }
+      setUsers(await fetchUsersApi());
+      setUserManagementNotice('نویسنده/همکار جدید با موفقیت در سرور اضافه شد.');
     }
-
     setEditingUserId(null);
     setMemberFullName('');
     setMemberUsername('');
@@ -1380,7 +1297,6 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     setMemberPermissions(['articles', 'editor', 'comments', 'media']);
     setShowAddMemberForm(false);
   };
-
   const handleEditUserClick = (user: UserAccount) => {
     setEditingUserId(user.id);
     setMemberFullName(user.fullName);
@@ -1392,29 +1308,20 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     setShowAddMemberForm(true);
   };
 
-  const handleToggleUserActive = (userId: string) => {
-    let nextState = false;
-    const updated = users.map(u => {
-      if (u.id === userId) {
-        nextState = !(u.isActive !== false);
-        return { ...u, isActive: nextState };
-      }
-      return u;
-    });
-    setUsers(updated);
-    safeSetLocalStorage('solmint_users', updated);
-    updateUserApi({ userId, isActive: nextState });
+  const handleToggleUserActive = async (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const ok = await updateUserApi({ userId, isActive: !(target.isActive !== false) });
+    if (!ok) { alert('تغییر وضعیت کاربر در سرور انجام نشد.'); return; }
+    setUsers(await fetchUsersApi());
   };
 
-  const handleDeleteUser = (userId: string) => {
-    if (confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
-      const updated = users.filter(u => u.id !== userId);
-      setUsers(updated);
-      safeSetLocalStorage('solmint_users', updated);
-      deleteUserApi(userId);
-    }
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('آیا از حذف این کاربر اطمینان دارید؟')) return;
+    const ok = await deleteUserApi(userId);
+    if (!ok) { alert('حذف کاربر از سرور انجام نشد.'); return; }
+    setUsers(await fetchUsersApi());
   };
-
   const handleTogglePermission = (perm: AdminPermission) => {
     if (memberPermissions.includes(perm)) {
       setMemberPermissions(memberPermissions.filter(p => p !== perm));
