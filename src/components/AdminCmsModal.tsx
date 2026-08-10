@@ -931,7 +931,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     }
   };
 
-  // REGISTER NEW REAL USER ACCOUNT
+  // REGISTER NEW REAL USER ACCOUNT - SERVER AUTHORITATIVE
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanFullName = sanitizeText(regFullName);
@@ -1000,7 +1000,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       setCurrentPassInput('');
       setNewPassInput('');
       setConfirmPassInput('');
-      setStoredPassHash('');
+
       setTimeout(() => setPassChangeSuccess(''), 4000);
     } catch {
       alert('ارتباط با سرویس احراز هویت برقرار نشد.');

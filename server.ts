@@ -357,63 +357,45 @@ async function startServer() {
     }
   });
 
-  app.post("/api/users/register", (req, res) => {
+  app.post("/api/users/register", requireAdminAuth, async (req, res) => {
     try {
-      const { username, fullName, passwordHash, role, permissions, isActive } = req.body || {};
-      if (!username || !fullName || (!passwordHash && !req.body?.password)) {
-        return res.status(400).json({ success: false, message: "لطفا تمامی اطلاعات الزامی را وارد کنید." });
+      const { username, fullName, password, role, permissions, isActive } = req.body || {};
+      const cleanUsername = String(username || "").trim();
+      const cleanFullName = String(fullName || "").trim();
+      const cleanPassword = String(password || "").trim();
+      if (!cleanUsername || !cleanFullName || cleanPassword.length < 8) {
+        return res.status(400).json({ success: false, message: "نام کاربری، نام کامل و رمز عبور حداقل ۸ کاراکتری الزامی است." });
       }
-
-      const passInput = String(passwordHash || req.body?.password || "").trim();
-      const finalHash = passInput.length === 64 ? passInput : hashString(passInput);
-
-      const defaultPerms = role === "admin" || role === "superadmin" 
+      const salt = crypto.randomBytes(16);
+      const derived = crypto.scryptSync(cleanPassword, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 32 * 1024 * 1024 });
+      const passwordHash = `scrypt$16384$8$1$${salt.toString("base64url")}$${derived.toString("base64url")}`;
+      const defaultPerms = role === "admin" || role === "superadmin"
         ? ["articles", "editor", "comments", "media", "seo", "audit", "redirects", "downloads", "deepseek", "chatbot", "database", "security", "users"]
-        : role === "writer" || role === "editor"
-        ? ["articles", "editor", "comments", "media"]
-        : ["articles"];
-
+        : ["articles", "editor", "comments", "media"];
       const newUser = {
         id: "usr-" + Date.now(),
-        username: String(username).trim(),
-        fullName: String(fullName).trim(),
-        passwordHash: finalHash,
+        username: cleanUsername,
+        fullName: cleanFullName,
+        passwordHash,
         role: role || "user",
         permissions: Array.isArray(permissions) && permissions.length > 0 ? permissions : defaultPerms,
         isActive: typeof isActive === "boolean" ? isActive : true,
         createdAt: new Date().toLocaleDateString("fa-IR")
       };
-
       const result = registerUser(newUser as any);
-      if (!result.success) {
-        return res.status(400).json(result);
-      }
-
+      if (!result.success) return res.status(400).json(result);
       if (serverSupabase) {
-        serverSupabase.from("users").upsert({
-          id: newUser.id,
-          username: newUser.username,
-          full_name: newUser.fullName,
-          password_hash: newUser.passwordHash,
-          role: newUser.role,
-          permissions: newUser.permissions,
-          is_active: newUser.isActive
-        }, { onConflict: "username" }).then(() => {}, () => {});
+        const { error } = await serverSupabase.from("users").upsert({
+          id: newUser.id, username: newUser.username, full_name: newUser.fullName, password_hash: newUser.passwordHash,
+          role: newUser.role, permissions: newUser.permissions, is_active: newUser.isActive
+        }, { onConflict: "username" });
+        if (error) return res.status(500).json({ success: false, message: "ذخیره کاربر در دیتابیس انجام نشد." });
       }
-
       return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
     }
   });
-
-  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
-  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
-  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
-  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
-  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
-  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
-  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
   // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
   app.post("/api/users/login", (req, res) => res.status(410).json({ success: false, code: "LEGACY_AUTH_DISABLED", message: "این مسیر احراز هویت قدیمی غیرفعال است." }));
 
@@ -429,10 +411,12 @@ async function startServer() {
       if (role) users[idx].role = role;
       if (Array.isArray(permissions)) users[idx].permissions = permissions;
       if (typeof isActive === "boolean") users[idx].isActive = isActive;
-      if (passwordHash) {
-        users[idx].passwordHash = String(passwordHash);
-      } else if (password) {
-        users[idx].passwordHash = hashString(String(password));
+      if (password) {
+        const cleanPassword = String(password).trim();
+        if (cleanPassword.length < 8) return res.status(400).json({ success: false, message: "رمز عبور باید حداقل ۸ کاراکتر باشد." });
+        const salt = crypto.randomBytes(16);
+        const derived = crypto.scryptSync(cleanPassword, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 32 * 1024 * 1024 });
+        users[idx].passwordHash = `scrypt$16384$8$1${salt.toString("base64url")}${derived.toString("base64url")}`;
       }
 
       saveUsers(users);
