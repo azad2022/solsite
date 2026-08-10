@@ -14,13 +14,11 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not configured. Database writes will fail under hardened RLS policies.');
 }
 
-// Enforce the production authentication boundary before either source or compiled
-// Express code is loaded. This makes the runtime fail closed if a protected route
-// ever loses its requireAdminAuth middleware.
 try {
   await import('./harden-server-routes.mjs');
+  await import('./harden-superadmin-routes.mjs');
 } catch (error) {
-  console.error('❌ Server authentication route hardening failed:', error?.message || error);
+  console.error('❌ Server authentication hardening failed:', error?.message || error);
   process.exit(1);
 }
 
@@ -30,7 +28,7 @@ function ensureArticlePublishFix(filePath) {
   const original = source;
   source = source.replace(/is_draft:\s*article\.isDraft\s*\?\s*1\s*:\s*0/g, 'is_draft: Boolean(article.isDraft)');
   source = source.replace(/app\.post\((\"|')\/api\/articles\1,\s*async\s*\(req,\s*res\)/g, 'app.post($1/api/articles$1, requireAdminAuth, async (req, res)');
-  source = source.replace(/app\.delete\((\"|')\/api\/articles\/:id\1,\s*async\s*\(req,\s*res\)/g, 'app.delete($1/api/articles/:id$1, requireAdminAuth, async (req, res)');
+  source = source.replace(/app\.delete\((\"|')\/api\/articles\/:id\1,\s*async\s*\(req\s*,\s*res\)/g, 'app.delete($1/api/articles/:id$1, requireAdminAuth, async (req, res)');
   source = source.replace(/const SUPABASE_ANON_KEY\s*=\s*process\.env\.VITE_SUPABASE_ANON_KEY\s*\|\|\s*process\.env\.SUPABASE_ANON_KEY\s*\|\|/, 'const SUPABASE_ANON_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY ||');
   if (source !== original) {
     writeFileSync(filePath, source, 'utf8');
