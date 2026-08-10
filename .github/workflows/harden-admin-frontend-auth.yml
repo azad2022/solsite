@@ -1,0 +1,25 @@
+name: Harden admin frontend authentication
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  harden:
+    if: "!contains(github.event.head_commit.message, '[frontend-auth-hardened]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/harden-admin-frontend-auth.mjs
+      - name: Commit hardened frontend
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/AdminCmsModal.tsx scripts/harden-admin-frontend-auth.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "security: remove client auth fallback [frontend-auth-hardened]"
+          git push
