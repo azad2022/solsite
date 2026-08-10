@@ -1,10 +1,49 @@
 // Utility functions for security, sanitization, and local storage safety
 
+const LEGACY_AUTH_KEYS = new Set([
+  'solmint_admin_passcode',
+  'solmint_admin_pass_hash',
+  'solmint_admin_session',
+  'solmint_current_user'
+]);
+
+let authStorageGuardInstalled = false;
+
 /**
- * Safely parse JSON from localStorage with a fallback
+ * Authentication state must never be persisted in Web Storage.
+ * The server-owned HttpOnly session cookie is the only authentication state.
  */
+export function installAuthStorageGuard(): void {
+  if (typeof window === 'undefined' || authStorageGuardInstalled) return;
+  authStorageGuardInstalled = true;
+
+  try {
+    const storage = window.localStorage;
+    for (const key of LEGACY_AUTH_KEYS) storage.removeItem(key);
+
+    const originalSetItem = Storage.prototype.setItem;
+    const originalGetItem = Storage.prototype.getItem;
+
+    Storage.prototype.setItem = function(key: string, value: string): void {
+      if (this === storage && LEGACY_AUTH_KEYS.has(key)) return;
+      return originalSetItem.call(this, key, value);
+    };
+
+    Storage.prototype.getItem = function(key: string): string | null {
+      if (this === storage && LEGACY_AUTH_KEYS.has(key)) return null;
+      return originalGetItem.call(this, key);
+    };
+  } catch {
+    // Security guard is defense-in-depth; server authorization remains authoritative.
+  }
+}
+
+installAuthStorageGuard();
+
+/** Safely parse JSON from localStorage with a fallback. */
 export function safeGetLocalStorage<T>(key: string, fallback: T): T {
   try {
+    if (LEGACY_AUTH_KEYS.has(key)) return fallback;
     const item = localStorage.getItem(key);
     return item ? (JSON.parse(item) as T) : fallback;
   } catch (err) {
@@ -13,11 +52,10 @@ export function safeGetLocalStorage<T>(key: string, fallback: T): T {
   }
 }
 
-/**
- * Safely save data to localStorage
- */
+/** Safely save non-authentication data to localStorage. */
 export function safeSetLocalStorage<T>(key: string, value: T): boolean {
   try {
+    if (LEGACY_AUTH_KEYS.has(key)) return false;
     localStorage.setItem(key, JSON.stringify(value));
     return true;
   } catch (err) {
@@ -26,9 +64,7 @@ export function safeSetLocalStorage<T>(key: string, value: T): boolean {
   }
 }
 
-/**
- * Sanitize plain text strings against XSS / HTML injection attacks
- */
+/** Sanitize plain text strings against XSS / HTML injection attacks. */
 export function sanitizeText(str: string): string {
   if (!str) return '';
   return str
@@ -41,31 +77,18 @@ export function sanitizeText(str: string): string {
     .trim();
 }
 
-/**
- * Validate username format
- */
+/** Validate username format. */
 export function validateUsername(username: string): { valid: boolean; error?: string } {
   const trimmed = username.trim();
-  if (trimmed.length < 3) {
-    return { valid: false, error: 'نام کاربری باید حداقل ۳ کاراکتر باشد.' };
-  }
-  if (trimmed.length > 30) {
-    return { valid: false, error: 'نام کاربری نمی‌تواند بیش از ۳۰ کاراکتر باشد.' };
-  }
-  // Allow letters, numbers, underscores, and Persian characters
+  if (trimmed.length < 3) return { valid: false, error: 'نام کاربری باید حداقل ۳ کاراکتر باشد.' };
+  if (trimmed.length > 30) return { valid: false, error: 'نام کاربری نمی‌تواند بیش از ۳۰ کاراکتر باشد.' };
   const validRegex = /^[\w\d_@.\u0600-\u06FF\s-]+$/;
-  if (!validRegex.test(trimmed)) {
-    return { valid: false, error: 'نام کاربری شامل کاراکترهای غیرمجاز است.' };
-  }
+  if (!validRegex.test(trimmed)) return { valid: false, error: 'نام کاربری شامل کاراکترهای غیرمجاز است.' };
   return { valid: true };
 }
 
-/**
- * Validate password strength
- */
+/** Validate password strength. */
 export function validatePassword(password: string): { valid: boolean; error?: string } {
-  if (password.length < 5) {
-    return { valid: false, error: 'رمز عبور باید حداقل ۵ کاراکتر باشد.' };
-  }
+  if (password.length < 5) return { valid: false, error: 'رمز عبور باید حداقل ۵ کاراکتر باشد.' };
   return { valid: true };
 }
