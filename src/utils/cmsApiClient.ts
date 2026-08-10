@@ -198,7 +198,7 @@ export async function deleteArticleFromApi(articleId: string): Promise<boolean> 
     const res = await fetch(`/api/articles/${articleId}`, { method: 'DELETE', headers: getAuthHeaders() });
     return res.ok;
   } catch (err) {
-    console.warn('Error deleting article from API:', err);
+    console.warn('Error deleting article via API:', err);
     return false;
   }
 }

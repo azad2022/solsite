@@ -1,0 +1,3 @@
+# Cloudflare Pages/Workers compatibility for server-side cryptography used by authentication.
+compatibility_date = "2026-08-10"
+compatibility_flags = ["nodejs_compat"]

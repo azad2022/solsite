@@ -1,47 +1,24 @@
+import { getAuthenticatedUser, type Env, jsonResponse } from '../auth/_shared';
+
 type CmsSettingsRow = {
   id: string;
   settings_json: Record<string, any> | null;
 };
 
-type UserRow = {
-  id: string;
-  username: string;
-  password_hash: string;
-  is_active: boolean;
-};
-
-interface Env {
-  SUPABASE_URL?: string;
+interface SettingsEnv extends Env {
   SUPABASE_SERVICE_ROLE_KEY?: string;
 }
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 
-function jsonResponse(body: unknown, status = 200) {
-  return Response.json(body, {
-    status,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-      'CDN-Cache-Control': 'no-store',
-      'Vary': 'Origin'
-    }
-  });
-}
-
-function db(env: Env) {
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured in Cloudflare.');
+function db(env: SettingsEnv) {
+  const key = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY;
+  if (!key) throw new Error('Supabase server secret is not configured.');
   const base = (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, '');
   return { base, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } };
 }
 
-async function sha256(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function getSettings(env: Env): Promise<Record<string, any>> {
+async function getSettings(env: SettingsEnv): Promise<Record<string, any>> {
   const { base, headers } = db(env);
   const response = await fetch(`${base}/rest/v1/cms_settings?select=id,settings_json&id=eq.main_settings&limit=1`, { headers });
   if (!response.ok) throw new Error(await response.text());
@@ -52,24 +29,7 @@ async function getSettings(env: Env): Promise<Record<string, any>> {
   return settings;
 }
 
-async function getAdminUser(env: Env): Promise<UserRow | null> {
-  const { base, headers } = db(env);
-  const response = await fetch(`${base}/rest/v1/users?select=id,username,password_hash,is_active&username=eq.admin&limit=1`, { headers });
-  if (!response.ok) throw new Error(await response.text());
-  const rows = await response.json() as UserRow[];
-  return rows[0] || null;
-}
-
-async function authorizeAdmin(request: Request, env: Env): Promise<boolean> {
-  const supplied = String(request.headers.get('x-admin-passcode') || '').trim();
-  if (!supplied) return false;
-  const user = await getAdminUser(env);
-  if (!user || user.is_active === false) return false;
-  const hashed = await sha256(supplied);
-  return supplied === user.password_hash || hashed === user.password_hash;
-}
-
-export const onRequestGet = async ({ env }: { env: Env }) => {
+export const onRequestGet = async ({ env }: { env: SettingsEnv }) => {
   try {
     return jsonResponse({ success: true, settings: await getSettings(env) });
   } catch (error) {
@@ -78,9 +38,10 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   }
 };
 
-export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
+export const onRequestPost = async ({ request, env }: { request: Request; env: SettingsEnv }) => {
   try {
-    if (!(await authorizeAdmin(request, env))) {
+    const user = await getAuthenticatedUser(env, request);
+    if (!user || !['superadmin', 'admin'].includes(String(user.role))) {
       return jsonResponse({ success: false, message: 'نشست مدیر معتبر نیست. لطفاً دوباره وارد شوید.' }, 401);
     }
 
@@ -91,10 +52,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
 
     const current = await getSettings(env);
     const incoming = body.settings;
-    const newAdminPasscode = typeof incoming.security?.adminPasscode === 'string'
-      ? incoming.security.adminPasscode.trim()
-      : '';
-
+    const newAdminPasscode = typeof incoming.security?.adminPasscode === 'string' ? incoming.security.adminPasscode.trim() : '';
     if (newAdminPasscode && newAdminPasscode.length < 8) {
       return jsonResponse({ success: false, message: 'رمز عبور مدیر باید حداقل ۸ کاراکتر باشد.' }, 400);
     }
@@ -108,7 +66,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       security: { ...(current.security || {}), ...(incoming.security || {}) }
     };
 
-    // Password is never stored in cms_settings. It belongs to users.password_hash.
+    // Passwords belong exclusively to users.password_hash, never to CMS settings.
     delete updated.security.adminPasscode;
     updated.chatbot.enabled = incoming.chatbot?.enabled === true;
 
@@ -121,7 +79,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     if (!settingsResponse.ok) throw new Error(await settingsResponse.text());
 
     if (newAdminPasscode) {
-      const passwordHash = await sha256(newAdminPasscode);
+      // Keep compatibility with the existing login migration: the next successful login upgrades SHA-256 to PBKDF2.
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(newAdminPasscode));
+      const passwordHash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
       const userResponse = await fetch(`${base}/rest/v1/users?username=eq.admin`, {
         method: 'PATCH',
         headers: { ...headers, Prefer: 'return=minimal' },
