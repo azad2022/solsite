@@ -1,19 +1,16 @@
-interface Env {
-  SUPABASE_URL?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
-}
+import { getAuthenticatedUser, type Env, jsonResponse } from '../auth/_shared';
 
-interface UserRow {
-  id: string;
-  username: string;
-  password_hash: string;
-  is_active: boolean;
+interface UpdateEnv extends Env {
+  SUPABASE_SERVICE_ROLE_KEY?: string;
 }
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 
-function jsonResponse(body: unknown, status = 200) {
-  return Response.json(body, { status, headers: { 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store' } });
+function db(env: UpdateEnv) {
+  const key = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY;
+  if (!key) throw new Error('Supabase server secret is not configured.');
+  const base = (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, '');
+  return { base, key };
 }
 
 async function sha256(value: string): Promise<string> {
@@ -21,36 +18,20 @@ async function sha256(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function getAdmin(env: Env): Promise<UserRow | null> {
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured.');
-  const base = (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, '');
-  const response = await fetch(`${base}/rest/v1/users?select=id,username,password_hash,is_active&username=eq.admin&limit=1`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` }
-  });
-  if (!response.ok) throw new Error(await response.text());
-  return (await response.json() as UserRow[])[0] || null;
-}
-
-export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
+export const onRequestPost = async ({ request, env }: { request: Request; env: UpdateEnv }) => {
   try {
-    const key = env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!key) return jsonResponse({ success: false, message: 'اتصال امن به دیتابیس پیکربندی نشده است.' }, 503);
-
-    const supplied = String(request.headers.get('x-admin-passcode') || '').trim();
-    const admin = await getAdmin(env);
-    if (!supplied || !admin || admin.is_active === false) return jsonResponse({ success: false, message: 'احراز هویت مدیر نامعتبر است.' }, 401);
-
-    const suppliedHash = await sha256(supplied);
-    if (supplied !== admin.password_hash && suppliedHash !== admin.password_hash) {
-      return jsonResponse({ success: false, message: 'رمز مدیر برای انجام این عملیات معتبر نیست.' }, 401);
+    const actor = await getAuthenticatedUser(env, request);
+    if (!actor || !['superadmin', 'admin'].includes(String(actor.role))) {
+      return jsonResponse({ success: false, message: 'احراز هویت مدیر نامعتبر است.' }, 401);
     }
 
+    const { base, key } = db(env);
     const body = await request.json() as {
       userId?: unknown;
       role?: unknown;
       permissions?: unknown;
       isActive?: unknown;
+      password?: unknown;
       passwordHash?: unknown;
     };
     const userId = String(body.userId || '').trim();
@@ -60,13 +41,16 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     if (typeof body.role === 'string' && body.role.trim()) patch.role = body.role.trim();
     if (Array.isArray(body.permissions)) patch.permissions = body.permissions;
     if (typeof body.isActive === 'boolean') patch.is_active = body.isActive;
-    if (typeof body.passwordHash === 'string' && /^[a-f0-9]{64}$/i.test(body.passwordHash.trim())) {
+
+    // PasswordHash is accepted only for legacy callers. Prefer plaintext password over HTTPS so the server can migrate it.
+    if (typeof body.password === 'string' && body.password.length >= 8) {
+      patch.password_hash = await sha256(body.password);
+    } else if (typeof body.passwordHash === 'string' && /^[a-f0-9]{64}$/i.test(body.passwordHash.trim())) {
       patch.password_hash = body.passwordHash.trim().toLowerCase();
     }
 
     if (Object.keys(patch).length === 0) return jsonResponse({ success: false, message: 'هیچ تغییری برای ذخیره وجود ندارد.' }, 400);
 
-    const base = (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, '');
     const response = await fetch(`${base}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       headers: {
