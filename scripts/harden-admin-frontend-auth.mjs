@@ -2,129 +2,144 @@ import fs from 'fs';
 
 const path = 'src/components/AdminCmsModal.tsx';
 let text = fs.readFileSync(path, 'utf8');
+
 function replace(re, value, label) {
   const next = text.replace(re, value);
   if (next === text) throw new Error(`Frontend auth hardening failed: ${label}`);
   text = next;
 }
 
-replace(/\/\/ SHA-256 helper for client-side password hashing[\s\S]*?const DEFAULT_PASSCODE_HASH = '[^']+';\n\n/, '', 'remove client hash constants');
-replace(/const \[users, setUsers\] = useState<UserAccount\[\]>\(\(\) => \{[\s\S]*?\}\);/, 'const [users, setUsers] = useState<UserAccount[]>([]);', 'remove local user bootstrap');
-replace(/const \[storedPassHash, setStoredPassHash\] = useState\(\(\) => \{[\s\S]*?\}\);/, "const [storedPassHash, setStoredPassHash] = useState('');", 'remove stored client password hash');
-replace(/const \[isAuthenticated, setIsAuthenticated\] = useState\(\(\) => \{[\s\S]*?\n  \}\);/, "const [isAuthenticated, setIsAuthenticated] = useState(Boolean(currentUser));", 'remove local session bootstrap');
+// Remove all client-side password hashing and embedded/default credentials.
+text = text.replace(/\/\/ SHA-256 helper for client-side password hashing[\s\S]*?const DEFAULT_PASSCODE_HASH = '[^']+';\n\n/, '');
+text = text.replace(/const \[storedPassHash, setStoredPassHash\] = useState\([^;]*\);\n\n?/, '');
 
-replace(/  useEffect\(\(\) => \{\n    if \(isOpen && isAuthenticated\) \{\n      \/\/ Validate server session auth[\s\S]*?    \}\n  \}, \[isOpen, isAuthenticated\]\);/, `  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    fetch('/api/users/me', { credentials: 'include', cache: 'no-store' })
-      .then(async res => {
-        const data = await res.json().catch(() => null);
-        if (cancelled) return;
-        if (res.ok && data?.success && data.user) {
-          setCurrentUser(data.user);
-          setIsAuthenticated(true);
-          setAuthError('');
-          getAllMediaAssets().then(assets => { if (!cancelled) setGithubMediaAssets(assets || []); });
-          getMediaStorageConfig().then(cfg => {
-            if (!cancelled && cfg) {
-              setMediaConfigState(cfg);
-              setConfigOwner(cfg.githubOwner || 'azad2022');
-              setConfigRepo(cfg.githubRepository || 'solmint-media');
-              setConfigBranch(cfg.branch || 'main');
-              setConfigBasePath(cfg.basePath || 'articles/');
-            }
-          });
-        } else {
-          setIsAuthenticated(false);
-          setCurrentUser(null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setIsAuthenticated(false);
-          setCurrentUser(null);
-        }
-      });
-    return () => { cancelled = true; };
-  }, [isOpen]);`, 'replace client session validation');
+// Authentication state must originate from the server session only.
+text = text.replace(/const \[users, setUsers\] = useState<UserAccount\[\]>\(\(\) => \{[\s\S]*?\}\);/, 'const [users, setUsers] = useState<UserAccount[]>([]);');
+text = text.replace(/const \[isAuthenticated, setIsAuthenticated\] = useState\([^;]*\);/, 'const [isAuthenticated, setIsAuthenticated] = useState(Boolean(currentUser));');
 
-replace(/  \/\/ UNIFIED AUTH: LOGIN FOR ADMIN AND USERS[\s\S]*?\n  \/\/ REGISTER NEW REAL USER ACCOUNT/, `  // UNIFIED AUTH: server-only login for admin and users
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (lockoutTimer > 0) return;
-    const identifier = loginIdentifier.trim();
-    const pass = loginPassword.trim();
-    if (!identifier || !pass) {
-      setAuthError('نام کاربری و رمز عبور الزامی است.');
+// Never persist the server user list or authentication state in browser storage.
+text = text.replace(/\s*try \{\s*localStorage\.setItem\('solmint_users',[\s\S]*?\} catch \(e\) \{\}\s*/, '\n');
+text = text.replace(/\s*safeSetLocalStorage\('solmint_users',[^;]*\);/g, '');
+text = text.replace(/\s*localStorage\.setItem\('solmint_users',[^;]*\);/g, '');
+text = text.replace(/\s*safeSetLocalStorage\('solmint_current_user',[^;]*\);/g, '');
+text = text.replace(/\s*localStorage\.setItem\('solmint_current_user',[^;]*\);/g, '');
+text = text.replace(/\s*localStorage\.(?:getItem|setItem|removeItem)\('(solmint_admin_passcode|solmint_admin_pass_hash|solmint_admin_session)'[^;]*\);/g, '');
+
+// Registration: send the plaintext password over HTTPS to the server; the server hashes it.
+replace(/    const passHash = await hashPasscode\(regPassword\.trim\(\)\);[\s\S]*?    alert\('ثبت‌نام حساب کاربری شما با موفقیت در دیتابیس سرور انجام شد\.'\);/, `    const regRes = await registerUserApi({
+      username: cleanUsername,
+      fullName: cleanFullName,
+      password: regPassword.trim(),
+      role: 'user'
+    });
+
+    if (!regRes.success || !regRes.user) {
+      alert(regRes.message || 'ثبت‌نام در سرور انجام نشد.');
       return;
     }
 
-    const authRes = await loginUserApi({ username: identifier, passcode: pass });
-    if (authRes.success && authRes.user) {
-      const user = authRes.user;
-      setIsAuthenticated(true);
-      setCurrentUser(user);
-      setAuthError('');
-      setFailedAttempts(0);
-      setLoginPassword('');
-      const userPerms = user.permissions && user.permissions.length > 0
-        ? user.permissions
-        : (user.role === 'superadmin' || user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
-      if (!userPerms.includes(adminTab)) setAdminTab(userPerms[0] || 'articles');
-      return;
-    }
+    setUsers(prev => [regRes.user!, ...prev.filter(u => u.id !== regRes.user!.id)]);
+    setCurrentUser(regRes.user);
+    setIsAuthenticated(true);
 
-    const attempts = failedAttempts + 1;
-    setFailedAttempts(attempts);
-    if (attempts >= 3) {
-      setLockoutTimer(60);
-      setAuthError('تعداد تلاش‌های ناموفق بیش از حد مجاز است. سیستم برای ۶۰ ثانیه قفل شد.');
-    } else {
-      setAuthError(authRes.message || ('اطلاعات ورود نادرست است. (' + (3 - attempts) + ' تلاش باقی مانده)'));
-    }
-  };
+    setRegFullName('');
+    setRegUsername('');
+    setRegPassword('');
+    setRegConfirmPassword('');
+    alert('ثبت‌نام حساب کاربری شما با موفقیت در سرور انجام شد.');`, 'remove registration client hashing/fallback');
 
-  // REGISTER NEW REAL USER ACCOUNT`, 'replace login flow');
-
-replace(/  const handleLogout = \(\) => \{[\s\S]*?\n  \};/, `  const handleLogout = async () => {
-    try { await fetch('/api/users/logout', { method: 'POST', credentials: 'include' }); } catch {}
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    setLoginIdentifier('');
-    setLoginPassword('');
-  };`, 'replace logout flow');
-
-replace(/  const handleChangePasscode = async \(e: React\.FormEvent\) => \{[\s\S]*?\n  \};/, `  const handleChangePasscode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) return;
-    const currentPassword = currentPassInput.trim();
-    const newPassword = newPassInput.trim();
-    if (!currentPassword || newPassword.length < 8 || newPassword !== confirmPassInput.trim()) {
-      alert('رمز فعلی، رمز جدید و تکرار رمز جدید را به‌درستی وارد کنید. رمز جدید باید حداقل ۸ کاراکتر باشد.');
-      return;
-    }
-    try {
-      const res = await fetch('/api/users/change-password', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword })
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.success) {
-        alert(data?.message || 'تغییر رمز عبور انجام نشد.');
+// User management: passwords are sent only as plaintext HTTPS input to server endpoints.
+replace(/    let passHash = '';\n    if \(memberPassword\.trim\(\)\) \{\n      passHash = await hashPasscode\(memberPassword\.trim\(\)\);\n    \}\n\n    if \(editingUserId\) \{[\s\S]*?    setShowAddMemberForm\(false\);\n  \};/, `    if (editingUserId) {
+      const updatePayload = {
+        userId: editingUserId,
+        role: memberRole,
+        permissions: memberPermissions,
+        isActive: memberIsActive,
+        ...(memberPassword.trim() ? { password: memberPassword.trim() } : {})
+      };
+      const ok = await updateUserApi(updatePayload);
+      if (!ok) {
+        alert('ذخیره تغییرات کاربر در سرور انجام نشد.');
         return;
       }
-      setPassChangeSuccess('رمز عبور با موفقیت تغییر کرد.');
-      setCurrentPassInput('');
-      setNewPassInput('');
-      setConfirmPassInput('');
-      setStoredPassHash('');
-      setTimeout(() => setPassChangeSuccess(''), 4000);
-    } catch {
-      alert('ارتباط با سرویس احراز هویت برقرار نشد.');
+      const refreshed = await fetchUsersApi();
+      setUsers(refreshed);
+      setUserManagementNotice(`اطلاعات و دسترسی‌های کاربر "${cleanName}" با موفقیت در سرور به‌روزرسانی شد.`);
+    } else {
+      if (users.some(u => u.username.toLowerCase() === cleanUser.toLowerCase())) {
+        alert('کاربری با این نام کاربری قبلا ثبت شده است.');
+        return;
+      }
+      const regRes = await registerUserApi({
+        username: cleanUser,
+        fullName: cleanName,
+        password: memberPassword.trim(),
+        role: memberRole,
+        permissions: memberPermissions,
+        isActive: memberIsActive
+      });
+      if (!regRes.success || !regRes.user) {
+        alert(regRes.message || 'ایجاد کاربر در سرور انجام نشد.');
+        return;
+      }
+      setUsers(prev => [regRes.user!, ...prev]);
+      setUserManagementNotice(`نویسنده/همکار جدید "${cleanName}" با موفقیت در دیتابیس سرور اضافه شد.`);
     }
-  };`, 'replace password change flow');
+
+    setEditingUserId(null);
+    setMemberFullName('');
+    setMemberUsername('');
+    setMemberPassword('');
+    setMemberRole('writer');
+    setMemberPermissions(['articles', 'editor', 'comments', 'media']);
+    setShowAddMemberForm(false);
+  };`, 'remove user-management client hashing/fallback');
+
+// User list mutations must always be server-confirmed.
+replace(/  const handleToggleUserActive = \(userId: string\) => \{[\s\S]*?  \};\n\n  const handleDeleteUser = \(userId: string\) => \{[\s\S]*?  \};/, `  const handleToggleUserActive = async (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const nextState = !(target.isActive !== false);
+    const ok = await updateUserApi({ userId, isActive: nextState });
+    if (!ok) {
+      alert('تغییر وضعیت کاربر در سرور انجام نشد.');
+      return;
+    }
+    setUsers(await fetchUsersApi());
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('آیا از حذف این کاربر اطمینان دارید؟')) return;
+    const ok = await deleteUserApi(userId);
+    if (!ok) {
+      alert('حذف کاربر از سرور انجام نشد.');
+      return;
+    }
+    setUsers(await fetchUsersApi());
+  };`, 'remove local user-management persistence');
+
+// A server-backed CMS must not silently fall back to browser data when a write fails.
+text = text.replace(/\s*const newUser: UserAccount = regRes\.user \|\| \{[\s\S]*?createdAt: new Date\(\)\.toLocaleDateString\('fa-IR'\)\n    \};/g, '');
+
+// Remove now-unused password-hash state cleanup.
+text = text.replace(/\s*setStoredPassHash\(''\);/g, '');
+
+const forbidden = [
+  'hashPasscode',
+  'DEFAULT_PASSCODE_HASH',
+  'solmint_admin_passcode',
+  'solmint_admin_pass_hash',
+  'solmint_admin_session',
+  'solmint_current_user',
+  'safeSetLocalStorage(\'solmint_users\'',
+  'localStorage.setItem(\'solmint_users\'',
+  'passwordHash: passHash',
+  'passwordHash: activeHash'
+];
+const remaining = forbidden.filter(token => text.includes(token));
+if (remaining.length) {
+  throw new Error(`Frontend auth hardening failed; legacy auth remains: ${remaining.join(', ')}`);
+}
 
 fs.writeFileSync(path, text);
-console.log('Admin frontend authentication hardened.');
+console.log('Admin frontend authentication fully hardened.');
