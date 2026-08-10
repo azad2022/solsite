@@ -6,13 +6,13 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-routes.mjs && node scripts/harden-server-auth-v2.mjs && node scripts/harden-superadmin-routes.mjs && npm run lint && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-routes.mjs && node scripts/harden-server-auth-v2.mjs && node scripts/harden-superadmin-routes.mjs && npm run lint && node scripts/generate-sitemap.js && vite build",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/**/*.test.ts",
-    "deploy:pages": "npx wrangler pages deploy dist"
+    "deploy:pages": "npx wrangler pages deploy dist --project-name=solmint"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
