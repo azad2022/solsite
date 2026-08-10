@@ -59,8 +59,11 @@ if (loginStart !== -1 && updateStart !== -1 && updateStart > loginStart) {
   source = source.slice(0, loginStart) + disabledLogin + source.slice(updateStart);
 }
 
-// Remove duplicated markers left by older hardening passes.
-source = source.replace(/(?:\\s*\\/\\/ Legacy Express login is intentionally disabled\\. Production login is exclusively functions\\/api\\/users\\/login\\.ts\\.\\n){2,}/g, '  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.\n');
+// Remove duplicated legacy-login blocks without a fragile regular expression.
+const legacyLoginLine = '  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.\n';
+while (source.includes(legacyLoginLine + legacyLoginLine)) {
+  source = source.replace(legacyLoginLine + legacyLoginLine, legacyLoginLine);
+}
 
 // Registration must be admin-only and passwords must be hashed on the server.
 const registerStart = source.indexOf('  app.post("/api/users/register"');
