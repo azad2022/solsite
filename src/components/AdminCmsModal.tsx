@@ -182,17 +182,6 @@ interface AdminCmsModalProps {
   onGoToBlog?: () => void;
 }
 
-// SHA-256 helper for client-side password hashing
-async function hashPasscode(pass: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(pass);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Default hash of initial passcode ('solmint1404')
-const DEFAULT_PASSCODE_HASH = 'e591781b0a88ef3988b4d83a15c3ee4b6f1fb048bf2b3041fb81831885b52a4e';
-
 export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   isOpen,
   onClose,
@@ -216,9 +205,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   // Registered Users list
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    return safeGetLocalStorage<UserAccount[]>('solmint_users', []);
-  });
+  const [users, setUsers] = useState<UserAccount[]>([]);
 
   // Passcode & Login State
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -231,18 +218,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
 
-  const [storedPassHash, setStoredPassHash] = useState(() => {
-    return localStorage.getItem('solmint_admin_pass_hash') || DEFAULT_PASSCODE_HASH;
-  });
+  const [storedPassHash, setStoredPassHash] = useState('');
 
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (currentUser?.role === 'admin') return true;
-    const session = safeGetLocalStorage<{ expiry: number } | null>('solmint_admin_session', null);
-    if (session) {
-      return Date.now() < session.expiry;
-    }
-    return false;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(currentUser));
 
   const [authError, setAuthError] = useState('');
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -334,39 +312,39 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     syncUsersAndData();
   }, [isOpen]);
   useEffect(() => {
-    if (isOpen && isAuthenticated) {
-      // Validate server session auth
-      const passcode = (localStorage.getItem('solmint_admin_passcode') || 'solmint1404').trim().replace(/^["']|["']$/g, '');
-      fetch('/api/media/config', {
-        headers: {
-          'x-admin-passcode': passcode,
-          'Authorization': `Bearer ${passcode}`
-        }
-      }).then(res => {
-        if (res.status === 401) {
-          // Passcode invalid or expired, reset auth state
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch('/api/users/me', { credentials: 'include', cache: 'no-store' })
+      .then(async res => {
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (res.ok && data?.success && data.user) {
+          setCurrentUser(data.user);
+          setIsAuthenticated(true);
+          setAuthError('');
+          getAllMediaAssets().then(assets => { if (!cancelled) setGithubMediaAssets(assets || []); });
+          getMediaStorageConfig().then(cfg => {
+            if (!cancelled && cfg) {
+              setMediaConfigState(cfg);
+              setConfigOwner(cfg.githubOwner || 'azad2022');
+              setConfigRepo(cfg.githubRepository || 'solmint-media');
+              setConfigBranch(cfg.branch || 'main');
+              setConfigBasePath(cfg.basePath || 'articles/');
+            }
+          });
+        } else {
           setIsAuthenticated(false);
           setCurrentUser(null);
-          localStorage.removeItem('solmint_admin_session');
-          localStorage.removeItem('solmint_current_user');
-          setAuthError('نشست کاری شما منقضی شده یا رمز عبور نامعتبر است. لطفاً مجدداً وارد شوید.');
-          return;
         }
-        getAllMediaAssets().then(assets => setGithubMediaAssets(assets || []));
-        getMediaStorageConfig().then(cfg => {
-          if (cfg) {
-            setMediaConfigState(cfg);
-            setConfigOwner(cfg.githubOwner || 'azad2022');
-            setConfigRepo(cfg.githubRepository || 'solmint-media');
-            setConfigBranch(cfg.branch || 'main');
-            setConfigBasePath(cfg.basePath || 'articles/');
-          }
-        });
-      }).catch(() => {
-        getAllMediaAssets().then(assets => setGithubMediaAssets(assets || []));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        }
       });
-    }
-  }, [isOpen, isAuthenticated]);
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   const handleRefreshMediaAssets = async () => {
     const assets = await getAllMediaAssets();
@@ -919,112 +897,39 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
 
   if (!isOpen) return null;
 
-  // UNIFIED AUTH: LOGIN FOR ADMIN AND USERS
+  // UNIFIED AUTH: server-only login for admin and users
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lockoutTimer > 0) return;
-
     const identifier = loginIdentifier.trim();
     const pass = loginPassword.trim();
-    if (!identifier && !pass) return;
-
-    const inputHash = await hashPasscode(pass || identifier);
-
-    // Call real backend authentication API
-    let authRes = await loginUserApi({
-      username: identifier,
-      passwordHash: inputHash,
-      passcode: pass
-    });
-
-    // Fallback authentication for static deployments (e.g. status 405 or server offline)
-    if (!authRes.success) {
-      const cleanIdent = identifier.toLowerCase();
-      const savedPasscode = (localStorage.getItem('solmint_admin_passcode') || '').trim();
-      const savedHash = (localStorage.getItem('solmint_admin_pass_hash') || '').trim();
-
-      const activePasscode = savedPasscode || 'solmint1404';
-      const activeHash = savedHash || DEFAULT_PASSCODE_HASH;
-
-      if (cleanIdent === 'admin') {
-        const isPassValid = (pass === activePasscode) || (inputHash === activeHash);
-        if (isPassValid) {
-          const adminUser: UserAccount = {
-            id: 'admin-1',
-            username: 'admin',
-            fullName: 'مدیر ارشد پلتفرم (SuperAdmin)',
-            role: 'superadmin',
-            passwordHash: activeHash,
-            permissions: ALL_ADMIN_PERMISSIONS,
-            isActive: true,
-            createdAt: '۱۴۰۴/۰۱/۰۱'
-          };
-          authRes = {
-            success: true,
-            user: adminUser,
-            isSuperAdmin: true
-          };
-        } else {
-          authRes = {
-            success: false,
-            message: 'نام کاربری یا رمز عبور مدیر اشتباه است.'
-          };
-        }
-      } else {
-        const localList = users.length > 0 ? users : safeGetLocalStorage<UserAccount[]>('solmint_users', []);
-        const localFound = localList.find(u => u.username.toLowerCase() === cleanIdent);
-        if (localFound) {
-          const isUserPassValid = 
-            (localFound.passwordHash === inputHash) || 
-            (localFound.passwordHash === pass) || 
-            (localFound.role === 'superadmin' && pass === activePasscode);
-
-          if (isUserPassValid) {
-            if (localFound.isActive === false) {
-              authRes = { success: false, message: 'حساب کاربری شما توسط مدیریت غیرفعال شده است.' };
-            } else {
-              authRes = { success: true, user: localFound };
-            }
-          } else {
-            authRes = { success: false, message: 'رمز عبور وارد شده اشتباه است.' };
-          }
-        }
-      }
-    }
-
-    if (authRes.success && authRes.user) {
-      const user = authRes.user;
-      setIsAuthenticated(true);
-      if (pass) {
-        localStorage.setItem('solmint_admin_passcode', pass);
-        localStorage.setItem('solmint_admin_pass_hash', inputHash);
-      }
-      const sessionData = { expiry: Date.now() + 2 * 60 * 60 * 1000 };
-      localStorage.setItem('solmint_admin_session', JSON.stringify(sessionData));
-      setAuthError('');
-
-      const userPerms = user.permissions && user.permissions.length > 0 
-        ? user.permissions 
-        : (user.role === 'superadmin' || user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
-      if (!userPerms.includes(adminTab)) {
-        setAdminTab(userPerms[0] || 'articles');
-      }
-
-      setCurrentUser(user);
-      localStorage.setItem('solmint_current_user', JSON.stringify(user));
-      setAuthError('');
-      setFailedAttempts(0);
+    if (!identifier || !pass) {
+      setAuthError('نام کاربری و رمز عبور الزامی است.');
       return;
     }
 
-    // Failed attempt
+    const authRes = await loginUserApi({ username: identifier, passcode: pass });
+    if (authRes.success && authRes.user) {
+      const user = authRes.user;
+      setIsAuthenticated(true);
+      setCurrentUser(user);
+      setAuthError('');
+      setFailedAttempts(0);
+      setLoginPassword('');
+      const userPerms = user.permissions && user.permissions.length > 0
+        ? user.permissions
+        : (user.role === 'superadmin' || user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
+      if (!userPerms.includes(adminTab)) setAdminTab(userPerms[0] || 'articles');
+      return;
+    }
+
     const attempts = failedAttempts + 1;
     setFailedAttempts(attempts);
     if (attempts >= 3) {
       setLockoutTimer(60);
       setAuthError('تعداد تلاش‌های ناموفق بیش از حد مجاز است. سیستم برای ۶۰ ثانیه قفل شد.');
     } else {
-      setAuthError(authRes.message || `اطلاعات ورود نادرست است. (${3 - attempts} تلاش باقی مانده)`);
+      setAuthError(authRes.message || ('اطلاعات ورود نادرست است. (' + (3 - attempts) + ' تلاش باقی مانده)'));
     }
   };
 
@@ -1100,66 +1005,44 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
     alert('ثبت‌نام حساب کاربری شما با موفقیت در دیتابیس سرور انجام شد.');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await fetch('/api/users/logout', { method: 'POST', credentials: 'include' }); } catch {}
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem('solmint_admin_session');
-    localStorage.removeItem('solmint_current_user');
     setLoginIdentifier('');
     setLoginPassword('');
   };
 
   const handleChangePasscode = async (e: React.FormEvent) => {
     e.preventDefault();
-    const currentInputHash = await hashPasscode(currentPassInput.trim());
-    const savedPasscode = (localStorage.getItem('solmint_admin_passcode') || '').trim();
-    const savedHash = (localStorage.getItem('solmint_admin_pass_hash') || '').trim();
-
-    const activePasscode = savedPasscode || 'solmint1404';
-    const activeHash = savedHash || DEFAULT_PASSCODE_HASH;
-
-    const isCurrentCorrect =
-      currentPassInput.trim() === activePasscode ||
-      currentInputHash === activeHash;
-
-    if (!isCurrentCorrect) {
-      alert('رمز عبور فعلی وارد شده اشتباه است.');
+    if (!currentUser) return;
+    const currentPassword = currentPassInput.trim();
+    const newPassword = newPassInput.trim();
+    if (!currentPassword || newPassword.length < 8 || newPassword !== confirmPassInput.trim()) {
+      alert('رمز فعلی، رمز جدید و تکرار رمز جدید را به‌درستی وارد کنید. رمز جدید باید حداقل ۸ کاراکتر باشد.');
       return;
     }
-    if (newPassInput.trim().length < 6) {
-      alert('رمز عبور جدید باید حداقل ۶ کاراکتر باشد.');
-      return;
-    }
-    if (newPassInput.trim() !== confirmPassInput.trim()) {
-      alert('تکرار رمز عبور جدید مطابقت ندارد.');
-      return;
-    }
-
-    const newPass = newPassInput.trim();
-    const newHash = await hashPasscode(newPass);
-
-    setStoredPassHash(newHash);
-    localStorage.setItem('solmint_admin_pass_hash', newHash);
-    localStorage.setItem('solmint_admin_passcode', newPass);
-
-    // Save on server database
-    await saveCmsSettingsToApi({ security: { adminPasscode: newPass } });
-
-    // Also update local users array
-    const updatedUsers = users.map(u => {
-      if (u.username.toLowerCase() === 'admin' || u.role === 'superadmin') {
-        return { ...u, passwordHash: newHash };
+    try {
+      const res = await fetch('/api/users/change-password', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        alert(data?.message || 'تغییر رمز عبور انجام نشد.');
+        return;
       }
-      return u;
-    });
-    setUsers(updatedUsers);
-    safeSetLocalStorage('solmint_users', updatedUsers);
-
-    setPassChangeSuccess('رمز عبور پنل مدیریت با موفقیت در دیتابیس سرور بروزرسانی شد و رمز عبور قدیمی باطل گردید.');
-    setCurrentPassInput('');
-    setNewPassInput('');
-    setConfirmPassInput('');
-    setTimeout(() => setPassChangeSuccess(''), 4000);
+      setPassChangeSuccess('رمز عبور با موفقیت تغییر کرد.');
+      setCurrentPassInput('');
+      setNewPassInput('');
+      setConfirmPassInput('');
+      setStoredPassHash('');
+      setTimeout(() => setPassChangeSuccess(''), 4000);
+    } catch {
+      alert('ارتباط با سرویس احراز هویت برقرار نشد.');
+    }
   };
 
   // CALCULATE REALTIME SEO SCORE (0-100)
