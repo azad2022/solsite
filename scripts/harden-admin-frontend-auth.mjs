@@ -3,6 +3,47 @@ import fs from 'fs';
 const path = 'src/components/AdminCmsModal.tsx';
 let text = fs.readFileSync(path, 'utf8');
 
+const forbidden = [
+  'hashPasscode',
+  'DEFAULT_PASSCODE_HASH',
+  'solmint_admin_passcode',
+  'solmint_admin_pass_hash',
+  'solmint_admin_session',
+  'solmint_current_user',
+  "safeSetLocalStorage('solmint_users'",
+  "localStorage.setItem('solmint_users'",
+  'passwordHash: passHash',
+  'passwordHash: activeHash'
+];
+
+function assertHardened() {
+  const remaining = forbidden.filter(token => text.includes(token));
+  if (remaining.length) {
+    throw new Error(`Frontend auth hardening failed; legacy auth remains: ${remaining.join(', ')}`);
+  }
+}
+
+// The build runs this script on every deployment. Once the source is clean,
+// validation must succeed without attempting the destructive legacy rewrites again.
+const alreadyHardened = !(
+  text.includes('hashPasscode') ||
+  text.includes('DEFAULT_PASSCODE_HASH') ||
+  text.includes('solmint_admin_passcode') ||
+  text.includes('solmint_admin_pass_hash') ||
+  text.includes('solmint_admin_session') ||
+  text.includes('solmint_current_user') ||
+  text.includes("safeSetLocalStorage('solmint_users'") ||
+  text.includes("localStorage.setItem('solmint_users'") ||
+  text.includes('passwordHash: passHash') ||
+  text.includes('passwordHash: activeHash')
+);
+
+if (alreadyHardened) {
+  assertHardened();
+  console.log('Admin frontend authentication already hardened.');
+  process.exit(0);
+}
+
 function replace(re, value, label) {
   const next = text.replace(re, value);
   if (next === text) throw new Error(`Frontend auth hardening failed: ${label}`);
@@ -118,28 +159,10 @@ replace(/  const handleToggleUserActive = \(userId: string\) => \{[\s\S]*?  \};\
     setUsers(await fetchUsersApi());
   };`, 'remove local user-management persistence');
 
-// A server-backed CMS must not silently fall back to browser data when a write fails.
+// Remove any remaining local fallback user object that could fabricate an account.
 text = text.replace(/\s*const newUser: UserAccount = regRes\.user \|\| \{[\s\S]*?createdAt: new Date\(\)\.toLocaleDateString\('fa-IR'\)\n    \};/g, '');
-
-// Remove now-unused password-hash state cleanup.
 text = text.replace(/\s*setStoredPassHash\(''\);/g, '');
 
-const forbidden = [
-  'hashPasscode',
-  'DEFAULT_PASSCODE_HASH',
-  'solmint_admin_passcode',
-  'solmint_admin_pass_hash',
-  'solmint_admin_session',
-  'solmint_current_user',
-  'safeSetLocalStorage(\'solmint_users\'',
-  'localStorage.setItem(\'solmint_users\'',
-  'passwordHash: passHash',
-  'passwordHash: activeHash'
-];
-const remaining = forbidden.filter(token => text.includes(token));
-if (remaining.length) {
-  throw new Error(`Frontend auth hardening failed; legacy auth remains: ${remaining.join(', ')}`);
-}
-
+assertHardened();
 fs.writeFileSync(path, text);
 console.log('Admin frontend authentication fully hardened.');
