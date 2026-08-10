@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -25,5 +27,20 @@ jobs:
           bun-version: 1.2.15
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Apply authentication hardening
+        run: node scripts/harden-admin-frontend-auth.mjs
+      - name: Verify hardened source
+        run: |
+          ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
+      - name: Persist generated source cleanup
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if ! git diff --quiet -- src/components/AdminCmsModal.tsx; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src/components/AdminCmsModal.tsx
+            git commit -m "security: persist frontend auth cleanup"
+            git push
+          fi
       - name: Production build
-        run: bun run build
+        run: bun run lint && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs
