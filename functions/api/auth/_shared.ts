@@ -4,6 +4,7 @@ export interface Env {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_SECRET_KEY?: string;
+  AUTH_RATE_LIMIT_SECRET?: string;
 }
 
 export interface AuthUser {
@@ -19,6 +20,9 @@ export interface AuthUser {
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const SESSION_COOKIE = '__Host-solmint_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+const LOGIN_MAX_ATTEMPTS = 8;
+const LOGIN_BLOCK_SECONDS = 15 * 60;
 
 export function jsonResponse(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
   return Response.json(body, { status, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', 'CDN-Cache-Control': 'no-store', ...extraHeaders } });
@@ -62,7 +66,9 @@ export async function verifyPassword(password: string, stored: string): Promise<
   }
   const pbkdf2Match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]+)\$([a-f0-9]+)$/i.exec(stored);
   if (pbkdf2Match) {
-    const derived = await pbkdf2(password, pbkdf2Match[3], Number(pbkdf2Match[1]));
+    const iterations = Number(pbkdf2Match[1]);
+    if (!Number.isSafeInteger(iterations) || iterations < 100000 || iterations > 1000000) return { valid: false };
+    const derived = await pbkdf2(password, pbkdf2Match[3], iterations);
     return { valid: derived === pbkdf2Match[4].toLowerCase() };
   }
   const scryptMatch = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(stored);
@@ -85,6 +91,35 @@ async function supabaseRequest(env: Env, path: string, init: RequestInit = {}) {
   const secret = getSecret(env);
   if (!secret) throw new Error('SUPABASE_SECRET_KEY is not configured for the production authentication function.');
   return fetch(`${getBaseUrl(env)}${path}`, { ...init, headers: { apikey: secret, Authorization: `Bearer ${secret}`, ...(init.headers || {}) } });
+}
+
+async function authRateKey(env: Env, request: Request, username: string): Promise<string> {
+  const forwarded = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown';
+  const secret = env.AUTH_RATE_LIMIT_SECRET || getSecret(env);
+  return sha256(`${secret}:${forwarded}:${username.toLowerCase()}`);
+}
+
+export async function checkLoginRateLimit(env: Env, request: Request, username: string): Promise<boolean> {
+  const keyHash = await authRateKey(env, request, username);
+  const response = await supabaseRequest(env, '/rest/v1/rpc/check_auth_login_rate_limit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_key_hash: keyHash, p_max_attempts: LOGIN_MAX_ATTEMPTS, p_window_seconds: LOGIN_WINDOW_SECONDS, p_block_seconds: LOGIN_BLOCK_SECONDS })
+  });
+  if (!response.ok) throw new Error('Authentication rate limiter is unavailable.');
+  return Boolean(await response.json());
+}
+
+export async function recordFailedLogin(env: Env, request: Request, username: string): Promise<void> {
+  const keyHash = await authRateKey(env, request, username);
+  await supabaseRequest(env, '/rest/v1/rpc/record_auth_login_failure', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_key_hash: keyHash, p_window_seconds: LOGIN_WINDOW_SECONDS, p_max_attempts: LOGIN_MAX_ATTEMPTS, p_block_seconds: LOGIN_BLOCK_SECONDS })
+  });
+}
+
+export async function clearLoginRateLimit(env: Env, request: Request, username: string): Promise<void> {
+  const keyHash = await authRateKey(env, request, username);
+  await supabaseRequest(env, `/rest/v1/auth_login_attempts?key_hash=eq.${encodeURIComponent(keyHash)}`, { method: 'DELETE' }).catch(() => {});
 }
 
 export function getSessionToken(request: Request): string {
@@ -116,7 +151,8 @@ export async function getAuthenticatedUser(env: Env, request: Request): Promise<
   if (!userResponse.ok) return null;
   const users = await userResponse.json() as AuthUser[]; const user = users[0];
   if (!user || user.is_active === false) return null;
-  await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ last_seen_at: new Date().toISOString() }) }).catch(() => {});
+  const sessionUpdate = await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ last_seen_at: new Date().toISOString() }) });
+  if (!sessionUpdate.ok) console.warn('Session last_seen_at update failed:', sessionUpdate.status);
   return user;
 }
 
