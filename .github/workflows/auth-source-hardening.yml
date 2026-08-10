@@ -23,7 +23,9 @@ jobs:
           node-version: 22
 
       - name: Apply authentication hardening
-        run: node scripts/harden-server-auth-v2.mjs
+        run: |
+          node scripts/harden-admin-frontend-v2.mjs
+          node scripts/harden-server-auth-v2.mjs
 
       - name: Commit hardened source
         run: |
@@ -33,6 +35,6 @@ jobs:
             echo "Authentication source already hardened."
             exit 0
           fi
-          git add server.ts
-          git commit -m "security: harden server authentication source [auth-hardening]"
+          git add server.ts src/components/AdminCmsModal.tsx
+          git commit -m "security: harden authentication source [auth-hardening]"
           git push
