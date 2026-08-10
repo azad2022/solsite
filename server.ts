@@ -263,7 +263,13 @@ async function startServer() {
     if (userError || !users?.[0] || users[0].is_active === false) return null;
     const user = users[0];
     if (!["admin", "superadmin"].includes(String(user.role))) return null;
-    await authSupabase.from("auth_sessions").update({ last_seen_at: new Date().toISOString() }).eq("token_hash", tokenHash).catch(() => {});
+    const sessionUpdate = await authSupabase
+      .from("auth_sessions")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("token_hash", tokenHash);
+    if (sessionUpdate.error) {
+      console.warn("Session last_seen_at update failed:", sessionUpdate.error.message);
+    }
     return user;
   };
   const isAuthorizedAdmin = async (req: express.Request): Promise<boolean> => Boolean(await getAuthenticatedAdmin(req));
