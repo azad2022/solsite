@@ -2,99 +2,85 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
+// Production authentication for the legacy Express server.
+// The only accepted admin credential is the HttpOnly `solmint_session` cookie
+// issued by functions/api/users/login.ts. No passcodes, bearer passwords,
+// client hashes, or LocalStorage credentials are accepted here.
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-const ADMIN_ENV = String(process.env.ADMIN_PASSCODE || '').trim();
-
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
 
-let authCache = { passcode: ADMIN_ENV, expiresAt: 0 };
-
-function safeEqual(a, b) {
-  const aa = Buffer.from(String(a || ''));
-  const bb = Buffer.from(String(b || ''));
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
-}
-
-function sha256(value) {
+async function sha256(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }
 
-async function getAdminPasscode() {
-  const now = Date.now();
-  if (authCache.expiresAt > now && authCache.passcode) return authCache.passcode;
+function sessionToken(req) {
+  const raw = String(req.headers.cookie || '');
+  const match = raw.match(/(?:^|;\s*)solmint_session=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
 
-  let passcode = ADMIN_ENV;
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('cms_settings')
-        .select('settings_json')
-        .eq('id', 'main_settings')
-        .maybeSingle();
-      const dbPasscode = data?.settings_json?.security?.adminPasscode;
-      if (!error && typeof dbPasscode === 'string' && dbPasscode.trim()) passcode = dbPasscode.trim();
-    } catch (_) {
-      // Fail closed if no environment fallback exists.
-    }
-  }
+async function getAuthenticatedAdmin(req) {
+  if (!supabase) return null;
+  const token = sessionToken(req);
+  if (!token) return null;
 
-  authCache = { passcode, expiresAt: now + 5000 };
-  return passcode;
+  const tokenHash = await sha256(token);
+  const { data: sessions, error: sessionError } = await supabase
+    .from('auth_sessions')
+    .select('user_id,expires_at')
+    .eq('token_hash', tokenHash)
+    .limit(1);
+
+  if (sessionError || !sessions?.[0]) return null;
+  if (!sessions[0].expires_at || Date.parse(sessions[0].expires_at) <= Date.now()) return null;
+
+  const { data: users, error: userError } = await supabase
+    .from('users')
+    .select('id,username,full_name,role,permissions,is_active,created_at')
+    .eq('id', sessions[0].user_id)
+    .limit(1);
+
+  if (userError || !users?.[0] || users[0].is_active === false) return null;
+  const user = users[0];
+  if (!['superadmin', 'admin'].includes(String(user.role))) return null;
+
+  await supabase
+    .from('auth_sessions')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('token_hash', tokenHash)
+    .catch(() => {});
+
+  return user;
 }
 
 async function requireAdmin(req, res, next) {
-  const configured = await getAdminPasscode();
-  if (!configured) {
-    return res.status(503).json({ success: false, message: 'احراز هویت مدیریت در محیط Production پیکربندی نشده است.' });
+  try {
+    const user = await getAuthenticatedAdmin(req);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'نشست مدیریتی معتبر نیست یا منقضی شده است.'
+      });
+    }
+    req.__authenticatedAdmin = user;
+    next();
+  } catch (error) {
+    console.error('Production session authentication error:', error?.message || error);
+    return res.status(503).json({ success: false, message: 'سرویس احراز هویت در دسترس نیست.' });
   }
-
-  const headerPasscode = String(req.headers['x-admin-passcode'] || '').trim();
-  const auth = String(req.headers.authorization || '').trim();
-  const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  const supplied = headerPasscode || bearer;
-
-  if (!safeEqual(supplied, configured)) {
-    return res.status(401).json({ success: false, message: 'دسترسی غیرمجاز.' });
-  }
-
-  req.__hardeningPasscode = configured;
-  next();
 }
 
-async function protectAdminLogin(req, res, next) {
-  const username = String(req.body?.username || '').trim().toLowerCase();
-  if (username !== 'admin') return next();
-
-  const configured = await getAdminPasscode();
-  if (!configured && !supabase) {
-    return res.status(503).json({ success: false, message: 'احراز هویت مدیر پیکربندی نشده است.' });
-  }
-
-  const suppliedPasscode = String(req.body?.passcode || '').trim();
-  const suppliedHash = String(req.body?.passwordHash || '').trim();
-  const suppliedPassword = String(req.body?.password || '').trim();
-
-  let storedHash = '';
-  if (supabase) {
-    try {
-      const { data } = await supabase.from('users').select('password_hash,is_active').eq('username', 'admin').maybeSingle();
-      if (data?.is_active === false) return res.status(403).json({ success: false, message: 'حساب مدیر غیرفعال است.' });
-      storedHash = String(data?.password_hash || '').trim();
-    } catch (_) {}
-  }
-
-  const validPasscode = configured && safeEqual(suppliedPasscode, configured);
-  const validHash = storedHash && safeEqual(suppliedHash, storedHash);
-  const validPassword = storedHash && safeEqual(sha256(suppliedPassword), storedHash);
-
-  if (!validPasscode && !validHash && !validPassword) {
-    return res.status(401).json({ success: false, message: 'نام کاربری یا رمز عبور مدیر اشتباه است.' });
-  }
-
-  next();
+// The old Express login endpoint is deliberately disabled. Production login is
+// exclusively functions/api/users/login.ts, which creates the HttpOnly session.
+function rejectLegacyLogin(req, res) {
+  return res.status(410).json({
+    success: false,
+    code: 'LEGACY_AUTH_DISABLED',
+    message: 'این مسیر احراز هویت قدیمی غیرفعال است. از احراز هویت سروری استفاده کنید.'
+  });
 }
 
 async function getMediaConfig() {
@@ -134,14 +120,13 @@ async function saveMediaConfig(config, connectionStatus) {
 async function syncMediaConfigIntoServer(req) {
   const config = await getMediaConfig();
   if (!config) return;
-
   const port = Number(process.env.PORT || 3000);
   try {
     await fetch(`http://127.0.0.1:${port}/api/media/config`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-admin-passcode': req.__hardeningPasscode || ''
+        cookie: String(req.headers.cookie || '')
       },
       body: JSON.stringify({ config })
     });
@@ -153,8 +138,8 @@ async function syncMediaConfigIntoServer(req) {
 async function moderatePublicComment(body, responseBody) {
   const comment = responseBody?.comment;
   if (!comment?.id) return responseBody;
-
   const moderated = { ...comment, approved: false };
+
   try {
     const { saveComment } = await import('../src/utils/serverDataStore.ts');
     saveComment(moderated);
@@ -200,7 +185,6 @@ const ADMIN_POST_PATHS = new Set([
   '/api/comments/delete',
   '/api/articles'
 ]);
-
 const ADMIN_GET_PATHS = new Set(['/api/users', '/api/comments']);
 const MEDIA_POST_PATHS = new Set([
   '/api/media/config',
@@ -233,7 +217,7 @@ function wrapHandlers(path, handlers, options = {}) {
 
 express.application.post = function(path, ...handlers) {
   if (path === '/api/users/login') {
-    return originalPost.call(this, path, protectAdminLogin, ...handlers);
+    return originalPost.call(this, path, rejectLegacyLogin);
   }
   if (path === '/api/comments/add') {
     return originalPost.call(this, path, ...wrapHandlers(path, handlers, { moderateComment: true }));
@@ -258,25 +242,18 @@ express.application.get = function(path, ...handlers) {
   if (typeof path === 'string' && ADMIN_GET_PATHS.has(path)) {
     return originalGet.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
   }
-
   if (path === '/api/media/config') {
     const mediaGet = async (req, res, next) => {
       const config = await getMediaConfig();
       if (!config) return next();
-      const hasToken = Boolean(process.env.GITHUB_MEDIA_TOKEN || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN);
-      return res.json({
-        config,
-        hasToken,
-        notice: hasToken ? 'کلید دسترسی (GitHub Token) در سرور فعال و متصل است.' : 'توکن GITHUB_TOKEN هنوز تنظیم نشده است.'
-      });
+      const hasToken = Boolean(process.env.GITHUB_MEDIA_TOKEN || process.env.GITHUB_TOKEN);
+      return res.json({ config, hasToken });
     };
     return originalGet.call(this, path, requireAdmin, mediaGet, ...handlers);
   }
-
   return originalGet.call(this, path, ...handlers);
 };
 
-// Persist non-secret Media Library configuration in Supabase. GitHub tokens are never stored here.
 express.response.json = function(body) {
   const req = this.req;
   const path = req?.path || req?.originalUrl?.split('?')[0];
@@ -288,4 +265,4 @@ express.response.json = function(body) {
   return originalJson.call(this, body);
 };
 
-console.info('✓ Production hardening layer loaded: admin API authorization, comment moderation, and persistent media configuration.');
+console.info('✓ Production hardening loaded: HttpOnly session authentication only; legacy admin passcode authentication disabled.');
