@@ -1,3 +1,5 @@
+import { scrypt as nodeScrypt } from 'node:crypto';
+
 export interface Env {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -41,8 +43,18 @@ function hexToBytes(hex: string): Uint8Array { const out = new Uint8Array(hex.le
 
 async function randomHex(bytes = 16): Promise<string> { const data = new Uint8Array(bytes); crypto.getRandomValues(data); return bytesToHex(data); }
 
+function scryptDerive(password: string, salt: Uint8Array, N: number, r: number, p: number, dkLen: number): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    nodeScrypt(Buffer.from(password, 'utf8'), Buffer.from(salt), dkLen, { N, r, p, maxmem: Math.max(32 * 1024 * 1024, 128 * N * r + 1024 * 1024) }, (error, derivedKey) => {
+      if (error) reject(error);
+      else resolve(new Uint8Array(derivedKey));
+    });
+  });
+}
+
 export async function verifyPassword(password: string, stored: string): Promise<{ valid: boolean; upgradedHash?: string }> {
   if (!password || !stored) return { valid: false };
+
   if (/^[a-f0-9]{64}$/i.test(stored)) {
     const legacy = await sha256(password);
     if (legacy !== stored.toLowerCase()) return { valid: false };
@@ -51,10 +63,36 @@ export async function verifyPassword(password: string, stored: string): Promise<
     const derived = await pbkdf2(password, salt, iterations);
     return { valid: true, upgradedHash: `pbkdf2-sha256$${iterations}$${salt}$${derived}` };
   }
-  const match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]+)\$([a-f0-9]+)$/i.exec(stored);
-  if (!match) return { valid: false };
-  const derived = await pbkdf2(password, match[3], Number(match[1]));
-  return { valid: derived === match[4].toLowerCase() };
+
+  const pbkdf2Match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]+)\$([a-f0-9]+)$/i.exec(stored);
+  if (pbkdf2Match) {
+    const derived = await pbkdf2(password, pbkdf2Match[3], Number(pbkdf2Match[1]));
+    return { valid: derived === pbkdf2Match[4].toLowerCase() };
+  }
+
+  // Compatibility with the initial production admin record. New passwords are upgraded to PBKDF2 after login.
+  const scryptMatch = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(stored);
+  if (scryptMatch) {
+    try {
+      const N = Number(scryptMatch[1]);
+      const r = Number(scryptMatch[2]);
+      const p = Number(scryptMatch[3]);
+      const salt = Buffer.from(scryptMatch[4], 'base64url');
+      const expected = Buffer.from(scryptMatch[5], 'base64url');
+      const derived = await scryptDerive(password, salt, N, r, p, expected.length);
+      if (derived.length !== expected.length) return { valid: false };
+      let diff = 0;
+      for (let i = 0; i < expected.length; i++) diff |= derived[i] ^ expected[i];
+      if (diff !== 0) return { valid: false };
+      const newSalt = await randomHex(16);
+      const newDerived = await pbkdf2(password, newSalt, 310000);
+      return { valid: true, upgradedHash: `pbkdf2-sha256$310000$${newSalt}$${newDerived}` };
+    } catch {
+      return { valid: false };
+    }
+  }
+
+  return { valid: false };
 }
 
 async function supabaseRequest(env: Env, path: string, init: RequestInit = {}) {
