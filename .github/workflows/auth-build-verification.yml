@@ -1,0 +1,26 @@
+name: Authentication build verification
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify hardening scripts parse
+        run: |
+          node --check scripts/harden-admin-frontend-v2.mjs
+          node --check scripts/harden-server-auth-v2.mjs
+      - name: Build production bundle
+        run: bun run build
