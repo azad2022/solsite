@@ -23,6 +23,7 @@ export function installAuthStorageGuard(): void {
 
     const originalSetItem = Storage.prototype.setItem;
     const originalGetItem = Storage.prototype.getItem;
+    const originalRemoveItem = Storage.prototype.removeItem;
 
     Storage.prototype.setItem = function(key: string, value: string): void {
       if (this === storage && LEGACY_AUTH_KEYS.has(key)) return;
@@ -33,8 +34,20 @@ export function installAuthStorageGuard(): void {
       if (this === storage && LEGACY_AUTH_KEYS.has(key)) return null;
       return originalGetItem.call(this, key);
     };
+
+    Storage.prototype.removeItem = function(key: string): void {
+      if (this === storage && LEGACY_AUTH_KEYS.has(key)) {
+        // Legacy UI logout code is retained only for compatibility. The actual
+        // logout is always performed against the server-owned session.
+        if (key === 'solmint_current_user' || key === 'solmint_admin_session') {
+          void fetch('/api/users/logout', { method: 'POST', credentials: 'include', cache: 'no-store' }).catch(() => undefined);
+        }
+        return;
+      }
+      return originalRemoveItem.call(this, key);
+    };
   } catch {
-    // Security guard is defense-in-depth; server authorization remains authoritative.
+    // Server authorization remains authoritative even if this defense-in-depth guard cannot install.
   }
 }
 
