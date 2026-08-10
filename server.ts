@@ -242,33 +242,41 @@ async function startServer() {
     };
   };
 
-  // Admin authentication check helper for sensitive API endpoints
-  const isAuthorizedAdmin = (req: express.Request): boolean => {
-    const cmsSettings = getCmsSettings();
-    const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "").replace(/^["']|["']$/g, '').trim();
-
-    if (!currentAdminPasscode) return false;
-
-    const passcodeHeader = (req.headers["x-admin-passcode"] as string || "").trim();
-    const authHeader = (req.headers["authorization"] || "").trim();
-
-    if (passcodeHeader && passcodeHeader === currentAdminPasscode) return true;
-    if (authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7).trim();
-      if (token === currentAdminPasscode) return true;
-    }
-
-    return false;
+// Production admin authentication: only the HttpOnly __Host-solmint_session cookie is accepted.
+  const authSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+  const authSupabase = authSupabaseKey && SUPABASE_URL
+    ? createClient(SUPABASE_URL, authSupabaseKey, { auth: { persistSession: false, autoRefreshToken: false } })
+    : null;
+  const getSessionToken = (req: express.Request): string => {
+    const cookie = String(req.headers.cookie || "");
+    const match = cookie.match(/(?:^|;\s*)__Host-solmint_session=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
   };
-
-  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (!isAuthorizedAdmin(req)) {
-      return res.status(401).json({
-        success: false,
-        message: "دسترسی غیرمجاز. برای انجام این عملیات باید به عنوان مدیر سیستم احراز هویت شده باشید."
-      });
+  const getAuthenticatedAdmin = async (req: express.Request): Promise<any | null> => {
+    if (!authSupabase) return null;
+    const token = getSessionToken(req);
+    if (!token) return null;
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const { data: sessions, error: sessionError } = await authSupabase.from("auth_sessions").select("user_id,expires_at").eq("token_hash", tokenHash).limit(1);
+    if (sessionError || !sessions?.[0] || !sessions[0].expires_at || Date.parse(sessions[0].expires_at) <= Date.now()) return null;
+    const { data: users, error: userError } = await authSupabase.from("users").select("id,username,full_name,role,permissions,is_active,created_at").eq("id", sessions[0].user_id).limit(1);
+    if (userError || !users?.[0] || users[0].is_active === false) return null;
+    const user = users[0];
+    if (!["admin", "superadmin"].includes(String(user.role))) return null;
+    await authSupabase.from("auth_sessions").update({ last_seen_at: new Date().toISOString() }).eq("token_hash", tokenHash).catch(() => {});
+    return user;
+  };
+  const isAuthorizedAdmin = async (req: express.Request): Promise<boolean> => Boolean(await getAuthenticatedAdmin(req));
+  const requireAdminAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      const user = await getAuthenticatedAdmin(req);
+      if (!user) return res.status(401).json({ success: false, message: "نشست مدیریتی معتبر نیست یا منقضی شده است." });
+      (req as any).__authenticatedAdmin = user;
+      next();
+    } catch (error) {
+      console.error("Production authentication error:", error);
+      return res.status(503).json({ success: false, message: "سرویس احراز هویت در دسترس نیست." });
     }
-    next();
   };
 
   // Dedicated production cron authentication. This endpoint never accepts the public admin UI passcode.
@@ -399,76 +407,8 @@ async function startServer() {
     }
   });
 
-  app.post("/api/users/login", (req, res) => {
-    try {
-      const { username, passwordHash, passcode } = req.body || {};
-      const cleanUsername = String(username || "").trim().toLowerCase();
-      const suppliedPass = String(passcode || "").trim();
-      const suppliedHash = String(passwordHash || "").trim();
-      const hashedSuppliedPass = suppliedPass ? hashString(suppliedPass) : "";
-
-      const cmsSettings = getCmsSettings();
-      const currentAdminPasscode = (cmsSettings.security?.adminPasscode || process.env.ADMIN_PASSCODE || "solmint1404").replace(/^["']|["']$/g, '').trim();
-
-      const users = getAllUsers();
-      const adminUserInDb = users.find(u => u.username.toLowerCase() === "admin");
-
-      // Check if trying to login as admin / superadmin
-      if (cleanUsername === "admin") {
-        let isPassValid = false;
-
-        if (suppliedPass && suppliedPass === currentAdminPasscode) {
-          isPassValid = true;
-        } else if (adminUserInDb && adminUserInDb.passwordHash) {
-          if (suppliedHash && suppliedHash === adminUserInDb.passwordHash) isPassValid = true;
-          else if (suppliedPass && suppliedPass === adminUserInDb.passwordHash) isPassValid = true;
-          else if (hashedSuppliedPass && hashedSuppliedPass === adminUserInDb.passwordHash) isPassValid = true;
-        } else if (suppliedPass && suppliedPass === "solmint1404") {
-          isPassValid = true;
-        }
-
-        if (!isPassValid) {
-          return res.status(401).json({ success: false, message: "نام کاربری یا رمز عبور مدیر اشتباه است." });
-        }
-
-        const adminUser = adminUserInDb || {
-          id: "admin-1",
-          username: "admin",
-          fullName: "مدیر ارشد پلتفرم (SuperAdmin)",
-          role: "superadmin",
-          passwordHash: suppliedHash || hashString(currentAdminPasscode),
-          permissions: ["articles", "editor", "comments", "media", "seo", "audit", "redirects", "downloads", "deepseek", "chatbot", "database", "security", "users"],
-          isActive: true,
-          createdAt: "۱۴۰۴/۰۱/۰۱"
-        };
-        return res.json({ success: true, user: adminUser, isSuperAdmin: true });
-      }
-
-      // Standard user login
-      const found = users.find(u => u.username.toLowerCase() === cleanUsername);
-      if (!found) {
-        return res.status(401).json({ success: false, message: "کاربری با این نام کاربری یافت نشد." });
-      }
-
-      if (found.isActive === false) {
-        return res.status(403).json({ success: false, message: "حساب کاربری شما توسط مدیریت غیرفعال شده است." });
-      }
-
-      const isUserPassValid =
-        (suppliedHash && found.passwordHash === suppliedHash) ||
-        (suppliedPass && found.passwordHash === suppliedPass) ||
-        (hashedSuppliedPass && found.passwordHash === hashedSuppliedPass) ||
-        (found.role === "superadmin" && suppliedPass === currentAdminPasscode);
-
-      if (isUserPassValid) {
-        return res.json({ success: true, user: found, isSuperAdmin: found.role === "superadmin" });
-      } else {
-        return res.status(401).json({ success: false, message: "رمز عبور وارد شده اشتباه است." });
-      }
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
+  // Legacy Express login is intentionally disabled. Production login is exclusively functions/api/users/login.ts.
+  app.post("/api/users/login", (req, res) => res.status(410).json({ success: false, code: "LEGACY_AUTH_DISABLED", message: "این مسیر احراز هویت قدیمی غیرفعال است." }));
 
   app.post("/api/users/update", requireAdminAuth, (req, res) => {
     try {
