@@ -1,68 +1,36 @@
 import { MediaAsset, MediaStorageConfig, DEFAULT_MEDIA_STORAGE_CONFIG } from '../types';
-import { getSupabaseClient } from './supabaseClient';
 
-const MEDIA_FUNCTION_NAME = 'github-media';
-
-function getAdminPasscode(): string {
-  if (typeof window === 'undefined') return '';
-  return (
-    localStorage.getItem('solmint_admin_passcode') ||
-    localStorage.getItem('solmint_passcode') ||
-    ''
-  ).trim();
-}
-
-function safeTextToJson(text: string | null | undefined): any | null {
-  if (!text) return null;
+async function serverJson<T = any>(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; data: T | null }> {
   try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
+    const res = await fetch(url, { ...init, credentials: 'include', cache: 'no-store', headers: { ...(init.headers || {}) } });
+    const text = await res.text();
+    let data: T | null = null;
+    try { data = text ? JSON.parse(text) as T : null; } catch { data = null; }
+    return { ok: res.ok, status: res.status, data };
+  } catch { return { ok: false, status: 0, data: null }; }
 }
 
-async function extractResponseMessage(err: unknown, fallback: string): Promise<string> {
-  const error = err as any;
-  let message = error?.message || fallback;
-  try {
-    const context = error?.context;
-    if (context && typeof context.text === 'function') {
-      const raw = await context.text();
-      const parsed = safeTextToJson(raw);
-      if (parsed?.message) {
-        message = parsed.message;
-        if (parsed.errorCode && parsed.stage) {
-          message = `[${parsed.errorCode}] ${parsed.stage}: ${parsed.message}`;
-        }
-      } else if (typeof parsed?.raw === 'string' && parsed.raw.trim()) {
-        message = parsed.raw;
-      } else if (!raw) {
-        message = 'پاسخی از سرویس رسانه دریافت نشد.';
-      }
-    }
-  } catch {
-    // keep original message
-  }
-  return message;
-}
-
+/** Privileged media operations use only the server-owned HttpOnly session cookie. */
 async function invokeMediaGateway(action: string, body: Record<string, any> = {}) {
-  const client = getSupabaseClient();
-  if (!client) throw new Error('اتصال Supabase برای سرویس کتابخانه تصاویر در دسترس نیست.');
-  const passcode = getAdminPasscode();
-  if (!passcode) throw new Error('نشست مدیر سیستم معتبر نیست. لطفاً دوباره وارد پنل شوید.');
-
-  const { data, error } = await client.functions.invoke(MEDIA_FUNCTION_NAME, {
-    body: { action, ...body },
-    headers: { 'x-admin-passcode': passcode }
-  });
-
-  if (error) {
-    const message = await extractResponseMessage(error, 'ارتباط با سرویس کتابخانه تصاویر ناموفق بود.');
-    throw new Error(message);
+  const routes: Record<string, { method: string; path: string }> = {
+    'get-config': { method: 'GET', path: '/api/media/config' },
+    'save-config': { method: 'POST', path: '/api/media/config' },
+    'test': { method: 'POST', path: '/api/media/test-connection' },
+    'list': { method: 'GET', path: '/api/media/assets' },
+    'upload': { method: 'POST', path: '/api/media/upload' },
+    'delete': { method: 'POST', path: '/api/media/delete' },
+    'migrate': { method: 'POST', path: '/api/media/migrate' }
+  };
+  const route = routes[action];
+  if (!route) throw new Error('عملیات رسانه ناشناخته است.');
+  const init: RequestInit = { method: route.method };
+  if (route.method !== 'GET') { init.headers = { 'Content-Type': 'application/json' }; init.body = JSON.stringify(body); }
+  const result = await serverJson(route.path, init);
+  if (!result.ok) {
+    if (result.status === 401 || result.status === 403) throw new Error('نشست مدیر معتبر نیست. لطفاً دوباره وارد پنل شوید.');
+    throw new Error((result.data as any)?.message || 'ارتباط با سرویس کتابخانه تصاویر ناموفق بود.');
   }
-
-  return data || {};
+  return result.data || {};
 }
 
 export function generateSeoFilename(inputName: string, targetExt: string = 'webp'): string {
@@ -70,22 +38,20 @@ export function generateSeoFilename(inputName: string, targetExt: string = 'webp
   const lastDot = inputName.lastIndexOf('.');
   const baseName = lastDot > 0 ? inputName.substring(0, lastDot) : inputName;
   const charMap: Record<string, string> = {
-    'آ': 'a', 'ا': 'a', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ث': 's', 'ج': 'j', 'چ': 'ch',
-    'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'ژ': 'zh', 'س': 's',
-    'ش': 'sh', 'ص': 's', 'ض': 'z', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f',
-    'ق': 'gh', 'ک': 'k', 'گ': 'g', 'ل': 'l', 'م': 'm', 'ن': 'n', 'و': 'v', 'ه': 'h',
-    'ی': 'y', 'ي': 'y', 'ك': 'k', ' ': '-', '_': '-'
+    'آ': 'a', 'ا': 'a', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ث': 's', 'ج': 'j', 'چ': 'ch', 'ح': 'h', 'خ': 'kh',
+    'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'ژ': 'zh', 'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'z', 'ط': 't',
+    'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'gh', 'ک': 'k', 'گ': 'g', 'ل': 'l', 'م': 'm', 'ن': 'n',
+    'و': 'v', 'ه': 'h', 'ی': 'y', 'ي': 'y', 'ك': 'k', ' ': '-', '_': '-'
   };
-  let cleanStr = baseName.split('').map(c => charMap[c] !== undefined ? charMap[c] : c).join('').toLowerCase()
-    .replace(/[^a-z0-9\-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  let cleanStr = baseName.split('').map(c => charMap[c] !== undefined ? charMap[c] : c).join('').toLowerCase().replace(/[^a-z0-9\-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
   if (!cleanStr) cleanStr = `image-${Date.now()}`;
   return `${cleanStr}.${targetExt}`;
 }
 
-export async function optimizeImageFile(file: File, maxWidth: number = 1920, maxHeight: number = 1080, quality: number = 0.82): Promise<{ base64: string; width: number; height: number; mimeType: string; sizeBytes: number }> {
+export async function optimizeImageFile(file: File, maxWidth = 1920, maxHeight = 1080, quality = 0.82): Promise<{ base64: string; width: number; height: number; mimeType: string; sizeBytes: number }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = e => {
       const img = new Image();
       img.onload = () => {
         let width = img.width, height = img.height;
@@ -113,126 +79,45 @@ export async function optimizeImageFile(file: File, maxWidth: number = 1920, max
 }
 
 export async function getMediaStorageConfig(): Promise<MediaStorageConfig> {
-  try {
-    const data = await invokeMediaGateway('get-config');
-    if (data?.config) {
-      localStorage.setItem('solmint_media_config', JSON.stringify(data.config));
-      return data.config as MediaStorageConfig;
-    }
-  } catch {
-    // fall back to cache/default config
-  }
-  const local = localStorage.getItem('solmint_media_config');
-  if (local) { try { return JSON.parse(local); } catch { /* ignore malformed cache */ } }
+  try { const data = await invokeMediaGateway('get-config'); if (data?.config) return data.config as MediaStorageConfig; } catch {}
   return DEFAULT_MEDIA_STORAGE_CONFIG;
 }
 
 export async function saveMediaStorageConfig(config: MediaStorageConfig & { githubToken?: string }): Promise<boolean> {
-  const sanitizedConfig: MediaStorageConfig = {
-    provider: 'github',
-    githubOwner: config.githubOwner.trim(),
-    githubRepository: config.githubRepository.trim(),
-    branch: (config.branch || 'main').trim(),
-    basePath: (config.basePath || 'public/media/articles/').trim(),
-    connectionStatus: config.connectionStatus || 'untested'
-  };
-  const data = await invokeMediaGateway('save-config', { config: sanitizedConfig });
-  if (!data?.success) return false;
-  localStorage.setItem('solmint_media_config', JSON.stringify(data.config || sanitizedConfig));
-  return true;
+  const payload = { config: {
+    provider: 'github', githubOwner: config.githubOwner.trim(), githubRepository: config.githubRepository.trim(), branch: (config.branch || 'main').trim(),
+    basePath: (config.basePath || 'articles/').trim(), connectionStatus: config.connectionStatus || 'untested',
+    ...(config.githubToken ? { githubToken: config.githubToken } : {})
+  }};
+  try { const data = await invokeMediaGateway('save-config', payload); return Boolean(data?.success); } catch { return false; }
 }
 
 export async function testMediaRepositoryConnection(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; details?: any; diagnostics?: any[]; code?: string; stage?: string }> {
   try {
-    const data = await invokeMediaGateway('test', {
-      config: {
-        provider: 'github',
-        githubOwner: config.githubOwner,
-        githubRepository: config.githubRepository,
-        branch: config.branch,
-        basePath: config.basePath
-      }
-    });
-
-    const success = Boolean(data?.success);
-    const message = data?.message || (success ? 'اتصال با موفقیت برقرار شد.' : 'اتصال با موفقیت برقرار نشد.');
-    return {
-      success,
-      message,
-      details: data?.details,
-      diagnostics: data?.diagnostics,
-      code: data?.errorCode,
-      stage: data?.stage
-    };
-  } catch (err: any) {
-    return { success: false, message: err.message || 'برقراری ارتباط با مخزن گیت‌هاب ناموفق بود.' };
-  }
+    const data = await invokeMediaGateway('test', { githubOwner: config.githubOwner, githubRepository: config.githubRepository, branch: config.branch, ...(config.githubToken ? { githubToken: config.githubToken } : {}) });
+    return { success: Boolean(data?.success), message: data?.message || 'اتصال با موفقیت برقرار نشد.', details: data?.details, diagnostics: data?.diagnostics, code: data?.errorCode, stage: data?.stage };
+  } catch (err: any) { return { success: false, message: err.message || 'برقراری ارتباط با مخزن گیت‌هاب ناموفق بود.' }; }
 }
 
-export async function runMediaFullDiagnostic(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; diagnostics?: any[]; details?: any; code?: string; stage?: string }> {
-  const result = await testMediaRepositoryConnection(config);
-  return {
-    success: result.success,
-    message: result.message,
-    diagnostics: result.diagnostics,
-    details: result.details,
-    code: result.code,
-    stage: result.stage
-  };
-}
+export async function runMediaFullDiagnostic(config: MediaStorageConfig & { githubToken?: string }) { return testMediaRepositoryConnection(config); }
 
 export async function getAllMediaAssets(): Promise<MediaAsset[]> {
-  try {
-    const data = await invokeMediaGateway('list');
-    if (Array.isArray(data?.assets)) {
-      localStorage.setItem('solmint_media_assets_cache', JSON.stringify(data.assets));
-      return data.assets as MediaAsset[];
-    }
-  } catch {
-    // fall back to cache so the admin UI remains usable
-  }
-  const cached = localStorage.getItem('solmint_media_assets_cache');
-  if (cached) { try { return JSON.parse(cached); } catch { /* ignore malformed cache */ } }
-  return [];
+  try { const data = await invokeMediaGateway('list'); return Array.isArray(data?.assets) ? data.assets as MediaAsset[] : []; } catch { return []; }
 }
 
-export async function uploadMediaAsset(file: File, customSeoName?: string, altText: string = '', title: string = '', overwrite: boolean = false): Promise<{ success: boolean; asset?: MediaAsset; message: string; code?: string; existingSha?: string }> {
+export async function uploadMediaAsset(file: File, customSeoName?: string, altText = '', title = '', overwrite = false): Promise<{ success: boolean; asset?: MediaAsset; message: string; code?: string; existingSha?: string }> {
   try {
     const optimized = await optimizeImageFile(file);
     const targetFilename = generateSeoFilename(customSeoName || file.name, 'webp');
-    const config = await getMediaStorageConfig();
-    const data = await invokeMediaGateway('upload', {
-      base64: optimized.base64,
-      filename: targetFilename,
-      originalFilename: file.name,
-      mimeType: optimized.mimeType,
-      width: optimized.width,
-      height: optimized.height,
-      altText,
-      title,
-      overwrite,
-      config
-    });
-    if (!data?.success) return { success: false, code: data?.code || data?.errorCode, existingSha: data?.existingSha, message: data?.message || 'خطا در آپلود فایل تصویر به مخزن گیت‌هاب.' };
-    const asset = data.asset as MediaAsset;
-    const existing = await getAllMediaAssets();
-    localStorage.setItem('solmint_media_assets_cache', JSON.stringify([asset, ...existing.filter(a => a.id !== asset.id)]));
-    return { success: true, asset, message: data.message || 'تصویر با موفقیت در مخزن گیت‌هاب آپلود و ثبت گردید.' };
-  } catch (err: any) {
-    return { success: false, message: `خطای پردازش تصویر: ${err.message || 'ناشناخته'}` };
-  }
+    const data = await invokeMediaGateway('upload', { base64: optimized.base64, filename: targetFilename, originalFilename: file.name, mimeType: optimized.mimeType, width: optimized.width, height: optimized.height, altText, title, overwrite });
+    if (!data?.success) return { success: false, code: data?.code || data?.errorCode, existingSha: data?.existingSha, message: data?.message || 'آپلود تصویر ناموفق بود.' };
+    return { success: true, asset: data.asset as MediaAsset, message: data.message || 'تصویر با موفقیت آپلود شد.' };
+  } catch (err: any) { return { success: false, message: err.message || 'خطای پردازش تصویر.' }; }
 }
 
-export async function deleteMediaAsset(asset: MediaAsset, force: boolean = false): Promise<{ success: boolean; message: string }> {
-  try {
-    const data = await invokeMediaGateway('delete', { assetId: asset.id, path: asset.path, sha: asset.sha, force });
-    if (!data?.success) return { success: false, message: data?.message || 'حذف فایل تصویر از مخزن گیت‌هاب ناموفق بود.' };
-    const existing = await getAllMediaAssets();
-    localStorage.setItem('solmint_media_assets_cache', JSON.stringify(existing.filter(a => a.id !== asset.id && a.path !== asset.path)));
-    return { success: true, message: data.message || 'تصویر با موفقیت حذف گردید.' };
-  } catch (err: any) {
-    return { success: false, message: `خطای ارتباط سرور: ${err.message || 'ناشناخته'}` };
-  }
+export async function deleteMediaAsset(asset: MediaAsset, force = false): Promise<{ success: boolean; message: string }> {
+  try { const data = await invokeMediaGateway('delete', { assetId: asset.id, path: asset.path, sha: asset.sha, force }); return { success: Boolean(data?.success), message: data?.message || 'حذف رسانه ناموفق بود.' }; }
+  catch (err: any) { return { success: false, message: err.message || 'حذف رسانه ناموفق بود.' }; }
 }
 
 function validateMigrationConfig(config: MediaStorageConfig, label: string): string | null {
@@ -249,24 +134,11 @@ export async function migrateMediaRepository(sourceConfig: MediaStorageConfig, t
     if (sourceError) return { success: false, message: sourceError };
     const targetError = validateMigrationConfig(targetConfig, 'مخزن مقصد');
     if (targetError) return { success: false, message: targetError };
-
-    const sameRepo = sourceConfig.githubOwner.trim().toLowerCase() === targetConfig.githubOwner.trim().toLowerCase()
-      && sourceConfig.githubRepository.trim().toLowerCase() === targetConfig.githubRepository.trim().toLowerCase()
-      && (sourceConfig.branch || 'main') === (targetConfig.branch || 'main')
-      && (sourceConfig.basePath || '') === (targetConfig.basePath || '');
+    const sameRepo = sourceConfig.githubOwner.trim().toLowerCase() === targetConfig.githubOwner.trim().toLowerCase() && sourceConfig.githubRepository.trim().toLowerCase() === targetConfig.githubRepository.trim().toLowerCase() && (sourceConfig.branch || 'main') === (targetConfig.branch || 'main') && (sourceConfig.basePath || '') === (targetConfig.basePath || '');
     if (sameRepo) return { success: false, message: 'مخزن مبدا و مقصد یکسان هستند؛ مهاجرتی برای انجام وجود ندارد.' };
-
     const assets = await getAllMediaAssets();
-    if (!Array.isArray(assets)) return { success: false, message: 'فهرست تصاویر قابل اعتماد نیست؛ عملیات متوقف شد.' };
-
     const data = await invokeMediaGateway('migrate', { sourceConfig, targetConfig, assets });
     if (!data?.success) return { success: false, message: data?.message || 'مهاجرت کامل نشد؛ اطلاعات فعلی بدون تغییر باقی ماند.', results: data?.results };
-
-    const migratedAssets = Array.isArray(data.migratedAssets) ? data.migratedAssets : [];
-    localStorage.setItem('solmint_media_assets_cache', JSON.stringify(migratedAssets));
-    localStorage.setItem('solmint_media_config', JSON.stringify(targetConfig));
-    return { success: true, message: data.message || 'عملیات انتقال تصاویر با موفقیت تکمیل شد و مقصد جدید فعال گردید.', results: data.results };
-  } catch (err: any) {
-    return { success: false, message: `خطای سرور در انجام مهاجرت؛ اطلاعات فعلی بدون تغییر باقی ماند: ${err.message || 'ناشناخته'}` };
-  }
+    return { success: true, message: data.message || 'مهاجرت با موفقیت تکمیل شد.', results: data.results };
+  } catch (err: any) { return { success: false, message: `خطای سرور در انجام مهاجرت؛ اطلاعات فعلی بدون تغییر باقی ماند: ${err.message || 'ناشناخته'}` }; }
 }
