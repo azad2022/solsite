@@ -1339,7 +1339,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
         role: memberRole,
         permissions: memberPermissions,
         isActive: memberIsActive,
-        ...(passHash ? { passwordHash: passHash } : {})
+        ...(passHash ? { password: passHash } : {})
       });
       setUserManagementNotice(`اطلاعات و دسترسی‌های کاربر "${cleanName}" با موفقیت به‌روزرسانی شد.`);
     } else {
