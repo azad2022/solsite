@@ -68,7 +68,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   if (pbkdf2Match) {
     const iterations = Number(pbkdf2Match[1]);
     if (!Number.isSafeInteger(iterations) || iterations < 100000 || iterations > 1000000) return { valid: false };
-    const derived = await pbkdf2(password, pbkdf2Match[3], iterations);
+    const derived = await pbkdf2(password, pbkdf2Match[2], iterations);
     return { valid: derived === pbkdf2Match[4].toLowerCase() };
   }
   const scryptMatch = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(stored);
@@ -90,7 +90,17 @@ export async function verifyPassword(password: string, stored: string): Promise<
 async function supabaseRequest(env: Env, path: string, init: RequestInit = {}) {
   const secret = getSecret(env);
   if (!secret) throw new Error('SUPABASE_SECRET_KEY is not configured for the production authentication function.');
-  return fetch(`${getBaseUrl(env)}${path}`, { ...init, headers: { apikey: secret, Authorization: `Bearer ${secret}`, ...(init.headers || {}) } });
+  const headers: Record<string, string> = {
+    apikey: secret,
+    ...(init.headers as Record<string, string> || {})
+  };
+  // New Supabase secret keys (sb_secret_...) are API keys, not JWTs. Sending them
+  // as Bearer tokens causes Supabase to reject the request with 401. Legacy
+  // service_role keys are JWTs and still require the Authorization header.
+  if (!env.SUPABASE_SECRET_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
+    headers.Authorization = `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`;
+  }
+  return fetch(`${getBaseUrl(env)}${path}`, { ...init, headers });
 }
 
 async function authRateKey(env: Env, request: Request, username: string): Promise<string> {
