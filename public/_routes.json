@@ -7,6 +7,7 @@
     "/api/comments",
     "/api/comments/*",
     "/api/market/*",
+    "/api/users/*",
     "/solana-token",
     "/solana-wallet",
     "/solana-nft",
