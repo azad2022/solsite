@@ -1,9 +1,11 @@
 import {
   type Env,
+  SupabaseUpstreamError,
   checkLoginRateLimit,
   clearLoginRateLimit,
   createSession,
   findUser,
+  getSupabaseKeyType,
   jsonResponse,
   recordFailedLogin,
   sessionCookie,
@@ -20,7 +22,15 @@ function logAuth(id: string, stage: string, details: Record<string, unknown> = {
   console.log(JSON.stringify({ scope: 'auth-login', requestId: id, stage, ...details }));
 }
 
-function safeError(error: unknown): { name?: string; message: string } {
+function safeError(error: unknown): Record<string, unknown> {
+  if (error instanceof SupabaseUpstreamError) {
+    return {
+      name: error.name,
+      message: error.message,
+      upstreamStatus: error.status,
+      upstreamBody: error.responseBody
+    };
+  }
   if (error instanceof Error) return { name: error.name, message: error.message.slice(0, 500) };
   return { message: String(error).slice(0, 500) };
 }
@@ -28,7 +38,7 @@ function safeError(error: unknown): { name?: string; message: string } {
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   const id = requestId();
   const responseHeaders = { 'X-Auth-Request-ID': id };
-  logAuth(id, 'request:start', { method: request.method, path: new URL(request.url).pathname });
+  logAuth(id, 'request:start', { method: request.method, path: new URL(request.url).pathname, supabaseKeyType: getSupabaseKeyType(env) });
 
   try {
     let body: { username?: unknown; password?: unknown; passwordHash?: unknown; passcode?: unknown };
@@ -54,7 +64,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       logAuth(id, 'rate_limit:success', { allowed });
     } catch (error) {
       logAuth(id, 'rate_limit:error', { error: safeError(error) });
-      return jsonResponse({ success: false, message: 'سرویس محدودکننده تلاش‌های ورود در دسترس نیست.', requestId: id }, 503, responseHeaders);
+      const upstreamStatus = error instanceof SupabaseUpstreamError ? error.status : undefined;
+      return jsonResponse({ success: false, message: 'سرویس محدودکننده تلاش‌های ورود در دسترس نیست.', requestId: id, diagnostic: { stage: 'rate_limit', upstreamStatus } }, 503, responseHeaders);
     }
     if (!allowed) {
       logAuth(id, 'rate_limit:blocked');
@@ -68,7 +79,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       logAuth(id, 'user_lookup:success', { found: Boolean(user), active: user?.is_active ?? null });
     } catch (error) {
       logAuth(id, 'user_lookup:error', { error: safeError(error) });
-      return jsonResponse({ success: false, message: 'سرویس احراز هویت سرور در دسترس نیست.', requestId: id }, 503, responseHeaders);
+      const upstreamStatus = error instanceof SupabaseUpstreamError ? error.status : undefined;
+      return jsonResponse({ success: false, message: 'سرویس احراز هویت سرور در دسترس نیست.', requestId: id, diagnostic: { stage: 'user_lookup', upstreamStatus } }, 503, responseHeaders);
     }
     if (!user || user.is_active === false) {
       logAuth(id, 'credentials:rejected', { reason: !user ? 'user_not_found' : 'user_inactive' });
@@ -98,7 +110,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         logAuth(id, 'password_upgrade:success');
       } catch (error) {
         logAuth(id, 'password_upgrade:error', { error: safeError(error) });
-        return jsonResponse({ success: false, message: 'خطا در به‌روزرسانی امن رمز عبور.', requestId: id }, 500, responseHeaders);
+        const upstreamStatus = error instanceof SupabaseUpstreamError ? error.status : undefined;
+        return jsonResponse({ success: false, message: 'خطا در به‌روزرسانی امن رمز عبور.', requestId: id, diagnostic: { stage: 'password_upgrade', upstreamStatus } }, 500, responseHeaders);
       }
     }
 
@@ -109,7 +122,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       logAuth(id, 'session_create:success');
     } catch (error) {
       logAuth(id, 'session_create:error', { error: safeError(error) });
-      return jsonResponse({ success: false, message: 'خطا در ایجاد نشست کاربری.', requestId: id }, 503, responseHeaders);
+      const upstreamStatus = error instanceof SupabaseUpstreamError ? error.status : undefined;
+      return jsonResponse({ success: false, message: 'خطا در ایجاد نشست کاربری.', requestId: id, diagnostic: { stage: 'session_create', upstreamStatus } }, 503, responseHeaders);
     }
 
     try {
