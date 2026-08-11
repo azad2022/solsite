@@ -17,6 +17,13 @@ export interface AuthUser {
   created_at: string;
 }
 
+export class SupabaseUpstreamError extends Error {
+  constructor(public readonly status: number, public readonly responseBody: string, message = `Supabase upstream returned HTTP ${status}`) {
+    super(message);
+    this.name = 'SupabaseUpstreamError';
+  }
+}
+
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const SESSION_COOKIE = '__Host-solmint_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
@@ -30,6 +37,12 @@ export function jsonResponse(body: unknown, status = 200, extraHeaders: Record<s
 
 function getBaseUrl(env: Env) { return (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, ''); }
 function getSecret(env: Env) { return env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || ''; }
+
+export function getSupabaseKeyType(env: Env): 'secret' | 'legacy-service-role' | 'missing' | 'unknown' {
+  if (env.SUPABASE_SECRET_KEY) return env.SUPABASE_SECRET_KEY.startsWith('sb_secret_') ? 'secret' : 'unknown';
+  if (env.SUPABASE_SERVICE_ROLE_KEY) return 'legacy-service-role';
+  return 'missing';
+}
 
 async function sha256(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -94,13 +107,15 @@ async function supabaseRequest(env: Env, path: string, init: RequestInit = {}) {
     apikey: secret,
     ...(init.headers as Record<string, string> || {})
   };
-  // New Supabase secret keys (sb_secret_...) are API keys, not JWTs. Sending them
-  // as Bearer tokens causes Supabase to reject the request with 401. Legacy
-  // service_role keys are JWTs and still require the Authorization header.
   if (!env.SUPABASE_SECRET_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
     headers.Authorization = `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`;
   }
-  return fetch(`${getBaseUrl(env)}${path}`, { ...init, headers });
+  const response = await fetch(`${getBaseUrl(env)}${path}`, { ...init, headers });
+  if (!response.ok) {
+    const responseBody = (await response.text()).slice(0, 1000);
+    throw new SupabaseUpstreamError(response.status, responseBody);
+  }
+  return response;
 }
 
 async function authRateKey(env: Env, request: Request, username: string): Promise<string> {
@@ -115,7 +130,6 @@ export async function checkLoginRateLimit(env: Env, request: Request, username: 
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ p_key_hash: keyHash, p_max_attempts: LOGIN_MAX_ATTEMPTS, p_window_seconds: LOGIN_WINDOW_SECONDS, p_block_seconds: LOGIN_BLOCK_SECONDS })
   });
-  if (!response.ok) throw new Error('Authentication rate limiter is unavailable.');
   return Boolean(await response.json());
 }
 
@@ -143,7 +157,6 @@ export async function createSession(env: Env, user: AuthUser): Promise<string> {
   const tokenHash = await sha256(rawToken);
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString();
   const response = await supabaseRequest(env, '/rest/v1/auth_sessions', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ user_id: user.id, token_hash: tokenHash, expires_at: expiresAt }) });
-  if (!response.ok) throw new Error(await response.text());
   return rawToken;
 }
 
@@ -153,16 +166,16 @@ export function clearSessionCookie(): string { return `${SESSION_COOKIE}=; Max-A
 export async function getAuthenticatedUser(env: Env, request: Request): Promise<AuthUser | null> {
   const token = getSessionToken(request); if (!token) return null;
   const tokenHash = await sha256(token);
-  const response = await supabaseRequest(env, `/rest/v1/auth_sessions?select=user_id,expires_at&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`);
-  if (!response.ok) return null;
+  let response: Response;
+  try { response = await supabaseRequest(env, `/rest/v1/auth_sessions?select=user_id,expires_at&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`); } catch { return null; }
   const sessions = await response.json() as Array<{ user_id: string; expires_at: string }>;
   const session = sessions[0]; if (!session || Date.parse(session.expires_at) <= Date.now()) return null;
-  const userResponse = await supabaseRequest(env, `/rest/v1/users?select=id,username,full_name,role,permissions,is_active,created_at&id=eq.${encodeURIComponent(session.user_id)}&limit=1`);
-  if (!userResponse.ok) return null;
+  let userResponse: Response;
+  try { userResponse = await supabaseRequest(env, `/rest/v1/users?select=id,username,full_name,role,permissions,is_active,created_at&id=eq.${encodeURIComponent(session.user_id)}&limit=1`); } catch { return null; }
   const users = await userResponse.json() as AuthUser[]; const user = users[0];
   if (!user || user.is_active === false) return null;
-  const sessionUpdate = await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ last_seen_at: new Date().toISOString() }) });
-  if (!sessionUpdate.ok) console.warn('Session last_seen_at update failed:', sessionUpdate.status);
+  const sessionUpdate = await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ last_seen_at: new Date().toISOString() }) }).catch(() => null);
+  if (sessionUpdate === null) console.warn('Session last_seen_at update failed');
   return user;
 }
 
@@ -174,7 +187,6 @@ export async function destroySession(env: Env, request: Request): Promise<void> 
 
 export async function findUser(env: Env, username: string): Promise<AuthUser & { password_hash: string } | null> {
   const response = await supabaseRequest(env, `/rest/v1/users?select=id,username,full_name,password_hash,role,permissions,is_active,created_at&username=eq.${encodeURIComponent(username)}&limit=1`);
-  if (!response.ok) throw new Error(await response.text());
   const rows = await response.json() as Array<AuthUser & { password_hash: string }>;
   return rows[0] || null;
 }
