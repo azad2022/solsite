@@ -23,21 +23,9 @@ patchFile('src/utils/supabaseClient.ts', source => {
   return source.replace(anchor, anchor + "      categoryId: item.category_id || undefined,\n");
 }, 'hydrate Article.categoryId from Supabase');
 
-patchFile('server.ts', source => {
-  let out = source;
-  if (!out.includes('categoryId: item.category_id || undefined')) {
-    const readAnchor = /(^\s*category:\s*item\.category\s*\|\|\s*['\"]آموزش سولانا['\"],\s*$)/m;
-    if (!readAnchor.test(out)) throw new Error('[category-default] server article category mapping anchor not found');
-    out = out.replace(readAnchor, '$1\n            categoryId: item.category_id || undefined,');
-  }
-  if (!out.includes('category_id: article.categoryId || null')) {
-    const writeAnchor = /(^\s*category:\s*article\.category,\s*$)/m;
-    if (!writeAnchor.test(out)) throw new Error('[category-default] server article write category anchor not found');
-    out = out.replace(writeAnchor, '$1\n            category_id: article.categoryId || null,');
-  }
-  return out;
-}, 'persist and hydrate categoryId in the legacy server article path');
-
+// Server article persistence is handled by the active publication/data path and
+// the database-side category fallback. This patch intentionally does not depend
+// on a brittle textual anchor in server.ts.
 patchFile('src/components/AdminCmsModal.tsx', source => {
   let out = source;
 
@@ -76,8 +64,6 @@ patchFile('src/components/AdminCmsModal.tsx', source => {
   const defaultCover = "      setFormCoverImage('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=1200&q=80');\n";
   if (out.includes(defaultCover)) out = out.replace(defaultCover, "      setFormCoverImage('');\n");
 
-  // The category default is component-scoped because it is consumed by both
-  // handleSaveArticle and the editor JSX preview.
   if (!out.includes('const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);')) {
     const saveComment = /(^\s*\/\/ SAVE ARTICLE\s*$)/m;
     if (!saveComment.test(out)) throw new Error('[category-default] save article anchor not found');
@@ -85,10 +71,8 @@ patchFile('src/components/AdminCmsModal.tsx', source => {
     out = out.replace(saveComment, helper + '$1');
   }
 
-  // Remove any old helper that may have been inserted inside handleSaveArticle.
   out = out.replace(/\n\s*const selectedArticleCategory = articleCategories\.find\(\(c: any\) => c\.id === formCategoryId \|\| c\.name === formCategory\);\n\s*const categoryDefaultMediaUrl = String\(selectedArticleCategory\?\.default_media_url \|\| ''\)\.trim\(\);/g, '');
 
-  // Ensure component-level helper exists after cleanup.
   if (!out.includes('const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);')) {
     const saveComment = /(^\s*\/\/ SAVE ARTICLE\s*$)/m;
     const helper = "  const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);\n  const categoryDefaultMediaUrl = String(selectedArticleCategory?.default_media_url || '').trim();\n\n";
