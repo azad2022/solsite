@@ -32,14 +32,17 @@ const serverRegistration = [
   "      alert(regRes.message || 'ثبت‌نام در سرور انجام نشد.');",
   '      return;',
   '    }',
-  '    setUsers(prev => [regRes.user!, ...prev.filter(u => u.id !== regRes.user!.id)]);',
   '    setCurrentUser(regRes.user);',
   '    setIsAuthenticated(true);',
   "    setRegFullName('');",
   "    setRegUsername('');",
   "    setRegPassword('');",
   "    setRegConfirmPassword('');",
-  "    alert('ثبت‌نام حساب کاربری با موفقیت در سرور انجام شد.');",
+  "    if (regRes.user.role === 'user') {",
+  '      onClose();',
+  '      return;',
+  '    }',
+  "    alert('حساب کاربری با موفقیت در سرور ساخته شد.');",
   '  };',
   ''
 ].join('\n');
@@ -47,6 +50,12 @@ const serverRegistration = [
 const registerRegex = /  \/\/ REGISTER NEW REAL USER ACCOUNT[\s\S]*?\n  const handleLogout/;
 if (registerRegex.test(source)) {
   source = source.replace(registerRegex, serverRegistration + '  const handleLogout');
+}
+
+// Close the CMS shell after a normal user logs in; only privileged accounts need CMS UI.
+const loginRegex = /      setCurrentUser\(user\);\n      setAuthError\(''\);\n      setFailedAttempts\(0\);\n      setLoginPassword\(''\);\n      const userPerms = user\.permissions && user\.permissions\.length > 0[\s\S]*?      if \(!userPerms\.includes\(adminTab\)\) setAdminTab\(userPerms\[0\] \|\| 'articles'\);\n      return;/;
+if (loginRegex.test(source)) {
+  source = source.replace(loginRegex, `      setCurrentUser(user);\n      setAuthError('');\n      setFailedAttempts(0);\n      setLoginPassword('');\n      if (user.role === 'user') {\n        onClose();\n        return;\n      }\n      const userPerms = user.permissions && user.permissions.length > 0\n        ? user.permissions\n        : (user.role === 'superadmin' || user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);\n      if (!userPerms.includes(adminTab)) setAdminTab(userPerms[0] || 'articles');\n      return;`);
 }
 
 // Remove any remaining client-side password hash state/helper references.
