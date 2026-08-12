@@ -1,61 +1,59 @@
-# کتابخانه تصاویر GitHub — راه‌اندازی Production
+# کتابخانه تصاویر GitHub — معماری Production
 
-## معماری
+## معماری فعلی
 
 ```text
 Admin Panel
    |
-   | admin passcode فقط برای احراز هویت
+   | HttpOnly __Host-solmint_session
    v
-Supabase Edge Function: github-media
+Cloudflare Pages Function: /api/media/*
    |
    | GITHUB_MEDIA_TOKEN فقط روی سرور
    v
-GitHub Repository / Branch / Media Path
+GitHub REST API
    |
+   +--> Repository / Branch / Media Path
    +--> GitHub raw URL برای نمایش تصویر
-   |
-   +--> Supabase media_assets برای metadata
+
+Supabase
+   +--> media_config
+   +--> media_assets
 ```
 
-توکن GitHub هرگز در React، localStorage، Supabase table یا payload مرورگر ذخیره نمی‌شود. مقدار `githubToken` قدیمی در API کلاینت نیز عمداً نادیده گرفته می‌شود تا حتی در صورت باقی ماندن UI قدیمی، secret ارسال نشود.
+مرورگر هرگز توکن GitHub را ارسال یا ذخیره نمی‌کند. credential کتابخانه فقط در محیط server/Edge نگهداری می‌شود. مسیرهای privileged کتابخانه با session مدیریتی server-side احراز هویت می‌شوند.
 
-## Secrets مورد نیاز در Supabase Edge Functions
+## Secrets مورد نیاز
 
-در پروژه Supabase `nvopkbiedorfshwbmyhn` این دو Secret را تنظیم کنید:
+- `GITHUB_MEDIA_TOKEN`: Fine-grained GitHub Personal Access Token با حداقل دسترسی لازم به Repository مقصد.
+- `SUPABASE_SECRET_KEY` یا credential سروری معادل: فقط برای APIهای server-side.
 
-- `GITHUB_MEDIA_TOKEN`: Fine-grained GitHub Personal Access Token با دسترسی حداقلی به Repositoryهای کتابخانه تصاویر.
-- `MEDIA_ADMIN_PASSCODE`: همان رمز فعلی پنل مدیریت Solmint. این مقدار برای احراز هویت درخواست‌های Media Gateway است و نباید در Git commit شود.
+`GITHUB_MEDIA_TOKEN` نباید در React، localStorage، جدول Supabase یا payload مرورگر قرار بگیرد.
 
-Supabase متغیرهای داخلی مانند `SUPABASE_URL` و کلیدهای سرور را در Edge Function فراهم می‌کند؛ Secretهای اختصاصی را باید از بخش Edge Functions → Secrets تنظیم کرد.
-
-## تنظیم اولیه کتابخانه
-
-مقدار پیش‌فرض:
+## تنظیم پیش‌فرض Production
 
 - Owner: `azad2022`
 - Repository: `solsite`
 - Branch: `main`
 - Base path: `public/media/articles/`
 
-Repository مقصد باید برای نمایش مستقیم تصاویر از مرورگر public باشد. اگر در آینده Repository خصوصی شود، URL مستقیم `raw.githubusercontent.com` برای کاربران سایت مناسب نخواهد بود و باید یک image proxy/CDN سمت سرور اضافه شود.
+## قابلیت‌ها
 
-## قابلیت‌های پیاده‌سازی‌شده
-
-- تست دسترسی Repository و Branch
-- مشاهده تصاویر موجود در Repository با Git tree API
-- آپلود و تبدیل تصویر به WebP در مرورگر، سپس ارسال محتوای بهینه‌شده به Edge Function
-- ایجاد/به‌روزرسانی فایل در GitHub با SHA برای جلوگیری از overwrite اشتباه
-- جلوگیری از Path Traversal
-- محدودیت حجم آپلود ۸ مگابایت
-- حذف امن فایل از GitHub
+- تست مرحله‌ای GitHub Token، Repository، Branch و Media Directory
+- فهرست تصاویر واقعی موجود در Repository
+- تبدیل تصویر در مرورگر به WebP/JPEG و ارسال نسخه بهینه‌شده به سرور
+- محدودیت حجم ۸ مگابایت سمت سرور
+- محدودیت فرمت به WebP/JPEG/PNG/GIF/AVIF
+- جلوگیری از Path Traversal و نام فایل ناامن
+- جلوگیری از overwrite تصادفی و کنترل SHA در GitHub
 - ثبت metadata در `media_assets`
-- همگام‌سازی Library با فایل‌های واقعی Repository، حتی اگر فایل قبلاً خارج از پنل ایجاد شده باشد
-- تغییر Repository/Branch/Path از پنل
-- مهاجرت fail-safe به Repository جدید؛ ابتدا همه فایل‌ها کپی و تأیید می‌شوند و فقط بعد از موفقیت کامل مقصد فعال می‌شود
+- حذف فایل با بررسی SHA
+- مهاجرت Repository با تست مبدا و مقصد قبل از فعال‌سازی مقصد؛ در صورت شکست مهاجرت، Repository فعال قبلی تغییر نمی‌کند
 
-## نکته مهم درباره مهاجرت
+## نکته Repository خصوصی
 
-توکن باید به Repository مبدا و مقصد دسترسی داشته باشد. برای همین در Fine-grained Token، هر دو Repository را در بخش Repository access انتخاب کنید.
+اگر Repository رسانه خصوصی باشد، URL مستقیم `raw.githubusercontent.com` برای کاربران عمومی سایت مناسب نیست. در این حالت باید image proxy/CDN سمت سرور اضافه شود.
 
-هرگز Token را در کد، `.env` داخل Git، Supabase table یا localStorage قرار ندهید.
+## Endpoint مستقیم Supabase Edge Function
+
+`supabase/functions/github-media` به‌صورت legacy غیرفعال است و برای کاهش سطح حمله اجازه mutation مستقیم نمی‌دهد. تمام عملیات production از `/api/media/*` انجام می‌شود.
