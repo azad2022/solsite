@@ -55,26 +55,43 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
   } catch (err) { console.warn('Error saving CMS settings from API:', err); return false; }
 }
 
-export async function registerUserApi(payload: { username: string; fullName: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
-  const res = await fetch('/api/users/register', authFetchInit({
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }));
-  const { data, status } = await safeFetchJson(res);
-  if (data) return data;
-  throw new Error(`خطا در ثبت حساب روی سرور (کد ${status || 'شبکه'}). ثبت‌نام محلی مجاز نیست.`);
+export async function registerUserApi(payload: { username: string; fullName: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount; requestId?: string }> {
+  try {
+    const res = await fetch('/api/users/register', authFetchInit({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }));
+    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount; requestId?: string }>(res);
+    if (data) {
+      return {
+        success: Boolean(data.success) && Boolean(data.user),
+        message: data.message || (res.ok ? 'ثبت‌نام انجام نشد.' : 'ثبت‌نام انجام نشد.'),
+        user: data.user,
+        requestId: data.requestId
+      };
+    }
+    return {
+      success: false,
+      message: status >= 500
+        ? 'سرویس ثبت‌نام در دسترس نیست. لطفاً دوباره تلاش کنید.'
+        : `ثبت‌نام انجام نشد (کد ${status || 'نامشخص'}).`
+    };
+  } catch (err) {
+    console.warn('Error calling /api/users/register:', err);
+    return { success: false, message: 'ارتباط با سرور ثبت‌نام برقرار نشد.' };
+  }
 }
 
 /** Server is authoritative. Authentication state is never synthesized in the browser. */
-export async function loginUserApi(payload: { username?: string; password?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean }> {
+export async function loginUserApi(payload: { username?: string; password?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }> {
   try {
     const res = await fetch('/api/users/login', authFetchInit({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: payload.username, password: payload.password || payload.passcode })
     }));
-    const { data, status } = await safeFetchJson(res);
+    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }>(res);
 
     if (data?.success && data.user) return data;
 
@@ -82,6 +99,7 @@ export async function loginUserApi(payload: { username?: string; password?: stri
       success: false,
       user: undefined,
       isSuperAdmin: false,
+      requestId: data?.requestId,
       message: data?.message || (status >= 500
         ? 'سرویس احراز هویت در دسترس نیست.'
         : 'نام کاربری یا رمز عبور اشتباه است.')
