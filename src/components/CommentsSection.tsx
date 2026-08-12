@@ -42,12 +42,17 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
   const [voteState, setVoteState] = useState<Record<string, number>>({});
   const [voteCounts, setVoteCounts] = useState<Record<string, { like: number; dislike: number }>>({});
 
+  // Public comments are deliberately independent of authentication/session checks.
+  // Anonymous visitors must be able to read approved comments; authentication is only
+  // required when they attempt to write/reply/vote.
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    const loadPublicComments = async () => {
       try {
-        await fetch('/api/comments/session', { credentials: 'same-origin' });
-        const response = await fetch(`/api/comments?articleId=${encodeURIComponent(articleId)}`, { credentials: 'same-origin' });
+        const response = await fetch(`/api/comments?articleId=${encodeURIComponent(articleId)}`, {
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
         const data = await response.json().catch(() => null);
         if (!cancelled && response.ok && data?.success && Array.isArray(data.comments)) {
           setComments(data.comments);
@@ -67,7 +72,7 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
         // The server-provided article comments remain a safe fallback.
       }
     };
-    load();
+    loadPublicComments();
     return () => { cancelled = true; };
   }, [articleId]);
 
@@ -170,8 +175,8 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
 
   return (
     <section className="pt-5 sm:pt-7 border-t border-slate-800 space-y-5 sm:space-y-6" aria-labelledby="article-comments-title">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="article-comments-title" className="text-base sm:text-lg font-bold text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-sky-400" />دیدگاه‌های کاربران ({comments.length})</h3><span className="text-[10px] text-slate-500">دیدگاه‌ها پس از تأیید منتشر می‌شوند</span></div>
-      {currentUser ? <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"><div className="text-xs font-bold text-slate-300">ثبت دیدگاه جدید</div><div className="flex gap-2"><textarea value={replyTo ? '' : draft} onChange={event => { if (!replyTo) setDraft(event.target.value); }} rows={4} maxLength={4000} placeholder="نظر تخصصی خود را بنویسید..." className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 resize-y focus:outline-none focus:border-sky-500/50" /><button type="button" disabled={busy === 'root'} onClick={() => submit(null)} className="self-end shrink-0 px-4 py-3 rounded-xl bg-sky-500 text-white text-xs font-bold"><Send className="w-4 h-4" /></button></div></div> : <button type="button" onClick={openAuthModal} className="w-full p-4 rounded-2xl bg-slate-900 border border-amber-500/30 text-amber-300 text-xs font-bold">برای ثبت نظر، ورود یا ثبت‌نام کنید.</button>}
+      <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="article-comments-title" className="text-base sm:text-lg font-bold text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-sky-400" />دیدگاه‌های کاربران ({comments.length})</h3><span className="text-[10px] text-slate-500">مشاهده دیدگاه‌ها برای همه آزاد است؛ ثبت نظر و رأی نیازمند ورود است</span></div>
+      {currentUser ? <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"><div className="text-xs font-bold text-slate-300">ثبت دیدگاه جدید</div><div className="flex gap-2"><textarea value={replyTo ? '' : draft} onChange={event => { if (!replyTo) setDraft(event.target.value); }} rows={4} maxLength={4000} placeholder="نظر تخصصی خود را بنویسید..." className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 resize-y focus:outline-none focus:border-sky-500/50" /><button type="button" disabled={busy === 'root'} onClick={() => submit(null)} className="self-end shrink-0 px-4 py-3 rounded-xl bg-sky-500 text-white text-xs font-bold"><Send className="w-4 h-4" /></button></div></div> : <button type="button" onClick={openAuthModal} className="w-full p-4 rounded-2xl bg-slate-900 border border-amber-500/30 text-amber-300 text-xs font-bold">برای ثبت نظر، پاسخ یا رأی دادن، ورود یا ثبت‌نام کنید.</button>}
       <div className="space-y-3">{roots.length ? roots.map(comment => renderComment(comment)) : <div className="text-center py-8 text-slate-500 text-xs">هنوز دیدگاه تأییدشده‌ای ثبت نشده است.</div>}</div>
     </section>
   );
