@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Heart, ThumbsDown, MessageCircle, Reply, Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { Heart, ThumbsDown, MessageCircle, Reply, Send, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 
 interface CommentItem {
   id: string;
@@ -33,7 +33,7 @@ interface Props {
 const getParentId = (comment: CommentItem) => comment.parent_id ?? comment.parentId ?? null;
 const getName = (comment: CommentItem) => comment.user_name || comment.userName || 'کاربر سولمینت';
 
-export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialComments, currentUser, openAuthModal, onCommentCreated }) => {
+export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialComments, currentUser, openAuthModal }) => {
   const [comments, setComments] = useState<CommentItem[]>(initialComments || []);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -41,10 +41,8 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [voteState, setVoteState] = useState<Record<string, number>>({});
   const [voteCounts, setVoteCounts] = useState<Record<string, { like: number; dislike: number }>>({});
+  const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
 
-  // Public comments are deliberately independent of authentication/session checks.
-  // Anonymous visitors must be able to read approved comments; authentication is only
-  // required when they attempt to write/reply/vote.
   useEffect(() => {
     let cancelled = false;
     const loadPublicComments = async () => {
@@ -77,7 +75,7 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
   }, [articleId]);
 
   useEffect(() => {
-    setComments(initialComments || []);
+    setComments((initialComments || []).filter(comment => comment.approved !== false));
   }, [initialComments]);
 
   const roots = useMemo(() => comments.filter(comment => !getParentId(comment)), [comments]);
@@ -104,6 +102,7 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
     }
 
     setBusy(parentId || 'root');
+    setSubmissionNotice(null);
     try {
       const response = await fetch('/api/comments/add', {
         method: 'POST',
@@ -115,7 +114,7 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
       if (!response.ok || !data?.success) throw new Error(data?.message || 'خطا در ثبت دیدگاه');
       setDraft('');
       setReplyTo(null);
-      onCommentCreated(data.comment);
+      setSubmissionNotice('دیدگاه شما ثبت شد و پس از تأیید مدیر در فهرست عمومی نمایش داده می‌شود.');
     } catch (error: any) {
       window.alert(error?.message || 'خطا در ثبت دیدگاه');
     } finally {
@@ -176,6 +175,7 @@ export const CommentsSection: React.FC<Props> = ({ articleId, comments: initialC
   return (
     <section className="pt-5 sm:pt-7 border-t border-slate-800 space-y-5 sm:space-y-6" aria-labelledby="article-comments-title">
       <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="article-comments-title" className="text-base sm:text-lg font-bold text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-sky-400" />دیدگاه‌های کاربران ({comments.length})</h3><span className="text-[10px] text-slate-500">مشاهده دیدگاه‌ها برای همه آزاد است؛ ثبت نظر و رأی نیازمند ورود است</span></div>
+      {submissionNotice && <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs"><CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /><span>{submissionNotice}</span></div>}
       {currentUser ? <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"><div className="text-xs font-bold text-slate-300">ثبت دیدگاه جدید</div><div className="flex gap-2"><textarea value={replyTo ? '' : draft} onChange={event => { if (!replyTo) setDraft(event.target.value); }} rows={4} maxLength={4000} placeholder="نظر تخصصی خود را بنویسید..." className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 resize-y focus:outline-none focus:border-sky-500/50" /><button type="button" disabled={busy === 'root'} onClick={() => submit(null)} className="self-end shrink-0 px-4 py-3 rounded-xl bg-sky-500 text-white text-xs font-bold"><Send className="w-4 h-4" /></button></div></div> : <button type="button" onClick={openAuthModal} className="w-full p-4 rounded-2xl bg-slate-900 border border-amber-500/30 text-amber-300 text-xs font-bold">برای ثبت نظر، پاسخ یا رأی دادن، ورود یا ثبت‌نام کنید.</button>}
       <div className="space-y-3">{roots.length ? roots.map(comment => renderComment(comment)) : <div className="text-center py-8 text-slate-500 text-xs">هنوز دیدگاه تأییدشده‌ای ثبت نشده است.</div>}</div>
     </section>
