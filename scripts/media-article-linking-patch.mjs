@@ -18,12 +18,44 @@ patchFile('src/utils/supabaseClient.ts', (source) => {
 }, 'preserve coverImageAssetId when loading articles from Supabase');
 
 patchFile('server.ts', (source) => {
-  const anchor = "            coverImage: cleanCover,\n";
-  const replacement = anchor + "            coverImageAssetId: item.cover_image_asset_id || undefined,\n";
-  if (source.includes("coverImageAssetId: item.cover_image_asset_id")) return source;
-  if (!source.includes(anchor)) throw new Error('[media-linking] Server article mapping anchor not found');
-  return source.replace(anchor, replacement);
-}, 'preserve coverImageAssetId in server-side article hydration');
+  let out = source;
+  const readAnchor = "            coverImage: cleanCover,\n";
+  if (!out.includes("coverImageAssetId: item.cover_image_asset_id")) {
+    const replacement = readAnchor + "            coverImageAssetId: item.cover_image_asset_id || undefined,\n";
+    if (!out.includes(readAnchor)) throw new Error('[media-linking] Server article mapping anchor not found');
+    out = out.replace(readAnchor, replacement);
+  }
+
+  const writeAnchor = "            cover_image: article.coverImage,\n";
+  if (!out.includes("cover_image_asset_id: article.coverImageAssetId")) {
+    if (!out.includes(writeAnchor)) throw new Error('[media-linking] Server article write anchor not found');
+    out = out.replace(writeAnchor, writeAnchor + "            cover_image_asset_id: article.coverImageAssetId || null,\n");
+  }
+  return out;
+}, 'persist and hydrate coverImageAssetId in server-side article API');
+
+patchFile('src/utils/mediaService.ts', (source) => {
+  let out = source;
+  if (!out.includes('async function stableMediaAssetId')) {
+    const anchor = "/** All privileged media operations are session-authenticated server requests. GitHub credentials never leave the server. */\n";
+    if (!out.includes(anchor)) throw new Error('[media-linking] mediaService helper anchor not found');
+    const helper = `async function stableMediaAssetId(publicUrl: string): Promise<string> {\n  const normalized = String(publicUrl || '').trim();\n  if (!normalized) return 'media_unknown';\n  const data = new TextEncoder().encode(normalized);\n  const hash = await crypto.subtle.digest('SHA-256', data);\n  const hex = Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');\n  return 'media_' + hex;\n}\n\n`;
+    out = out.replace(anchor, helper + anchor);
+  }
+
+  const listOld = "export async function getAllMediaAssets(): Promise<MediaAsset[]> {\n  try { const data = await invokeMediaGateway('list'); return Array.isArray(data?.assets) ? data.assets as MediaAsset[] : []; } catch { return []; }\n}\n";
+  if (out.includes(listOld)) {
+    const listNew = "export async function getAllMediaAssets(): Promise<MediaAsset[]> {\n  try {\n    const data = await invokeMediaGateway('list');\n    const assets = Array.isArray(data?.assets) ? data.assets as MediaAsset[] : [];\n    return await Promise.all(assets.map(async (asset) => ({ ...asset, id: await stableMediaAssetId(asset.publicUrl) })));\n  } catch { return []; }\n}\n";
+    out = out.replace(listOld, listNew);
+  }
+
+  const uploadOld = "    return { success: true, asset: data.asset as MediaAsset, message: data.message || 'تصویر با موفقیت آپلود شد.' };\n";
+  if (out.includes(uploadOld)) {
+    const uploadNew = "    const uploadedAsset = data.asset as MediaAsset;\n    return { success: true, asset: { ...uploadedAsset, id: await stableMediaAssetId(uploadedAsset.publicUrl) }, message: data.message || 'تصویر با موفقیت آپلود شد.' };\n";
+    out = out.replace(uploadOld, uploadNew);
+  }
+  return out;
+}, 'make MediaAsset IDs deterministic from canonical public URLs');
 
 patchFile('src/components/AdminCmsModal.tsx', (source) => {
   let out = source;
