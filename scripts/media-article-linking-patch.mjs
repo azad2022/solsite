@@ -39,19 +39,19 @@ patchFile('src/utils/mediaService.ts', (source) => {
   if (!out.includes('async function stableMediaAssetId')) {
     const anchor = "/** All privileged media operations are session-authenticated server requests. GitHub credentials never leave the server. */\n";
     if (!out.includes(anchor)) throw new Error('[media-linking] mediaService helper anchor not found');
-    const helper = `async function stableMediaAssetId(publicUrl: string): Promise<string> {\n  const normalized = String(publicUrl || '').trim();\n  if (!normalized) return 'media_unknown';\n  const data = new TextEncoder().encode(normalized);\n  const hash = await crypto.subtle.digest('SHA-256', data);\n  const hex = Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');\n  return 'media_' + hex;\n}\n\n`;
+    const helper = `function stableMediaAssetId(publicUrl: string): string {\n  const normalized = String(publicUrl || '').trim();\n  if (!normalized) return 'media_unknown';\n  try {\n    const utf8 = encodeURIComponent(normalized).replace(/%([0-9A-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));\n    return 'media_url_' + btoa(utf8).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');\n  } catch {\n    let hash = 2166136261;\n    for (let i = 0; i < normalized.length; i += 1) hash = Math.imul(hash ^ normalized.charCodeAt(i), 16777619);\n    return 'media_fallback_' + (hash >>> 0).toString(16);\n  }\n}\n\n`;
     out = out.replace(anchor, helper + anchor);
   }
 
   const listOld = "export async function getAllMediaAssets(): Promise<MediaAsset[]> {\n  try { const data = await invokeMediaGateway('list'); return Array.isArray(data?.assets) ? data.assets as MediaAsset[] : []; } catch { return []; }\n}\n";
   if (out.includes(listOld)) {
-    const listNew = "export async function getAllMediaAssets(): Promise<MediaAsset[]> {\n  try {\n    const data = await invokeMediaGateway('list');\n    const assets = Array.isArray(data?.assets) ? data.assets as MediaAsset[] : [];\n    return await Promise.all(assets.map(async (asset) => ({ ...asset, id: await stableMediaAssetId(asset.publicUrl) })));\n  } catch { return []; }\n}\n";
+    const listNew = "export async function getAllMediaAssets(): Promise<MediaAsset[]> {\n  try {\n    const data = await invokeMediaGateway('list');\n    const assets = Array.isArray(data?.assets) ? data.assets as MediaAsset[] : [];\n    return assets.map((asset) => ({ ...asset, id: stableMediaAssetId(asset.publicUrl) }));\n  } catch { return []; }\n}\n";
     out = out.replace(listOld, listNew);
   }
 
   const uploadOld = "    return { success: true, asset: data.asset as MediaAsset, message: data.message || 'تصویر با موفقیت آپلود شد.' };\n";
   if (out.includes(uploadOld)) {
-    const uploadNew = "    const uploadedAsset = data.asset as MediaAsset;\n    return { success: true, asset: { ...uploadedAsset, id: await stableMediaAssetId(uploadedAsset.publicUrl) }, message: data.message || 'تصویر با موفقیت آپلود شد.' };\n";
+    const uploadNew = "    const uploadedAsset = data.asset as MediaAsset;\n    return { success: true, asset: { ...uploadedAsset, id: stableMediaAssetId(uploadedAsset.publicUrl) }, message: data.message || 'تصویر با موفقیت آپلود شد.' };\n";
     out = out.replace(uploadOld, uploadNew);
   }
   return out;
