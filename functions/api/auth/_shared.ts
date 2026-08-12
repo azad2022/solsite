@@ -30,13 +30,13 @@ export class SupabaseUpstreamError extends Error {
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const SESSION_COOKIE = '__Host-solmint_session';
-const SESSION_TTL_SECONDS = 60 * 60 * 8;
+const SESSION_TTL_SECONDS = 60 * 60 * 8;          // 8 hours
+const SESSION_SLIDING_WINDOW_SECONDS = 60 * 60;    // 1 hour – renew if less than this remains
+const MAX_SESSIONS_PER_USER = 5;                   // limit concurrent sessions
 const LOGIN_WINDOW_SECONDS = 15 * 60;
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_BLOCK_SECONDS = 15 * 60;
-
-// مقدار بهینه برای Cloudflare Workers CPU limits
-const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_ITERATIONS = 100000;                  // safe for Cloudflare Workers CPU limits
 
 export function jsonResponse(
   body: unknown,
@@ -71,6 +71,7 @@ export function getSupabaseKeyType(
   return 'missing';
 }
 
+// ---------------------- crypto helpers ----------------------
 async function sha256(value: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     'SHA-256',
@@ -153,18 +154,32 @@ function scryptDerive(
   });
 }
 
+/**
+ * Constant-time comparison of two hex strings of equal length.
+ * Used to prevent timing attacks on hash verification.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+// ---------------------- password verification ----------------------
 export async function verifyPassword(
   password: string,
   stored: string
 ): Promise<{ valid: boolean; upgradedHash?: string }> {
   if (!password || !stored) return { valid: false };
 
-  // تشخیص و بررسی هش SHA256 قدیمی (طول ۶۴ کاراکتر هگز)
+  // Legacy SHA256 (64 hex chars)
   if (/^[a-f0-9]{64}$/i.test(stored)) {
     const legacy = await sha256(password);
-    if (legacy !== stored.toLowerCase()) return { valid: false };
+    if (!timingSafeEqual(legacy, stored.toLowerCase())) return { valid: false };
 
-    // تلاش برای ارتقای خودکار به PBKDF2
+    // Attempt automatic upgrade to PBKDF2
     try {
       const salt = await randomHex(16);
       const derived = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
@@ -173,7 +188,7 @@ export async function verifyPassword(
         upgradedHash: `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${salt}$${derived}`,
       };
     } catch (error) {
-      // در صورت شکست ارتقا (مثلاً محدودیت CPU)، اجازه ورود با هش قدیمی
+      // If upgrade fails (e.g. CPU limit), still allow login with legacy hash
       console.warn(
         'Password upgrade to PBKDF2 failed due to runtime limits, allowing legacy login'
       );
@@ -181,7 +196,7 @@ export async function verifyPassword(
     }
   }
 
-  // بررسی هش PBKDF2-SHA256
+  // PBKDF2-SHA256
   const pbkdf2Match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]+)\$([a-f0-9]+)$/i.exec(
     stored
   );
@@ -196,15 +211,14 @@ export async function verifyPassword(
     }
     try {
       const derived = await pbkdf2(password, pbkdf2Match[2], iterations);
-      // اصلاح اندیس از [4] به [3]
-      return { valid: derived === pbkdf2Match[3].toLowerCase() };
+      return { valid: timingSafeEqual(derived, pbkdf2Match[3].toLowerCase()) };
     } catch (error) {
       console.warn('PBKDF2 verification failed due to runtime error');
       return { valid: false };
     }
   }
 
-  // بررسی هش scrypt
+  // scrypt
   const scryptMatch = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(
     stored
   );
@@ -220,14 +234,14 @@ export async function verifyPassword(
 
       if (derived.length !== expected.length) return { valid: false };
 
-      // مقایسه زمان-ثابت
+      // Constant-time compare
       let diff = 0;
       for (let i = 0; i < expected.length; i++) {
         diff |= derived[i] ^ expected[i];
       }
       if (diff !== 0) return { valid: false };
 
-      // تلاش برای ارتقا از scrypt به PBKDF2
+      // Attempt upgrade to PBKDF2
       try {
         const newSalt = await randomHex(16);
         const newDerived = await pbkdf2(password, newSalt, PBKDF2_ITERATIONS);
@@ -247,10 +261,11 @@ export async function verifyPassword(
     }
   }
 
-  // فرمت هش ناشناخته
+  // Unknown hash format
   return { valid: false };
 }
 
+// ---------------------- Supabase helpers ----------------------
 async function supabaseRequest(
   env: Env,
   path: string,
@@ -285,6 +300,7 @@ async function supabaseRequest(
   return response;
 }
 
+// ---------------------- rate limiting ----------------------
 async function authRateKey(
   env: Env,
   request: Request,
@@ -352,10 +368,46 @@ export async function clearLoginRateLimit(
   ).catch(() => {});
 }
 
+// ---------------------- session management ----------------------
 export function getSessionToken(request: Request): string {
   const cookie = request.headers.get('Cookie') || '';
   const match = cookie.match(/(?:^|;\s*)__Host-solmint_session=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : '';
+}
+
+/**
+ * Delete oldest sessions if user exceeds MAX_SESSIONS_PER_USER.
+ * This runs before creating a new session to keep the total under the limit.
+ */
+async function enforceSessionLimit(env: Env, userId: string): Promise<void> {
+  try {
+    // Fetch all active sessions for this user, oldest first
+    const response = await supabaseRequest(
+      env,
+      `/rest/v1/auth_sessions?select=id,created_at&user_id=eq.${encodeURIComponent(userId)}&order=created_at.asc`
+    );
+    const sessions = (await response.json()) as Array<{
+      id: string;
+      created_at: string;
+    }>;
+
+    if (sessions.length >= MAX_SESSIONS_PER_USER) {
+      // We will keep the newest (MAX_SESSIONS_PER_USER - 1) because one slot will be taken by the new session
+      const deleteCount = sessions.length - (MAX_SESSIONS_PER_USER - 1);
+      const toDelete = sessions.slice(0, deleteCount);
+
+      for (const s of toDelete) {
+        await supabaseRequest(
+          env,
+          `/rest/v1/auth_sessions?id=eq.${encodeURIComponent(s.id)}`,
+          { method: 'DELETE' }
+        ).catch(() => {}); // ignore individual delete errors
+      }
+    }
+  } catch (error) {
+    // If limit enforcement fails, we still allow session creation
+    console.warn('Session limit enforcement failed:', error);
+  }
 }
 
 export async function createSession(
@@ -367,6 +419,9 @@ export async function createSession(
   const expiresAt = new Date(
     Date.now() + SESSION_TTL_SECONDS * 1000
   ).toISOString();
+
+  // Enforce maximum concurrent sessions before inserting
+  await enforceSessionLimit(env, user.id);
 
   await supabaseRequest(env, '/rest/v1/auth_sessions', {
     method: 'POST',
@@ -434,7 +489,7 @@ export async function getAuthenticatedUser(
 
   if (!user || user.is_active === false) return null;
 
-  // به‌روزرسانی last_seen_at - خطا در این بخش نباید کل درخواست را متوقف کند
+  // Update last_seen_at (non-critical)
   await supabaseRequest(
     env,
     `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`,
@@ -449,6 +504,29 @@ export async function getAuthenticatedUser(
   ).catch(() => {
     console.warn('Session last_seen_at update failed');
   });
+
+  // Sliding expiration: if less than SESSION_SLIDING_WINDOW_SECONDS remains, extend session
+  const now = Date.now();
+  const expiresAt = Date.parse(session.expires_at);
+  if (expiresAt - now < SESSION_SLIDING_WINDOW_SECONDS * 1000) {
+    const newExpiresAt = new Date(
+      now + SESSION_TTL_SECONDS * 1000
+    ).toISOString();
+    await supabaseRequest(
+      env,
+      `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ expires_at: newExpiresAt }),
+      }
+    ).catch(() => {
+      console.warn('Session sliding renewal failed');
+    });
+  }
 
   return user;
 }
