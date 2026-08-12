@@ -10,14 +10,14 @@ function patchFile(path, transform, description) {
 }
 
 patchFile('src/types.ts', source => {
-  if (source.includes('  categoryId?: string;\n')) return source;
-  const anchor = "  category: 'آموزش سولانا' | 'توسعه وب۳' | 'امنیت' | 'اخبار و تحلیل' | 'آموزش ساخت میم کوین' | 'آموزش ساخت NFT' | 'کیف پول سولانا' | 'ترید' | 'پراپ تریدینگ';\n";
-  if (!source.includes(anchor)) throw new Error('[category-default] Article category anchor not found');
-  return source.replace(anchor, anchor + "  categoryId?: string;\n");
+  if (source.includes('  categoryId?: string;')) return source;
+  const anchor = /(^\s*category:\s*[^;]+;\s*$)/m;
+  if (!anchor.test(source)) throw new Error('[category-default] Article category anchor not found');
+  return source.replace(anchor, '$1\n  categoryId?: string;');
 }, 'add persistent Article.categoryId');
 
 patchFile('src/utils/supabaseClient.ts', source => {
-  if (source.includes('categoryId: item.category_id || undefined,')) return source;
+  if (source.includes('categoryId: item.category_id || undefined')) return source;
   const anchor = "      category: item.category || 'آموزش سولانا',\n";
   if (!source.includes(anchor)) throw new Error('[category-default] Supabase article category mapping anchor not found');
   return source.replace(anchor, anchor + "      categoryId: item.category_id || undefined,\n");
@@ -25,15 +25,15 @@ patchFile('src/utils/supabaseClient.ts', source => {
 
 patchFile('server.ts', source => {
   let out = source;
-  const readAnchor = "            category: item.category || \"آموزش سولانا\",\n";
   if (!out.includes('categoryId: item.category_id || undefined')) {
-    if (!out.includes(readAnchor)) throw new Error('[category-default] server article category mapping anchor not found');
-    out = out.replace(readAnchor, readAnchor + "            categoryId: item.category_id || undefined,\n");
+    const readAnchor = /(^\s*category:\s*item\.category\s*\|\|\s*['\"]آموزش سولانا['\"],\s*$)/m;
+    if (!readAnchor.test(out)) throw new Error('[category-default] server article category mapping anchor not found');
+    out = out.replace(readAnchor, '$1\n            categoryId: item.category_id || undefined,');
   }
-  const writeAnchor = "            category: article.category,\n";
-  if (!out.includes('category_id: article.categoryId || null,')) {
-    if (!out.includes(writeAnchor)) throw new Error('[category-default] server article write category anchor not found');
-    out = out.replace(writeAnchor, writeAnchor + "            category_id: article.categoryId || null,\n");
+  if (!out.includes('category_id: article.categoryId || null')) {
+    const writeAnchor = /(^\s*category:\s*article\.category,\s*$)/m;
+    if (!writeAnchor.test(out)) throw new Error('[category-default] server article write category anchor not found');
+    out = out.replace(writeAnchor, '$1\n            category_id: article.categoryId || null,');
   }
   return out;
 }, 'persist and hydrate categoryId in the legacy server article path');
@@ -48,9 +48,10 @@ patchFile('src/components/AdminCmsModal.tsx', source => {
   }
 
   if (!out.includes('const [articleCategories, setArticleCategories]')) {
-    const categoryState = "  const [formCategory, setFormCategory] = useState<Article['category']>('آموزش سولانا');\n";
-    if (!out.includes(categoryState)) throw new Error('[category-default] formCategory state anchor not found');
-    out = out.replace(categoryState, categoryState + "  const [articleCategories, setArticleCategories] = useState<Array<any>>([]);\n  const [formCategoryId, setFormCategoryId] = useState('');\n");
+    const categoryStateRegex = /(^\s*const\s*\[formCategory,\s*setFormCategory\]\s*=\s*useState(?:<[^>]+>)?\([^;\n]+\);\s*$)/m;
+    const match = out.match(categoryStateRegex);
+    if (!match) throw new Error('[category-default] formCategory state anchor not found');
+    out = out.replace(categoryStateRegex, '$1\n  const [articleCategories, setArticleCategories] = useState<Array<any>>([]);\n  const [formCategoryId, setFormCategoryId] = useState(\'\');');
   }
 
   if (!out.includes('fetchArticleCategories(false, true)')) {
@@ -60,26 +61,26 @@ patchFile('src/components/AdminCmsModal.tsx', source => {
     out = out.replace(effectAnchor, effectAnchor + insertion);
   }
 
-  if (!out.includes("setFormCategoryId(articleToEdit.categoryId || ''),")) {
-    const editLine = "      setFormCategory(articleToEdit.category);\n";
-    if (!out.includes(editLine)) throw new Error('[category-default] edit category line not found');
-    out = out.replace(editLine, editLine + "      setFormCategoryId(articleToEdit.categoryId || articleCategories.find((c: any) => c.name === articleToEdit.category)?.id || '');\n");
+  if (!out.includes("setFormCategoryId(articleToEdit.categoryId || ''")) {
+    const editLine = /(^\s*setFormCategory\(articleToEdit\.category\);\s*$)/m;
+    if (!editLine.test(out)) throw new Error('[category-default] edit category line not found');
+    out = out.replace(editLine, "$1\n      setFormCategoryId(articleToEdit.categoryId || articleCategories.find((c: any) => c.name === articleToEdit.category)?.id || '');");
   }
 
-  const newCategoryLine = "      setFormCategory('آموزش سولانا');\n";
-  if (!out.includes("      setFormCategoryId(articleCategories.find((c: any) => c.name === 'آموزش سولانا')?.id || '');\n")) {
-    if (!out.includes(newCategoryLine)) throw new Error('[category-default] new article category line not found');
-    out = out.replace(newCategoryLine, newCategoryLine + "      setFormCategoryId(articleCategories.find((c: any) => c.name === 'آموزش سولانا')?.id || '');\n");
+  if (!out.includes("setFormCategoryId(articleCategories.find((c: any) => c.name === 'آموزش سولانا')?.id || '')")) {
+    const newCategoryLine = /(^\s*setFormCategory\(['\"]آموزش سولانا['\"]\);\s*$)/m;
+    if (!newCategoryLine.test(out)) throw new Error('[category-default] new article category line not found');
+    out = out.replace(newCategoryLine, "$1\n      setFormCategoryId(articleCategories.find((c: any) => c.name === 'آموزش سولانا')?.id || '');");
   }
 
   const defaultCover = "      setFormCoverImage('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=1200&q=80');\n";
   if (out.includes(defaultCover)) out = out.replace(defaultCover, "      setFormCoverImage('');\n");
 
   if (!out.includes('const selectedArticleCategory = articleCategories.find')) {
-    const saveAnchor = "    const finalCoverImage = formCoverImage.trim();\n";
-    if (!out.includes(saveAnchor)) throw new Error('[category-default] article save cover anchor not found');
-    const helper = "    const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);\n    const categoryDefaultMediaUrl = String(selectedArticleCategory?.default_media_url || '').trim();\n";
-    out = out.replace(saveAnchor, "    const finalCoverImage = formCoverImage.trim();\n" + helper);
+    const saveAnchor = /(^\s*const finalCoverImage = formCoverImage\.trim\(\);\s*$)/m;
+    if (!saveAnchor.test(out)) throw new Error('[category-default] article save cover anchor not found');
+    const helper = "    const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);\n    const categoryDefaultMediaUrl = String(selectedArticleCategory?.default_media_url || '').trim();";
+    out = out.replace(saveAnchor, '$1\n' + helper);
   }
 
   out = out.replace(
@@ -87,22 +88,42 @@ patchFile('src/components/AdminCmsModal.tsx', source => {
     "    if (isCoverRequired && !formCoverImage.trim() && !categoryDefaultMediaUrl) {"
   );
 
-  if (!out.includes('categoryId: formCategoryId || undefined,')) {
-    const categorySavePattern = "            category: formCategory,\n";
-    const count = out.split(categorySavePattern).length - 1;
-    if (count < 2) throw new Error(`[category-default] Expected two article category save sites, found ${count}`);
-    out = out.replaceAll(categorySavePattern, categorySavePattern + "            categoryId: formCategoryId || undefined,\n");
+  if (!out.includes('categoryId: formCategoryId || undefined')) {
+    const categorySavePattern = /(^\s*category:\s*formCategory,\s*$)/gm;
+    const matches = out.match(categorySavePattern) || [];
+    if (matches.length < 1) throw new Error('[category-default] article category save site not found');
+    out = out.replace(categorySavePattern, '$1\n            categoryId: formCategoryId || undefined,');
   }
 
-  const selectRegex = /<select\n\s+value=\{formCategory\}\n\s+onChange=\{\(e\) => setFormCategory\(e\.target\.value as any\)\}\n[\s\S]*?<\/select>/m;
+  const selectRegex = /<select\s+value=\{formCategory\}\s+onChange=\{\(e\)\s*=>\s*setFormCategory\(e\.target\.value\s+as\s+any\)\}[\s\S]*?<\/select>/m;
   if (selectRegex.test(out)) {
-    const replacement = `<select\n                      value={formCategory}\n                      onChange={(e) => {\n                        const nextName = e.target.value;\n                        setFormCategory(nextName as Article['category']);\n                        setFormCategoryId(articleCategories.find((c: any) => c.name === nextName)?.id || '');\n                      }}\n                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200"\n                    >\n                      {articleCategories.length > 0 ? articleCategories.map((category: any) => (\n                        <option key={category.id} value={category.name}>{category.name}</option>\n                      )) : (\n                        <>\n                          <option value="آموزش سولانا">آموزش سولانا</option>\n                          <option value="توسعه وب۳">توسعه وب۳</option>\n                          <option value="امنیت">امنیت</option>\n                          <option value="اخبار و تحلیل">اخبار و تحلیل</option>\n                        </>\n                      )}\n                    </select>`;
+    const replacement = `<select
+                      value={formCategory}
+                      onChange={(e) => {
+                        const nextName = e.target.value;
+                        setFormCategory(nextName as Article['category']);
+                        setFormCategoryId(articleCategories.find((c: any) => c.name === nextName)?.id || '');
+                      }}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                    >
+                      {articleCategories.length > 0 ? articleCategories.map((category: any) => (
+                        <option key={category.id} value={category.name}>{category.name}</option>
+                      )) : (
+                        <>
+                          <option value="آموزش سولانا">آموزش سولانا</option>
+                          <option value="توسعه وب۳">توسعه وب۳</option>
+                          <option value="امنیت">امنیت</option>
+                          <option value="اخبار و تحلیل">اخبار و تحلیل</option>
+                        </>
+                      )}
+                    </select>`;
     out = out.replace(selectRegex, replacement);
   }
 
-  const coverLabelAnchor = "                      <p className=\"text-[11px] text-slate-400 mt-1\">\n";
-  if (!out.includes('تصویر پیش‌فرض دسته‌بندی') && out.includes(coverLabelAnchor)) {
-    out = out.replace(coverLabelAnchor, "                      {!formCoverImage && categoryDefaultMediaUrl && (\n                        <div className=\"mt-2 p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2\">\n                          <img src={categoryDefaultMediaUrl} alt=\"تصویر پیش‌فرض دسته‌بندی\" className=\"w-16 h-10 object-cover rounded-lg\" />\n                          <span className=\"text-[10px] text-emerald-300\">تصویر پیش‌فرض دسته‌بندی «{formCategory}» هنگام انتشار خودکار استفاده خواهد شد.</span>\n                        </div>\n                      )}\n\n" + coverLabelAnchor);
+  const coverLabelAnchor = /(^\s*<p className=\"text-\[11px\] text-slate-400 mt-1\">\s*$)/m;
+  if (!out.includes('تصویر پیش‌فرض دسته‌بندی') && coverLabelAnchor.test(out)) {
+    const section = "                      {!formCoverImage && categoryDefaultMediaUrl && (\n                        <div className=\"mt-2 p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2\">\n                          <img src={categoryDefaultMediaUrl} alt=\"تصویر پیش‌فرض دسته‌بندی\" className=\"w-16 h-10 object-cover rounded-lg\" />\n                          <span className=\"text-[10px] text-emerald-300\">تصویر پیش‌فرض دسته‌بندی «{formCategory}» هنگام انتشار خودکار استفاده خواهد شد.</span>\n                        </div>\n                      )}\n\n";
+    out = out.replace(coverLabelAnchor, section + '$1');
   }
 
   return out;
