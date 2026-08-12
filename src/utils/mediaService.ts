@@ -10,7 +10,7 @@ async function serverJson<T = any>(url: string, init: RequestInit = {}): Promise
   } catch { return { ok: false, status: 0, data: null }; }
 }
 
-/** Privileged media operations use only the server-owned HttpOnly session cookie. */
+/** All privileged media operations are session-authenticated server requests. GitHub credentials never leave the server. */
 async function invokeMediaGateway(action: string, body: Record<string, any> = {}) {
   const routes: Record<string, { method: string; path: string }> = {
     'get-config': { method: 'GET', path: '/api/media/config' },
@@ -83,23 +83,27 @@ export async function getMediaStorageConfig(): Promise<MediaStorageConfig> {
   return DEFAULT_MEDIA_STORAGE_CONFIG;
 }
 
-export async function saveMediaStorageConfig(config: MediaStorageConfig & { githubToken?: string }): Promise<boolean> {
+export async function saveMediaStorageConfig(config: MediaStorageConfig): Promise<boolean> {
   const payload = { config: {
     provider: 'github', githubOwner: config.githubOwner.trim(), githubRepository: config.githubRepository.trim(), branch: (config.branch || 'main').trim(),
-    basePath: (config.basePath || 'articles/').trim(), connectionStatus: config.connectionStatus || 'untested',
-    ...(config.githubToken ? { githubToken: config.githubToken } : {})
+    basePath: (config.basePath || 'public/media/articles/').trim(), connectionStatus: 'untested'
   }};
-  try { const data = await invokeMediaGateway('save-config', payload); return Boolean(data?.success); } catch { return false; }
+  try {
+    const data = await invokeMediaGateway('save-config', payload);
+    return Boolean(data?.success);
+  } catch { return false; }
 }
 
-export async function testMediaRepositoryConnection(config: MediaStorageConfig & { githubToken?: string }): Promise<{ success: boolean; message: string; details?: any; diagnostics?: any[]; code?: string; stage?: string }> {
+export async function testMediaRepositoryConnection(config: MediaStorageConfig): Promise<{ success: boolean; message: string; details?: any; diagnostics?: any[]; code?: string; stage?: string }> {
   try {
-    const data = await invokeMediaGateway('test', { githubOwner: config.githubOwner, githubRepository: config.githubRepository, branch: config.branch, ...(config.githubToken ? { githubToken: config.githubToken } : {}) });
+    const data = await invokeMediaGateway('test', { config: {
+      provider: 'github', githubOwner: config.githubOwner, githubRepository: config.githubRepository, branch: config.branch, basePath: config.basePath
+    }});
     return { success: Boolean(data?.success), message: data?.message || 'اتصال با موفقیت برقرار نشد.', details: data?.details, diagnostics: data?.diagnostics, code: data?.errorCode, stage: data?.stage };
   } catch (err: any) { return { success: false, message: err.message || 'برقراری ارتباط با مخزن گیت‌هاب ناموفق بود.' }; }
 }
 
-export async function runMediaFullDiagnostic(config: MediaStorageConfig & { githubToken?: string }) { return testMediaRepositoryConnection(config); }
+export async function runMediaFullDiagnostic(config: MediaStorageConfig) { return testMediaRepositoryConnection(config); }
 
 export async function getAllMediaAssets(): Promise<MediaAsset[]> {
   try { const data = await invokeMediaGateway('list'); return Array.isArray(data?.assets) ? data.assets as MediaAsset[] : []; } catch { return []; }
@@ -138,7 +142,7 @@ export async function migrateMediaRepository(sourceConfig: MediaStorageConfig, t
     if (sameRepo) return { success: false, message: 'مخزن مبدا و مقصد یکسان هستند؛ مهاجرتی برای انجام وجود ندارد.' };
     const assets = await getAllMediaAssets();
     const data = await invokeMediaGateway('migrate', { sourceConfig, targetConfig, assets });
-    if (!data?.success) return { success: false, message: data?.message || 'مهاجرت کامل نشد؛ اطلاعات فعلی بدون تغییر باقی ماند.', results: data?.results };
+    if (!data?.success) return { success: false, message: data?.message || 'مهاجرت کامل نشد؛ تنظیمات فعال بدون تغییر باقی ماند.', results: data?.results };
     return { success: true, message: data.message || 'مهاجرت با موفقیت تکمیل شد.', results: data.results };
-  } catch (err: any) { return { success: false, message: `خطای سرور در انجام مهاجرت؛ اطلاعات فعلی بدون تغییر باقی ماند: ${err.message || 'ناشناخته'}` }; }
+  } catch (err: any) { return { success: false, message: `خطای سرور در انجام مهاجرت؛ تنظیمات فعلی بدون تغییر باقی ماند: ${err.message || 'ناشناخته'}` }; }
 }
