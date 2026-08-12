@@ -28,17 +28,6 @@ export interface WalletState {
   transactions: WalletTransaction[];
 }
 
-export interface RentAccount {
-  id: string;
-  mintAddress: string;
-  tokenName: string;
-  symbol: string;
-  balance: number;
-  rentSol: number;
-  status: 'empty' | 'active';
-  selected: boolean;
-}
-
 export type AdminPermission = 
   | 'articles' 
   | 'editor' 
@@ -184,7 +173,9 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
 export interface ChatbotSettings { enabled: boolean; apiKey?: string; apiBaseUrl?: string; botName: string; botAvatar: string; welcomeMessage: string; systemPrompt: string; suggestedQuestions: string[]; placeholderText: string; model: string; maxHistoryTurns: number; }
 
 export const DEFAULT_CHATBOT_SETTINGS: ChatbotSettings = {
-  enabled: true, apiKey: '', apiBaseUrl: 'https://api.deepseek.com/v1', botName: 'پشتیبان هوشمند سولمینت', botAvatar: '🤖',
+  // Public visibility is server-controlled. Until /api/cms/settings explicitly
+  // enables the chatbot, the widget must remain hidden.
+  enabled: false, apiKey: '', apiBaseUrl: 'https://api.deepseek.com/v1', botName: 'پشتیبان هوشمند سولمینت', botAvatar: '🤖',
   welcomeMessage: 'سلام! 👋 من دستیار هوشمند سولمینت هستم. چطور می‌توانم در زمینه ساخت توکن، کیف پول سولانا، یا بازیابی کارمزد اجاره (Rent Claim) به شما کمک کنم؟',
   systemPrompt: `شما "پشتیبان هوشمند رسمی وبسایت و اپلیکیشن سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
 
