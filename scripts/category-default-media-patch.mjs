@@ -23,11 +23,20 @@ patch('functions/api/article-categories.ts', source => {
     "body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, updated_at: new Date().toISOString() })",
     "body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, default_media_asset_id: patch.default_media_asset_id || null, default_media_url: patch.default_media_url || null, updated_at: new Date().toISOString() })"
   );
+  out = out.replace(
+    "body: JSON.stringify(category) });",
+    "body: JSON.stringify({ ...category, default_media_asset_id: category.default_media_asset_id || null, default_media_url: category.default_media_url || null }) });"
+  );
   return out;
 }, 'persist category default media fields');
 
 patch('src/components/ArticleCategoryManager.tsx', source => {
   let out = source;
+  if (!out.includes("import { getAllMediaAssets } from '../utils/mediaService';")) {
+    const anchor = "import { CheckCircle2, Edit3, FolderTree, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';\n";
+    if (!out.includes(anchor)) throw new Error('[category-media] category manager import anchor not found');
+    out = out.replace(anchor, anchor + "import { getAllMediaAssets } from '../utils/mediaService';\n");
+  }
   out = out.replace(
     "  updated_at: string;\n}",
     "  updated_at: string;\n  default_media_asset_id?: string | null;\n  default_media_url?: string | null;\n}"
@@ -46,7 +55,7 @@ patch('src/components/ArticleCategoryManager.tsx', source => {
   );
   out = out.replace(
     "  useEffect(() => { void load(); }, []);",
-    "  useEffect(() => { void load(); void loadMediaAssets(); }, []);\n\n  const loadMediaAssets = async () => {\n    setMediaLoading(true);\n    try {\n      const res = await fetch('/api/media/assets', { credentials: 'include', cache: 'no-store' });\n      const data = await res.json().catch(() => null);\n      if (res.ok && Array.isArray(data?.assets)) setMediaAssets(data.assets);\n    } catch {} finally { setMediaLoading(false); }\n  };"
+    "  useEffect(() => { void load(); void loadMediaAssets(); }, []);\n\n  const loadMediaAssets = async () => {\n    setMediaLoading(true);\n    try {\n      const assets = await getAllMediaAssets();\n      setMediaAssets(assets as any);\n    } catch {} finally { setMediaLoading(false); }\n  };"
   );
   out = out.replace(
     "const payload = { ...form, name: form.name.trim(), slug: form.slug.trim(), parent_id: form.parent_id || null, sort_order: Number(form.sort_order) || 100 };",
@@ -58,11 +67,11 @@ patch('src/components/ArticleCategoryManager.tsx', source => {
   );
   const anchor = "      <button type=\"submit\" disabled={saving} className=\"px-5 py-3 rounded-xl btn-gradient text-black font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50\">";
   if (!out.includes('data-category-default-media')) {
-    const section = `      <div data-category-default-media className=\"p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3\">\n        <div className=\"flex items-center justify-between gap-3\">\n          <div>\n            <h5 className=\"font-bold text-white\">تصویر پیش‌فرض دسته‌بندی</h5>\n            <p className=\"text-[11px] text-slate-400 mt-1\">اگر مقاله در این دسته تصویر اختصاصی نداشته باشد، این تصویر به‌صورت خودکار برای آن استفاده می‌شود.</p>\n          </div>\n          <button type=\"button\" onClick={() => void loadMediaAssets()} className=\"px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[10px] font-bold\">بروزرسانی رسانه‌ها</button>\n        </div>\n        {form.default_media_url && <div className=\"flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30\"><img src={form.default_media_url} alt=\"تصویر پیش‌فرض\" className=\"w-20 h-14 object-cover rounded-lg\" /><div className=\"min-w-0\"><div className=\"text-xs font-bold text-emerald-300\">تصویر پیش‌فرض انتخاب شده</div><div className=\"text-[10px] text-slate-500 truncate dir-ltr\">{form.default_media_url}</div></div><button type=\"button\" onClick={() => setForm({ ...form, default_media_asset_id: '', default_media_url: '' })} className=\"mr-auto px-2 py-1 rounded-lg bg-rose-500/10 text-rose-300 text-[10px] font-bold\">حذف</button></div>}\n        <div className=\"grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 max-h-72 overflow-y-auto\">\n          {mediaLoading ? <div className=\"col-span-full py-8 text-center text-slate-500 text-xs\">در حال دریافت کتابخانه رسانه...</div> : mediaAssets.length === 0 ? <div className=\"col-span-full py-8 text-center text-slate-500 text-xs\">رسانه‌ای برای انتخاب وجود ندارد.</div> : mediaAssets.map(asset => { const selected = form.default_media_asset_id === asset.id; return <button key={asset.id} type=\"button\" onClick={() => setForm({ ...form, default_media_asset_id: asset.id, default_media_url: asset.publicUrl })} className={\`text-right rounded-xl overflow-hidden border transition-all \${selected ? 'border-emerald-400 ring-2 ring-emerald-400/20' : 'border-slate-800 hover:border-slate-600'}\`}><img src={asset.publicUrl} alt={asset.altText || asset.title || asset.filename} loading=\"lazy\" className=\"w-full aspect-[16/10] object-cover\" /><span className=\"block px-2 py-1.5 text-[10px] text-slate-300 truncate dir-ltr\">{asset.filename}</span></button>; })}\n        </div>\n      </div>\n\n`;
+    const section = `      <div data-category-default-media className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">\n        <div className="flex items-center justify-between gap-3">\n          <div>\n            <h5 className="font-bold text-white">تصویر پیش‌فرض دسته‌بندی</h5>\n            <p className="text-[11px] text-slate-400 mt-1">اگر مقاله در این دسته تصویر اختصاصی نداشته باشد، این تصویر به‌صورت خودکار برای آن استفاده می‌شود.</p>\n          </div>\n          <button type="button" onClick={() => void loadMediaAssets()} className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[10px] font-bold">بروزرسانی رسانه‌ها</button>\n        </div>\n        {form.default_media_url && <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30"><img src={form.default_media_url} alt="تصویر پیش‌فرض" className="w-20 h-14 object-cover rounded-lg" /><div className="min-w-0"><div className="text-xs font-bold text-emerald-300">تصویر پیش‌فرض انتخاب شده</div><div className="text-[10px] text-slate-500 truncate dir-ltr">{form.default_media_url}</div></div><button type="button" onClick={() => setForm({ ...form, default_media_asset_id: '', default_media_url: '' })} className="mr-auto px-2 py-1 rounded-lg bg-rose-500/10 text-rose-300 text-[10px] font-bold">حذف</button></div>}\n        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 max-h-72 overflow-y-auto">\n          {mediaLoading ? <div className="col-span-full py-8 text-center text-slate-500 text-xs">در حال دریافت کتابخانه رسانه...</div> : mediaAssets.length === 0 ? <div className="col-span-full py-8 text-center text-slate-500 text-xs">رسانه‌ای برای انتخاب وجود ندارد.</div> : mediaAssets.map(asset => { const selected = form.default_media_asset_id === asset.id; return <button key={asset.id} type="button" onClick={() => setForm({ ...form, default_media_asset_id: asset.id, default_media_url: asset.publicUrl })} className={\`text-right rounded-xl overflow-hidden border transition-all \${selected ? 'border-emerald-400 ring-2 ring-emerald-400/20' : 'border-slate-800 hover:border-slate-600'}\`}><img src={asset.publicUrl} alt={asset.altText || asset.title || asset.filename} loading="lazy" className="w-full aspect-[16/10] object-cover" /><span className="block px-2 py-1.5 text-[10px] text-slate-300 truncate dir-ltr">{asset.filename}</span></button>; })}\n        </div>\n      </div>\n\n`;
     if (!out.includes(anchor)) throw new Error('[category-media] submit anchor not found');
     out = out.replace(anchor, section + anchor);
   }
   return out;
-}, 'add per-category default media picker with dynamic category support');
+}, 'add canonical media picker to category defaults');
 
 console.log('✓ [category-media] Category default media patch ready.');
