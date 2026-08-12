@@ -40,11 +40,11 @@ const canModerateComments = (user: any) => {
   return Array.isArray(user.permissions) && user.permissions.includes('comments');
 };
 
-const mapComment = (c: CommentRow, userVote = 0) => ({
+const mapComment = (c: CommentRow, userVote = 0, includeInternalIdentity = false) => ({
   id: c.id,
   articleId: c.article_id,
   userName: c.user_name,
-  userId: c.user_id,
+  ...(includeInternalIdentity ? { userId: c.user_id } : {}),
   text: c.text,
   createdAt: c.created_at ? new Date(c.created_at).toLocaleDateString('fa-IR') : 'اخیراً',
   approved: c.approved === true,
@@ -94,7 +94,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Co
 
     return jsonResponse({
       success: true,
-      comments: Array.isArray(rows) ? rows.map(row => mapComment(row, userVotes[String(row.id)] || 0)) : []
+      comments: Array.isArray(rows) ? rows.map(row => mapComment(row, userVotes[String(row.id)] || 0, canModerate)) : []
     }, 200, { 'Cache-Control': 'no-store' });
   } catch (error) {
     console.error('Comments read error:', error);
