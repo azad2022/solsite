@@ -55,28 +55,16 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
   } catch (err) { console.warn('Error saving CMS settings from API:', err); return false; }
 }
 
-export async function registerUserApi(payload: { username: string; fullName: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount; requestId?: string }> {
+export async function registerUserApi(payload: { username: string; fullName: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
   try {
     const res = await fetch('/api/users/register', authFetchInit({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     }));
-    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount; requestId?: string }>(res);
-    if (data) {
-      return {
-        success: Boolean(data.success) && Boolean(data.user),
-        message: data.message || (res.ok ? 'ثبت‌نام انجام نشد.' : 'ثبت‌نام انجام نشد.'),
-        user: data.user,
-        requestId: data.requestId
-      };
-    }
-    return {
-      success: false,
-      message: status >= 500
-        ? 'سرویس ثبت‌نام در دسترس نیست. لطفاً دوباره تلاش کنید.'
-        : `ثبت‌نام انجام نشد (کد ${status || 'نامشخص'}).`
-    };
+    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount }>(res);
+    if (data) return { success: data.success === true, message: data.message || (res.ok ? 'ثبت‌نام انجام شد.' : 'ثبت‌نام در سرور انجام نشد.'), user: data.user };
+    return { success: false, message: `خطا در ثبت حساب روی سرور (کد ${status || 'شبکه'}). ثبت‌نام محلی مجاز نیست.` };
   } catch (err) {
     console.warn('Error calling /api/users/register:', err);
     return { success: false, message: 'ارتباط با سرور ثبت‌نام برقرار نشد.' };
@@ -93,7 +81,15 @@ export async function loginUserApi(payload: { username?: string; password?: stri
     }));
     const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }>(res);
 
-    if (data?.success && data.user) return data;
+    if (data?.success && data.user) {
+      return {
+        success: true,
+        user: data.user,
+        isSuperAdmin: data.isSuperAdmin === true,
+        requestId: data.requestId,
+        message: data.message
+      };
+    }
 
     return {
       success: false,
