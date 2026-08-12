@@ -76,11 +76,23 @@ patchFile('src/components/AdminCmsModal.tsx', source => {
   const defaultCover = "      setFormCoverImage('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=1200&q=80');\n";
   if (out.includes(defaultCover)) out = out.replace(defaultCover, "      setFormCoverImage('');\n");
 
-  if (!out.includes('const selectedArticleCategory = articleCategories.find')) {
-    const saveAnchor = /(^\s*const finalCoverImage = formCoverImage\.trim\(\);\s*$)/m;
-    if (!saveAnchor.test(out)) throw new Error('[category-default] article save cover anchor not found');
-    const helper = "    const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);\n    const categoryDefaultMediaUrl = String(selectedArticleCategory?.default_media_url || '').trim();";
-    out = out.replace(saveAnchor, '$1\n' + helper);
+  // The category default is component-scoped because it is consumed by both
+  // handleSaveArticle and the editor JSX preview.
+  if (!out.includes('const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);')) {
+    const saveComment = /(^\s*\/\/ SAVE ARTICLE\s*$)/m;
+    if (!saveComment.test(out)) throw new Error('[category-default] save article anchor not found');
+    const helper = "  const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);\n  const categoryDefaultMediaUrl = String(selectedArticleCategory?.default_media_url || '').trim();\n\n";
+    out = out.replace(saveComment, helper + '$1');
+  }
+
+  // Remove any old helper that may have been inserted inside handleSaveArticle.
+  out = out.replace(/\n\s*const selectedArticleCategory = articleCategories\.find\(\(c: any\) => c\.id === formCategoryId \|\| c\.name === formCategory\);\n\s*const categoryDefaultMediaUrl = String\(selectedArticleCategory\?\.default_media_url \|\| ''\)\.trim\(\);/g, '');
+
+  // Ensure component-level helper exists after cleanup.
+  if (!out.includes('const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);')) {
+    const saveComment = /(^\s*\/\/ SAVE ARTICLE\s*$)/m;
+    const helper = "  const selectedArticleCategory = articleCategories.find((c: any) => c.id === formCategoryId || c.name === formCategory);\n  const categoryDefaultMediaUrl = String(selectedArticleCategory?.default_media_url || '').trim();\n\n";
+    out = out.replace(saveComment, helper + '$1');
   }
 
   out = out.replace(
