@@ -18,7 +18,15 @@ function logRegister(id: string, stage: string, details: Record<string, unknown>
 }
 
 function validateUsername(username: string): boolean {
-  return username.length >= 3 && username.length <= 30 && /^[\w\d_@.\u0600-\u06FF\s-]+$/u.test(username);
+  // Explicitly reject CR/LF and other control characters to prevent log/header injection.
+  return username.length >= 3 && username.length <= 30 && /^[\w\d_@.\u0600-\u06FF -]+$/u.test(username);
+}
+
+function normalizeFullName(value: string): string {
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 async function sha256(value: string): Promise<string> {
@@ -59,7 +67,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     }
 
     const username = String(body.username ?? '').trim().toLowerCase();
-    const fullName = String(body.fullName ?? '').trim();
+    const fullName = normalizeFullName(String(body.fullName ?? ''));
     const password = String(body.password ?? '');
 
     if (!validateUsername(username)) {
