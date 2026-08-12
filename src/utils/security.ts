@@ -9,10 +9,6 @@ const LEGACY_AUTH_KEYS = new Set([
 
 let authStorageGuardInstalled = false;
 
-/**
- * Authentication state must never be persisted in Web Storage.
- * The server-owned HttpOnly session cookie is the only authentication state.
- */
 export function installAuthStorageGuard(): void {
   if (typeof window === 'undefined' || authStorageGuardInstalled) return;
   authStorageGuardInstalled = true;
@@ -40,7 +36,6 @@ export function installAuthStorageGuard(): void {
 
 installAuthStorageGuard();
 
-/** Safely parse JSON from localStorage with a fallback. */
 export function safeGetLocalStorage<T>(key: string, fallback: T): T {
   try {
     if (LEGACY_AUTH_KEYS.has(key)) return fallback;
@@ -52,7 +47,6 @@ export function safeGetLocalStorage<T>(key: string, fallback: T): T {
   }
 }
 
-/** Safely save non-authentication data to localStorage. */
 export function safeSetLocalStorage<T>(key: string, value: T): boolean {
   try {
     if (LEGACY_AUTH_KEYS.has(key)) return false;
@@ -64,7 +58,7 @@ export function safeSetLocalStorage<T>(key: string, value: T): boolean {
   }
 }
 
-/** Sanitize plain text strings against XSS / HTML injection attacks. */
+/** Safely escape plain text before it is stored or rendered into HTML-capable contexts. */
 export function sanitizeText(str: string): string {
   if (!str) return '';
   return str
@@ -77,18 +71,18 @@ export function sanitizeText(str: string): string {
     .trim();
 }
 
-/** Validate username format. */
 export function validateUsername(username: string): { valid: boolean; error?: string } {
   const trimmed = username.trim();
   if (trimmed.length < 3) return { valid: false, error: 'نام کاربری باید حداقل ۳ کاراکتر باشد.' };
   if (trimmed.length > 30) return { valid: false, error: 'نام کاربری نمی‌تواند بیش از ۳۰ کاراکتر باشد.' };
-  const validRegex = /^[\w\d_@.\u0600-\u06FF\s-]+$/;
+  const validRegex = /^[\w\d_@.\u0600-\u06FF\s-]+$/u;
   if (!validRegex.test(trimmed)) return { valid: false, error: 'نام کاربری شامل کاراکترهای غیرمجاز است.' };
   return { valid: true };
 }
 
-/** Validate password strength. */
+/** Keep client validation aligned with the production auth endpoint. */
 export function validatePassword(password: string): { valid: boolean; error?: string } {
-  if (password.length < 5) return { valid: false, error: 'رمز عبور باید حداقل ۵ کاراکتر باشد.' };
+  if (password.length < 8) return { valid: false, error: 'رمز عبور باید حداقل ۸ کاراکتر باشد.' };
+  if (password.length > 1024) return { valid: false, error: 'رمز عبور بیش از حد مجاز طولانی است.' };
   return { valid: true };
 }
