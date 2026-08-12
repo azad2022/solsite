@@ -26,6 +26,10 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({ chatbotSetting
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Fail closed: the public widget is hidden until the server explicitly confirms
+  // that the chatbot is enabled. LocalStorage/default React state can never turn
+  // the public chatbot on by itself.
+  const [serverEnabled, setServerEnabled] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [{
     id: 'welcome-1',
     role: 'assistant',
@@ -38,12 +42,44 @@ export const DeepSeekChatbot: React.FC<DeepSeekChatbotProps> = ({ chatbotSetting
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen, isLoading]);
 
-  // The setting may come from persisted JSON or legacy storage, so accept only
-  // the literal boolean true (or the exact string "true"). Values such as
-  // "false" must never be treated as enabled by JavaScript truthiness.
-  const isChatbotEnabled = chatbotSettings?.enabled === true || chatbotSettings?.enabled === 'true';
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
 
-  if (!isChatbotEnabled) return null;
+    const syncServerVisibility = async () => {
+      try {
+        const response = await fetch('/api/cms/settings', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          if (!cancelled) setServerEnabled(false);
+          return;
+        }
+
+        const payload = await response.json() as { settings?: { chatbot?: { enabled?: unknown } } };
+        const enabled = payload?.settings?.chatbot?.enabled === true;
+        if (!cancelled) setServerEnabled(enabled);
+      } catch (error) {
+        console.warn('Chatbot visibility check failed:', error);
+        if (!cancelled) setServerEnabled(false);
+      }
+    };
+
+    syncServerVisibility();
+    timer = window.setInterval(syncServerVisibility, 5000);
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
+
+  // The local/app state may only hide the widget. Showing it requires an explicit
+  // server-side confirmation from /api/cms/settings.
+  if (chatbotSettings?.enabled !== true || !serverEnabled) return null;
 
   const handleSendMessage = async () => {
     const text = inputMessage.trim();
