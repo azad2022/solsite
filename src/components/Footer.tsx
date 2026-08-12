@@ -38,7 +38,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
         </div>
 
         <div className="pt-2 flex flex-col items-center gap-3">
-          <span className="font-bold text-white text-sm">Solmint on Product Hunt</span>
           <a href="https://www.producthunt.com/products/solmint-3?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-solmint-2" target="_blank" rel="noopener noreferrer" aria-label="Solmint on Product Hunt" className="inline-block transition-opacity hover:opacity-90">
             <img alt="solmint - solana web3 wallet | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1218856&amp;theme=light&amp;t=1786302074692" />
           </a>
