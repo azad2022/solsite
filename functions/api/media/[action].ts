@@ -29,19 +29,64 @@ export const onRequest = async ({ request, env, params }: { request: Request; en
     return jsonResponse({ success: false, errorCode: 'METHOD_NOT_ALLOWED', message: 'Method Not Allowed' }, 405, { Allow: 'GET, POST' });
   }
 
-  const user = await getAuthenticatedUser(env, request);
-  if (!user || user.is_active === false || !['admin', 'superadmin'].includes(String(user.role))) {
-    return jsonResponse({ success: false, errorCode: 'MEDIA_ADMIN_UNAUTHORIZED', message: 'نشست مدیریتی معتبر نیست یا دسترسی رسانه ندارید.' }, 401);
+  const sessionToken = getSessionToken(request);
+  if (!sessionToken) {
+    console.warn('Media auth rejected: session cookie missing', { action });
+    return jsonResponse({
+      success: false,
+      errorCode: 'MEDIA_ADMIN_SESSION_MISSING',
+      stage: 'cookie',
+      message: 'نشست مدیر در درخواست رسانه ارسال نشده است. لطفاً دوباره وارد پنل شوید.'
+    }, 401);
+  }
+
+  let user;
+  try {
+    user = await getAuthenticatedUser(env, request);
+  } catch (error) {
+    console.error('Media auth validation threw', { action, error: error instanceof Error ? error.message : String(error) });
+    return jsonResponse({
+      success: false,
+      errorCode: 'MEDIA_ADMIN_AUTH_VALIDATION_ERROR',
+      stage: 'session_validation',
+      message: 'اعتبارسنجی نشست مدیر در سرور ناموفق بود.'
+    }, 503);
+  }
+
+  if (!user) {
+    console.warn('Media auth rejected: session validation failed', { action, hasSessionCookie: true });
+    return jsonResponse({
+      success: false,
+      errorCode: 'MEDIA_ADMIN_SESSION_INVALID',
+      stage: 'session_validation',
+      message: 'نشست مدیر معتبر نیست یا منقضی شده است. لطفاً دوباره وارد پنل شوید.'
+    }, 401);
+  }
+
+  if (user.is_active === false) {
+    console.warn('Media auth rejected: inactive admin', { action, role: user.role });
+    return jsonResponse({
+      success: false,
+      errorCode: 'MEDIA_ADMIN_INACTIVE',
+      stage: 'user_status',
+      message: 'حساب مدیر غیرفعال است.'
+    }, 403);
+  }
+
+  if (!['admin', 'superadmin'].includes(String(user.role))) {
+    console.warn('Media auth rejected: insufficient role', { action, role: user.role });
+    return jsonResponse({
+      success: false,
+      errorCode: 'MEDIA_ADMIN_ROLE_DENIED',
+      stage: 'authorization',
+      message: 'این حساب مجوز مدیریت کتابخانه تصاویر را ندارد.'
+    }, 403);
   }
 
   const upstreamBody = request.method === 'POST'
     ? await request.json().catch(() => ({}))
     : {};
   const payload = { ...(upstreamBody && typeof upstreamBody === 'object' ? upstreamBody : {}), action: actionFor(action) };
-  const sessionToken = getSessionToken(request);
-  if (!sessionToken) {
-    return jsonResponse({ success: false, errorCode: 'MEDIA_ADMIN_SESSION_MISSING', message: 'نشست مدیر برای ارتباط با سرویس رسانه موجود نیست.' }, 401);
-  }
 
   try {
     const upstream = await fetch(`${getSupabaseUrl(env)}/functions/v1/github-media`, {
@@ -49,7 +94,7 @@ export const onRequest = async ({ request, env, params }: { request: Request; en
       headers: {
         'Content-Type': 'application/json',
         'x-solmint-session': sessionToken,
-        'x-media-gateway-version': '3',
+        'x-media-gateway-version': '4',
       },
       body: JSON.stringify(payload),
     });
