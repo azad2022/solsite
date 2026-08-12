@@ -6,6 +6,7 @@
     "/api/article-categories*",
     "/api/comments",
     "/api/comments/*",
+    "/api/media/*",
     "/api/market/*",
     "/api/users/*",
     "/solana-token",
