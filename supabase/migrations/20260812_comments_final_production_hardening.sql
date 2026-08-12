@@ -63,7 +63,9 @@ $$;
 revoke all on function public.consume_comment_rate_limit(text, text, integer, integer) from public, anon, authenticated;
 grant execute on function public.consume_comment_rate_limit(text, text, integer, integer) to service_role;
 
-create or replace function public.set_comment_vote(
+drop function if exists public.set_comment_vote(text, text, smallint);
+
+create function public.set_comment_vote(
   p_comment_id text,
   p_user_id text,
   p_vote smallint
