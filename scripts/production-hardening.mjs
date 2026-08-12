@@ -1,5 +1,6 @@
 import express from 'express';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 
 // Production authentication for the legacy Express server.
@@ -94,9 +95,9 @@ async function getMediaConfig() {
   return {
     provider: data.provider || 'github',
     githubOwner: data.github_owner || 'azad2022',
-    githubRepository: data.github_repository || 'solmint-media',
+    githubRepository: data.github_repository || 'solsite',
     branch: data.branch || 'main',
-    basePath: data.base_path || 'articles/',
+    basePath: data.base_path || 'public/media/articles/',
     connectionStatus: data.connection_status || 'untested'
   };
 }
@@ -109,7 +110,7 @@ async function saveMediaConfig(config, connectionStatus) {
     github_owner: String(config.githubOwner || '').trim(),
     github_repository: String(config.githubRepository || '').trim(),
     branch: String(config.branch || 'main').trim(),
-    base_path: String(config.basePath || 'articles/').replace(/^\/+|\/+$/g, '') + '/',
+    base_path: String(config.basePath || 'public/media/articles/').replace(/^\/+|\/+$/g, '') + '/',
     connection_status: connectionStatus || config.connectionStatus || 'untested',
     last_test_at: connectionStatus ? new Date().toISOString() : undefined
   };
@@ -171,6 +172,34 @@ async function moderatePublicComment(body, responseBody) {
   };
 }
 
+function hardenMediaAdminFrontend() {
+  const candidates = [
+    'src/components/AdminCmsModal.tsx',
+    'dist/src/components/AdminCmsModal.tsx'
+  ];
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+    let source = fs.readFileSync(filePath, 'utf8');
+    const original = source;
+
+    source = source.replace("const [configRepo, setConfigRepo] = useState('solmint-media');", "const [configRepo, setConfigRepo] = useState('solsite');");
+    source = source.replace("const [configBasePath, setConfigBasePath] = useState('articles/');", "const [configBasePath, setConfigBasePath] = useState('public/media/articles/');");
+    source = source.replace("cfg.githubRepository || 'solmint-media'", "cfg.githubRepository || 'solsite'");
+    source = source.replace("cfg.basePath || 'articles/'", "cfg.basePath || 'public/media/articles/'");
+
+    source = source.replace(
+      "      githubRepository: configRepo.trim(),\n      branch: configBranch.trim(),\n      basePath: configBasePath.trim(),\n      githubToken: configToken.trim() || undefined\n",
+      "      githubRepository: configRepo.trim(),\n      branch: configBranch.trim(),\n      basePath: configBasePath.trim()\n"
+    );
+
+    const saveBlock = /  const handleSaveMediaConfig = async \(\) => \{[\s\S]*?\n  \};/;
+    const replacement = `  const handleSaveMediaConfig = async () => {\n    const newCfg: MediaStorageConfig = {\n      ...mediaConfigState,\n      githubOwner: configOwner.trim(),\n      githubRepository: configRepo.trim(),\n      branch: configBranch.trim(),\n      basePath: configBasePath.trim()\n    };\n\n    setMediaTestResult(null);\n    const saved = await saveMediaStorageConfig(newCfg);\n    if (!saved) {\n      setMediaTestResult({ success: false, message: 'تنظیمات ذخیره نشد. ابتدا اتصال GitHub، Repository، Branch و مسیر رسانه را تست کنید.' });\n      return;\n    }\n\n    const fresh = await getMediaStorageConfig();\n    setMediaConfigState(fresh);\n    setConfigOwner(fresh.githubOwner);\n    setConfigRepo(fresh.githubRepository);\n    setConfigBranch(fresh.branch);\n    setConfigBasePath(fresh.basePath);\n    await handleRefreshMediaAssets();\n    setMediaTestResult({ success: true, message: 'تنظیمات مخزن رسانه با موفقیت روی سرور ذخیره و دوباره از production خوانده شد.' });\n  };`;
+    source = source.replace(saveBlock, replacement);
+
+    if (source !== original) fs.writeFileSync(filePath, source, 'utf8');
+  }
+}
+
 const originalPost = express.application.post;
 const originalGet = express.application.get;
 const originalDelete = express.application.delete;
@@ -216,38 +245,26 @@ function wrapHandlers(path, handlers, options = {}) {
 }
 
 express.application.post = function(path, ...handlers) {
-  if (path === '/api/users/login') {
-    return originalPost.call(this, path, rejectLegacyLogin);
-  }
-  if (path === '/api/comments/add') {
-    return originalPost.call(this, path, ...wrapHandlers(path, handlers, { moderateComment: true }));
-  }
-  if (typeof path === 'string' && ADMIN_POST_PATHS.has(path)) {
-    return originalPost.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
-  }
-  if (typeof path === 'string' && MEDIA_POST_PATHS.has(path)) {
-    return originalPost.call(this, path, ...wrapHandlers(path, handlers, { admin: true, mediaSync: path !== '/api/media/config' }));
-  }
+  if (path === '/api/users/login') return originalPost.call(this, path, rejectLegacyLogin);
+  if (path === '/api/comments/add') return originalPost.call(this, path, ...wrapHandlers(path, handlers, { moderateComment: true }));
+  if (typeof path === 'string' && ADMIN_POST_PATHS.has(path)) return originalPost.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
+  if (typeof path === 'string' && MEDIA_POST_PATHS.has(path)) return originalPost.call(this, path, ...wrapHandlers(path, handlers, { admin: true, mediaSync: path !== '/api/media/config' }));
   return originalPost.call(this, path, ...handlers);
 };
 
 express.application.delete = function(path, ...handlers) {
-  if (path === '/api/articles/:id') {
-    return originalDelete.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
-  }
+  if (path === '/api/articles/:id') return originalDelete.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
   return originalDelete.call(this, path, ...handlers);
 };
 
 express.application.get = function(path, ...handlers) {
-  if (typeof path === 'string' && ADMIN_GET_PATHS.has(path)) {
-    return originalGet.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
-  }
+  if (typeof path === 'string' && ADMIN_GET_PATHS.has(path)) return originalGet.call(this, path, ...wrapHandlers(path, handlers, { admin: true }));
   if (path === '/api/media/config') {
     const mediaGet = async (req, res, next) => {
       const config = await getMediaConfig();
       if (!config) return next();
       const hasToken = Boolean(process.env.GITHUB_MEDIA_TOKEN || process.env.GITHUB_TOKEN);
-      return res.json({ config, hasToken });
+      return res.json({ success: true, config, hasToken, tokenManagedByServer: true });
     };
     return originalGet.call(this, path, requireAdmin, mediaGet, ...handlers);
   }
@@ -260,9 +277,10 @@ express.response.json = function(body) {
   if (path === '/api/media/config' && req?.method === 'POST' && req.body?.config) {
     const config = { ...req.body.config };
     delete config.githubToken;
-    Promise.resolve(saveMediaConfig(config)).catch(() => {});
+    Promise.resolve(saveMediaConfig(config, body?.success ? 'connected' : undefined)).catch(() => {});
   }
   return originalJson.call(this, body);
 };
 
-console.info('✓ Production hardening loaded: HttpOnly session authentication only; legacy admin passcode authentication disabled.');
+hardenMediaAdminFrontend();
+console.info('✓ Production hardening loaded: HttpOnly session authentication only; legacy admin passcode authentication disabled; media credentials server-managed.');
