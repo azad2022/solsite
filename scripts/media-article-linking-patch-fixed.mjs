@@ -16,21 +16,6 @@ patchFile('src/utils/supabaseClient.ts', source => {
   return source.replace(anchor, anchor + "      coverImageAssetId: item.cover_image_asset_id || undefined,\n");
 }, 'preserve coverImageAssetId when loading articles');
 
-patchFile('server.ts', source => {
-  let out = source;
-  if (!out.includes('coverImageAssetId: item.cover_image_asset_id || undefined')) {
-    const anchor = "            coverImage: cleanCover,\n";
-    if (!out.includes(anchor)) throw new Error('[media-linking] Server article mapping anchor not found');
-    out = out.replace(anchor, anchor + "            coverImageAssetId: item.cover_image_asset_id || undefined,\n");
-  }
-  if (!out.includes('cover_image_asset_id: article.coverImageAssetId || null')) {
-    const anchor = "            cover_image: article.coverImage,\n";
-    if (!out.includes(anchor)) throw new Error('[media-linking] Server article write anchor not found');
-    out = out.replace(anchor, anchor + "            cover_image_asset_id: article.coverImageAssetId || null,\n");
-  }
-  return out;
-}, 'persist coverImageAssetId in server article API');
-
 patchFile('src/utils/mediaService.ts', source => {
   let out = source;
   if (!out.includes('function stableMediaAssetId(publicUrl: string): string')) {
