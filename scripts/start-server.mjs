@@ -49,9 +49,9 @@ try {
 }
 
 try {
-  await import('./market-comments-production-fix.mjs');
+  await import('./virtual-comments-production-patch.mjs');
 } catch (error) {
-  console.error('❌ Solana market comments fix failed to load:', error?.message || error);
+  console.error('❌ Shared virtual comments compatibility patch failed to load:', error?.message || error);
   if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 
