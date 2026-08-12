@@ -14,6 +14,14 @@ export interface CmsSettings {
   security?: { adminPasscode?: string };
 }
 
+export interface ModerationComment extends ArticleComment {
+  approved?: boolean;
+  parentId?: string | null;
+  likeCount?: number;
+  dislikeCount?: number;
+  createdAtIso?: string | null;
+}
+
 const authFetchInit = (init: RequestInit = {}): RequestInit => ({
   ...init,
   credentials: 'include',
@@ -112,13 +120,34 @@ export async function deleteUserApi(userId: string): Promise<boolean> {
   } catch (err) { console.warn('Error deleting user via API:', err); return false; }
 }
 
-export async function addCommentApi(payload: { articleId: string; userName: string; userId?: string; text: string }): Promise<{ success: boolean; comment?: ArticleComment; message?: string }> {
+export async function addCommentApi(payload: { articleId: string; userName: string; userId?: string; text: string; parentId?: string | null }): Promise<{ success: boolean; comment?: ArticleComment; message?: string }> {
   try {
     const res = await fetch('/api/comments/add', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }));
     const { data, status } = await safeFetchJson(res);
     if (data) return data;
     return { success: false, message: `خطا در ثبت دیدگاه (کد ${status})` };
   } catch (err: any) { return { success: false, message: err.message || 'خطا در ثبت دیدگاه.' }; }
+}
+
+export async function fetchCommentsForAdminApi(): Promise<{ success: boolean; comments: ModerationComment[]; message?: string }> {
+  try {
+    const res = await fetch('/api/comments?admin=1', authFetchInit());
+    const { data, status } = await safeFetchJson<{ success?: boolean; comments?: ModerationComment[]; message?: string }>(res);
+    if (data) return { success: !!data.success, comments: Array.isArray(data.comments) ? data.comments : [], message: data.message };
+    return { success: false, comments: [], message: `خطا در دریافت دیدگاه‌ها (کد ${status})` };
+  } catch (err: any) {
+    return { success: false, comments: [], message: err?.message || 'خطا در دریافت دیدگاه‌ها.' };
+  }
+}
+
+export async function approveCommentApi(commentId: string, approved: boolean): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res = await fetch('/api/comments/approve', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commentId, approved }) }));
+    const { data } = await safeFetchJson<{ success?: boolean; message?: string }>(res);
+    return { success: res.ok && !!data?.success, message: data?.message };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'خطا در تغییر وضعیت دیدگاه.' };
+  }
 }
 
 export async function deleteCommentApi(commentId: string): Promise<boolean> {
