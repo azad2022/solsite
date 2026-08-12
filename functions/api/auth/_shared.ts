@@ -30,13 +30,13 @@ export class SupabaseUpstreamError extends Error {
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const SESSION_COOKIE = '__Host-solmint_session';
-const SESSION_TTL_SECONDS = 60 * 60 * 8;          // 8 hours
-const SESSION_SLIDING_WINDOW_SECONDS = 60 * 60;    // 1 hour – renew if less than this remains
-const MAX_SESSIONS_PER_USER = 5;                   // limit concurrent sessions
+const SESSION_TTL_SECONDS = 60 * 60 * 8;
+const SESSION_SLIDING_WINDOW_SECONDS = 60 * 60;
+const MAX_SESSIONS_PER_USER = 5;
 const LOGIN_WINDOW_SECONDS = 15 * 60;
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_BLOCK_SECONDS = 15 * 60;
-const PBKDF2_ITERATIONS = 100000;                  // safe for Cloudflare Workers CPU limits
+const PBKDF2_ITERATIONS = 100000;
 
 export function jsonResponse(
   body: unknown,
@@ -71,7 +71,6 @@ export function getSupabaseKeyType(
   return 'missing';
 }
 
-// ---------------------- crypto helpers ----------------------
 async function sha256(value: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     'SHA-256',
@@ -127,6 +126,12 @@ async function randomHex(bytes = 16): Promise<string> {
   return bytesToHex(data);
 }
 
+export async function hashPassword(password: string): Promise<string> {
+  const salt = await randomHex(16);
+  const derived = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
+  return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${salt}$${derived}`;
+}
+
 function scryptDerive(
   password: string,
   salt: Uint8Array,
@@ -154,10 +159,6 @@ function scryptDerive(
   });
 }
 
-/**
- * Constant-time comparison of two hex strings of equal length.
- * Used to prevent timing attacks on hash verification.
- */
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -167,19 +168,15 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-// ---------------------- password verification ----------------------
 export async function verifyPassword(
   password: string,
   stored: string
 ): Promise<{ valid: boolean; upgradedHash?: string }> {
   if (!password || !stored) return { valid: false };
 
-  // Legacy SHA256 (64 hex chars)
   if (/^[a-f0-9]{64}$/i.test(stored)) {
     const legacy = await sha256(password);
     if (!timingSafeEqual(legacy, stored.toLowerCase())) return { valid: false };
-
-    // Attempt automatic upgrade to PBKDF2
     try {
       const salt = await randomHex(16);
       const derived = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
@@ -187,41 +184,26 @@ export async function verifyPassword(
         valid: true,
         upgradedHash: `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${salt}$${derived}`,
       };
-    } catch (error) {
-      // If upgrade fails (e.g. CPU limit), still allow login with legacy hash
-      console.warn(
-        'Password upgrade to PBKDF2 failed due to runtime limits, allowing legacy login'
-      );
+    } catch {
+      console.warn('Password upgrade to PBKDF2 failed due to runtime limits, allowing legacy login');
       return { valid: true };
     }
   }
 
-  // PBKDF2-SHA256
-  const pbkdf2Match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]+)\$([a-f0-9]+)$/i.exec(
-    stored
-  );
+  const pbkdf2Match = /^pbkdf2-sha256\$(\d+)\$([a-f0-9]+)\$([a-f0-9]+)$/i.exec(stored);
   if (pbkdf2Match) {
     const iterations = Number(pbkdf2Match[1]);
-    if (
-      !Number.isSafeInteger(iterations) ||
-      iterations < 100000 ||
-      iterations > 1000000
-    ) {
-      return { valid: false };
-    }
+    if (!Number.isSafeInteger(iterations) || iterations < 100000 || iterations > 1000000) return { valid: false };
     try {
       const derived = await pbkdf2(password, pbkdf2Match[2], iterations);
       return { valid: timingSafeEqual(derived, pbkdf2Match[3].toLowerCase()) };
-    } catch (error) {
+    } catch {
       console.warn('PBKDF2 verification failed due to runtime error');
       return { valid: false };
     }
   }
 
-  // scrypt
-  const scryptMatch = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(
-    stored
-  );
+  const scryptMatch = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(stored);
   if (scryptMatch) {
     try {
       const N = Number(scryptMatch[1]);
@@ -229,19 +211,11 @@ export async function verifyPassword(
       const p = Number(scryptMatch[3]);
       const salt = Buffer.from(scryptMatch[4], 'base64url');
       const expected = Buffer.from(scryptMatch[5], 'base64url');
-
       const derived = await scryptDerive(password, salt, N, r, p, expected.length);
-
       if (derived.length !== expected.length) return { valid: false };
-
-      // Constant-time compare
       let diff = 0;
-      for (let i = 0; i < expected.length; i++) {
-        diff |= derived[i] ^ expected[i];
-      }
+      for (let i = 0; i < expected.length; i++) diff |= derived[i] ^ expected[i];
       if (diff !== 0) return { valid: false };
-
-      // Attempt upgrade to PBKDF2
       try {
         const newSalt = await randomHex(16);
         const newDerived = await pbkdf2(password, newSalt, PBKDF2_ITERATIONS);
@@ -249,63 +223,40 @@ export async function verifyPassword(
           valid: true,
           upgradedHash: `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${newSalt}$${newDerived}`,
         };
-      } catch (error) {
-        console.warn(
-          'scrypt to PBKDF2 upgrade failed due to runtime limits, allowing scrypt login'
-        );
+      } catch {
+        console.warn('scrypt to PBKDF2 upgrade failed due to runtime limits, allowing scrypt login');
         return { valid: true };
       }
-    } catch (error) {
+    } catch {
       console.warn('scrypt verification failed');
       return { valid: false };
     }
   }
 
-  // Unknown hash format
   return { valid: false };
 }
 
-// ---------------------- Supabase helpers ----------------------
-async function supabaseRequest(
-  env: Env,
-  path: string,
-  init: RequestInit = {}
-) {
+async function supabaseRequest(env: Env, path: string, init: RequestInit = {}) {
   const secret = getSecret(env);
-  if (!secret) {
-    throw new Error(
-      'SUPABASE_SECRET_KEY is not configured for the production authentication function.'
-    );
-  }
+  if (!secret) throw new Error('SUPABASE_SECRET_KEY is not configured for the production authentication function.');
 
   const headers: Record<string, string> = {
     apikey: secret,
     ...((init.headers as Record<string, string>) || {}),
   };
-
   if (!env.SUPABASE_SECRET_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
     headers.Authorization = `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`;
   }
 
-  const response = await fetch(`${getBaseUrl(env)}${path}`, {
-    ...init,
-    headers,
-  });
-
+  const response = await fetch(`${getBaseUrl(env)}${path}`, { ...init, headers });
   if (!response.ok) {
     const responseBody = (await response.text()).slice(0, 1000);
     throw new SupabaseUpstreamError(response.status, responseBody);
   }
-
   return response;
 }
 
-// ---------------------- rate limiting ----------------------
-async function authRateKey(
-  env: Env,
-  request: Request,
-  username: string
-): Promise<string> {
+async function authRateKey(env: Env, request: Request, username: string): Promise<string> {
   const forwarded =
     request.headers.get('CF-Connecting-IP') ||
     request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
@@ -314,34 +265,22 @@ async function authRateKey(
   return sha256(`${secret}:${forwarded}:${username.toLowerCase()}`);
 }
 
-export async function checkLoginRateLimit(
-  env: Env,
-  request: Request,
-  username: string
-): Promise<boolean> {
+export async function checkLoginRateLimit(env: Env, request: Request, username: string): Promise<boolean> {
   const keyHash = await authRateKey(env, request, username);
-  const response = await supabaseRequest(
-    env,
-    '/rest/v1/rpc/check_auth_login_rate_limit',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        p_key_hash: keyHash,
-        p_max_attempts: LOGIN_MAX_ATTEMPTS,
-        p_window_seconds: LOGIN_WINDOW_SECONDS,
-        p_block_seconds: LOGIN_BLOCK_SECONDS,
-      }),
-    }
-  );
+  const response = await supabaseRequest(env, '/rest/v1/rpc/check_auth_login_rate_limit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      p_key_hash: keyHash,
+      p_max_attempts: LOGIN_MAX_ATTEMPTS,
+      p_window_seconds: LOGIN_WINDOW_SECONDS,
+      p_block_seconds: LOGIN_BLOCK_SECONDS,
+    }),
+  });
   return Boolean(await response.json());
 }
 
-export async function recordFailedLogin(
-  env: Env,
-  request: Request,
-  username: string
-): Promise<void> {
+export async function recordFailedLogin(env: Env, request: Request, username: string): Promise<void> {
   const keyHash = await authRateKey(env, request, username);
   await supabaseRequest(env, '/rest/v1/rpc/record_auth_login_failure', {
     method: 'POST',
@@ -355,87 +294,45 @@ export async function recordFailedLogin(
   });
 }
 
-export async function clearLoginRateLimit(
-  env: Env,
-  request: Request,
-  username: string
-): Promise<void> {
+export async function clearLoginRateLimit(env: Env, request: Request, username: string): Promise<void> {
   const keyHash = await authRateKey(env, request, username);
-  await supabaseRequest(
-    env,
-    `/rest/v1/auth_login_attempts?key_hash=eq.${encodeURIComponent(keyHash)}`,
-    { method: 'DELETE' }
-  ).catch(() => {});
+  await supabaseRequest(env, `/rest/v1/auth_login_attempts?key_hash=eq.${encodeURIComponent(keyHash)}`, { method: 'DELETE' }).catch(() => {});
 }
 
-// ---------------------- session management ----------------------
 export function getSessionToken(request: Request): string {
   const cookie = request.headers.get('Cookie') || '';
   const match = cookie.match(/(?:^|;\s*)__Host-solmint_session=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-/**
- * Delete oldest sessions if user exceeds MAX_SESSIONS_PER_USER.
- * This runs before creating a new session to keep the total under the limit.
- */
 async function enforceSessionLimit(env: Env, userId: string): Promise<void> {
   try {
-    // Fetch all active sessions for this user, oldest first
     const response = await supabaseRequest(
       env,
       `/rest/v1/auth_sessions?select=id,created_at&user_id=eq.${encodeURIComponent(userId)}&order=created_at.asc`
     );
-    const sessions = (await response.json()) as Array<{
-      id: string;
-      created_at: string;
-    }>;
-
+    const sessions = (await response.json()) as Array<{ id: string; created_at: string }>;
     if (sessions.length >= MAX_SESSIONS_PER_USER) {
-      // We will keep the newest (MAX_SESSIONS_PER_USER - 1) because one slot will be taken by the new session
       const deleteCount = sessions.length - (MAX_SESSIONS_PER_USER - 1);
-      const toDelete = sessions.slice(0, deleteCount);
-
-      for (const s of toDelete) {
-        await supabaseRequest(
-          env,
-          `/rest/v1/auth_sessions?id=eq.${encodeURIComponent(s.id)}`,
-          { method: 'DELETE' }
-        ).catch(() => {}); // ignore individual delete errors
+      for (const s of sessions.slice(0, deleteCount)) {
+        await supabaseRequest(env, `/rest/v1/auth_sessions?id=eq.${encodeURIComponent(s.id)}`, { method: 'DELETE' }).catch(() => {});
       }
     }
   } catch (error) {
-    // If limit enforcement fails, we still allow session creation
     console.warn('Session limit enforcement failed:', error);
   }
 }
 
-export async function createSession(
-  env: Env,
-  user: AuthUser
-): Promise<string> {
+export async function createSession(env: Env, user: AuthUser): Promise<string> {
   const rawToken = `${await randomHex(32)}${await randomHex(32)}`;
   const tokenHash = await sha256(rawToken);
-  const expiresAt = new Date(
-    Date.now() + SESSION_TTL_SECONDS * 1000
-  ).toISOString();
-
-  // Enforce maximum concurrent sessions before inserting
+  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString();
   await enforceSessionLimit(env, user.id);
-
   await supabaseRequest(env, '/rest/v1/auth_sessions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
-    body: JSON.stringify({
-      user_id: user.id,
-      token_hash: tokenHash,
-      expires_at: expiresAt,
-    }),
+    headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ user_id: user.id, token_hash: tokenHash, expires_at: expiresAt }),
   });
-
   return rawToken;
 }
 
@@ -447,137 +344,76 @@ export function clearSessionCookie(): string {
   return `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict`;
 }
 
-export async function getAuthenticatedUser(
-  env: Env,
-  request: Request
-): Promise<AuthUser | null> {
+export async function getAuthenticatedUser(env: Env, request: Request): Promise<AuthUser | null> {
   const token = getSessionToken(request);
   if (!token) return null;
-
   const tokenHash = await sha256(token);
 
   let response: Response;
   try {
-    response = await supabaseRequest(
-      env,
-      `/rest/v1/auth_sessions?select=user_id,expires_at&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`
-    );
+    response = await supabaseRequest(env, `/rest/v1/auth_sessions?select=user_id,expires_at&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`);
   } catch {
     return null;
   }
-
-  const sessions = (await response.json()) as Array<{
-    user_id: string;
-    expires_at: string;
-  }>;
+  const sessions = (await response.json()) as Array<{ user_id: string; expires_at: string }>;
   const session = sessions[0];
-
   if (!session || Date.parse(session.expires_at) <= Date.now()) return null;
 
   let userResponse: Response;
   try {
-    userResponse = await supabaseRequest(
-      env,
-      `/rest/v1/users?select=id,username,full_name,role,permissions,is_active,created_at&id=eq.${encodeURIComponent(session.user_id)}&limit=1`
-    );
+    userResponse = await supabaseRequest(env, `/rest/v1/users?select=id,username,full_name,role,permissions,is_active,created_at&id=eq.${encodeURIComponent(session.user_id)}&limit=1`);
   } catch {
     return null;
   }
-
   const users = (await userResponse.json()) as AuthUser[];
   const user = users[0];
-
   if (!user || user.is_active === false) return null;
 
-  // Update last_seen_at (non-critical)
   await supabaseRequest(
     env,
     `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`,
     {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
+      headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ last_seen_at: new Date().toISOString() }),
     }
-  ).catch(() => {
-    console.warn('Session last_seen_at update failed');
-  });
+  ).catch(() => console.warn('Session last_seen_at update failed'));
 
-  // Sliding expiration: if less than SESSION_SLIDING_WINDOW_SECONDS remains, extend session
   const now = Date.now();
-  const expiresAt = Date.parse(session.expires_at);
-  if (expiresAt - now < SESSION_SLIDING_WINDOW_SECONDS * 1000) {
-    const newExpiresAt = new Date(
-      now + SESSION_TTL_SECONDS * 1000
-    ).toISOString();
+  if (Date.parse(session.expires_at) - now < SESSION_SLIDING_WINDOW_SECONDS * 1000) {
+    const newExpiresAt = new Date(now + SESSION_TTL_SECONDS * 1000).toISOString();
     await supabaseRequest(
       env,
       `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`,
       {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify({ expires_at: newExpiresAt }),
       }
-    ).catch(() => {
-      console.warn('Session sliding renewal failed');
-    });
+    ).catch(() => console.warn('Session sliding renewal failed'));
   }
-
   return user;
 }
 
-export async function destroySession(
-  env: Env,
-  request: Request
-): Promise<void> {
+export async function destroySession(env: Env, request: Request): Promise<void> {
   const token = getSessionToken(request);
   if (!token) return;
-
   const tokenHash = await sha256(token);
-  await supabaseRequest(
-    env,
-    `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`,
-    { method: 'DELETE' }
-  ).catch(() => {});
+  await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'DELETE' }).catch(() => {});
 }
 
-export async function findUser(
-  env: Env,
-  username: string
-): Promise<(AuthUser & { password_hash: string }) | null> {
-  const response = await supabaseRequest(
-    env,
-    `/rest/v1/users?select=id,username,full_name,password_hash,role,permissions,is_active,created_at&username=eq.${encodeURIComponent(username)}&limit=1`
-  );
-
-  const rows = (await response.json()) as Array<
-    AuthUser & { password_hash: string }
-  >;
+export async function findUser(env: Env, username: string): Promise<(AuthUser & { password_hash: string }) | null> {
+  const response = await supabaseRequest(env, `/rest/v1/users?select=id,username,full_name,password_hash,role,permissions,is_active,created_at&username=eq.${encodeURIComponent(username)}&limit=1`);
+  const rows = (await response.json()) as Array<AuthUser & { password_hash: string }>;
   return rows[0] || null;
 }
 
-export async function upgradePasswordHash(
-  env: Env,
-  userId: string,
-  passwordHash: string
-): Promise<void> {
-  await supabaseRequest(
-    env,
-    `/rest/v1/users?id=eq.${encodeURIComponent(userId)}`,
-    {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({ password_hash: passwordHash }),
-    }
-  );
+export async function upgradePasswordHash(env: Env, userId: string, passwordHash: string): Promise<void> {
+  await supabaseRequest(env, `/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ password_hash: passwordHash }),
+  });
 }
 
 export function toSafeUser(user: AuthUser) {
