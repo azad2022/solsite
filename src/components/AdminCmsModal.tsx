@@ -914,6 +914,10 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       setAuthError('');
       setFailedAttempts(0);
       setLoginPassword('');
+      if (user.role === 'user') {
+        onClose();
+        return;
+      }
       const userPerms = user.permissions && user.permissions.length > 0
         ? user.permissions
         : (user.role === 'superadmin' || user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
@@ -958,14 +962,17 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       alert(regRes.message || 'ثبت‌نام در سرور انجام نشد.');
       return;
     }
-    setUsers(prev => [regRes.user!, ...prev.filter(u => u.id !== regRes.user!.id)]);
     setCurrentUser(regRes.user);
     setIsAuthenticated(true);
     setRegFullName('');
     setRegUsername('');
     setRegPassword('');
     setRegConfirmPassword('');
-    alert('ثبت‌نام حساب کاربری با موفقیت در سرور انجام شد.');
+    if (regRes.user.role === 'user') {
+      onClose();
+      return;
+    }
+    alert('حساب کاربری با موفقیت در سرور ساخته شد.');
   };
   const handleLogout = async () => {
     try { await fetch('/api/users/logout', { method: 'POST', credentials: 'include' }); } catch {}
