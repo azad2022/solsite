@@ -21,6 +21,29 @@ function validateUsername(username: string): boolean {
   return username.length >= 3 && username.length <= 30 && /^[\w\d_@.\u0600-\u06FF\s-]+$/u.test(username);
 }
 
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function consumeRegistrationRateLimit(env: Env, request: Request, username: string, secret: string): Promise<boolean> {
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown';
+  const sourceSecret = env.AUTH_RATE_LIMIT_SECRET || secret;
+  const keyHash = await sha256(`${sourceSecret}:register:${ip}:${username}`);
+  const base = (env.SUPABASE_URL || 'https://nvopkbiedorfshwbmyhn.supabase.co').replace(/\/$/, '');
+  const response = await fetch(`${base}/rest/v1/rpc/consume_registration_rate_limit`, {
+    method: 'POST',
+    headers: {
+      apikey: secret,
+      Authorization: `Bearer ${secret}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ p_key_hash: keyHash, p_window_seconds: 3600, p_max_requests: 5 })
+  });
+  if (!response.ok) throw new Error(`registration rate limiter failed: ${response.status}`);
+  return Boolean(await response.json());
+}
+
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   const id = requestId();
   const responseHeaders = { 'X-Register-Request-ID': id };
@@ -47,6 +70,24 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     }
     if (password.length < 8 || password.length > 1024) {
       return jsonResponse({ success: false, message: 'رمز عبور باید حداقل ۸ کاراکتر باشد.', requestId: id }, 400, responseHeaders);
+    }
+
+    const secret = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
+    if (!secret) {
+      logRegister(id, 'registration:config_missing');
+      return jsonResponse({ success: false, message: 'سرویس ثبت‌نام سرور پیکربندی نشده است.', requestId: id }, 503, responseHeaders);
+    }
+
+    let allowed: boolean;
+    try {
+      allowed = await consumeRegistrationRateLimit(env, request, username, secret);
+    } catch (error) {
+      logRegister(id, 'registration:rate_limit_error', { error: error instanceof Error ? error.message.slice(0, 200) : String(error) });
+      return jsonResponse({ success: false, message: 'سرویس کنترل ثبت‌نام موقتاً در دسترس نیست.', requestId: id }, 503, responseHeaders);
+    }
+    if (!allowed) {
+      logRegister(id, 'registration:rate_limited');
+      return jsonResponse({ success: false, message: 'تعداد تلاش‌های ثبت‌نام از این نشانی بیش از حد مجاز است. لطفاً بعداً دوباره تلاش کنید.', requestId: id }, 429, { ...responseHeaders, 'Retry-After': '3600' });
     }
 
     logRegister(id, 'user_lookup:start', { username });
@@ -83,8 +124,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         {
           method: 'POST',
           headers: {
-            apikey: env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '',
-            Authorization: `Bearer ${env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || ''}`,
+            apikey: secret,
+            Authorization: `Bearer ${secret}`,
             'Content-Type': 'application/json',
             Prefer: 'return=representation',
           },
