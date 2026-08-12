@@ -1,9 +1,7 @@
-import { getAuthenticatedUser, jsonResponse, type Env } from '../auth/_shared';
+import { getAuthenticatedUser, getSessionToken, jsonResponse, type Env } from '../auth/_shared';
 
 type MediaEnv = Env & {
   SUPABASE_URL?: string;
-  SUPABASE_SECRET_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
 };
 
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
@@ -11,10 +9,6 @@ const ALLOWED_ACTIONS = new Set(['config', 'assets', 'test-connection', 'upload'
 
 function getSupabaseUrl(env: MediaEnv) {
   return (env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
-}
-
-function getServerSecret(env: MediaEnv) {
-  return env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
 }
 
 function actionFor(action: string) {
@@ -40,27 +34,22 @@ export const onRequest = async ({ request, env, params }: { request: Request; en
     return jsonResponse({ success: false, errorCode: 'MEDIA_ADMIN_UNAUTHORIZED', message: 'نشست مدیریتی معتبر نیست یا دسترسی رسانه ندارید.' }, 401);
   }
 
-  const secret = getServerSecret(env);
-  if (!secret) {
-    return jsonResponse({
-      success: false,
-      errorCode: 'MEDIA_GATEWAY_SECRET_MISSING',
-      message: 'کلید داخلی سرویس رسانه روی محیط production پیکربندی نشده است.'
-    }, 503);
-  }
-
   const upstreamBody = request.method === 'POST'
     ? await request.json().catch(() => ({}))
     : {};
   const payload = { ...(upstreamBody && typeof upstreamBody === 'object' ? upstreamBody : {}), action: actionFor(action) };
+  const sessionToken = getSessionToken(request);
+  if (!sessionToken) {
+    return jsonResponse({ success: false, errorCode: 'MEDIA_ADMIN_SESSION_MISSING', message: 'نشست مدیر برای ارتباط با سرویس رسانه موجود نیست.' }, 401);
+  }
 
   try {
     const upstream = await fetch(`${getSupabaseUrl(env)}/functions/v1/github-media`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-media-gateway-secret': secret,
-        'x-media-gateway-version': '2',
+        'x-solmint-session': sessionToken,
+        'x-media-gateway-version': '3',
       },
       body: JSON.stringify(payload),
     });
