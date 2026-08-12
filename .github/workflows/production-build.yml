@@ -43,4 +43,4 @@ jobs:
             git push
           fi
       - name: Production build
-        run: bun run lint && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs
+        run: bun run lint && node scripts/generate-sitemap.js && bunx vite build && bunx esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs
