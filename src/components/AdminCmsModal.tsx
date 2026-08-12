@@ -54,6 +54,7 @@ import {
 } from '../utils/mediaService';
 import { SUPABASE_ARTICLES_TABLE_SQL } from '../utils/supabaseClient';
 import { SolanaLogoIcon } from './Header';
+import { UserAccountWelcome } from './UserAccountWelcome';
 import { ProArticleEditor } from './ProArticleEditor';
 import { 
   formatAccurateDates, 
@@ -952,27 +953,31 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       alert('رمز عبور و تکرار آن مطابقت ندارند.');
       return;
     }
-    const regRes = await registerUserApi({
-      username: cleanUsername,
-      fullName: cleanFullName,
-      password: regPassword.trim(),
-      role: 'user'
-    });
-    if (!regRes.success || !regRes.user) {
-      alert(regRes.message || 'ثبت‌نام در سرور انجام نشد.');
-      return;
+    try {
+      const regRes = await registerUserApi({
+        username: cleanUsername,
+        fullName: cleanFullName,
+        password: regPassword.trim(),
+        role: 'user'
+      });
+      if (!regRes.success || !regRes.user) {
+        alert(regRes.message || 'ثبت‌نام در سرور انجام نشد.');
+        return;
+      }
+      setCurrentUser(regRes.user);
+      setIsAuthenticated(true);
+      setRegFullName('');
+      setRegUsername('');
+      setRegPassword('');
+      setRegConfirmPassword('');
+      if (regRes.user.role === 'user') {
+        onClose();
+        return;
+      }
+      alert('حساب کاربری با موفقیت در سرور ساخته شد.');
+    } catch (error: any) {
+      alert(error?.message || 'ارتباط با سرویس ثبت‌نام برقرار نشد.');
     }
-    setCurrentUser(regRes.user);
-    setIsAuthenticated(true);
-    setRegFullName('');
-    setRegUsername('');
-    setRegPassword('');
-    setRegConfirmPassword('');
-    if (regRes.user.role === 'user') {
-      onClose();
-      return;
-    }
-    alert('حساب کاربری با موفقیت در سرور ساخته شد.');
   };
   const handleLogout = async () => {
     try { await fetch('/api/users/logout', { method: 'POST', credentials: 'include' }); } catch {}
@@ -1656,7 +1661,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                       <input
                         type="password"
                         required
-                        placeholder="حداقل ۴ کاراکتر"
+                        placeholder="حداقل ۸ کاراکتر"
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-xs text-white font-mono placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
@@ -1688,55 +1693,12 @@ Sitemap: https://solmint.ir/sitemap.xml
 
           </div>
         ) : currentUser && currentUser.role === 'user' ? (
-          /* 2. REGULAR USER PROFILE VIEW */
-          <div className="max-w-lg mx-auto py-8 space-y-6 text-center">
-            <div className="w-20 h-20 rounded-3xl bg-emerald-500/20 border border-emerald-500/40 text-[#14F195] flex items-center justify-center mx-auto shadow-2xl">
-              <UserCheck className="w-10 h-10" />
-            </div>
-
-            <div className="space-y-2">
-              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
-                حساب کاربری فعال
-              </span>
-              <h3 className="text-2xl font-black text-white">
-                خوش آمدید، {currentUser.fullName}!
-              </h3>
-              <p className="text-xs text-slate-400">
-                نام کاربری: <span className="text-sky-400 font-mono font-bold">{currentUser.username}</span> | تاریخ عضویت: <span className="font-mono text-slate-300">{currentUser.createdAt}</span>
-              </p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 text-right">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>دسترسی کامل به ارسال دیدگاه فعال است</span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                اکنون می‌توانید زیر کلیه مقالات آموزشی و تحلیل‌های تخصصی وبلاگ solmint.ir نظر بدهید و با بقیه کاربران تبادل نظر کنید.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-              <button
-                onClick={() => {
-                  onClose();
-                  if (onGoToBlog) onGoToBlog();
-                }}
-                className="w-full py-3.5 rounded-2xl btn-gradient font-bold text-xs cursor-pointer shadow-lg flex items-center justify-center gap-2"
-              >
-                <BookOpen className="w-4 h-4" />
-                <span>مشاهده مقالات و ثبت نظر</span>
-              </button>
-
-              <button
-                onClick={handleLogout}
-                className="w-full py-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-xs cursor-pointer flex items-center justify-center gap-2 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>خروج از حساب</span>
-              </button>
-            </div>
-          </div>
+          <UserAccountWelcome
+            user={currentUser}
+            onClose={onClose}
+            onGoToBlog={onGoToBlog}
+            onLogout={handleLogout}
+          />
         ) : (
           /* 3. AUTHENTICATED ADMIN CMS MANAGER CONTROLS */
           <div className="space-y-6">
