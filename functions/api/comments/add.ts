@@ -7,6 +7,7 @@ interface CommentsEnv extends Env {
 }
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
+const VIRTUAL_COMMENT_TARGETS = new Set(['solana-price']);
 
 const getDb = (env: CommentsEnv) => {
   const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
@@ -58,15 +59,19 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: C
       return jsonResponse({ success: false, message: 'تعداد دیدگاه‌های شما در بازه فعلی بیش از حد مجاز است. لطفاً بعداً دوباره تلاش کنید.' }, 429, { 'Retry-After': '3600' });
     }
 
-    const articleLookup = await fetch(`${base}/rest/v1/articles?select=id,slug&id=eq.${encodeURIComponent(articleId)}&limit=1`, { headers });
-    let articles = await articleLookup.json().catch(() => []);
-    if (!articleLookup.ok || !Array.isArray(articles) || !articles[0]) {
-      const slugLookup = await fetch(`${base}/rest/v1/articles?select=id,slug&slug=eq.${encodeURIComponent(articleId)}&limit=1`, { headers });
-      articles = await slugLookup.json().catch(() => []);
-      if (!slugLookup.ok || !Array.isArray(articles) || !articles[0]) return jsonResponse({ success: false, message: 'مقاله مورد نظر یافت نشد.' }, 404);
-    }
+    const isVirtualTarget = VIRTUAL_COMMENT_TARGETS.has(articleId);
+    let canonicalArticleId = articleId;
 
-    const canonicalArticleId = String(articles[0].id);
+    if (!isVirtualTarget) {
+      const articleLookup = await fetch(`${base}/rest/v1/articles?select=id,slug&id=eq.${encodeURIComponent(articleId)}&limit=1`, { headers });
+      let articles = await articleLookup.json().catch(() => []);
+      if (!articleLookup.ok || !Array.isArray(articles) || !articles[0]) {
+        const slugLookup = await fetch(`${base}/rest/v1/articles?select=id,slug&slug=eq.${encodeURIComponent(articleId)}&limit=1`, { headers });
+        articles = await slugLookup.json().catch(() => []);
+        if (!slugLookup.ok || !Array.isArray(articles) || !articles[0]) return jsonResponse({ success: false, message: 'مقاله مورد نظر یافت نشد.' }, 404);
+      }
+      canonicalArticleId = String(articles[0].id);
+    }
 
     if (parentId) {
       const parentResponse = await fetch(`${base}/rest/v1/comments?select=id,article_id,approved&id=eq.${encodeURIComponent(parentId)}&limit=1`, { headers });
