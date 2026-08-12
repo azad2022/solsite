@@ -14,10 +14,16 @@ function getDb(env: CommentsEnv) {
   return { base, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' } };
 }
 
+function canModerate(user: any) {
+  if (!user || user.is_active === false) return false;
+  if (['superadmin', 'admin'].includes(String(user.role))) return true;
+  return Array.isArray(user.permissions) && user.permissions.includes('comments');
+}
+
 export const onRequestPost = async ({ request, env }: { request: Request; env: CommentsEnv }) => {
   try {
     const user = await getAuthenticatedUser(env, request);
-    if (!user || !['superadmin', 'admin'].includes(String(user.role))) return jsonResponse({ success: false, message: 'دسترسی مدیریت نظرات مجاز نیست.' }, 403);
+    if (!canModerate(user)) return jsonResponse({ success: false, message: 'دسترسی مدیریت نظرات مجاز نیست.' }, 403);
 
     const body = await request.json() as { commentId?: unknown };
     const commentId = String(body.commentId || '').trim();
