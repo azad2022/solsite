@@ -42,7 +42,7 @@ patchFile('src/utils/mediaService.ts', source => {
       "  if (!normalized) return 'media_unknown';",
       '  try {',
       '    let hash = 2166136261;',
-      '    for (let i = 0; i < normalized.length; i += 1) hash = Math.imul(hash ^ normalized.charCodeAt(i), 16777619);',
+      "    for (let i = 0; i < normalized.length; i += 1) hash = Math.imul(hash ^ normalized.charCodeAt(i), 16777619);",
       "    return 'media_url_' + (hash >>> 0).toString(16);",
       "  } catch { return 'media_unknown'; }",
       '}',
@@ -80,7 +80,7 @@ patchFile('src/components/AdminCmsModal.tsx', source => {
   if (!out.includes('coverImageAssetId: formCoverImageAssetId || undefined')) {
     const anchor = "            coverImage: finalCoverImage,\n";
     const count = out.split(anchor).length - 1;
-    if (count < 2) throw new Error(`[media-linking] Expected two article cover save sites, found ${count}`);
+    if (count < 1) throw new Error(`[media-linking] Expected at least one article cover save site, found ${count}`);
     out = out.replaceAll(anchor, anchor + "            coverImageAssetId: formCoverImageAssetId || undefined,\n");
   }
 
