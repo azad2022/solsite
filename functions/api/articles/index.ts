@@ -26,19 +26,41 @@ function canManageArticles(user: any): boolean {
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: Env }) => {
   try {
-    const actor = await getAuthenticatedUser(env, request);
-    if (!canManageArticles(actor)) return jsonResponse({ success: false, code: 'ARTICLE_AUTH_REQUIRED', message: 'دسترسی مدیریت مقالات معتبر نیست.' }, 401);
     const { base, headers } = db(env);
-    const response = await fetch(`${base}/rest/v1/articles?select=*&order=created_at.desc`, { headers });
+    const actor = await getAuthenticatedUser(env, request);
+
+    if (canManageArticles(actor)) {
+      const response = await fetch(`${base}/rest/v1/articles?select=*&order=created_at.desc`, { headers });
+      const text = await response.text();
+      if (!response.ok) {
+        console.error('Admin article list failed:', response.status, text.slice(0, 500));
+        return jsonResponse({ success: false, code: 'ARTICLE_LIST_FAILED', message: `دریافت مقالات از Supabase ناموفق بود (HTTP ${response.status}).` }, 502);
+      }
+      const articles = text ? JSON.parse(text) : [];
+      return jsonResponse({ success: true, articles: Array.isArray(articles) ? articles : [] });
+    }
+
+    // Public article listing: never send full article bodies/comments to the browser.
+    // This keeps the homepage/blog listing small while article detail remains on its
+    // dedicated server route. Drafts are excluded from the public response.
+    const publicSelect = [
+      'id', 'title', 'slug', 'category', 'tags', 'summary', 'cover_image', 'cover_image_asset_id',
+      'video_url', 'author', 'published_at', 'published_at_jalali', 'published_at_gregorian',
+      'read_time_minutes', 'views_count', 'seo_score', 'is_draft', 'created_at'
+    ].join(',');
+    const response = await fetch(
+      `${base}/rest/v1/articles?select=${encodeURIComponent(publicSelect)}&is_draft=eq.false&order=created_at.desc&limit=50`,
+      { headers }
+    );
     const text = await response.text();
     if (!response.ok) {
-      console.error('Admin article list failed:', response.status, text.slice(0, 500));
-      return jsonResponse({ success: false, code: 'ARTICLE_LIST_FAILED', message: `دریافت مقالات از Supabase ناموفق بود (HTTP ${response.status}).` }, 502);
+      console.error('Public article list failed:', response.status, text.slice(0, 500));
+      return jsonResponse({ success: false, code: 'PUBLIC_ARTICLE_LIST_FAILED', message: 'دریافت فهرست مقالات ناموفق بود.' }, 502);
     }
     const articles = text ? JSON.parse(text) : [];
     return jsonResponse({ success: true, articles: Array.isArray(articles) ? articles : [] });
   } catch (error) {
-    console.error('Admin article list error:', error);
+    console.error('Article list error:', error);
     return jsonResponse({ success: false, code: 'ARTICLE_LIST_SERVER_ERROR', message: 'ارتباط با دیتابیس مقالات برقرار نشد.' }, 503);
   }
 };
