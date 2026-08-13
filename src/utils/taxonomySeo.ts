@@ -42,13 +42,19 @@ function setCanonical(canonical: string) {
 function setJsonLd(id: string, value: unknown) {
   const existing = document.getElementById(id);
   if (existing) existing.remove();
-
   const script = document.createElement('script');
   script.id = id;
   script.type = 'application/ld+json';
   script.text = JSON.stringify(value);
   document.head.appendChild(script);
 }
+
+const CATEGORY_SEO: Record<string, { title: string; description: string }> = {
+  'solana-projects': {
+    title: 'پروژه های سولانا | معرفی و بررسی اکوسیستم سولانا',
+    description: 'معرفی و بررسی پروژه های سولانا در DeFi، DEX، کیف پول، زیرساخت، DePIN، NFT، پرداخت و سایر بخش‌های اکوسیستم؛ با تمرکز بر کاربرد، داده و ریسک.'
+  }
+};
 
 export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput) {
   if (typeof document === 'undefined') return;
@@ -57,8 +63,9 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
   const canonical = `${SITE_DOMAIN}${url}`;
   const label = type === 'category' ? 'دسته‌بندی' : 'برچسب';
   const indexable = count >= 2;
-  const title = `${name} | ${label} مقالات سولمینت`;
-  const description = `مقالات مرتبط با ${label} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;
+  const specialized = type === 'category' ? CATEGORY_SEO[slug] : undefined;
+  const title = specialized?.title || `${name} | ${label} مقالات سولمینت`;
+  const description = specialized?.description || `مقالات مرتبط با ${label} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;
 
   document.title = title;
   setMeta('description', description);
@@ -68,7 +75,6 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
   setMeta('twitter:description', description);
   setMeta('twitter:url', canonical);
   setMeta('twitter:image', `${SITE_DOMAIN}/images/blog-og.jpg`);
-
   setProperty('og:title', title);
   setProperty('og:description', description);
   setProperty('og:type', 'website');
@@ -93,15 +99,15 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
     name: title,
     description,
     inLanguage: 'fa-IR',
-    isPartOf: {
-      '@type': 'WebSite',
-      '@id': `${SITE_DOMAIN}#website`,
-      url: SITE_DOMAIN,
-      name: 'سولمینت'
+    isPartOf: { '@type': 'WebSite', '@id': `${SITE_DOMAIN}#website`, url: SITE_DOMAIN, name: 'سولمینت' },
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'خانه', item: SITE_DOMAIN },
+        { '@type': 'ListItem', position: 2, name: 'وبلاگ', item: `${SITE_DOMAIN}/blog` },
+        { '@type': 'ListItem', position: 3, name, item: canonical }
+      ]
     },
-    mainEntity: {
-      '@type': 'ItemList',
-      numberOfItems: count
-    }
+    mainEntity: { '@type': 'ItemList', numberOfItems: count }
   });
 }
