@@ -1,0 +1,49 @@
+function inlineMarkdown(value: string): string {
+  let s = escapeHtml(value);
+  s = s.replace(/!\[([^\]]*)\]\(([^\s)]+)\)/g, (_m, alt, src) => `<img src="${escapeHtml(safeUrl(src))}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async">`);
+  s = s.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, (_m, label, href) => `<a href="${escapeHtml(safeUrl(href))}"${/^https?:\/\//i.test(href) ? ' target="_blank" rel="noopener noreferrer nofollow"' : ''}>${label}</a>`);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>').replace(/_([^_]+)_/g, '<em>$1</em>');
+  return s;
+}
+
+function renderBody(source: string): string {
+  const normalized = String(source || '').replace(/\r\n?/g, '\n').trim();
+  if (!normalized) return '';
+  const lines = normalized.split('\n');
+  const output: string[] = [];
+  let paragraph: string[] = [];
+  const flush = () => {
+    if (!paragraph.length) return;
+    const text = paragraph.join(' ').trim();
+    if (text) output.push(`<p>${inlineMarkdown(text)}</p>`);
+    paragraph = [];
+  };
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    const heading = line.match(/^#{1,6}\s+(.+?)\s*#*$/);
+    if (heading) {
+      flush();
+      const rawLevel = line.match(/^(#{1,6})/)?.[1].length || 2;
+      const level = Math.min(Math.max(rawLevel + 1, 2), 6);
+      output.push(`<h${level}>${inlineMarkdown(heading[1])}</h${level}>`);
+      i++; continue;
+    }
+    if (/^\s*[-*+]\s+/.test(line)) {
+      flush(); const items: string[] = [];
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i].trim())) { items.push(`<li>${inlineMarkdown(lines[i].trim().replace(/^[-*+]\s+/, ''))}</li>`); i++; }
+      output.push(`<ul>${items.join('')}</ul>`); continue;
+    }
+    if (/^\s*\d+[.)]\s+/.test(line)) {
+      flush(); const items: string[] = [];
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i].trim())) { items.push(`<li>${inlineMarkdown(lines[i].trim().replace(/^\d+[.)]\s+/, ''))}</li>`); i++; }
+      output.push(`<ol>${items.join('')}</ol>`); continue;
+    }
+    if (!line) { flush(); i++; continue; }
+    paragraph.push(line); i++;
+  }
+  flush();
+  return output.join('\n');
+}
