@@ -1,4 +1,4 @@
-import { getAuthenticatedUser, type Env, jsonResponse } from '../auth/_shared';
+import { getAuthenticatedUser, hashPassword, type Env, jsonResponse } from '../auth/_shared';
 
 interface UpdateEnv extends Env { SUPABASE_SERVICE_ROLE_KEY?: string; }
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
@@ -6,10 +6,6 @@ function db(env: UpdateEnv) {
   const key = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY;
   if (!key) throw new Error('Supabase server secret is not configured.');
   return { base: (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, ''), key };
-}
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: UpdateEnv }) => {
@@ -22,9 +18,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: U
     const userId = String(body.userId || '').trim();
     if (!userId) return jsonResponse({ success: false, message: 'شناسه کاربر الزامی است.' }, 400);
 
-    const targetResponse = await fetch(`${base}/rest/v1/users?select=id,username,role,is_active&id=eq.${encodeURIComponent(userId)}&limit=1`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
-    });
+    const targetResponse = await fetch(`${base}/rest/v1/users?select=id,username,role,is_active&id=eq.${encodeURIComponent(userId)}&limit=1`, { headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } });
     if (!targetResponse.ok) throw new Error(`Target lookup failed: ${targetResponse.status}`);
     const targets = await targetResponse.json() as Array<{ id: string; username: string; role: string; is_active: boolean }>;
     const target = targets[0];
@@ -44,10 +38,16 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: U
 
     const patch: Record<string, unknown> = {};
     if (requestedRole !== undefined) patch.role = requestedRole;
-    if (Array.isArray(body.permissions)) patch.permissions = body.permissions.filter((p): p is string => typeof p === 'string').slice(0, 50);
+    if (Array.isArray(body.permissions)) {
+      const requestedPermissions = body.permissions.filter((p): p is string => typeof p === 'string').map(p => p.trim()).filter(Boolean).slice(0, 50);
+      patch.permissions = requestedPermissions;
+    }
     if (typeof body.isActive === 'boolean') patch.is_active = body.isActive;
-    if (typeof body.password === 'string' && body.password.length >= 8) patch.password_hash = await sha256(body.password);
-    else if (typeof body.passwordHash === 'string' && /^[a-f0-9]{64}$/i.test(body.passwordHash.trim())) patch.password_hash = body.passwordHash.trim().toLowerCase();
+    if (typeof body.password === 'string' && body.password.length >= 8 && body.password.length <= 1024) {
+      patch.password_hash = await hashPassword(body.password);
+    } else if (typeof body.passwordHash === 'string' && /^(pbkdf2-sha256\$\d+\$[a-f0-9]+\$[a-f0-9]+|scrypt\$\d+\$\d+\$\d+\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+)$/i.test(body.passwordHash.trim())) {
+      patch.password_hash = body.passwordHash.trim();
+    }
     if (Object.keys(patch).length === 0) return jsonResponse({ success: false, message: 'هیچ تغییری برای ذخیره وجود ندارد.' }, 400);
 
     const response = await fetch(`${base}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
