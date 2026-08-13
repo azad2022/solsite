@@ -1,11 +1,28 @@
 import fs from 'node:fs';
+
 const file = 'src/components/AdminCmsModal.tsx';
 let s = fs.readFileSync(file, 'utf8');
+
+// Idempotent: once the component has been inserted, leave the source untouched.
 if (s.includes('data-production-cover-assignment')) process.exit(0);
-s = s.replace("import React, { useState, useEffect } from 'react';", "import React, { useState, useEffect } from 'react';\nimport { MediaLibraryCoverAssignment } from './MediaLibraryCoverAssignment';");
-const a = s.indexOf('            {/* TAB 4: MEDIA LIBRARY */}');
-const b = s.indexOf('            {/* TAB 5: SEO, CLOUDFLARE & GITHUB BACKUP */}');
-if (a < 0 || b <= a) throw new Error('MEDIA_TAB_NOT_FOUND');
-const block = `            {/* TAB 4: MEDIA LIBRARY */}\n            {adminTab === 'media' && (\n              <div className="space-y-6 text-xs">\n                <MediaLibraryCoverAssignment articles={articles} />\n                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">\n                  <div className="flex items-center gap-2 mb-3"><ImageIcon className="w-4 h-4 text-purple-400" /><span className="font-bold text-white text-sm">کتابخانه رسانه</span></div>\n                  <p className="text-[11px] text-slate-400">تصاویر این بخش از مخزن رسانه فعال خوانده می‌شوند.</p>\n                </div>\n              </div>\n            )}\n`;
-s = s.slice(0, a) + block + s.slice(b);
-fs.writeFileSync(file, s);
+
+if (!s.includes("import { MediaLibraryCoverAssignment } from './MediaLibraryCoverAssignment';")) {
+  const reactImport = "import React, { useState, useEffect } from 'react';";
+  if (!s.includes(reactImport)) throw new Error('ADMIN_MODAL_REACT_IMPORT_NOT_FOUND');
+  s = s.replace(reactImport, `${reactImport}\nimport { MediaLibraryCoverAssignment } from './MediaLibraryCoverAssignment';`);
+}
+
+// The real production source uses TAB 4: GITHUB MEDIA MANAGEMENT.
+const tabMarker = '            {/* TAB 4: GITHUB MEDIA MANAGEMENT */}';
+const openMarker = "            {adminTab === 'media' && (\n              <div className=\"space-y-6 text-xs\">";
+const start = s.indexOf(tabMarker);
+const open = s.indexOf(openMarker, start);
+
+if (start < 0 || open < 0) throw new Error('MEDIA_TAB_NOT_FOUND');
+
+const insertAt = open + openMarker.length;
+const component = `\n                <MediaLibraryCoverAssignment articles={articles} />`;
+s = s.slice(0, insertAt) + component + s.slice(insertAt);
+
+fs.writeFileSync(file, s, 'utf8');
+console.log('media-library-cover-assignment: cover assignment UI wired into the canonical GitHub media management tab.');
