@@ -28,9 +28,16 @@ function publicSettings(settings: Record<string, any>) {
   return safe;
 }
 
-export const onRequestGet = async ({ env }: { env: SettingsEnv }) => {
-  try { return jsonResponse({ success: true, settings: publicSettings(await getSettings(env)) }); }
-  catch (error) { console.error('CMS settings GET failed:', error); return jsonResponse({ success: false, message: 'اتصال به دیتابیس تنظیمات برقرار نشد.' }, 503); }
+export const onRequestGet = async ({ request, env }: { request: Request; env: SettingsEnv }) => {
+  try {
+    const settings = await getSettings(env);
+    const user = await getAuthenticatedUser(env, request);
+    const isAdmin = !!user && ['superadmin', 'admin'].includes(String(user.role));
+    return jsonResponse({ success: true, settings: isAdmin ? settings : publicSettings(settings) });
+  } catch (error) {
+    console.error('CMS settings GET failed:', error);
+    return jsonResponse({ success: false, message: 'اتصال به دیتابیس تنظیمات برقرار نشد.' }, 503);
+  }
 };
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: SettingsEnv }) => {
@@ -69,6 +76,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
       const userResponse = await fetch(`${base}/rest/v1/users?username=eq.admin`, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ password_hash: passwordHash }) });
       if (!userResponse.ok) throw new Error(await userResponse.text());
     }
-    return jsonResponse({ success: true, settings: publicSettings(updated), message: 'تنظیمات با موفقیت در Supabase ذخیره شد.' });
+    return jsonResponse({ success: true, settings: updated, message: 'تنظیمات با موفقیت در Supabase ذخیره شد.' });
   } catch (error) { console.error('CMS settings POST failed:', error); return jsonResponse({ success: false, message: 'ذخیره تنظیمات در دیتابیس انجام نشد.' }, 500); }
 };
