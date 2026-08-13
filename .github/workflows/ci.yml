@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, production-hardening]
+    branches: [main, production-hardening, seo-stage2-production-hardening, seo-stage3-admin-cms]
   pull_request:
-    branches: [main]
+    branches: [main, seo-stage2-production-hardening]
 
 permissions:
   contents: read
