@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Solmint">
+  <defs>
+    <linearGradient id="g" x1="90" y1="80" x2="420" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9945FF"/>
+      <stop offset="0.52" stop-color="#14F195"/>
+      <stop offset="1" stop-color="#00C2FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#071B2B"/>
+  <path fill="url(#g)" d="M118 139c7-7 16-11 27-11h247c11 0 16 13 8 21l-47 47c-7 7-16 11-27 11H79c-11 0-16-13-8-21l47-47Zm29 87h247c11 0 16 13 8 21l-47 47c-7 7-16 11-27 11H81c-11 0-16-13-8-21l47-47c7-7 16-11 27-11Zm-27 86h247c11 0 16 13 8 21l-47 47c-7 7-16 11-27 11H108c-11 0-16-13-8-21l47-47c7-7 16-11 27-11Z"/>
+</svg>
