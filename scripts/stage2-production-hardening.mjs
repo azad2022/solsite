@@ -66,10 +66,15 @@ function write(path, content) {
   if (!source.includes("permissions.includes('comments')")) throw new Error('[stage2-hardening] Comment moderation authorization invariant failed.');
 }
 
-// Media gateway must enforce the same RBAC contract at the application layer.
+// Media gateway uses an explicit authenticated-admin role gate at the Pages Function boundary.
 {
   const source = read('functions/api/media/[action].ts');
-  if (!source.includes("permissions.includes('media')")) throw new Error('[stage2-hardening] Media authorization invariant failed.');
+  const hasSessionValidation = source.includes('getAuthenticatedUser(env, request)');
+  const hasActiveCheck = source.includes('user.is_active === false');
+  const hasAdminRoleGate = source.includes("['admin', 'superadmin'].includes(String(user.role))");
+  if (!hasSessionValidation || !hasActiveCheck || !hasAdminRoleGate) {
+    throw new Error('[stage2-hardening] Media authorization invariant failed.');
+  }
 }
 
 console.log('✓ [stage2-hardening] Auth, media, comments and SSR invariants verified.');
