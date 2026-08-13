@@ -45,13 +45,13 @@ if (!source.includes(canonicalComponent)) {
   if (modalStart >= 0 && modalEnd > modalStart) {
     source = source.slice(0, modalStart) + "        <CommentsSection articleId={String(readingArticle.id)} comments={[]} currentUser={currentUser} openAuthModal={openAuthModal} onCommentCreated={() => {}} />\n" + source.slice(modalEnd);
   } else {
-    // A previous build step may already have removed the legacy block. In that
-    // converged state, do not fail the build.
     console.log('production-comments-unification: canonical comments block already converged; no modal rewrite needed.');
   }
 }
 
-source = source.replace("import { Article, ArticleComment, UserAccount } from '../types';", "import { Article, UserAccount } from '../types';");
+// Keep ArticleComment because production-comments-client-wiring creates the
+// handleCommentCreated callback with this domain type.
+source = source.replace("import { Article, UserAccount } from '../types';", "import { Article, ArticleComment, UserAccount } from '../types';");
 source = source.replace("import { sanitizeText, safeSetLocalStorage } from '../utils/security';\n", "");
 source = source.replace("import { addCommentApi } from '../utils/cmsApiClient';\n", "");
 fs.writeFileSync(blogPath, source);
