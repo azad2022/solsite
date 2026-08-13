@@ -20,26 +20,9 @@ const DEFAULT_CONFIG: DatabaseConfig = {
   cloudflareApiKey: ''
 };
 
-const ARTICLE_FUNCTION_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/article-publish-api';
-
 function getAdminPasscode(): string {
   if (typeof window === 'undefined') return '';
   return (localStorage.getItem('solmint_admin_passcode') || localStorage.getItem('solmint_passcode') || '').trim();
-}
-
-function getCurrentUserHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem('solmint_current_user');
-    const user = raw ? JSON.parse(raw) : null;
-    if (user?.username && user?.passwordHash) {
-      return {
-        'x-admin-username': String(user.username),
-        'x-admin-password-hash': String(user.passwordHash)
-      };
-    }
-  } catch (_) {}
-  return {};
 }
 
 async function parseApiResponse(res: Response): Promise<any> {
@@ -164,13 +147,7 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
   return null;
 }
 
-function articleFunctionHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', ...getCurrentUserHeaders(), ...(getAdminPasscode() ? { 'x-admin-passcode': getAdminPasscode() } : {}) };
-}
-
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
-  // The server is the final authority, but we also normalize empty/default tags here
-  // so the editor never publishes an article without useful topical taxonomy.
   const preparedArticle: Article = {
     ...article,
     tags: article.tags?.length > 0 && article.tags.join(',') !== 'سولانا,سولمینت,وب۳'
@@ -190,7 +167,15 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
   }
 
   try {
-    const response = await fetch(ARTICLE_FUNCTION_URL, { method: 'POST', headers: articleFunctionHeaders(), body: JSON.stringify({ ...preparedArticle, publish: !preparedArticle.isDraft }) });
+    // Use the same-origin Pages Function so the HttpOnly __Host-solmint_session
+    // cookie is sent automatically. Password hashes and admin passcodes never
+    // need to be exposed to the browser-side publish API.
+    const response = await fetch('/api/articles/publish', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...preparedArticle, publish: !preparedArticle.isDraft })
+    });
     const payload = await parseApiResponse(response);
     if (!response.ok || !payload?.success) {
       const serverMessage = payload?.message || payload?.error || await getReadableResponseMessage(response, `HTTP ${response.status}`);
@@ -198,7 +183,7 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
     }
     showSuccessPopup(payload?.message || `مقاله «${preparedArticle.title}» با موفقیت منتشر شد.`);
     return true;
-  } catch (err: any) { throw err instanceof Error ? err : new Error(`خطا در ارتباط با سرویس انتشار Supabase: ${err?.message || err}`); }
+  } catch (err: any) { throw err instanceof Error ? err : new Error(`خطا در ارتباط با سرویس انتشار مقاله: ${err?.message || err}`); }
 }
 
 export async function deleteArticleFromActiveDatabase(articleId: string): Promise<boolean> {
@@ -212,14 +197,14 @@ export async function deleteArticleFromActiveDatabase(articleId: string): Promis
   }
 
   try {
-    const res = await fetch(`${ARTICLE_FUNCTION_URL}/${encodeURIComponent(articleId)}`, { method: 'DELETE', headers: articleFunctionHeaders() });
+    const res = await fetch(`/api/articles/${encodeURIComponent(articleId)}`, { method: 'DELETE', credentials: 'same-origin' });
     const payload = await parseApiResponse(res);
     if (!res.ok || !payload?.success) {
       const message = payload?.message || await getReadableResponseMessage(res, `HTTP ${res.status}`);
       throw new Error(`حذف مقاله ناموفق بود: ${message}`);
     }
     return true;
-  } catch (err) { console.warn('Error deleting article from Supabase function:', err); return false; }
+  } catch (err) { console.warn('Error deleting article from server:', err); return false; }
 }
 
 export async function testDatabaseConnection(provider: DatabaseProvider): Promise<{ success: boolean; message: string }> {
