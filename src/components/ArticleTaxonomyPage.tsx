@@ -11,6 +11,10 @@ interface ArticleTaxonomyPageProps {
   onNavigate: (path: string) => void;
 }
 
+const CATEGORY_INTROS: Record<string, string> = {
+  'solana-projects': 'در این بخش پروژه های سولانا را بر اساس نقش واقعی آن‌ها در اکوسیستم بررسی می‌کنیم؛ از DeFi و DEX تا کیف پول، زیرساخت، DePIN، NFT و پرداخت. هدف، ارائه معرفی مستقل همراه با کاربرد، وضعیت، نقاط قوت و ریسک‌های هر پروژه است.'
+};
+
 export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articles, type, slug, onNavigate }) => {
   const taxonomy = articles.flatMap(article => {
     if (type === 'category') {
@@ -27,6 +31,7 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
 
   const title = taxonomy?.name || 'موضوع مورد نظر';
   const typeLabel = type === 'category' ? 'دسته‌بندی' : 'برچسب';
+  const intro = type === 'category' ? CATEGORY_INTROS[slug] : undefined;
 
   return (
     <section className="py-16 bg-[#0f1117] border-b border-slate-800/60">
@@ -39,14 +44,14 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
           <span className="text-slate-300">{title}</span>
         </nav>
 
-        <header className="max-w-3xl mb-10">
+        <header className="max-w-4xl mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-semibold">
             {type === 'category' ? <BookOpen className="w-4 h-4" aria-hidden="true" /> : <Tag className="w-4 h-4" aria-hidden="true" />}
             {typeLabel}
           </div>
           <h1 className="mt-4 text-3xl sm:text-5xl font-black text-white leading-tight">{title}</h1>
-          <p className="mt-4 text-slate-400 leading-7">
-            مقالات مرتبط با {typeLabel} «{title}» در آکادمی سولمینت.
+          <p className="mt-4 text-slate-400 leading-8 max-w-3xl">
+            {intro || `مقالات مرتبط با ${typeLabel} «${title}» در آکادمی سولمینت.`}
           </p>
         </header>
 
