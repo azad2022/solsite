@@ -11,7 +11,17 @@ export const MediaLibraryCoverAssignment: React.FC<Props> = ({ articles }) => {
   const [assigning, setAssigning] = useState(false);
   const [notice, setNotice] = useState('');
   const [selectedId, setSelectedId] = useState('');
-  const missingArticles = useMemo(() => articles.filter(a => !String(a.coverImage || '').trim()), [articles]);
+
+  // databaseService historically maps a NULL cover_image to the shared
+  // /images/blog-og.jpg placeholder. Treat that placeholder as "no custom
+  // cover" here so the admin assignment tool can find those articles.
+  const missingArticles = useMemo(
+    () => articles.filter(a => {
+      const cover = String(a.coverImage || '').trim();
+      return !cover || cover === '/images/blog-og.jpg';
+    }),
+    [articles]
+  );
   const selected = assets.find(a => a.id === selectedId) || null;
 
   const load = async () => {
