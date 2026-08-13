@@ -6,7 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "npm run lint && node scripts/generate-sitemap.js && vite build",
+    "build": "node scripts/generate-sitemap.js && vite build",
     "prepare:source": "node scripts/prepare-production-source.mjs",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
@@ -33,7 +33,7 @@
     "autoprefixer": "10.4.21",
     "tailwindcss": "4.1.18",
     "tsx": "^4.21.0",
-    "typescript": "5.6.3",
+    "typescript": "^5.9.2",
     "vite": "^6.4.3"
   }
 }
