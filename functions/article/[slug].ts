@@ -25,8 +25,7 @@ const SITE_ORIGIN = 'https://solmint.ir';
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function safeUrl(value: unknown): string {
@@ -101,7 +100,22 @@ function articleJsonLd(article: ArticleRecord, canonical: string): string {
     { '@type': 'ListItem', position: 1, name: 'خانه', item: SITE_ORIGIN },
     { '@type': 'ListItem', position: 2, name: 'وبلاگ', item: `${SITE_ORIGIN}/blog` }
   ];
-  if (article.category) breadcrumb.push({ '@type': 'ListItem', position: 3, name: article.category, item: `${SITE_ORIGIN}/blog/category/${encodeURIComponent(article.category.trim().toLocaleLowerCase('fa-IR').replace(/\s+/g, '-'))}` });
+  if (article.category) {
+    const knownCategorySlugs: Record<string, string> = {
+      'آموزش سولانا': 'solana',
+      'پروژه های سولانا': 'solana-projects',
+      'توسعه وب۳': 'web3-development',
+      'امنیت': 'security',
+      'اخبار و تحلیل': 'crypto-news-analysis',
+      'آموزش ساخت میم کوین': 'meme-coin',
+      'آموزش ساخت NFT': 'nft',
+      'کیف پول سولانا': 'solana-wallet',
+      'ترید': 'trading',
+      'پراپ تریدینگ': 'prop-trading'
+    };
+    const slug = knownCategorySlugs[article.category.trim()] || article.category.trim().toLocaleLowerCase('fa-IR').replace(/\s+/g, '-');
+    breadcrumb.push({ '@type': 'ListItem', position: 3, name: article.category, item: `${SITE_ORIGIN}/blog/category/${encodeURIComponent(slug)}` });
+  }
   breadcrumb.push({ '@type': 'ListItem', position: breadcrumb.length + 1, name: article.title, item: canonical });
   return JSON.stringify({
     '@context': 'https://schema.org',
