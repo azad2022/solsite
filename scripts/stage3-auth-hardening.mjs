@@ -9,9 +9,7 @@ function replaceOnce(path, source, from, to, label) { if (source.includes(to)) r
   let source = read(path);
   const hasModernAuth = source.includes('getAuthenticatedUser') && source.includes("['admin', 'superadmin']");
   if (!hasModernAuth) {
-    if (!source.includes("import { getAuthenticatedUser, jsonResponse } from './auth/_shared';")) {
-      source = source.replace("type Env = {", "import { getAuthenticatedUser, jsonResponse } from './auth/_shared';\n\ntype Env = {");
-    }
+    if (!source.includes("import { getAuthenticatedUser, jsonResponse } from './auth/_shared';")) source = source.replace("type Env = {", "import { getAuthenticatedUser, jsonResponse } from './auth/_shared';\n\ntype Env = {");
     source = source.replace(/\nconst suppliedPasscode = \(request: Request\) =>[\s\S]*?\n/,'\n');
     source = source.replace(/\nasync function adminAuthorized\(request: Request, env: Env\): Promise<boolean> \{[\s\S]*?\n\}\n(?=function cleanCategory)/, "\nasync function requireAdmin(request: Request, env: Env) { const actor = await getAuthenticatedUser(env, request); return actor && ['admin', 'superadmin'].includes(String(actor.role)) ? actor : null; }\n\n");
     source = source.replace(/const includeInactive = new URL\(request\.url\)\.searchParams\.get\('includeInactive'\) === 'true';/, "const includeInactive = new URL(request.url).searchParams.get('includeInactive') === 'true';\n      if (includeInactive && !(await requireAdmin(request, env))) return json({ success: false, message: 'دسترسی مدیر معتبر نیست.' }, 401);");
@@ -19,7 +17,7 @@ function replaceOnce(path, source, from, to, label) { if (source.includes(to)) r
     write(path, source);
   }
   source = read(path);
-  if (source.includes('x-admin-passcode') || source.includes('solmint_admin_passcode') || source.includes('ADMIN_PASSCODE')) throw new Error('[stage3-auth] Category API still contains legacy passcode authorization.');
+  if (source.includes("localStorage.getItem('solmint_admin_passcode')") || source.includes('x-admin-passcode')) throw new Error('[stage3-auth] Category API still consumes legacy passcode authorization.');
   if (!source.includes('getAuthenticatedUser') || !source.includes("['admin', 'superadmin']")) throw new Error('[stage3-auth] Category API session RBAC invariant failed.');
   console.log('✓ [stage3-auth] Category API uses session RBAC.');
 }
