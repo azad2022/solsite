@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+const file = 'src/components/AdminCmsModal.tsx';
+let s = fs.readFileSync(file, 'utf8');
+if (s.includes('data-production-cover-assignment')) process.exit(0);
+s = s.replace("import React, { useState, useEffect } from 'react';", "import React, { useState, useEffect } from 'react';\nimport { MediaLibraryCoverAssignment } from './MediaLibraryCoverAssignment';");
+const a = s.indexOf('            {/* TAB 4: MEDIA LIBRARY */}');
+const b = s.indexOf('            {/* TAB 5: SEO, CLOUDFLARE & GITHUB BACKUP */}');
+if (a < 0 || b <= a) throw new Error('MEDIA_TAB_NOT_FOUND');
+const block = `            {/* TAB 4: MEDIA LIBRARY */}\n            {adminTab === 'media' && (\n              <div className="space-y-6 text-xs">\n                <MediaLibraryCoverAssignment articles={articles} />\n                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">\n                  <div className="flex items-center gap-2 mb-3"><ImageIcon className="w-4 h-4 text-purple-400" /><span className="font-bold text-white text-sm">کتابخانه رسانه</span></div>\n                  <p className="text-[11px] text-slate-400">تصاویر این بخش از مخزن رسانه فعال خوانده می‌شوند.</p>\n                </div>\n              </div>\n            )}\n`;
+s = s.slice(0, a) + block + s.slice(b);
+fs.writeFileSync(file, s);
