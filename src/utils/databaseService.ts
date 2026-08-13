@@ -20,11 +20,6 @@ const DEFAULT_CONFIG: DatabaseConfig = {
   cloudflareApiKey: ''
 };
 
-function getAdminPasscode(): string {
-  if (typeof window === 'undefined') return '';
-  return (localStorage.getItem('solmint_admin_passcode') || localStorage.getItem('solmint_passcode') || '').trim();
-}
-
 async function parseApiResponse(res: Response): Promise<any> {
   try { const text = await res.text(); return text ? JSON.parse(text) : null; } catch { return null; }
 }
@@ -127,7 +122,7 @@ CREATE TABLE IF NOT EXISTS cms_settings (
 
 export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | null> {
   try {
-    const res = await fetch('/api/articles', { cache: 'no-store' });
+    const res = await fetch('/api/articles', { credentials: 'same-origin', cache: 'no-store' });
     const data = await parseApiResponse(res);
     if (res.ok && data && Array.isArray(data.articles)) return data.articles;
   } catch (err) { console.warn('Error fetching articles from server API:', err); }
@@ -167,10 +162,9 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
   }
 
   try {
-    // Use the same-origin Pages Function so the HttpOnly __Host-solmint_session
-    // cookie is sent automatically. Password hashes and admin passcodes never
-    // need to be exposed to the browser-side publish API.
-    const response = await fetch('/api/articles/publish', {
+    // Canonical same-origin CMS route. The Pages Function validates the HttpOnly
+    // session and forwards the request to Supabase's article publish service.
+    const response = await fetch('/api/articles', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -211,7 +205,7 @@ export async function testDatabaseConnection(provider: DatabaseProvider): Promis
   const config = getDatabaseConfig();
   if (provider === 'supabase') {
     try {
-      const res = await fetch('/api/articles', { cache: 'no-store' }); const data = await parseApiResponse(res);
+      const res = await fetch('/api/articles', { credentials: 'same-origin', cache: 'no-store' }); const data = await parseApiResponse(res);
       if (res.ok && data?.success) return { success: true, message: 'اتصال به دیتابیس Supabase از طریق سرور برقرار است.' };
       return { success: false, message: data?.message || `خطا در اتصال سرور به Supabase (HTTP ${res.status})` };
     } catch (err: any) { return { success: false, message: `عدم دسترسی به سرور: ${err?.message || err}` }; }
