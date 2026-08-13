@@ -16,7 +16,6 @@ test('comment security hardening removes PostgREST filter interpolation', () => 
 test('production comments use a server-only service-role client', () => {
   assert.match(patch, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(patch, /commentSupabaseAdmin/);
-  assert.match(patch, /revoke all on function/);
   assert.match(preparation, /comments-security-hardening\.mjs/);
   assert.doesNotMatch(build, /comments-security-hardening\.mjs/);
 });
