@@ -10,9 +10,22 @@ function getSessionToken(request: Request): string {
 function json(body: unknown, status = 200) {
   return Response.json(body, {
     status,
-    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' }
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Content-Type': 'application/json; charset=utf-8'
+    }
   });
 }
+
+export const onRequestOptions = async () => new Response(null, {
+  status: 204,
+  headers: {
+    'Access-Control-Allow-Origin': 'same-origin',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '600'
+  }
+});
 
 export const onRequestPost = async ({ request }: { request: Request }) => {
   const sessionToken = getSessionToken(request);
