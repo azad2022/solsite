@@ -19,6 +19,7 @@ type CommentRow = {
 };
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
+const VIRTUAL_COMMENT_TARGETS = new Set(['solana-price']);
 
 const getDb = (env: CommentsEnv) => {
   const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
@@ -54,11 +55,32 @@ const mapComment = (c: CommentRow, userVote = 0, includeInternalIdentity = false
   userVote: Number(userVote || 0)
 });
 
+async function resolveCanonicalArticleId(base: string, headers: Record<string, string>, requestedId: string): Promise<string | null> {
+  if (!requestedId) return null;
+  if (VIRTUAL_COMMENT_TARGETS.has(requestedId)) return requestedId;
+
+  const byId = await fetch(
+    `${base}/rest/v1/articles?select=id,slug&id=eq.${encodeURIComponent(requestedId)}&limit=1`,
+    { headers }
+  );
+  const idRows = await byId.json().catch(() => []);
+  if (byId.ok && Array.isArray(idRows) && idRows[0]?.id) return String(idRows[0].id);
+
+  const bySlug = await fetch(
+    `${base}/rest/v1/articles?select=id,slug&slug=eq.${encodeURIComponent(requestedId)}&limit=1`,
+    { headers }
+  );
+  const slugRows = await bySlug.json().catch(() => []);
+  if (bySlug.ok && Array.isArray(slugRows) && slugRows[0]?.id) return String(slugRows[0].id);
+
+  return null;
+}
+
 export const onRequestGet = async ({ request, env }: { request: Request; env: CommentsEnv }) => {
   try {
     const { base, headers } = getDb(env);
     const url = new URL(request.url);
-    const articleId = String(url.searchParams.get('articleId') || '').trim();
+    const requestedArticleId = String(url.searchParams.get('articleId') || '').trim();
     const adminMode = url.searchParams.get('admin') === '1';
     const currentUser = await getAuthenticatedUser(env, request);
     const canModerate = canModerateComments(currentUser);
@@ -66,13 +88,24 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Co
     if (adminMode && !canModerate) {
       return jsonResponse({ success: false, message: 'دسترسی مدیریت دیدگاه‌ها مجاز نیست.' }, 403);
     }
-    if (!articleId && !canModerate) {
+    if (!requestedArticleId && !canModerate) {
       return jsonResponse({ success: false, message: 'شناسه مقاله الزامی است.' }, 400);
+    }
+
+    const canonicalArticleId = requestedArticleId
+      ? await resolveCanonicalArticleId(base, headers, requestedArticleId)
+      : null;
+
+    // Public article pages commonly address an article by slug while comments
+    // are stored against the immutable articles.id. Resolve both forms here so
+    // approval status is read from the same canonical records that add.ts writes.
+    if (requestedArticleId && !canonicalArticleId) {
+      return jsonResponse({ success: false, message: 'مقاله مورد نظر یافت نشد.', comments: [] }, 404);
     }
 
     const params = new URLSearchParams();
     params.set('select', '*');
-    if (articleId) params.set('article_id', `eq.${articleId}`);
+    if (canonicalArticleId) params.set('article_id', `eq.${canonicalArticleId}`);
     if (!canModerate) params.set('approved', 'eq.true');
     params.set('order', 'created_at.asc');
 
@@ -95,9 +128,9 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Co
     return jsonResponse({
       success: true,
       comments: Array.isArray(rows) ? rows.map(row => mapComment(row, userVotes[String(row.id)] || 0, canModerate)) : []
-    }, 200, { 'Cache-Control': 'no-store' });
+    }, 200, { 'Cache-Control': 'no-store, no-cache, must-revalidate' });
   } catch (error) {
     console.error('Comments read error:', error);
-    return jsonResponse({ success: false, message: 'خطا در دریافت دیدگاه‌ها.' }, 500);
+    return jsonResponse({ success: false, message: 'خطا در دریافت دیدگاه‌ها.' }, 500, { 'Cache-Control': 'no-store' });
   }
 };
