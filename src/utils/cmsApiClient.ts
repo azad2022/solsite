@@ -44,7 +44,16 @@ export async function fetchCmsSettingsFromApi(): Promise<CmsSettings | null> {
     const res = await fetch('/api/cms/settings', authFetchInit());
     const { ok, data } = await safeFetchJson(res);
     if (ok && data && data.settings) return data.settings;
-  } catch (err) { console.warn('Error fetching CMS settings from API:', err); }
+  } catch (err) { console.warn('Error fetching public CMS settings from API:', err); }
+  return null;
+}
+
+export async function fetchCmsAdminSettingsFromApi(): Promise<CmsSettings | null> {
+  try {
+    const res = await fetch('/api/cms/admin-settings', authFetchInit());
+    const { ok, data } = await safeFetchJson(res);
+    if (ok && data && data.settings) return data.settings;
+  } catch (err) { console.warn('Error fetching protected CMS settings from API:', err); }
   return null;
 }
 
@@ -82,13 +91,7 @@ export async function loginUserApi(payload: { username?: string; password?: stri
     const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }>(res);
 
     if (data?.success && data.user) {
-      return {
-        success: true,
-        user: data.user,
-        isSuperAdmin: data.isSuperAdmin === true,
-        requestId: data.requestId,
-        message: data.message
-      };
+      return { success: true, user: data.user, isSuperAdmin: data.isSuperAdmin === true, requestId: data.requestId, message: data.message };
     }
 
     return {
@@ -96,18 +99,11 @@ export async function loginUserApi(payload: { username?: string; password?: stri
       user: undefined,
       isSuperAdmin: false,
       requestId: data?.requestId,
-      message: data?.message || (status >= 500
-        ? 'سرویس احراز هویت در دسترس نیست.'
-        : 'نام کاربری یا رمز عبور اشتباه است.')
+      message: data?.message || (status >= 500 ? 'سرویس احراز هویت در دسترس نیست.' : 'نام کاربری یا رمز عبور اشتباه است.')
     };
   } catch (err) {
     console.warn('Error calling /api/users/login:', err);
-    return {
-      success: false,
-      user: undefined,
-      isSuperAdmin: false,
-      message: 'ارتباط با سرور احراز هویت برقرار نشد.'
-    };
+    return { success: false, user: undefined, isSuperAdmin: false, message: 'ارتباط با سرور احراز هویت برقرار نشد.' };
   }
 }
 
@@ -141,6 +137,7 @@ export async function addCommentApi(payload: { articleId: string; userName: stri
     if (data) return data;
     return { success: false, message: `خطا در ثبت دیدگاه (کد ${status})` };
   } catch (err: any) { return { success: false, message: err.message || 'خطا در ثبت دیدگاه.' }; }
+  
 }
 
 export async function fetchCommentsForAdminApi(): Promise<{ success: boolean; comments: ModerationComment[]; message?: string }> {
@@ -184,12 +181,12 @@ export async function saveArticleToApi(article: Article): Promise<boolean> {
   try {
     const res = await fetch('/api/articles', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(article) }));
     return res.ok;
-  } catch (err) { console.warn('Error saving article to API:', err); return false; }
+  } catch (err) { return false; }
 }
 
 export async function deleteArticleFromApi(articleId: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/articles/${articleId}`, authFetchInit({ method: 'DELETE' }));
     return res.ok;
-  } catch (err) { console.warn('Error deleting article via API:', err); return false; }
+  } catch (err) { return false; }
 }
