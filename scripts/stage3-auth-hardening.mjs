@@ -26,12 +26,9 @@ function write(path, content) { fs.writeFileSync(path, content, 'utf8'); }
   let source = read(path);
   const modern = "const authHeaders = (): Record<string, string> => ({ 'Content-Type': 'application/json' });";
   const authStart = source.indexOf('const authHeaders =');
-  if (authStart >= 0) {
-    const authEnd = source.indexOf('\n};', authStart);
-    if (authEnd < 0) throw new Error('[stage3-auth] Could not locate Category Manager auth helper terminator.');
-    source = `${source.slice(0, authStart)}${modern}${source.slice(authEnd + 3)}`;
-  }
-  source = source.replace(/\n?\s*const passcode = \(localStorage\.getItem\(['"]solmint_admin_passcode['"]\)[\s\S]*?\n\s*return \{ 'Content-Type': 'application\/json'[\s\S]*?\n\s*\};?/g, '');
+  const fetchStart = source.indexOf('export const fetchArticleCategories', authStart);
+  if (authStart < 0 || fetchStart < 0 || fetchStart <= authStart) throw new Error('[stage3-auth] Category Manager auth helper anchors not found.');
+  source = `${source.slice(0, authStart)}${modern}\n\n${source.slice(fetchStart)}`;
   if (source.includes('solmint_admin_passcode') || source.includes('x-admin-passcode')) throw new Error('[stage3-auth] Category Manager still contains legacy passcode authorization.');
   write(path, source);
   console.log('✓ [stage3-auth] Category Manager no longer reads admin credentials from localStorage.');
