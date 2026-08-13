@@ -8,6 +8,7 @@ export interface ArticleTaxonomyItem {
 
 const CATEGORY_SLUGS: Record<string, string> = {
   'آموزش سولانا': 'solana',
+  'پروژه های سولانا': 'solana-projects',
   'توسعه وب۳': 'web3-development',
   'امنیت': 'security',
   'اخبار و تحلیل': 'crypto-news-analysis',
