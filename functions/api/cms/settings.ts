@@ -23,15 +23,35 @@ async function getSettings(env: SettingsEnv): Promise<Record<string, any>> {
   const response = await fetch(`${base}/rest/v1/cms_settings?select=id,settings_json&id=eq.main_settings&limit=1`, { headers });
   if (!response.ok) throw new Error(await response.text());
   const rows = await response.json() as CmsSettingsRow[];
-  const settings = rows[0]?.settings_json && typeof rows[0].settings_json === 'object' ? rows[0].settings_json : {};
+  const settings = rows[0]?.settings_json && typeof rows[0].settings_json === 'object' ? structuredClone(rows[0].settings_json) : {};
   settings.chatbot = settings.chatbot && typeof settings.chatbot === 'object' ? settings.chatbot : {};
   settings.chatbot.enabled = settings.chatbot.enabled === true;
   return settings;
 }
 
+function publicSettings(settings: Record<string, any>): Record<string, any> {
+  const safe = structuredClone(settings);
+  if (safe.deepseek && typeof safe.deepseek === 'object') {
+    delete safe.deepseek.apiKey;
+    delete safe.deepseek.apiKeys;
+  }
+  if (safe.security && typeof safe.security === 'object') {
+    delete safe.security.adminPasscode;
+  }
+  if (safe.github && typeof safe.github === 'object') {
+    delete safe.github.token;
+    delete safe.github.accessToken;
+  }
+  if (safe.media && typeof safe.media === 'object') {
+    delete safe.media.token;
+    delete safe.media.accessToken;
+  }
+  return safe;
+}
+
 export const onRequestGet = async ({ env }: { env: SettingsEnv }) => {
   try {
-    return jsonResponse({ success: true, settings: await getSettings(env) });
+    return jsonResponse({ success: true, settings: publicSettings(await getSettings(env)) });
   } catch (error) {
     console.error('CMS settings GET failed:', error);
     return jsonResponse({ success: false, message: 'اتصال به دیتابیس تنظیمات برقرار نشد.' }, 503);
@@ -66,7 +86,12 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
       security: { ...(current.security || {}), ...(incoming.security || {}) }
     };
 
-    // Passwords belong exclusively to users.password_hash, never to CMS settings.
+    // Never accept or persist browser-supplied copies of secret fields unless they are
+    // explicitly changed through the authenticated admin UI. Preserve the existing API key
+    // when the public settings payload intentionally omits it.
+    if (!incoming.deepseek?.apiKey && current.deepseek?.apiKey) {
+      updated.deepseek.apiKey = current.deepseek.apiKey;
+    }
     delete updated.security.adminPasscode;
     updated.chatbot.enabled = incoming.chatbot?.enabled === true;
 
@@ -79,7 +104,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
     if (!settingsResponse.ok) throw new Error(await settingsResponse.text());
 
     if (newAdminPasscode) {
-      // Keep compatibility with the existing login migration: the next successful login upgrades SHA-256 to PBKDF2.
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(newAdminPasscode));
       const passwordHash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
       const userResponse = await fetch(`${base}/rest/v1/users?username=eq.admin`, {
@@ -90,7 +114,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
       if (!userResponse.ok) throw new Error(await userResponse.text());
     }
 
-    return jsonResponse({ success: true, settings: updated, message: 'تنظیمات با موفقیت در Supabase ذخیره شد.' });
+    return jsonResponse({ success: true, settings: publicSettings(updated), message: 'تنظیمات با موفقیت در Supabase ذخیره شد.' });
   } catch (error) {
     console.error('CMS settings POST failed:', error);
     return jsonResponse({ success: false, message: 'ذخیره تنظیمات در دیتابیس انجام نشد.' }, 500);
