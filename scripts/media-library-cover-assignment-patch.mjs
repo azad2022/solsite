@@ -4,7 +4,7 @@ const file = 'src/components/AdminCmsModal.tsx';
 let s = fs.readFileSync(file, 'utf8');
 
 // Idempotent: once the component has been inserted, leave the source untouched.
-if (s.includes('data-production-cover-assignment')) process.exit(0);
+if (!s.includes('data-production-cover-assignment')) process.exit(0);
 
 if (!s.includes("import { MediaLibraryCoverAssignment } from './MediaLibraryCoverAssignment';")) {
   const reactImport = "import React, { useState, useEffect } from 'react';";
@@ -12,7 +12,6 @@ if (!s.includes("import { MediaLibraryCoverAssignment } from './MediaLibraryCove
   s = s.replace(reactImport, `${reactImport}\nimport { MediaLibraryCoverAssignment } from './MediaLibraryCoverAssignment';`);
 }
 
-// The real production source uses TAB 4: GITHUB MEDIA MANAGEMENT.
 const tabMarker = '            {/* TAB 4: GITHUB MEDIA MANAGEMENT */}';
 const openMarker = "            {adminTab === 'media' && (\n              <div className=\"space-y-6 text-xs\">";
 const start = s.indexOf(tabMarker);
@@ -21,8 +20,18 @@ const open = s.indexOf(openMarker, start);
 if (start < 0 || open < 0) throw new Error('MEDIA_TAB_NOT_FOUND');
 
 const insertAt = open + openMarker.length;
-const component = `\n                <MediaLibraryCoverAssignment articles={articles} />`;
-s = s.slice(0, insertAt) + component + s.slice(insertAt);
+if (!s.includes('<MediaLibraryCoverAssignment articles={articles} />')) {
+  const component = `\n                <MediaLibraryCoverAssignment articles={articles} />`;
+  s = s.slice(0, insertAt) + component + s.slice(insertAt);
+}
+
+// Older generated revisions contained over-escaped regex literals. Normalize
+// them in the component source before TypeScript compilation.
+const componentFile = 'src/components/MediaLibraryCoverAssignment.tsx';
+let component = fs.readFileSync(componentFile, 'utf8');
+component = component.replace('/^image\\\\//i', '/^image\\//i');
+component = component.replace('/\\\\.(avif|gif|jpe?g|png|svg|webp)$/i', '/\\.(avif|gif|jpe?g|png|svg|webp)$/i');
+fs.writeFileSync(componentFile, component, 'utf8');
 
 fs.writeFileSync(file, s, 'utf8');
 console.log('media-library-cover-assignment: cover assignment UI wired into the canonical GitHub media management tab.');
