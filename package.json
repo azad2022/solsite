@@ -6,7 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/media-article-linking-patch-fixed.mjs && node scripts/category-default-media-patch.mjs && node scripts/category-article-default-integration-patch.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-auth-v2.mjs && node scripts/production-comments-client-wiring.mjs && node scripts/production-comments-admin-patch.mjs && node scripts/production-comments-unification.mjs && node scripts/production-comments-build-verify.mjs && node scripts/media-library-cover-assignment-patch.mjs && node scripts/perf-split.mjs && npm run lint && node scripts/generate-sitemap.js && vite build",
+    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/media-article-linking-patch-fixed.mjs && node scripts/category-default-media-patch.mjs && node scripts/category-article-default-integration-patch.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-auth-v2.mjs && node scripts/production-comments-client-wiring.mjs && node scripts/production-comments-admin-patch.mjs && node scripts/production-comments-unification.mjs && node scripts/production-comments-build-verify.mjs && node scripts/media-library-cover-assignment-patch.mjs && node scripts/solana-projects-cluster-seo.mjs && node scripts/perf-split.mjs && npm run lint && node scripts/generate-sitemap.js && vite build",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -32,7 +32,6 @@
     "autoprefixer": "10.4.21",
     "tailwindcss": "4.1.18",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
     "vite": "^6.4.3"
   }
 }
