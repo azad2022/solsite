@@ -2,7 +2,6 @@ import fs from 'node:fs';
 
 function read(path) { if (!fs.existsSync(path)) throw new Error(`[stage3-auth] Missing ${path}`); return fs.readFileSync(path, 'utf8'); }
 function write(path, content) { fs.writeFileSync(path, content, 'utf8'); }
-function replaceOnce(path, source, from, to, label) { if (source.includes(to)) return source; if (!source.includes(from)) throw new Error(`[stage3-auth] Anchor not found: ${label}`); return source.replace(from, to); }
 
 {
   const path = 'functions/api/article-categories.ts';
@@ -25,10 +24,14 @@ function replaceOnce(path, source, from, to, label) { if (source.includes(to)) r
 {
   const path = 'src/components/ArticleCategoryManager.tsx';
   let source = read(path);
-  const legacy = "const authHeaders = (): Record<string, string> => {\n  const passcode = (localStorage.getItem('solmint_admin_passcode') || '').trim();\n  return { 'Content-Type': 'application/json', ...(passcode ? { 'x-admin-passcode': passcode, Authorization: `Bearer ${passcode}` } : {}) };\n};";
   const modern = "const authHeaders = (): Record<string, string> => ({ 'Content-Type': 'application/json' });";
-  source = replaceOnce(path, source, legacy, modern, 'legacy category auth helper');
-  source = read(path);
+  const authStart = source.indexOf('const authHeaders =');
+  if (authStart >= 0) {
+    const authEnd = source.indexOf('\n};', authStart);
+    if (authEnd < 0) throw new Error('[stage3-auth] Could not locate Category Manager auth helper terminator.');
+    source = `${source.slice(0, authStart)}${modern}${source.slice(authEnd + 3)}`;
+  }
+  source = source.replace(/\n?\s*const passcode = \(localStorage\.getItem\(['"]solmint_admin_passcode['"]\)[\s\S]*?\n\s*return \{ 'Content-Type': 'application\/json'[\s\S]*?\n\s*\};?/g, '');
   if (source.includes('solmint_admin_passcode') || source.includes('x-admin-passcode')) throw new Error('[stage3-auth] Category Manager still contains legacy passcode authorization.');
   write(path, source);
   console.log('✓ [stage3-auth] Category Manager no longer reads admin credentials from localStorage.');
