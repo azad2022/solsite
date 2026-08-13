@@ -18,7 +18,7 @@ export const MediaLibraryCoverAssignment: React.FC<Props> = ({ articles }) => {
     setLoading(true); setNotice('');
     try {
       const all = await getAllMediaAssets();
-      setAssets(all.filter(a => /^image\\//i.test(a.mimeType) || /\\.(avif|gif|jpe?g|png|svg|webp)$/i.test(a.filename)));
+      setAssets(all.filter(a => /^image\//i.test(a.mimeType) || /\.(avif|gif|jpe?g|png|svg|webp)$/i.test(a.filename)));
     } finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
