@@ -9,32 +9,6 @@ function write(path, content) {
   fs.writeFileSync(path, content, 'utf8');
 }
 
-function replaceFunctionBlock(source, signature, replacement) {
-  const start = source.indexOf(signature);
-  if (start < 0) return source;
-  const braceStart = source.indexOf('{', start);
-  if (braceStart < 0) return source;
-  let depth = 0;
-  let quote = '';
-  let escaped = false;
-  for (let i = braceStart; i < source.length; i += 1) {
-    const ch = source[i];
-    if (escaped) { escaped = false; continue; }
-    if (quote) {
-      if (ch === '\\') { escaped = true; continue; }
-      if (ch === quote) quote = '';
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
-    if (ch === '{') depth += 1;
-    else if (ch === '}') {
-      depth -= 1;
-      if (depth === 0) return source.slice(0, start) + replacement.trim() + source.slice(i + 1);
-    }
-  }
-  return source;
-}
-
 // Security invariant: public registration must never grant editorial/admin permissions.
 {
   const path = 'functions/api/users/register.ts';
@@ -71,22 +45,18 @@ function replaceFunctionBlock(source, signature, replacement) {
   write(path, source);
 }
 
-// Restore the richer SSR Markdown renderer if stage 1's simplified renderer is present.
+// Canonicalize the SSR Markdown renderer to prevent Stage 1 simplification regressions.
 {
   const path = 'functions/article/[slug].ts';
   let source = read(path);
   const renderer = read('scripts/article-rich-renderer.txt').trim();
-  const hasRichRenderer = source.includes('function inlineMarkdown(') && source.includes('function renderBody(');
-  if (!hasRichRenderer) {
-    const replaced = replaceFunctionBlock(source, 'function renderBody(', renderer);
-    if (replaced === source) throw new Error('[stage2-hardening] Could not locate SSR renderBody() function.');
-    source = replaced;
+  const start = source.indexOf('function renderBody(');
+  const end = source.indexOf('function setMeta(', start);
+  if (start < 0 || end < 0 || end <= start) throw new Error('[stage2-hardening] Could not locate SSR renderBody/setMeta anchors.');
+  source = `${source.slice(0, start)}${renderer}\n${source.slice(end)}`;
+  if (!source.includes('function inlineMarkdown(') || !source.includes('function renderBody(')) {
+    throw new Error('[stage2-hardening] SSR Markdown renderer invariant failed.');
   }
-  const finalHasRichRenderer = source.includes('function inlineMarkdown(')
-    && source.includes('function renderBody(')
-    && source.includes('output.push(`<ul>`')
-    && source.includes("replace(/!\\[");
-  if (!finalHasRichRenderer) throw new Error('[stage2-hardening] SSR Markdown renderer invariant failed.');
   write(path, source);
 }
 
