@@ -8,12 +8,15 @@ interface Env {
 type ArticleRow = {
   slug?: string | null;
   category?: string | null;
+  category_id?: string | null;
   tags?: string[] | null;
   updated_at?: string | null;
   published_at?: string | null;
   published_at_gregorian?: string | null;
   is_draft?: boolean | number | string | null;
 };
+
+type CategoryRow = { id?: string | null; slug?: string | null; is_active?: boolean | null };
 
 const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
@@ -22,7 +25,7 @@ const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-ZwqYhdkVw_cOwO9OLt
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    .replace(/\"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
 function slugify(value: string): string {
@@ -61,7 +64,17 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   const taxonomyCounts = new Map<string, { type: 'category' | 'tag'; slug: string; count: number }>();
 
   try {
-    const endpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/articles?select=slug,category,tags,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`;
+    const categoriesEndpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/article_categories?select=id,slug,is_active`;
+    const categoriesResponse = await fetch(categoriesEndpoint, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/json' } });
+    const categoryRows = categoriesResponse.ok ? await categoriesResponse.json() as CategoryRow[] : [];
+    const categorySlugs = new Map<string, string>();
+    for (const category of Array.isArray(categoryRows) ? categoryRows : []) {
+      const id = String(category.id || '').trim();
+      const slug = String(category.slug || '').trim();
+      if (id && slug && category.is_active !== false) categorySlugs.set(id, slug);
+    }
+
+    const endpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/articles?select=slug,category,category_id,tags,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`;
     const response = await fetch(endpoint, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/json' } });
     if (response.ok) {
       const articles = await response.json() as ArticleRow[];
@@ -70,19 +83,18 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
         const slug = String(article.slug || '').trim().replace(/^\/+|\/+$/g, '');
         if (!slug) continue;
         urls.set(`${BASE_URL}/article/${encodeURIComponent(slug)}`, lastModified(article));
-        const category = String(article.category || '').trim();
-        if (category) {
-          const taxonomySlug = slugify(category);
+        const taxonomySlug = article.category_id ? categorySlugs.get(String(article.category_id)) : '';
+        if (taxonomySlug) {
           const key = `category:${taxonomySlug}`;
           const current = taxonomyCounts.get(key) || { type: 'category', slug: taxonomySlug, count: 0 };
           current.count += 1; taxonomyCounts.set(key, current);
         }
         for (const tag of Array.isArray(article.tags) ? article.tags : []) {
           const name = String(tag || '').trim();
-          const taxonomySlug = slugify(name);
-          if (!taxonomySlug) continue;
-          const key = `tag:${taxonomySlug}`;
-          const current = taxonomyCounts.get(key) || { type: 'tag', slug: taxonomySlug, count: 0 };
+          const tagSlug = slugify(name);
+          if (!tagSlug) continue;
+          const key = `tag:${tagSlug}`;
+          const current = taxonomyCounts.get(key) || { type: 'tag', slug: tagSlug, count: 0 };
           current.count += 1; taxonomyCounts.set(key, current);
         }
       }
@@ -93,7 +105,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
 
   for (const item of taxonomyCounts.values()) {
     if (item.count < 2) continue;
-    urls.set(`${BASE_URL}/blog/${item.type}/${encodeURIComponent(item.slug)}`, null);
+    urls.set(`${BASE_URL}/blog/${item.type === 'category' ? 'category' : 'tag'}/${encodeURIComponent(item.slug)}`, null);
   }
 
   let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
