@@ -17,41 +17,34 @@ if (next.includes(anchor) && !next.includes('const relatedArticles = readingArti
 const contentNeedle = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }}';
 if (!next.includes('related-solana-projects-heading')) {
   const contentIndex = next.indexOf(contentNeedle);
-  if (contentIndex < 0) {
-    throw new Error('Solana projects SEO wiring failed: article content renderer marker was not found.');
-  }
+  if (contentIndex < 0) throw new Error('Solana projects SEO wiring failed: article content renderer marker was not found.');
   const lineStart = next.lastIndexOf('<div', contentIndex);
   const lineEnd = next.indexOf('/>', contentIndex) + 2;
-  if (lineStart < 0 || lineEnd <= lineStart) {
-    throw new Error('Solana projects SEO wiring failed: unable to locate article content container.');
-  }
+  if (lineStart < 0 || lineEnd <= lineStart) throw new Error('Solana projects SEO wiring failed: unable to locate article content container.');
   const existingContent = next.slice(lineStart, lineEnd);
   const block = `${existingContent}\n              {relatedArticles.length > 0 && <section aria-labelledby="related-solana-projects-heading" className="mt-10 rounded-2xl border border-slate-800 bg-slate-950/50 p-5 sm:p-6">\n                <div className="flex items-center justify-between gap-4 mb-4">\n                  <h3 id="related-solana-projects-heading" className="text-lg font-extrabold text-white">مطالب مرتبط برای ادامه مطالعه</h3>\n                  <a href="/blog/category/solana-projects" onClick={event => { event.preventDefault(); onNavigate?.('/blog/category/solana-projects'); }} className="text-xs font-bold text-sky-400 hover:text-sky-300">همه پروژه های سولانا</a>\n                </div>\n                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">\n                  {relatedArticles.map(article => <a key={article.id} href={\`/article/${article.slug}\`} onClick={event => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey) { event.preventDefault(); handleOpenArticle(article); } }} className="block rounded-xl border border-slate-800 bg-slate-900/60 p-4 hover:border-sky-500/40 transition-colors">\n                    <span className="text-[11px] text-sky-400 font-bold">{article.category}</span>\n                    <span className="mt-1 block text-sm font-bold text-white leading-6">{article.title}</span>\n                  </a>)}\n                </div>\n              </section>`;
   next = next.slice(0, lineStart) + block + next.slice(lineEnd);
 }
 
-// Wire the governed contextual entity linker. It creates a small number of
-// natural internal anchors while excluding existing links, code, URLs and self-links.
-const entityImport = "import { linkSolanaEntities } from '../utils/solanaEntityLinker';";
+const entityImport = "import { linkSolanaEntities } from '../utils/solanaEntityLinkerV2';";
 if (!next.includes(entityImport)) {
-  const taxonomyImport = "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';";
-  if (!next.includes(taxonomyImport)) throw new Error('Entity linker wiring failed: taxonomy import anchor not found.');
-  next = next.replace(taxonomyImport, `${taxonomyImport}\n${entityImport}`);
+  const oldEntityImport = "import { linkSolanaEntities } from '../utils/solanaEntityLinker';";
+  if (next.includes(oldEntityImport)) next = next.replace(oldEntityImport, entityImport);
+  else {
+    const taxonomyImport = "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';";
+    if (!next.includes(taxonomyImport)) throw new Error('Entity linker wiring failed: taxonomy import anchor not found.');
+    next = next.replace(taxonomyImport, `${taxonomyImport}\n${entityImport}`);
+  }
 }
 
 const entityRender = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }}';
 const entityRenderReplacement = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(linkSolanaEntities(readingArticle.content, { currentSlug: readingArticle.slug, maxLinks: 5, maxPerEntity: 1 })) }}';
-if (next.includes(entityRender) && !next.includes('linkSolanaEntities(readingArticle.content')) {
-  next = next.replace(entityRender, entityRenderReplacement);
-}
-
-if (!next.includes('linkSolanaEntities(readingArticle.content')) {
-  throw new Error('Entity linker wiring failed: article renderer was not patched.');
-}
+if (next.includes(entityRender) && !next.includes('linkSolanaEntities(readingArticle.content')) next = next.replace(entityRender, entityRenderReplacement);
+if (!next.includes('linkSolanaEntities(readingArticle.content')) throw new Error('Entity linker wiring failed: article renderer was not patched.');
 
 if (next === source) {
   console.log('No BlogHub changes required.');
   process.exit(0);
 }
 fs.writeFileSync(blogPath, next, 'utf8');
-console.log('✓ Solana projects category, related-content and entity-linking SEO wiring applied.');
+console.log('✓ Solana projects category, related-content and intent-aware entity-linking SEO wiring applied.');
