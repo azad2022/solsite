@@ -6,7 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/production-comments-admin-patch.mjs && node scripts/media-article-linking-patch-fixed.mjs && node scripts/category-default-media-patch.mjs && node scripts/category-article-default-integration-patch.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-auth-v2.mjs && node scripts/harden-superadmin-routes.mjs && npm run lint && node scripts/generate-sitemap.js && vite build",
+    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/production-comments-admin-patch.mjs && node scripts/media-article-linking-patch-fixed.mjs && node scripts/category-default-media-patch.mjs && node scripts/category-article-default-integration-patch.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-auth-v2.mjs && npm run lint && node scripts/generate-sitemap.js && vite build",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
