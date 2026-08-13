@@ -12,6 +12,7 @@ type ArticleRecord = {
   published_at?: string;
   published_at_jalali?: string;
   published_at_gregorian?: string;
+  updated_at?: string;
   read_time_minutes?: number;
   is_draft?: boolean;
 };
@@ -20,6 +21,7 @@ type PageContext = { request: Request; next: () => Promise<Response>; env?: Reco
 
 const SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-ZwqYhdkVw_cOwO9OLt';
+const SITE_ORIGIN = 'https://solmint.ir';
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -93,7 +95,14 @@ function descriptionFor(article: ArticleRecord): string {
 
 function articleJsonLd(article: ArticleRecord, canonical: string): string {
   const published = article.published_at || new Date().toISOString();
+  const modified = article.updated_at || published;
   const authorName = article.author?.name || 'تیم تحریریه سولمینت';
+  const breadcrumb = [
+    { '@type': 'ListItem', position: 1, name: 'خانه', item: SITE_ORIGIN },
+    { '@type': 'ListItem', position: 2, name: 'وبلاگ', item: `${SITE_ORIGIN}/blog` }
+  ];
+  if (article.category) breadcrumb.push({ '@type': 'ListItem', position: 3, name: article.category, item: `${SITE_ORIGIN}/blog/category/${encodeURIComponent(article.category.trim().toLocaleLowerCase('fa-IR').replace(/\s+/g, '-'))}` });
+  breadcrumb.push({ '@type': 'ListItem', position: breadcrumb.length + 1, name: article.title, item: canonical });
   return JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -102,12 +111,13 @@ function articleJsonLd(article: ArticleRecord, canonical: string): string {
     url: canonical,
     mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
     datePublished: published,
-    dateModified: published,
+    dateModified: modified,
     author: { '@type': 'Person', name: authorName },
-    publisher: { '@type': 'Organization', name: 'Solmint', url: 'https://solmint.ir/' },
-    image: article.cover_image ? [article.cover_image] : ['https://solmint.ir/og-solmint.png'],
+    publisher: { '@type': 'Organization', name: 'Solmint', url: `${SITE_ORIGIN}/` },
+    image: article.cover_image ? [article.cover_image] : [`${SITE_ORIGIN}/og-solmint.png`],
     articleSection: article.category || 'اخبار و تحلیل',
-    keywords: Array.isArray(article.tags) ? article.tags : []
+    keywords: Array.isArray(article.tags) ? article.tags : [],
+    breadcrumb: { '@type': 'BreadcrumbList', itemListElement: breadcrumb }
   }).replace(/</g, '\\u003c');
 }
 
@@ -136,15 +146,16 @@ function replaceJsonLd(html: string, json: string): string {
 }
 
 function injectArticleShell(html: string, article: ArticleRecord): string {
-  const canonical = `https://solmint.ir/article/${encodeURIComponent(article.slug)}`;
+  const canonical = `${SITE_ORIGIN}/article/${encodeURIComponent(article.slug)}`;
   const title = `${article.title} | سولمینت`;
   const description = descriptionFor(article);
   const body = renderArticleBody(article.content || '');
-  const image = safeUrl(article.cover_image || 'https://solmint.ir/og-solmint.png');
+  const image = safeUrl(article.cover_image || `${SITE_ORIGIN}/og-solmint.png`);
   const author = article.author?.name || 'تیم تحریریه سولمینت';
-  const date = article.published_at || new Date().toISOString();
+  const published = article.published_at || new Date().toISOString();
+  const modified = article.updated_at || published;
   const tags = Array.isArray(article.tags) ? article.tags : [];
-  const articleShell = `<main id="article-ssr" dir="rtl" lang="fa"><article><header><nav aria-label="مسیر صفحه"><a href="/">سولمینت</a> / <a href="/blog">وبلاگ</a> / <span>${escapeHtml(article.category || 'مقاله')}</span></nav><p><time datetime="${escapeHtml(date)}">${escapeHtml(article.published_at_jalali || article.published_at_gregorian || date)}</time> · ${escapeHtml(article.read_time_minutes || 5)} دقیقه مطالعه</p><h1>${escapeHtml(article.title)}</h1><p>${escapeHtml(description)}</p><p>نویسنده: ${escapeHtml(author)}</p></header>${image !== '#' ? `<figure><img src="${escapeHtml(image)}" alt="${escapeHtml(article.title)}" fetchpriority="high"><figcaption>${escapeHtml(article.title)}</figcaption></figure>` : ''}<section aria-label="متن مقاله">${body}</section>${tags.length ? `<footer><h2>برچسب‌ها</h2><ul>${tags.map(tag => `<li><a href="/blog/tag/${encodeURIComponent(tag.trim().toLocaleLowerCase('fa-IR').replace(/\s+/g, '-'))}">${escapeHtml(tag)}</a></li>`).join('')}</ul></footer>` : ''}</article></main>`;
+  const articleShell = `<main id="article-ssr" dir="rtl" lang="fa"><article><header><nav aria-label="مسیر صفحه"><a href="/">سولمینت</a> / <a href="/blog">وبلاگ</a> / <span>${escapeHtml(article.category || 'مقاله')}</span></nav><p><time datetime="${escapeHtml(published)}">${escapeHtml(article.published_at_jalali || article.published_at_gregorian || published)}</time>${modified !== published ? ` · <time datetime="${escapeHtml(modified)}">به‌روزرسانی: ${escapeHtml(article.updated_at || modified)}</time>` : ''} · ${escapeHtml(article.read_time_minutes || 5)} دقیقه مطالعه</p><h1>${escapeHtml(article.title)}</h1><p>${escapeHtml(description)}</p><p>نویسنده: ${escapeHtml(author)}</p></header>${image !== '#' ? `<figure><img src="${escapeHtml(image)}" alt="${escapeHtml(article.title)}" fetchpriority="high"><figcaption>${escapeHtml(article.title)}</figcaption></figure>` : ''}<section aria-label="متن مقاله">${body}</section>${tags.length ? `<footer><h2>برچسب‌ها</h2><ul>${tags.map(tag => `<li><a href="/blog/tag/${encodeURIComponent(tag.trim().toLocaleLowerCase('fa-IR').replace(/\s+/g, '-'))}">${escapeHtml(tag)}</a></li>`).join('')}</ul></footer>` : ''}</article></main>`;
   let result = html;
   result = replaceTitle(result, title);
   result = replaceCanonical(result, canonical);
@@ -156,6 +167,8 @@ function injectArticleShell(html: string, article: ArticleRecord): string {
   result = replaceMeta(result, 'og:title', title, true);
   result = replaceMeta(result, 'og:description', description, true);
   result = replaceMeta(result, 'og:image', image, true);
+  result = replaceMeta(result, 'article:published_time', published, true);
+  result = replaceMeta(result, 'article:modified_time', modified, true);
   result = replaceMeta(result, 'twitter:title', title);
   result = replaceMeta(result, 'twitter:description', description);
   result = replaceMeta(result, 'twitter:image', image);
@@ -169,13 +182,13 @@ export async function onRequest(context: PageContext): Promise<Response> {
   if (!slug || slug.length > 200) return context.next();
 
   if (slug === 'solana-price-live-today') {
-    return Response.redirect('https://solmint.ir/solana-price', 301);
+    return Response.redirect(`${SITE_ORIGIN}/solana-price`, 301);
   }
 
   const env = context.env || {};
   const baseUrl = env.SUPABASE_URL || SUPABASE_URL;
   const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
-  const endpoint = `${baseUrl.replace(/\/$/, '')}/rest/v1/articles?select=id,title,slug,category,tags,summary,content,cover_image,video_url,author,published_at,published_at_jalali,published_at_gregorian,read_time_minutes,is_draft&slug=eq.${encodeURIComponent(slug)}&is_draft=eq.false&limit=1`;
+  const endpoint = `${baseUrl.replace(/\/$/, '')}/rest/v1/articles?select=id,title,slug,category,tags,summary,content,cover_image,video_url,author,published_at,published_at_jalali,published_at_gregorian,updated_at,read_time_minutes,is_draft&slug=eq.${encodeURIComponent(slug)}&is_draft=eq.false&limit=1`;
 
   try {
     const upstream = await fetch(endpoint, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/json' } });
@@ -200,6 +213,9 @@ export async function onRequest(context: PageContext): Promise<Response> {
     headers.set('Content-Type', 'text/html; charset=UTF-8');
     headers.set('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400');
     headers.set('X-Robots-Tag', 'index, follow');
+    headers.set('X-Solmint-SSR', 'article-v2');
+    headers.set('Vary', 'Accept-Encoding');
+    if (article.updated_at) headers.set('Last-Modified', new Date(article.updated_at).toUTCString());
     return new Response(html, { status: 200, headers });
   } catch {
     return context.next();
