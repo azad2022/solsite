@@ -9,6 +9,32 @@ function write(path, content) {
   fs.writeFileSync(path, content, 'utf8');
 }
 
+function replaceFunctionBlock(source, signature, replacement) {
+  const start = source.indexOf(signature);
+  if (start < 0) return source;
+  const braceStart = source.indexOf('{', start);
+  if (braceStart < 0) return source;
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  for (let i = braceStart; i < source.length; i += 1) {
+    const ch = source[i];
+    if (escaped) { escaped = false; continue; }
+    if (quote) {
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(0, start) + replacement.trim() + source.slice(i + 1);
+    }
+  }
+  return source;
+}
+
 // Security invariant: public registration must never grant editorial/admin permissions.
 {
   const path = 'functions/api/users/register.ts';
@@ -49,12 +75,18 @@ function write(path, content) {
 {
   const path = 'functions/article/[slug].ts';
   let source = read(path);
-  const simplified = /function renderBody\(value: string\) \{[\s\S]*?return out\.join\('\n'\);\n\}/;
-  if (simplified.test(source)) {
-    const renderer = read('scripts/article-rich-renderer.txt').trim();
-    source = source.replace(simplified, renderer);
+  const renderer = read('scripts/article-rich-renderer.txt').trim();
+  const hasRichRenderer = source.includes('function inlineMarkdown(') && source.includes('function renderBody(');
+  if (!hasRichRenderer) {
+    const replaced = replaceFunctionBlock(source, 'function renderBody(', renderer);
+    if (replaced === source) throw new Error('[stage2-hardening] Could not locate SSR renderBody() function.');
+    source = replaced;
   }
-  if (!source.includes('function inlineMarkdown(')) throw new Error('[stage2-hardening] SSR Markdown renderer invariant failed.');
+  const finalHasRichRenderer = source.includes('function inlineMarkdown(')
+    && source.includes('function renderBody(')
+    && source.includes('output.push(`<ul>`')
+    && source.includes("replace(/!\\[");
+  if (!finalHasRichRenderer) throw new Error('[stage2-hardening] SSR Markdown renderer invariant failed.');
   write(path, source);
 }
 
