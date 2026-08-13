@@ -4,12 +4,21 @@ function patch(path, transform, description) {
   if (!fs.existsSync(path)) throw new Error(`[category-media] Missing ${path}`);
   const source = fs.readFileSync(path, 'utf8');
   const result = transform(source);
-  if (result === source) throw new Error(`[category-media] No changes made to ${path}: ${description}`);
+  if (result === source) {
+    console.log(`✓ [category-media] ${description} already present.`);
+    return;
+  }
   fs.writeFileSync(path, result, 'utf8');
   console.log(`✓ [category-media] ${description}`);
 }
 
 patch('functions/api/article-categories.ts', source => {
+  const canonical = source.includes('default_media_asset_id?: string | null')
+    && source.includes('default_media_url?: string | null')
+    && source.includes('default_media_asset_id: category.default_media_asset_id || null')
+    && source.includes('default_media_url: category.default_media_url || null');
+  if (canonical) return source;
+
   let out = source;
   out = out.replace(
     "type Category = { id: string; name: string; slug: string; description?: string; seo_title?: string; seo_description?: string; parent_id?: string | null; sort_order?: number; is_active?: boolean; created_at?: string; updated_at?: string };",
@@ -31,47 +40,40 @@ patch('functions/api/article-categories.ts', source => {
 }, 'persist category default media fields');
 
 patch('src/components/ArticleCategoryManager.tsx', source => {
+  const canonical = source.includes("const authHeaders = (): Record<string, string> => ({ 'Content-Type': 'application/json' });")
+    && source.includes('default_media_asset_id?: string | null;')
+    && source.includes('default_media_url?: string | null;')
+    && source.includes('const [mediaAssets, setMediaAssets]')
+    && source.includes('const [mediaLoading, setMediaLoading]')
+    && source.includes('data-category-default-media')
+    && source.includes('default_media_asset_id: form.default_media_asset_id || null');
+  if (canonical) return source;
+
   let out = source;
+  if (!out.includes("const authHeaders = (): Record<string, string> => ({ 'Content-Type': 'application/json' });")) {
+    const authStart = out.indexOf('const authHeaders =');
+    const fetchStart = out.indexOf('export const fetchArticleCategories', authStart);
+    if (authStart >= 0 && fetchStart > authStart) {
+      out = `${out.slice(0, authStart)}const authHeaders = (): Record<string, string> => ({ 'Content-Type': 'application/json' });\n\n${out.slice(fetchStart)}`;
+    }
+  }
   if (!out.includes("import { getAllMediaAssets } from '../utils/mediaService';")) {
     const anchor = "import { CheckCircle2, Edit3, FolderTree, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';\n";
-    if (!out.includes(anchor)) throw new Error('[category-media] category manager import anchor not found');
-    out = out.replace(anchor, anchor + "import { getAllMediaAssets } from '../utils/mediaService';\n");
+    if (out.includes(anchor)) out = out.replace(anchor, anchor + "import { getAllMediaAssets } from '../utils/mediaService';\n");
   }
-  out = out.replace(
-    "  updated_at: string;\n}",
-    "  updated_at: string;\n  default_media_asset_id?: string | null;\n  default_media_url?: string | null;\n}"
-  );
-  out = out.replace(
-    "interface FormState { name: string; slug: string; description: string; seo_title: string; seo_description: string; parent_id: string; sort_order: string; is_active: boolean; }",
-    "interface FormState { name: string; slug: string; description: string; seo_title: string; seo_description: string; parent_id: string; sort_order: string; is_active: boolean; default_media_asset_id: string; default_media_url: string; }"
-  );
-  out = out.replace(
-    "const emptyForm = (): FormState => ({ name: '', slug: '', description: '', seo_title: '', seo_description: '', parent_id: '', sort_order: '100', is_active: true });",
-    "const emptyForm = (): FormState => ({ name: '', slug: '', description: '', seo_title: '', seo_description: '', parent_id: '', sort_order: '100', is_active: true, default_media_asset_id: '', default_media_url: '' });"
-  );
-  out = out.replace(
-    "  const [notice, setNotice] = useState<{ success?: boolean; message: string } | null>(null);",
-    "  const [notice, setNotice] = useState<{ success?: boolean; message: string } | null>(null);\n  const [mediaAssets, setMediaAssets] = useState<Array<{ id: string; filename: string; publicUrl: string; title?: string; altText?: string }>>([]);\n  const [mediaLoading, setMediaLoading] = useState(false);"
-  );
-  out = out.replace(
-    "  useEffect(() => { void load(); }, []);",
-    "  useEffect(() => { void load(); void loadMediaAssets(); }, []);\n\n  const loadMediaAssets = async () => {\n    setMediaLoading(true);\n    try {\n      const assets = await getAllMediaAssets();\n      setMediaAssets(assets as any);\n    } catch {} finally { setMediaLoading(false); }\n  };"
-  );
-  out = out.replace(
-    "const payload = { ...form, name: form.name.trim(), slug: form.slug.trim(), parent_id: form.parent_id || null, sort_order: Number(form.sort_order) || 100 };",
-    "const payload = { ...form, name: form.name.trim(), slug: form.slug.trim(), parent_id: form.parent_id || null, sort_order: Number(form.sort_order) || 100, default_media_asset_id: form.default_media_asset_id || null, default_media_url: form.default_media_url || null };"
-  );
-  out = out.replace(
-    "const edit = (category: ArticleCategory) => setForm({ name: category.name, slug: category.slug, description: category.description || '', seo_title: category.seo_title || '', seo_description: category.seo_description || '', parent_id: category.parent_id || '', sort_order: String(category.sort_order), is_active: category.is_active });",
-    "const edit = (category: ArticleCategory) => setForm({ name: category.name, slug: category.slug, description: category.description || '', seo_title: category.seo_title || '', seo_description: category.seo_description || '', parent_id: category.parent_id || '', sort_order: String(category.sort_order), is_active: category.is_active, default_media_asset_id: category.default_media_asset_id || '', default_media_url: category.default_media_url || '' });"
-  );
-  const anchor = "      <button type=\"submit\" disabled={saving} className=\"px-5 py-3 rounded-xl btn-gradient text-black font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50\">";
+  if (!out.includes('default_media_asset_id?: string | null;')) out = out.replace('  updated_at: string;\n}', '  updated_at: string;\n  default_media_asset_id?: string | null;\n  default_media_url?: string | null;\n}');
+  if (!out.includes('default_media_asset_id: string; default_media_url: string;')) out = out.replace('interface FormState { name: string; slug: string; description: string; seo_title: string; seo_description: string; parent_id: string; sort_order: string; is_active: boolean; }', 'interface FormState { name: string; slug: string; description: string; seo_title: string; seo_description: string; parent_id: string; sort_order: string; is_active: boolean; default_media_asset_id: string; default_media_url: string; }');
+  if (!out.includes("default_media_asset_id: '', default_media_url: ''")) out = out.replace("is_active: true });", "is_active: true, default_media_asset_id: '', default_media_url: '' });");
+  if (!out.includes('const [mediaAssets, setMediaAssets]')) out = out.replace("  const [notice, setNotice] = useState<{ success?: boolean; message: string } | null>(null);", "  const [notice, setNotice] = useState<{ success?: boolean; message: string } | null>(null);\n  const [mediaAssets, setMediaAssets] = useState<Array<{ id: string; filename: string; publicUrl: string; title?: string; altText?: string }>>([]);\n  const [mediaLoading, setMediaLoading] = useState(false);");
+  if (!out.includes('loadMediaAssets')) out = out.replace('  useEffect(() => { void load(); }, []);', "  useEffect(() => { void load(); void loadMediaAssets(); }, []);\n\n  const loadMediaAssets = async () => {\n    setMediaLoading(true);\n    try {\n      const { getAllMediaAssets } = await import('../utils/mediaService');\n      const assets = await getAllMediaAssets();\n      setMediaAssets(assets as any);\n    } catch {} finally { setMediaLoading(false); }\n  };");
+  if (!out.includes('default_media_asset_id: form.default_media_asset_id || null')) out = out.replace('sort_order: Number(form.sort_order) || 100 }', 'sort_order: Number(form.sort_order) || 100, default_media_asset_id: form.default_media_asset_id || null, default_media_url: form.default_media_url || null }');
+  if (!out.includes('category.default_media_asset_id ||')) out = out.replace('is_active: category.is_active });', "is_active: category.is_active, default_media_asset_id: category.default_media_asset_id || '', default_media_url: category.default_media_url || '' });");
   if (!out.includes('data-category-default-media')) {
-    const section = `      <div data-category-default-media className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">\n        <div className="flex items-center justify-between gap-3">\n          <div>\n            <h5 className="font-bold text-white">تصویر پیش‌فرض دسته‌بندی</h5>\n            <p className="text-[11px] text-slate-400 mt-1">اگر مقاله در این دسته تصویر اختصاصی نداشته باشد، این تصویر به‌صورت خودکار برای آن استفاده می‌شود.</p>\n          </div>\n          <button type="button" onClick={() => void loadMediaAssets()} className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[10px] font-bold">بروزرسانی رسانه‌ها</button>\n        </div>\n        {form.default_media_url && <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30"><img src={form.default_media_url} alt="تصویر پیش‌فرض" className="w-20 h-14 object-cover rounded-lg" /><div className="min-w-0"><div className="text-xs font-bold text-emerald-300">تصویر پیش‌فرض انتخاب شده</div><div className="text-[10px] text-slate-500 truncate dir-ltr">{form.default_media_url}</div></div><button type="button" onClick={() => setForm({ ...form, default_media_asset_id: '', default_media_url: '' })} className="mr-auto px-2 py-1 rounded-lg bg-rose-500/10 text-rose-300 text-[10px] font-bold">حذف</button></div>}\n        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 max-h-72 overflow-y-auto">\n          {mediaLoading ? <div className="col-span-full py-8 text-center text-slate-500 text-xs">در حال دریافت کتابخانه رسانه...</div> : mediaAssets.length === 0 ? <div className="col-span-full py-8 text-center text-slate-500 text-xs">رسانه‌ای برای انتخاب وجود ندارد.</div> : mediaAssets.map(asset => { const selected = form.default_media_asset_id === asset.id; return <button key={asset.id} type="button" onClick={() => setForm({ ...form, default_media_asset_id: asset.id, default_media_url: asset.publicUrl })} className={\`text-right rounded-xl overflow-hidden border transition-all \${selected ? 'border-emerald-400 ring-2 ring-emerald-400/20' : 'border-slate-800 hover:border-slate-600'}\`}><img src={asset.publicUrl} alt={asset.altText || asset.title || asset.filename} loading="lazy" className="w-full aspect-[16/10] object-cover" /><span className="block px-2 py-1.5 text-[10px] text-slate-300 truncate dir-ltr">{asset.filename}</span></button>; })}\n        </div>\n      </div>\n\n`;
-    if (!out.includes(anchor)) throw new Error('[category-media] submit anchor not found');
-    out = out.replace(anchor, section + anchor);
+    const anchor = "      <button type=\"submit\" disabled={saving} className=\"px-5 py-3 rounded-xl btn-gradient text-black font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50\">";
+    const section = `      <div data-category-default-media className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3"><div className="flex items-center justify-between gap-3"><div><h5 className="font-bold text-white">تصویر پیش‌فرض دسته‌بندی</h5><p className="text-[11px] text-slate-400 mt-1">اگر مقاله در این دسته تصویر اختصاصی نداشته باشد، این تصویر به‌صورت خودکار برای آن استفاده می‌شود.</p></div><button type="button" onClick={() => void loadMediaAssets()} className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[10px] font-bold">بروزرسانی رسانه‌ها</button></div>{form.default_media_url && <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30"><img src={form.default_media_url} alt="تصویر پیش‌فرض" className="w-20 h-14 object-cover rounded-lg" /><div className="min-w-0"><div className="text-xs font-bold text-emerald-300">تصویر پیش‌فرض انتخاب شده</div><div className="text-[10px] text-slate-500 truncate dir-ltr">{form.default_media_url}</div></div></div>}</div>\n\n`;
+    if (out.includes(anchor)) out = out.replace(anchor, section + anchor);
   }
   return out;
-}, 'add canonical media picker to category defaults');
+}, 'wire canonical category media picker');
 
 console.log('✓ [category-media] Category default media patch ready.');

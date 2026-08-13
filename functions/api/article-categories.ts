@@ -1,6 +1,6 @@
 type Env = { SUPABASE_URL?: string; VITE_SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string; VITE_SUPABASE_ANON_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; ADMIN_PASSCODE?: string };
 type PagesContext = { request: Request; env: Env; params?: Record<string, string | string[] | undefined> };
-type Category = { id: string; name: string; slug: string; description?: string; seo_title?: string; seo_description?: string; parent_id?: string | null; sort_order?: number; is_active?: boolean; created_at?: string; updated_at?: string };
+type Category = { id: string; name: string; slug: string; description?: string; seo_title?: string; seo_description?: string; parent_id?: string | null; sort_order?: number; is_active?: boolean; default_media_asset_id?: string | null; default_media_url?: string | null; created_at?: string; updated_at?: string };
 
 const fallbackUrl = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const fallbackAnon = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
@@ -35,7 +35,7 @@ async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
     return Boolean(expected && supplied === String(expected).trim());
   } catch { return false; }
 }
-function cleanCategory(input: any): Category { return { id: String(input.id || `cat-${crypto.randomUUID()}`), name: String(input.name || '').trim(), slug: String(input.slug || '').trim().toLowerCase(), description: String(input.description || '').trim(), seo_title: String(input.seo_title || '').trim(), seo_description: String(input.seo_description || '').trim(), parent_id: input.parent_id ? String(input.parent_id) : null, sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : 100, is_active: input.is_active !== false }; }
+function cleanCategory(input: any): Category { return { id: String(input.id || `cat-${crypto.randomUUID()}`), name: String(input.name || '').trim(), slug: String(input.slug || '').trim().toLowerCase(), description: String(input.description || '').trim(), seo_title: String(input.seo_title || '').trim(), seo_description: String(input.seo_description || '').trim(), parent_id: input.parent_id ? String(input.parent_id) : null, sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : 100, is_active: input.is_active !== false, default_media_asset_id: input.default_media_asset_id ? String(input.default_media_asset_id).trim() : null, default_media_url: input.default_media_url ? String(input.default_media_url).trim() : null }; }
 function validate(category: Category) { if (!category.name || category.name.length > 120) return 'نام دسته‌بندی باید بین ۱ تا ۱۲۰ کاراکتر باشد.'; if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(category.slug) || category.slug.length > 160) return 'Slug فقط باید شامل حروف انگلیسی کوچک، عدد و خط تیره باشد.'; if (category.parent_id === category.id) return 'دسته‌بندی نمی‌تواند والد خودش باشد.'; return null; }
 
 export const onRequest = async ({ request, env, params }: PagesContext): Promise<Response> => {
@@ -57,14 +57,14 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
     if (!(await adminAuthorized(request, env))) return json({ success: false, message: 'دسترسی مدیریت دسته‌بندی‌ها غیرمجاز است.' }, 401);
     if (method === 'POST') {
       const category = cleanCategory(await request.json()); const error = validate(category); if (error) return json({ success: false, message: error }, 400);
-      const response = await db(env, 'article_categories', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(category) }); const data = await response.json().catch(() => null);
+      const response = await db(env, 'article_categories', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...category, default_media_asset_id: category.default_media_asset_id || null, default_media_url: category.default_media_url || null }) }); const data = await response.json().catch(() => null);
       if (!response.ok) return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ایجاد دسته‌بندی در Supabase ناموفق بود.', details: data }, response.status);
       return json({ success: true, category: Array.isArray(data) ? data[0] : data }, 201);
     }
     if (!id) return json({ success: false, message: 'شناسه دسته‌بندی ارسال نشده است.' }, 400);
     if (method === 'PATCH') {
       const patch = cleanCategory({ ...(await request.json()), id }); const error = validate(patch); if (error) return json({ success: false, message: error }, 400);
-      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, updated_at: new Date().toISOString() }) }); const data = await response.json().catch(() => null);
+      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, default_media_asset_id: patch.default_media_asset_id || null, default_media_url: patch.default_media_url || null, updated_at: new Date().toISOString() }) }); const data = await response.json().catch(() => null);
       if (!response.ok) return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ویرایش دسته‌بندی ناموفق بود.', details: data }, response.status);
       return json({ success: true, category: Array.isArray(data) ? data[0] : data });
     }

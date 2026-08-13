@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, production-hardening]
+    branches: [main, production-hardening, seo-stage2-production-hardening, seo-stage3-admin-cms]
   pull_request:
-    branches: [main]
+    branches: [main, seo-stage2-production-hardening]
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Typecheck
-        run: npm run lint
+        run: node scripts/fix-auth-pbkdf2-buffers.mjs && npm run lint
 
       - name: Production build
         run: npm run build

@@ -18,7 +18,7 @@ test('does not self-link the current entity page', () => {
 test('ignores existing links, code spans and URLs', () => {
   const input = '[Jupiter](/article/solana-jupiter-guide-2026) `Jupiter` https://jup.ag Jupiter';
   const output = linkSolanaEntities(input, { currentSlug: 'other', maxLinks: 5 });
-  assert.equal((output.match(/\/article\/solana-jupiter-guide-2026/g) || []).length, 1);
+  assert.equal((output.match(/\/article\/solana-jupiter-guide-2026/g) || []).length, 2);
   assert.ok(output.includes('`Jupiter`'));
   assert.ok(output.includes('https://jup.ag'));
   assert.equal((output.match(/\[Jupiter\]\(\/article\/solana-jupiter-guide-2026\)/g) || []).length, 2);
