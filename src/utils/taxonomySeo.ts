@@ -24,6 +24,7 @@ function setProperty(property: string, content: string) {
   if (!meta) {
     meta = document.createElement('meta');
     meta.setAttribute('property', property);
+    meta.setAttribute('content', content);
     document.head.appendChild(meta);
   }
   meta.setAttribute('content', content);
@@ -51,8 +52,8 @@ function setJsonLd(id: string, value: unknown) {
 
 const CATEGORY_SEO: Record<string, { title: string; description: string }> = {
   'solana-projects': {
-    title: 'پروژه های سولانا | معرفی و بررسی اکوسیستم سولانا',
-    description: 'معرفی و بررسی پروژه های سولانا در DeFi، DEX، کیف پول، زیرساخت، DePIN، NFT، پرداخت و سایر بخش‌های اکوسیستم؛ با تمرکز بر کاربرد، داده و ریسک.'
+    title: 'پروژه های سولانا | معرفی و بررسی بهترین پروژه‌های اکوسیستم سولانا',
+    description: 'معرفی و بررسی پروژه های سولانا در DeFi، DEX، کیف پول، زیرساخت، DePIN، NFT، پرداخت و سایر بخش‌های اکوسیستم؛ با تمرکز بر کاربرد، داده، وضعیت پروژه و ریسک.'
   }
 };
 
