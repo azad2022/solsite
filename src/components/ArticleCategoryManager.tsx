@@ -134,9 +134,7 @@ export const ArticleCategoryManager: React.FC = () => {
       <div className="flex items-center gap-3"><div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400"><FolderTree className="w-6 h-6" /></div><div><h3 className="text-white font-extrabold text-base">مدیریت دسته‌بندی مقالات</h3><p className="text-slate-400 mt-1 leading-6">دسته‌ها از Supabase خوانده می‌شوند و افزودن یا ویرایش آنها نیاز به تغییر سورس سایت ندارد.</p></div></div>
       <button type="button" onClick={() => void load()} disabled={loading} className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />بروزرسانی</button>
     </div>
-
     {notice && <div className={`p-3.5 rounded-2xl border flex items-center gap-2 font-bold ${notice.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}><CheckCircle2 className="w-4 h-4 shrink-0" />{notice.message}</div>}
-
     <form onSubmit={submit} className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
       <div className="flex items-center justify-between"><h4 className="font-bold text-white flex items-center gap-2"><Plus className="w-4 h-4 text-emerald-400" />{editingId ? 'ویرایش دسته‌بندی' : 'افزودن دسته‌بندی جدید'}</h4>{editingId && <button type="button" onClick={() => { setEditingId(null); setForm(emptyForm()); }} className="text-slate-400 hover:text-white flex items-center gap-1"><X className="w-3.5 h-3.5" />لغو ویرایش</button>}</div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -169,4 +167,18 @@ export const ArticleCategoryManager: React.FC = () => {
       <div className="space-y-2">{filtered.map(category => <div key={category.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-bold text-white">{category.name}</span><code className="text-[10px] text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded">/{category.slug}</code><span className={`text-[10px] px-2 py-0.5 rounded ${category.is_active ? 'text-emerald-300 bg-emerald-500/10' : 'text-slate-400 bg-slate-800'}`}>{category.is_active ? 'فعال' : 'غیرفعال'}</span></div><p className="text-[10px] text-slate-500 mt-1">ترتیب: {category.sort_order}{category.description ? ` · ${category.description}` : ''}</p></div><div className="flex items-center gap-2 shrink-0"><button type="button" onClick={() => startEdit(category)} className="p-2 rounded-lg bg-slate-800 text-sky-400 hover:bg-slate-700" title="ویرایش"><Edit3 className="w-4 h-4" /></button><button type="button" onClick={() => void remove(category)} className="p-2 rounded-lg bg-slate-800 text-rose-400 hover:bg-slate-700" title="حذف"><Trash2 className="w-4 h-4" /></button></div></div>)}{!filtered.length && <p className="text-center text-slate-500 py-6">دسته‌ای پیدا نشد.</p>}</div>
     </div>
   </div>;
+};
+
+export const ArticleCategorySelect: React.FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => {
+  const [categories, setCategories] = useState<ArticleCategory[]>([]);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let mounted = true;
+    fetchArticleCategories(false, true)
+      .then(data => { if (mounted) setCategories(data); })
+      .catch(e => { if (mounted) setError(e?.message || 'خطا در دریافت دسته‌ها'); });
+    return () => { mounted = false; };
+  }, []);
+  useEffect(() => { if (!value && categories[0]) onChange(categories[0].name); }, [categories, value, onChange]);
+  return <div className="space-y-1"><select value={value} onChange={e => onChange(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" disabled={!categories.length}><option value="">{error || (categories.length ? 'انتخاب دسته‌بندی' : 'در حال دریافت دسته‌بندی‌ها...')}</option>{categories.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}</select>{error && <span className="text-[10px] text-rose-400">{error}</span>}</div>;
 };
