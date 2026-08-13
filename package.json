@@ -6,7 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/media-article-linking-patch-fixed.mjs && node scripts/category-default-media-patch.mjs && node scripts/category-article-default-integration-patch.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-auth-v2.mjs && node scripts/production-comments-admin-patch.mjs && node scripts/production-comments-build-verify.mjs && npm run lint && node scripts/generate-sitemap.js && vite build",
+    "build": "node scripts/harden-admin-frontend-v2.mjs && node scripts/media-article-linking-patch-fixed.mjs && node scripts/category-default-media-patch.mjs && node scripts/category-article-default-integration-patch.mjs && node scripts/final-auth-cleanup.mjs && node scripts/harden-server-auth-v2.mjs && node scripts/production-comments-client-wiring.mjs && node scripts/production-comments-admin-patch.mjs && node scripts/production-comments-build-verify.mjs && npm run lint && node scripts/generate-sitemap.js && vite build",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -17,7 +17,7 @@
     "@google/genai": "^2.4.0",
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^5.0.1",
     "compression": "^1.8.1",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
