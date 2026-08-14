@@ -6,8 +6,7 @@ const FALLBACK: MemeTickerFeed = { enabled: false, items: [] };
 const LOCAL_LOGOS: Record<string, string> = {
   SOL: '/assets/crypto/sol.svg', BTC: '/assets/crypto/btc.svg', ETH: '/assets/crypto/eth.svg',
   USDT: '/assets/crypto/usdt.svg', XRP: '/assets/crypto/xrp.svg', DOGE: '/assets/crypto/doge.svg',
-  ADA: '/assets/crypto/ada.svg', LINK: '/assets/crypto/link.svg', DOT: '/assets/crypto/polkadot.svg',
-  LTC: '/assets/crypto/litecoin.svg'
+  LINK: '/assets/crypto/link.svg', DOT: '/assets/crypto/polkadot.svg', LTC: '/assets/crypto/litecoin.svg'
 };
 
 function formatUsd(value: number | null) {
