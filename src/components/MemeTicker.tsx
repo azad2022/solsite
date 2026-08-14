@@ -4,12 +4,10 @@ import { fetchMemeTickerFeed, MemeTickerFeed, MemeTickerItem } from '../utils/me
 
 const FALLBACK: MemeTickerFeed = { enabled: false, items: [] };
 const LOCAL_LOGOS: Record<string, string> = {
-  SOL: '/assets/crypto/sol.svg',
-  BTC: '/assets/crypto/btc.svg',
-  ETH: '/assets/crypto/eth.svg',
-  USDT: '/assets/crypto/usdt.svg',
-  DOGE: '/assets/crypto/doge.svg',
-  XRP: '/assets/crypto/xrp.svg',
+  SOL: '/assets/crypto/sol.svg', BTC: '/assets/crypto/btc.svg', ETH: '/assets/crypto/eth.svg',
+  USDT: '/assets/crypto/usdt.svg', XRP: '/assets/crypto/xrp.svg', DOGE: '/assets/crypto/doge.svg',
+  ADA: '/assets/crypto/ada.svg', LINK: '/assets/crypto/link.svg', DOT: '/assets/crypto/polkadot.svg',
+  LTC: '/assets/crypto/litecoin.svg'
 };
 
 function formatUsd(value: number | null) {
@@ -23,44 +21,25 @@ function formatUsd(value: number | null) {
 const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   const change = item.change24h;
   const up = typeof change === 'number' && change >= 0;
-  const localLogo = LOCAL_LOGOS[item.symbol.toUpperCase()];
-  const [logoFailed, setLogoFailed] = useState(false);
-  const logoSrc = localLogo || item.logoUrl;
-
-  if (!logoSrc || logoFailed) return null;
-
+  const logoSrc = LOCAL_LOGOS[item.symbol.toUpperCase()];
+  if (!logoSrc) return null;
   return (
     <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">
-      <img
-        src={logoSrc}
-        alt=""
-        aria-hidden="true"
-        className="h-6 w-6 shrink-0 rounded-full object-contain bg-white/95"
-        loading="eager"
-        decoding="async"
-        onError={() => setLogoFailed(true)}
-      />
+      <img src={logoSrc} alt="" aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full object-contain" loading="eager" decoding="async" />
       <span className="text-[11px] font-black tracking-wide text-white">{item.symbol}</span>
       <span className="font-mono text-[10px] font-semibold text-slate-300">{formatUsd(item.priceUsd)}</span>
-      <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
-        {change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}
-      </span>
+      <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>{change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
     </div>
   );
 };
 
 const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration: number }> = ({ items, reverse = false, duration }) => {
-  if (!items.length) return null;
-  const track = [...items, ...items];
+  const visible = items.filter(item => Boolean(LOCAL_LOGOS[item.symbol.toUpperCase()]));
+  if (!visible.length) return null;
+  const track = [...visible, ...visible];
   return (
     <div className="relative h-10 min-w-0 overflow-hidden">
-      <div
-        className="flex h-full w-max items-center will-change-transform"
-        style={{
-          animation: `solmintMarketRail ${duration}s linear infinite`,
-          animationDirection: reverse ? 'reverse' : 'normal',
-        }}
-      >
+      <div className="flex h-full w-max items-center will-change-transform" style={{ animation: `solmintMarketRail ${duration}s linear infinite`, animationDirection: reverse ? 'reverse' : 'normal' }}>
         {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
       </div>
       <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#05050a] to-transparent" />
@@ -75,49 +54,35 @@ export const MemeTicker: React.FC = () => {
   const [header, setHeader] = useState<HTMLElement | null>(null);
 
   const load = async () => {
-    try {
-      setFeed(await fetchMemeTickerFeed());
-    } catch {
-      setFeed(current => current.items.length ? { ...current, stale: true } : FALLBACK);
-    } finally {
-      setLoading(false);
-    }
+    try { setFeed(await fetchMemeTickerFeed()); }
+    catch { setFeed(current => current.items.length ? { ...current, stale: true } : FALLBACK); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
     load();
-    const id = window.setInterval(load, Math.max(10000, (feed.refreshSeconds || 20) * 1000));
+    const id = window.setInterval(load, Math.max(15000, (feed.refreshSeconds || 20) * 1000));
     return () => window.clearInterval(id);
   }, [feed.refreshSeconds]);
 
   useEffect(() => {
-    const findHeader = () => setHeader(document.querySelector('header'));
-    findHeader();
-    const observer = new MutationObserver(findHeader);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    setHeader(document.querySelector('header'));
   }, []);
 
-  const items = useMemo(
-    () => (feed.items || [])
-      .filter(item => item.enabled && item.priceUsd !== null)
-      .sort((a, b) => a.order - b.order),
-    [feed.items]
-  );
-
+  const items = useMemo(() => (feed.items || []).filter(item => item.enabled && item.priceUsd !== null).sort((a, b) => a.order - b.order), [feed.items]);
   if (loading || !feed.enabled || !items.length || !header) return null;
 
   const midpoint = Math.ceil(items.length / 2);
   const firstRow = items.slice(0, midpoint);
   const secondRow = items.slice(midpoint);
-  const baseDuration = Math.max(70, feed.speedSeconds || 72);
+  const baseDuration = Math.max(110, feed.speedSeconds || 120);
 
   return createPortal(
     <div className="relative block w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95" aria-label="قیمت لحظه‌ای بازار">
       <div className="mx-auto max-w-7xl" dir="ltr">
         <TickerRow items={firstRow} duration={baseDuration} />
         <div className="h-px bg-white/[0.045]" aria-hidden="true" />
-        <TickerRow items={secondRow} duration={baseDuration + 10} reverse />
+        <TickerRow items={secondRow} duration={baseDuration + 15} reverse />
       </div>
       <style>{`@keyframes solmintMarketRail{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
     </div>,
