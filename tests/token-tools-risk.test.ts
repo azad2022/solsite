@@ -99,7 +99,7 @@ test('does not turn missing market data into a false claim that no market exists
     assert.equal(result.status, 200);
     const body = await result.json() as any;
     const flag = body.flags.find((item: any) => item.code === 'no-market-pairs-found');
-    assert.equal(flag?.severity, 'attention');
+    assert.equal(flag?.severity, 'warning');
     assert.match(flag?.reason ?? '', /اثبات نمی‌کند/);
     assert.equal(body.availability.market, false);
   } finally {
