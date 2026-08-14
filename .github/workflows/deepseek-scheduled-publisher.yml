@@ -1,53 +1,15 @@
 name: Solmint DeepSeek Scheduled Publisher
 
+# Disabled intentionally. The DeepSeek chatbot remains available for manual
+# use, but automatic article publishing is not currently used.
+# Kept as a manually-dispatchable placeholder for future reactivation.
+
 on:
-  schedule:
-    - cron: "*/5 * * * *"
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  wake-scheduler:
+  disabled:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
     steps:
-      - name: Trigger production DeepSeek scheduler
-        env:
-          SITE_URL: https://solmint.ir
-          CRON_SECRET: ${{ secrets.AUTOPUBLISH_CRON_SECRET }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${CRON_SECRET}" ]; then
-            echo "AUTOPUBLISH_CRON_SECRET is not configured in GitHub repository secrets." >&2
-            exit 1
-          fi
-
-          url="${SITE_URL%/}/api/deepseek/auto-publish/scheduled"
-          response_file="$(mktemp)"
-
-          http_code="$(curl --silent --show-error --location \
-            --max-time 150 \
-            --retry 2 \
-            --retry-delay 3 \
-            --retry-all-errors \
-            --header 'Content-Type: application/json' \
-            --header "x-autopublish-cron-secret: ${CRON_SECRET}" \
-            --data '{}' \
-            --output "${response_file}" \
-            --write-out '%{http_code}' \
-            "${url}")"
-
-          echo "HTTP ${http_code}"
-          cat "${response_file}"
-          echo
-
-          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ]; then
-            echo "Scheduled publisher endpoint failed." >&2
-            exit 1
-          fi
+      - name: Explain disabled workflow
+        run: echo "DeepSeek scheduled publisher is intentionally disabled."
