@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Send, ShieldCheck, Lock, Smartphone, Github } from 'lucide-react';
+import { Lock, Github } from 'lucide-react';
 
 interface FooterProps {
   onNavigate?: (path: string) => void;
@@ -29,6 +29,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
               <li><a href="/download" onClick={(e) => { e.preventDefault(); handleNav('/download'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none">دانلود اپلیکیشن اندروید</a></li>
               <li><a href="/faq" onClick={(e) => { e.preventDefault(); handleNav('/faq'); }} className="hover:text-sky-300 transition-colors cursor-pointer text-inherit decoration-none">سوالات متداول</a></li>
               <li><a href="/blog" onClick={(e) => { e.preventDefault(); handleNav('/blog'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none">وبلاگ و آکادمی (solmint.ir)</a></li>
+              <li><a href="/tools/solana-token-tools" onClick={(e) => { e.preventDefault(); handleNav('/tools/solana-token-tools'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none font-bold">مرکز ابزارهای Solmint</a></li>
               <li><button onClick={openAdminModal} className="hover:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-emerald-400" /><span>ورود / ثبت‌نام</span></button></li>
             </ul>
           </div>
