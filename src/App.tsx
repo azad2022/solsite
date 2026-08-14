@@ -37,77 +37,34 @@ const SecurityPage = lazy(() => import('./components/landing/LandingPages').then
 const OfficialDownloadPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.OfficialDownloadPage })));
 const FaqPage = lazy(() => import('./components/landing/LandingPages').then(m => ({ default: m.FaqPage })));
 const AppUserGuidePage = lazy(() => import('./components/AppUserGuidePage').then(m => ({ default: m.AppUserGuidePage })));
+const SolanaTokenToolsHub = lazy(() => import('./components/tools/SolanaTokenToolsHub').then(m => ({ default: m.SolanaTokenToolsHub })));
+const SolanaTokenScannerPage = lazy(() => import('./components/tools/SolanaTokenScannerPage').then(m => ({ default: m.SolanaTokenScannerPage })));
+const Token2022InspectorPage = lazy(() => import('./components/tools/Token2022InspectorPage').then(m => ({ default: m.Token2022InspectorPage })));
 
 const normalizePath = (path: string) => { const withoutQuery = (path || '/').split('?')[0].split('#')[0]; const normalized = withoutQuery.replace(/\/+$/, ''); return normalized || '/'; };
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
 
-/**
- * Mounts the two secondary admin controls directly into the existing CMS
- * navigation container. This keeps them in the same responsive button list
- * instead of rendering them as fixed/floating controls over the mobile UI.
- */
-const AdminQuickActionsPortal: React.FC<{
-  enabled: boolean;
-  onOpenMarket: () => void;
-  onOpenShowcase: () => void;
-}> = ({ enabled, onOpenMarket, onOpenShowcase }) => {
+const AdminQuickActionsPortal: React.FC<{ enabled: boolean; onOpenMarket: () => void; onOpenShowcase: () => void; }> = ({ enabled, onOpenMarket, onOpenShowcase }) => {
   const [target, setTarget] = useState<HTMLElement | null>(null);
-
   useEffect(() => {
-    if (!enabled) {
-      setTarget(null);
-      return;
-    }
-
-    let attempts = 0;
-    let timer: number | undefined;
-
+    if (!enabled) { setTarget(null); return; }
+    let attempts = 0; let timer: number | undefined;
     const findTarget = () => {
       const cards = Array.from(document.querySelectorAll<HTMLElement>('.glass-card'));
       const card = cards.find(el => el.textContent?.includes('انتخاب بخش مدیریت:') || el.textContent?.includes('مقالات'));
-      if (!card) {
-        if (attempts++ < 30) timer = window.setTimeout(findTarget, 50);
-        return;
-      }
-
+      if (!card) { if (attempts++ < 30) timer = window.setTimeout(findTarget, 50); return; }
       const candidates = Array.from(card.querySelectorAll<HTMLElement>('div'));
-      const nav = candidates.find(el => {
-        const text = el.textContent || '';
-        const cls = el.className || '';
-        return text.includes('مقالات') && text.includes('چت‌بات') && cls.includes('bg-slate-900');
-      });
-
-      if (nav) setTarget(nav);
-      else if (attempts++ < 30) timer = window.setTimeout(findTarget, 50);
+      const nav = candidates.find(el => { const text = el.textContent || ''; const cls = el.className || ''; return text.includes('مقالات') && text.includes('چت‌بات') && cls.includes('bg-slate-900'); });
+      if (nav) setTarget(nav); else if (attempts++ < 30) timer = window.setTimeout(findTarget, 50);
     };
-
     findTarget();
     return () => { if (timer) window.clearTimeout(timer); };
   }, [enabled]);
-
   if (!enabled || !target) return null;
-
-  return createPortal(
-    <div className="flex flex-wrap items-center gap-1.5 basis-full w-full pt-1 mt-1 border-t border-slate-800/70">
-      <button
-        type="button"
-        onClick={onOpenMarket}
-        className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 border border-transparent"
-      >
-        <span aria-hidden="true">📈</span>
-        <span>مدیریت نرخ بازار</span>
-      </button>
-      <button
-        type="button"
-        onClick={onOpenShowcase}
-        className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 border border-transparent"
-      >
-        <span aria-hidden="true">📱</span>
-        <span>مدیریت نمایش اپلیکیشن</span>
-      </button>
-    </div>,
-    target
-  );
+  return createPortal(<div className="flex flex-wrap items-center gap-1.5 basis-full w-full pt-1 mt-1 border-t border-slate-800/70">
+    <button type="button" onClick={onOpenMarket} className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 border border-transparent"><span aria-hidden="true">📈</span><span>مدیریت نرخ بازار</span></button>
+    <button type="button" onClick={onOpenShowcase} className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 border border-transparent"><span aria-hidden="true">📱</span><span>مدیریت نمایش اپلیکیشن</span></button>
+  </div>, target);
 };
 
 export default function App() {
@@ -126,20 +83,10 @@ export default function App() {
 
   const handleNavigate = (path: string) => { const normalizedPath = normalizePath(path); setCurrentPath(normalizedPath); if (normalizePath(window.location.pathname) !== normalizedPath) window.history.pushState({}, '', normalizedPath); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   useEffect(() => { const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname || '/')); window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState); }, []);
-
-  // The public website treats the server as the source of truth for chatbot visibility.
-  // LocalStorage is only the initial UI bootstrap and is overwritten by the server response.
   useEffect(() => {
     let cancelled = false;
-    const syncPublicSettings = async () => {
-      const settings = await fetchCmsSettingsFromApi();
-      if (cancelled || !settings) return;
-      if (settings.chatbot) setChatbotSettings(prev => ({ ...prev, ...settings.chatbot, enabled: Boolean(settings.chatbot.enabled) }));
-      if (settings.downloads) setDownloadLinks(prev => ({ ...prev, ...settings.downloads }));
-    };
-    syncPublicSettings();
-    const interval = window.setInterval(syncPublicSettings, 10000);
-    return () => { cancelled = true; window.clearInterval(interval); };
+    const syncPublicSettings = async () => { const settings = await fetchCmsSettingsFromApi(); if (cancelled || !settings) return; if (settings.chatbot) setChatbotSettings(prev => ({ ...prev, ...settings.chatbot, enabled: Boolean(settings.chatbot.enabled) })); if (settings.downloads) setDownloadLinks(prev => ({ ...prev, ...settings.downloads })); };
+    syncPublicSettings(); const interval = window.setInterval(syncPublicSettings, 10000); return () => { cancelled = true; window.clearInterval(interval); };
   }, []);
 
   const activeArticleSlug = useMemo(() => currentPath.startsWith('/article/') ? currentPath.slice('/article/'.length).trim() : '', [currentPath]);
@@ -170,6 +117,9 @@ export default function App() {
       {currentPath === '/download' && <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/faq' && <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/app-guide' && <AppUserGuidePage onNavigate={handleNavigate} />}
+      {currentPath === '/tools/solana-token-tools' && <SolanaTokenToolsHub onNavigate={handleNavigate} />}
+      {currentPath === '/tools/solana-token-scanner' && <SolanaTokenScannerPage onNavigate={handleNavigate} />}
+      {currentPath === '/tools/token-2022-inspector' && <Token2022InspectorPage onNavigate={handleNavigate} />}
       {taxonomyMatch && activeTaxonomy && <ArticleTaxonomyPage articles={articles} type={taxonomyMatch.type} slug={taxonomyMatch.slug} onNavigate={handleNavigate} />}
       {(currentPath === '/blog' || currentPath.startsWith('/article/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
     </Suspense></main>

@@ -11,7 +11,7 @@ function xmlEscape(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    .replace(/\"/g, "&quot;")
     .replace(/'/g, "&apos;");
 }
 
@@ -55,7 +55,10 @@ async function generate() {
     "/security",
     "/download",
     "/blog",
-    "/faq"
+    "/faq",
+    "/tools/solana-token-tools",
+    "/tools/solana-token-scanner",
+    "/tools/token-2022-inspector"
   ];
 
   let articles = [];
@@ -133,6 +136,7 @@ Allow: /article/
 Allow: /blog/category/
 Allow: /blog/tag/
 Allow: /faq
+Allow: /tools/
 
 Disallow: /admin
 Disallow: /api/

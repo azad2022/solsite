@@ -8,6 +8,7 @@
     "/api/comments/*",
     "/api/media/*",
     "/api/market/*",
+    "/api/tools/*",
     "/api/users/*",
     "/solana-token",
     "/solana-wallet",
