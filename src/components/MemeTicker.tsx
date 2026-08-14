@@ -3,6 +3,14 @@ import { createPortal } from 'react-dom';
 import { fetchMemeTickerFeed, MemeTickerFeed, MemeTickerItem } from '../utils/memeTickerService';
 
 const FALLBACK: MemeTickerFeed = { enabled: false, items: [] };
+const LOCAL_LOGOS: Record<string, string> = {
+  SOL: '/assets/crypto/sol.svg',
+  BTC: '/assets/crypto/btc.svg',
+  ETH: '/assets/crypto/eth.svg',
+  USDT: '/assets/crypto/usdt.svg',
+  DOGE: '/assets/crypto/doge.svg',
+  XRP: '/assets/crypto/xrp.svg',
+};
 
 function formatUsd(value: number | null) {
   if (value == null || !Number.isFinite(value)) return '—';
@@ -15,14 +23,16 @@ function formatUsd(value: number | null) {
 const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   const change = item.change24h;
   const up = typeof change === 'number' && change >= 0;
+  const localLogo = LOCAL_LOGOS[item.symbol.toUpperCase()];
   const [logoFailed, setLogoFailed] = useState(false);
+  const logoSrc = localLogo || item.logoUrl;
 
-  if (!item.logoUrl || logoFailed) return null;
+  if (!logoSrc || logoFailed) return null;
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">
       <img
-        src={item.logoUrl}
+        src={logoSrc}
         alt=""
         aria-hidden="true"
         className="h-6 w-6 shrink-0 rounded-full object-contain bg-white/95"
@@ -90,26 +100,24 @@ export const MemeTicker: React.FC = () => {
 
   const items = useMemo(
     () => (feed.items || [])
-      .filter(item => item.enabled && item.priceUsd !== null && Boolean(item.logoUrl))
+      .filter(item => item.enabled && item.priceUsd !== null)
       .sort((a, b) => a.order - b.order),
     [feed.items]
   );
 
   if (loading || !feed.enabled || !items.length || !header) return null;
 
-  // Keep the two rails balanced so both rows remain visible and useful.
   const midpoint = Math.ceil(items.length / 2);
   const firstRow = items.slice(0, midpoint);
   const secondRow = items.slice(midpoint);
-  // Deliberately slow: the header is a reading surface, not an attention-grabbing animation.
-  const baseDuration = Math.max(58, feed.speedSeconds || 60);
+  const baseDuration = Math.max(70, feed.speedSeconds || 72);
 
   return createPortal(
     <div className="relative block w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95" aria-label="قیمت لحظه‌ای بازار">
       <div className="mx-auto max-w-7xl" dir="ltr">
         <TickerRow items={firstRow} duration={baseDuration} />
         <div className="h-px bg-white/[0.045]" aria-hidden="true" />
-        <TickerRow items={secondRow} duration={baseDuration + 8} reverse />
+        <TickerRow items={secondRow} duration={baseDuration + 10} reverse />
       </div>
       <style>{`@keyframes solmintMarketRail{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
     </div>,
