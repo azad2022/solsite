@@ -62,11 +62,12 @@ function relatedSection(articles: ArticleRow[], path: string) {
 function inject(html: string, section: string) {
   if (!section) return html;
   const style = `<style id="tool-related-articles-style">#tool-related-articles{max-width:1200px;margin:0 auto;padding:0 16px 48px;color:#e2e8f0}#tool-related-articles>div{border:1px solid rgba(148,163,184,.16);border-radius:24px;background:rgba(15,23,42,.7);padding:20px}@media(min-width:640px){#tool-related-articles>div{padding:28px}}#tool-related-articles h2{margin:0;font-size:22px;font-weight:900;color:#fff}#tool-related-articles ul{margin:14px 0 0;padding:0;list-style:none;border-top:1px solid rgba(148,163,184,.12)}#tool-related-articles li{border-bottom:1px solid rgba(148,163,184,.12)}#tool-related-articles li:last-child{border-bottom:0}#tool-related-articles a{display:block;padding:12px 0;color:#e2e8f0;text-decoration:none;font-size:15px;font-weight:700;line-height:1.8}#tool-related-articles a:hover{color:#14F195}</style>`;
-  const root = '<div id="root"></div>';
   const withStyle = html.replace('</head>', `${style}</head>`);
-  return /<div id="root"><\/div>/i.test(withStyle)
-    ? withStyle.replace(/<div id="root"><\/div>/i, `${root}${section}`)
-    : withStyle;
+  if (/<section id="tool-related-articles"/i.test(withStyle)) return withStyle;
+  if (/<\/body>/i.test(withStyle)) {
+    return withStyle.replace(/<\/body>/i, `${section}</body>`);
+  }
+  return `${withStyle}${section}`;
 }
 
 export async function onRequest(context: PageContext): Promise<Response> {
@@ -96,6 +97,6 @@ export async function onRequest(context: PageContext): Promise<Response> {
   const section = relatedSection(articles, pathname);
   const headers = new Headers(upstream.headers);
   headers.set('Content-Type', 'text/html; charset=UTF-8');
-  headers.set('X-Solmint-SSR', 'tool-related-articles-v2');
+  headers.set('X-Solmint-SSR', 'tool-related-articles-v3');
   return new Response(inject(html, section), { status: upstream.status, headers });
 }
