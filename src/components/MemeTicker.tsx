@@ -15,9 +15,8 @@ function formatUsd(value: number | null) {
 const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   const change = item.change24h;
   const up = typeof change === 'number' && change >= 0;
-
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-3.5 first:border-l-0" dir="ltr">
+    <div className="flex h-9 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-3.5 first:border-l-0" dir="ltr">
       <img
         src={item.logoUrl!}
         alt={`${item.name} logo`}
@@ -30,6 +29,26 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
       <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
         {change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}
       </span>
+    </div>
+  );
+};
+
+const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration: number }> = ({ items, reverse = false, duration }) => {
+  if (!items.length) return null;
+  const track = [...items, ...items];
+  return (
+    <div className="relative min-w-0 flex-1 overflow-hidden">
+      <div
+        className="flex w-max items-center"
+        style={{
+          animation: `solmintMarketRail ${duration}s linear infinite`,
+          animationDirection: reverse ? 'reverse' : 'normal',
+        }}
+      >
+        {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#05050a] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#05050a] to-transparent" />
     </div>
   );
 };
@@ -72,24 +91,18 @@ export const MemeTicker: React.FC = () => {
 
   if (loading || !feed.enabled || !items.length || !header) return null;
 
-  const track = [...items, ...items];
-  const duration = Math.max(22, feed.speedSeconds || 32);
+  const firstRow = items.filter((_, index) => index % 2 === 0);
+  const secondRow = items.filter((_, index) => index % 2 === 1);
+  const duration = Math.max(22, feed.speedSeconds || 30);
 
   return createPortal(
     <div className="w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95" aria-label="قیمت لحظه‌ای بازار">
-      <div className="mx-auto flex h-10 max-w-7xl items-center" dir="ltr">
-        <div className="relative min-w-0 flex-1 overflow-hidden">
-          <div className="flex w-max items-center" style={{ animation: `solmintMarketRail ${duration}s linear infinite` }}>
-            {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
-          </div>
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#05050a] to-transparent" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#05050a] to-transparent" />
-        </div>
-        <div className="hidden shrink-0 items-center gap-1.5 border-l border-white/[0.07] pl-3 pr-2 text-[8px] font-black uppercase tracking-[0.16em] text-[#14F195] sm:flex" dir="ltr">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#14F195]" />
-          Live
-        </div>
+      <div className="mx-auto max-w-7xl" dir="ltr">
+        <TickerRow items={firstRow} duration={duration} />
+        <div className="border-t border-white/[0.05]" />
+        <TickerRow items={secondRow} duration={duration + 4} reverse />
       </div>
+      <div className="pointer-events-none absolute inset-x-0 h-0" aria-hidden="true" />
       <style>{`@keyframes solmintMarketRail{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
     </div>,
     header
