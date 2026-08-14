@@ -2,17 +2,19 @@ import fs from 'node:fs';
 
 const target = 'functions/api/auth/_shared.ts';
 const source = fs.readFileSync(target, 'utf8');
-const needle = '      salt: hexToBytes(saltHex),';
-const replacement = '      salt: hexToBytes(saltHex).buffer as ArrayBuffer,';
+const normalized = 'const salt = new Uint8Array(hexToBytes(saltHex)).buffer as ArrayBuffer;';
+const legacyNeedle = '      salt: hexToBytes(saltHex),';
+const legacyReplacement = '      salt: hexToBytes(saltHex).buffer as ArrayBuffer,';
 
-if (source.includes(replacement)) {
+if (source.includes(normalized) || source.includes(legacyReplacement)) {
   console.log('✓ PBKDF2 salt BufferSource typing already normalized.');
   process.exit(0);
 }
 
-if (!source.includes(needle)) {
-  throw new Error('Auth PBKDF2 patch failed: salt expression marker not found.');
+if (source.includes(legacyNeedle)) {
+  fs.writeFileSync(target, source.replace(legacyNeedle, legacyReplacement), 'utf8');
+  console.log('✓ PBKDF2 salt BufferSource typing normalized for TypeScript.');
+  process.exit(0);
 }
 
-fs.writeFileSync(target, source.replace(needle, replacement), 'utf8');
-console.log('✓ PBKDF2 salt BufferSource typing normalized for TypeScript.');
+throw new Error('Auth PBKDF2 patch failed: no supported salt expression marker found.');
