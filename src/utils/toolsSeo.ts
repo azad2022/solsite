@@ -5,7 +5,7 @@ type ToolSeoInput = {
   description: string;
   path: string;
   image?: string;
-  breadcrumbs: Array<{ name: string; path?: string }>;
+  breadcrumbs?: Array<{ name: string; path?: string }>;
 };
 
 const TOOL_SCHEMA_ID = 'solmint-tools-jsonld';
@@ -41,9 +41,43 @@ function upsertJsonLd(payload: unknown) {
   script.textContent = JSON.stringify(payload);
 }
 
+function defaultBreadcrumbs(path: string): Array<{ name: string; path?: string }> {
+  if (path === '/tools/solana-token-tools') {
+    return [
+      { name: 'خانه', path: '/' },
+      { name: 'ابزارهای سولمینت' },
+    ];
+  }
+  if (path === '/tools/solana-token-scanner') {
+    return [
+      { name: 'خانه', path: '/' },
+      { name: 'ابزارهای سولمینت', path: '/tools/solana-token-tools' },
+      { name: 'بررسی توکن سولانا' },
+    ];
+  }
+  if (path === '/tools/token-2022-inspector') {
+    return [
+      { name: 'خانه', path: '/' },
+      { name: 'ابزارهای سولمینت', path: '/tools/solana-token-tools' },
+      { name: 'Token-2022 Inspector' },
+    ];
+  }
+  return [
+    { name: 'خانه', path: '/' },
+    { name: 'ابزارهای سولمینت', path: '/tools/solana-token-tools' },
+    { name: titleFallback(path) },
+  ];
+}
+
+function titleFallback(path: string) {
+  const clean = path.replace(/^\/+|\/+$/g, '').split('/').pop() || 'ابزار';
+  return clean.replace(/[-_]+/g, ' ');
+}
+
 export function applyToolSeo({ title, description, path, image = `${SITE_DOMAIN}/og-solmint.png`, breadcrumbs }: ToolSeoInput) {
   const canonicalUrl = `${SITE_DOMAIN}${path}`;
   const hasQuery = window.location.search.length > 0;
+  const resolvedBreadcrumbs = breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : defaultBreadcrumbs(path);
 
   document.title = title;
 
@@ -66,7 +100,7 @@ export function applyToolSeo({ title, description, path, image = `${SITE_DOMAIN}
 
   upsertLink('canonical', canonicalUrl);
 
-  const breadcrumbItems = breadcrumbs.map((item, index) => ({
+  const breadcrumbItems = resolvedBreadcrumbs.map((item, index) => ({
     '@type': 'ListItem',
     position: index + 1,
     name: item.name,
