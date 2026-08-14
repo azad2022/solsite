@@ -1,7 +1,7 @@
 const DEFAULT_RPC_URL = 'https://api.mainnet-beta.solana.com';
 const MAX_MINT_LENGTH = 44;
 const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJYbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1Q9fD7Jq3d3Y7h';
 const METADATA_PROGRAM = 'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s';
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -26,20 +26,49 @@ async function readMetaplexMetadata(rpcUrl: string, mint: string) {
   try {
     const result = await rpc(rpcUrl, 'getProgramAccounts', [METADATA_PROGRAM, { commitment: 'confirmed', encoding: 'base64', filters: [{ memcmp: { offset: 33, bytes: mint } }] }], 8000);
     const account = Array.isArray(result) ? result[0] : null; const encoded = account?.account?.data?.[0];
-    if (!account || typeof encoded !== 'string') return { found: false, account: null, updateAuthority: null, name: null, symbol: null, uri: null, mutable: null };
-    const bytes = decodeBase64(encoded); if (bytes.length < 69 || bytes[0] !== 4) return { found: false, account: account.pubkey ?? null, updateAuthority: null, name: null, symbol: null, uri: null, mutable: null };
+    if (!account || typeof encoded !== 'string') return { found: false, source: 'metaplex-token-metadata', account: null, updateAuthority: null, name: null, symbol: null, uri: null, mutable: null, primarySaleHappened: null };
+    const bytes = decodeBase64(encoded); if (bytes.length < 69 || bytes[0] !== 4) return { found: false, source: 'metaplex-token-metadata', account: account.pubkey ?? null, updateAuthority: null, name: null, symbol: null, uri: null, mutable: null, primarySaleHappened: null };
     const updateAuthority = bytesToBase58(bytes.slice(1, 33)); let cursor = 65;
-    const name = readString(bytes, cursor); if (!name) return { found: true, account: account.pubkey ?? null, updateAuthority, name: null, symbol: null, uri: null, mutable: null }; cursor = name.next;
-    const symbol = readString(bytes, cursor); if (!symbol) return { found: true, account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: null, uri: null, mutable: null }; cursor = symbol.next;
-    const uri = readString(bytes, cursor); if (!uri) return { found: true, account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: symbol.value, uri: null, mutable: null }; cursor = uri.next;
+    const name = readString(bytes, cursor); if (!name) return { found: true, source: 'metaplex-token-metadata', account: account.pubkey ?? null, updateAuthority, name: null, symbol: null, uri: null, mutable: null, primarySaleHappened: null }; cursor = name.next;
+    const symbol = readString(bytes, cursor); if (!symbol) return { found: true, source: 'metaplex-token-metadata', account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: null, uri: null, mutable: null, primarySaleHappened: null }; cursor = symbol.next;
+    const uri = readString(bytes, cursor); if (!uri) return { found: true, source: 'metaplex-token-metadata', account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: symbol.value, uri: null, mutable: null, primarySaleHappened: null }; cursor = uri.next;
     cursor += 2;
-    if (cursor >= bytes.length) return { found: true, account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: symbol.value, uri: uri.value, mutable: null };
+    if (cursor >= bytes.length) return { found: true, source: 'metaplex-token-metadata', account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: symbol.value, uri: uri.value, mutable: null, primarySaleHappened: null };
     const creatorsOption = bytes[cursor++] ?? 0;
     if (creatorsOption === 1 && cursor + 4 <= bytes.length) { const count = readU32(bytes, cursor); cursor += 4 + count * 34; }
     const primarySaleHappened = cursor < bytes.length ? bytes[cursor++] === 1 : null;
     const mutable = cursor < bytes.length ? bytes[cursor] === 1 : null;
-    return { found: true, account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: symbol.value, uri: uri.value, mutable, primarySaleHappened };
-  } catch (error) { console.warn('Metaplex metadata lookup unavailable:', error); return { found: false, account: null, updateAuthority: null, name: null, symbol: null, uri: null, mutable: null }; }
+    return { found: true, source: 'metaplex-token-metadata', account: account.pubkey ?? null, updateAuthority, name: name.value, symbol: symbol.value, uri: uri.value, mutable, primarySaleHappened };
+  } catch (error) { console.warn('Metaplex metadata lookup unavailable:', error); return { found: false, source: 'metaplex-token-metadata', account: null, updateAuthority: null, name: null, symbol: null, uri: null, mutable: null, primarySaleHappened: null }; }
+}
+
+function authorityAnalysis(mintAuthority: string | null, freezeAuthority: string | null, metadataUpdateAuthority: string | null, mutable: boolean | null) {
+  return {
+    mint: { address: mintAuthority, status: mintAuthority ? 'active' : 'revoked', implication: mintAuthority ? 'این Authority از نظر فنی امکان افزایش عرضه Mint را دارد.' : 'Mint Authority در وضعیت فعلی قابل استفاده نیست.' },
+    freeze: { address: freezeAuthority, status: freezeAuthority ? 'active' : 'revoked', implication: freezeAuthority ? 'این Authority می‌تواند مطابق قوانین Token Program روی حساب‌های توکن اثر freeze/unfreeze داشته باشد.' : 'Freeze Authority در Mint فعال نیست.' },
+    metadata: { updateAuthority: metadataUpdateAuthority, mutable, implication: mutable === true ? 'Metadata قابل تغییر است؛ Update Authority فعلی باید در ارزیابی منبع Metadata در نظر گرفته شود.' : mutable === false ? 'Metadata به‌عنوان immutable گزارش شده است.' : 'وضعیت تغییرپذیری Metadata از داده موجود قابل تعیین نیست.' }
+  };
+}
+
+function extensionAnalysis(extensions: Array<{ type: string; data?: unknown }>) {
+  const rules: Record<string, { severity: 'info' | 'attention'; title: string; detail: string }> = {
+    TransferFeeConfig: { severity: 'attention', title: 'Transfer Fee فعال است', detail: 'این Mint می‌تواند طبق تنظیمات Extension روی انتقال توکن fee اعمال کند.' },
+    TransferHook: { severity: 'attention', title: 'Transfer Hook فعال است', detail: 'انتقال‌ها می‌توانند به یک برنامه دیگر برای منطق اضافی Hook شوند؛ آن برنامه باید جداگانه بررسی شود.' },
+    PermanentDelegate: { severity: 'attention', title: 'Permanent Delegate فعال است', detail: 'یک Delegate دائمی می‌تواند اختیارات ویژه‌ای روی حساب‌های این Mint داشته باشد.' },
+    DefaultAccountState: { severity: 'attention', title: 'Default Account State تنظیم شده است', detail: 'حساب‌های جدید می‌توانند با state پیش‌فرض مشخصی ایجاد شوند؛ مقدار Extension را بررسی کنید.' },
+    Pausable: { severity: 'attention', title: 'قابلیت Pause وجود دارد', detail: 'Mint می‌تواند مکانیزم توقف انتقال را داشته باشد؛ authority مربوطه باید بررسی شود.' },
+    MintCloseAuthority: { severity: 'attention', title: 'Mint Close Authority فعال است', detail: 'برای Mint یک Close Authority تعریف شده است؛ وضعیت authority را جداگانه بررسی کنید.' },
+    NonTransferable: { severity: 'info', title: 'توکن Non-Transferable است', detail: 'این Extension برای توکن‌هایی طراحی شده که انتقال عادی آن‌ها محدود یا غیرفعال است.' },
+    MetadataPointer: { severity: 'info', title: 'Metadata Pointer فعال است', detail: 'منبع Metadata از طریق Pointer در Token-2022 مشخص می‌شود.' },
+    TokenMetadata: { severity: 'info', title: 'Token Metadata فعال است', detail: 'Metadata در ساختار Token-2022 قابل نگهداری است.' },
+    GroupPointer: { severity: 'info', title: 'Group Pointer فعال است', detail: 'Mint به یک Token Group اشاره می‌کند.' },
+    GroupMemberPointer: { severity: 'info', title: 'Group Member Pointer فعال است', detail: 'Mint به اطلاعات عضویت در Group اشاره می‌کند.' },
+    InterestBearingConfig: { severity: 'info', title: 'Interest Bearing فعال است', detail: 'Mint دارای تنظیمات بهره/نرخ نمایش داده‌شده توسط Extension است.' },
+    ScaledUiAmountConfig: { severity: 'info', title: 'Scaled UI Amount فعال است', detail: 'نمایش مقدار UI می‌تواند با تنظیمات Extension مقیاس شود.' },
+    ImmutableOwner: { severity: 'info', title: 'Immutable Owner فعال است', detail: 'مالکیت Token Account مربوطه قابلیت تغییر از مسیرهای معمول را محدود می‌کند.' },
+    MemoTransfer: { severity: 'info', title: 'Memo Transfer فعال است', detail: 'انتقال‌ها می‌توانند به وجود Memo معتبر وابسته شوند.' }
+  };
+  return extensions.map(extension => ({ type: extension.type, ...(rules[extension.type] || { severity: 'info' as const, title: extension.type, detail: 'این Extension در Mint شناسایی شده است؛ جزئیات خام on-chain نیز در Inspector نمایش داده می‌شود.' }) }));
 }
 
 function riskProfile(mintAuthority: string | null, freezeAuthority: string | null, top10Pct: number, token2022: boolean, extensions: Array<{ type: string }>) {
@@ -66,7 +95,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env?: E
     const largestAccounts = top20.map((item: any, index: number) => { const tokenInfo = ownerAccounts[index]?.data?.parsed?.info; return { rank: index + 1, address: item.address, amount: String(item.amount ?? '0'), uiAmount: item.uiAmountString ?? item.uiAmount ?? null, percentageOfSupply: percentOf(String(item.amount ?? '0'), String(info.supply ?? '0')), owner: typeof tokenInfo?.owner === 'string' ? tokenInfo.owner : null, delegate: typeof tokenInfo?.delegate === 'string' ? tokenInfo.delegate : null, state: tokenInfo?.state ?? null }; });
     const top10Pct = largest.slice(0, 10).reduce((sum: number, item: any) => sum + Number(percentOf(String(item.amount ?? '0'), String(info.supply ?? '0'))), 0); const extensions = normalizeExtensions(info.extensions); const mintAuthority = normalizeAuthority(info.mintAuthority); const freezeAuthority = normalizeAuthority(info.freezeAuthority);
     const metadata = await readMetaplexMetadata(rpcUrl, mint);
-    const base = { ok: true, mint, tokenProgram, owner, slot: accountResult?.context?.slot ?? null, decimals: Number(info.decimals ?? 0), supply: String(info.supply ?? '0'), isInitialized: Boolean(info.isInitialized), mintAuthority, freezeAuthority, extensions, metadata, analyzedAt: new Date().toISOString(), distribution: { sampledAccounts: largestAccounts.length, top10Percentage: Number(top10Pct.toFixed(2)), source: 'getTokenLargestAccounts', accounts: largestAccounts }, riskProfile: riskProfile(mintAuthority, freezeAuthority, top10Pct, token2022, extensions) };
+    const base = { ok: true, mint, tokenProgram, owner, slot: accountResult?.context?.slot ?? null, decimals: Number(info.decimals ?? 0), supply: String(info.supply ?? '0'), isInitialized: Boolean(info.isInitialized), mintAuthority, freezeAuthority, extensions, metadata, analyzedAt: new Date().toISOString(), distribution: { sampledAccounts: largestAccounts.length, top10Percentage: Number(top10Pct.toFixed(2)), source: 'getTokenLargestAccounts', accounts: largestAccounts }, authorityAnalysis: authorityAnalysis(mintAuthority, freezeAuthority, metadata.updateAuthority, metadata.mutable), extensionAnalysis: extensionAnalysis(extensions), riskProfile: riskProfile(mintAuthority, freezeAuthority, top10Pct, token2022, extensions) };
     if (mode === 'extensions' && !token2022) return json({ ...base, inspector: { isToken2022: false, extensions: [] } });
     return json({ ...base, inspector: { isToken2022: token2022, extensions } });
   } catch (error) { console.error('Solana token analyzer failed:', error); return json({ ok: false, error: 'دریافت اطلاعات از شبکه Solana موقتاً ناموفق بود.' }, 502); }
