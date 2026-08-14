@@ -15,14 +15,20 @@ function formatUsd(value: number | null) {
 const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   const change = item.change24h;
   const up = typeof change === 'number' && change >= 0;
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  if (!item.logoUrl || logoFailed) return null;
+
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-3.5 first:border-l-0" dir="ltr">
+    <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">
       <img
-        src={item.logoUrl!}
-        alt={`${item.name} logo`}
-        className="h-6 w-6 shrink-0 rounded-full object-contain bg-white"
+        src={item.logoUrl}
+        alt=""
+        aria-hidden="true"
+        className="h-6 w-6 shrink-0 rounded-full object-contain bg-white/95"
         loading="eager"
         decoding="async"
+        onError={() => setLogoFailed(true)}
       />
       <span className="text-[11px] font-black tracking-wide text-white">{item.symbol}</span>
       <span className="font-mono text-[10px] font-semibold text-slate-300">{formatUsd(item.priceUsd)}</span>
@@ -37,9 +43,9 @@ const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration
   if (!items.length) return null;
   const track = [...items, ...items];
   return (
-    <div className="relative min-w-0 flex-1 overflow-hidden">
+    <div className="relative h-10 min-w-0 overflow-hidden">
       <div
-        className="flex w-max items-center"
+        className="flex h-full w-max items-center will-change-transform"
         style={{
           animation: `solmintMarketRail ${duration}s linear infinite`,
           animationDirection: reverse ? 'reverse' : 'normal',
@@ -47,8 +53,8 @@ const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration
       >
         {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
       </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#05050a] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#05050a] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#05050a] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#05050a] to-transparent" />
     </div>
   );
 };
@@ -91,18 +97,20 @@ export const MemeTicker: React.FC = () => {
 
   if (loading || !feed.enabled || !items.length || !header) return null;
 
-  const firstRow = items.filter((_, index) => index % 2 === 0);
-  const secondRow = items.filter((_, index) => index % 2 === 1);
-  const duration = Math.max(22, feed.speedSeconds || 30);
+  // Keep the two rails balanced so both rows remain visible and useful.
+  const midpoint = Math.ceil(items.length / 2);
+  const firstRow = items.slice(0, midpoint);
+  const secondRow = items.slice(midpoint);
+  // Deliberately slow: the header is a reading surface, not an attention-grabbing animation.
+  const baseDuration = Math.max(58, feed.speedSeconds || 60);
 
   return createPortal(
-    <div className="w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95" aria-label="قیمت لحظه‌ای بازار">
+    <div className="relative block w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95" aria-label="قیمت لحظه‌ای بازار">
       <div className="mx-auto max-w-7xl" dir="ltr">
-        <TickerRow items={firstRow} duration={duration} />
-        <div className="border-t border-white/[0.05]" />
-        <TickerRow items={secondRow} duration={duration + 4} reverse />
+        <TickerRow items={firstRow} duration={baseDuration} />
+        <div className="h-px bg-white/[0.045]" aria-hidden="true" />
+        <TickerRow items={secondRow} duration={baseDuration + 8} reverse />
       </div>
-      <div className="pointer-events-none absolute inset-x-0 h-0" aria-hidden="true" />
       <style>{`@keyframes solmintMarketRail{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
     </div>,
     header
