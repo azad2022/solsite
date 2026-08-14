@@ -9,6 +9,7 @@ type ToolSeoInput = {
 
 const TOOL_SCHEMA_ID = 'solmint-tools-jsonld';
 const TOOL_GUIDE_ID = 'solmint-tool-guide';
+const MARKET_RISK_ID = 'solmint-market-risk';
 
 function upsertMeta(selector: string, attrs: Record<string, string>, content: string) {
   let el = document.head.querySelector<HTMLMetaElement>(selector);
@@ -130,6 +131,36 @@ function mountToolGuide(path: string) {
   main.appendChild(section);
 }
 
+async function mountMarketRisk(path: string) {
+  const existing = document.getElementById(MARKET_RISK_ID);
+  if (existing) existing.remove();
+  if (path !== '/tools/solana-token-scanner') return;
+  const mint = new URLSearchParams(window.location.search).get('mint');
+  if (!mint) return;
+
+  const main = document.querySelector('main');
+  if (!main) return;
+  const section = document.createElement('section');
+  section.id = MARKET_RISK_ID;
+  section.dir = 'rtl';
+  section.className = 'relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6';
+  section.innerHTML = '<div class="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7"><div class="flex items-center justify-between gap-4"><h2 class="text-lg font-black text-white">تحلیل بازار و ریسک</h2><span class="text-xs text-slate-500">On-chain + Market Data</span></div><p class="mt-3 text-sm text-slate-400">در حال دریافت تحلیل ترکیبی...</p></div>';
+  main.appendChild(section);
+
+  try {
+    const response = await fetch(`/api/tools/token-risk?mint=${encodeURIComponent(mint)}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    const payload = await response.json() as any;
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'تحلیل بازار در دسترس نیست.');
+    const levelClass = payload.summary?.level === 'high-attention' ? 'text-rose-300 border-rose-500/30 bg-rose-500/5' : payload.summary?.level === 'attention' ? 'text-amber-300 border-amber-500/30 bg-amber-500/5' : 'text-[#14F195] border-[#14F195]/20 bg-[#14F195]/5';
+    const flags = Array.isArray(payload.flags) ? payload.flags : [];
+    const availability = payload.availability || {};
+    section.innerHTML = `<div class="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 class="text-lg font-black text-white">تحلیل بازار و ریسک</h2><p class="mt-1 text-xs text-slate-500">ترکیب داده‌های on-chain با Market Data؛ این نتیجه توصیه سرمایه‌گذاری یا ممیزی امنیتی نیست.</p></div><span class="rounded-full border px-3 py-1 text-xs font-bold ${levelClass}">${payload.summary?.label || 'تحلیل فنی'}</span></div><div class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500"><span class="rounded-full border border-slate-800 px-3 py-1">On-chain: ${availability.onChain ? 'در دسترس' : 'نامشخص'}</span><span class="rounded-full border border-slate-800 px-3 py-1">Market Data: ${availability.market ? 'در دسترس' : 'در دسترس نیست'}</span></div><div class="mt-5 grid gap-3 md:grid-cols-2">${flags.map((flag: any) => `<div class="rounded-xl border ${flag.severity === 'high' ? 'border-rose-500/30 bg-rose-500/5' : flag.severity === 'warning' ? 'border-amber-500/30 bg-amber-500/5' : 'border-slate-800 bg-slate-900/50'} p-4"><div class="flex items-start justify-between gap-3"><span class="text-sm font-black text-slate-100">${String(flag.title || '').replace(/[<>]/g, '')}</span><span class="text-[10px] font-bold uppercase text-slate-500">${String(flag.severity || 'info')}</span></div><p class="mt-2 text-xs leading-6 text-slate-400">${String(flag.reason || '').replace(/[<>]/g, '')}</p></div>`).join('')}</div></div>`;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'تحلیل بازار در حال حاضر در دسترس نیست.';
+    section.innerHTML = `<div class="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7"><h2 class="text-lg font-black text-white">تحلیل بازار و ریسک</h2><p class="mt-2 text-sm leading-7 text-slate-400">${message.replace(/[<>]/g, '')}</p><p class="mt-2 text-xs text-slate-500">تحلیل on-chain توکن همچنان مستقل از Market Data قابل استفاده است.</p></div>`;
+  }
+}
+
 export function applyToolSeo({ title, description, path, image = `${SITE_DOMAIN}/og-solmint.png` }: ToolSeoInput) {
   const canonicalUrl = `${SITE_DOMAIN}${path}`;
   const hasQuery = window.location.search.length > 0;
@@ -177,5 +208,8 @@ export function applyToolSeo({ title, description, path, image = `${SITE_DOMAIN}
     },
   });
 
-  window.requestAnimationFrame(() => mountToolGuide(path));
+  window.requestAnimationFrame(() => {
+    mountToolGuide(path);
+    void mountMarketRisk(path);
+  });
 }
