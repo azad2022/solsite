@@ -56,7 +56,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
         <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-300 text-xs">
           <span className="w-full text-center sm:text-right leading-6 break-words [overflow-wrap:anywhere]">تمامی حقوق برای برند و پلتفرم سولمینت (solmint.ir) محفوظ است</span>
           <div className="w-full sm:w-auto flex items-center justify-center sm:justify-end gap-4 min-w-0">
-            <span className="flex items-center justify-center gap-1 font-mono text-slate-200 text-center leading-6 break-words [overflow-wrap:anywhere]">Solmint Wallet — Official Android Web3 Platform</span>
+            <span className="flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 font-mono text-slate-200 text-center leading-5 whitespace-nowrap">
+              <span>Solmint Wallet —</span>
+              <span>Official Android Web3 Platform</span>
+            </span>
           </div>
         </div>
       </div>
