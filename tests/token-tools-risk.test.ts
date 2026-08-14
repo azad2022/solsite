@@ -22,6 +22,17 @@ function installFetch(token: unknown, market: unknown) {
   return () => { globalThis.fetch = original; };
 }
 
+function installFetchWithMarketFailure(token: unknown) {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith('/api/tools/solana-token')) return response(token);
+    if (url.pathname.endsWith('/api/tools/market-context')) return response({ error: 'upstream timeout' }, 504);
+    return response({ ok: false }, 404);
+  }) as typeof fetch;
+  return () => { globalThis.fetch = original; };
+}
+
 test('rejects malformed mint before upstream calls', async () => {
   const restore = installFetch({}, {});
   try {
@@ -91,6 +102,27 @@ test('does not turn missing market data into a false claim that no market exists
     assert.equal(flag?.severity, 'attention');
     assert.match(flag?.reason ?? '', /اثبات نمی‌کند/);
     assert.equal(body.availability.market, false);
+  } finally {
+    restore();
+  }
+});
+
+test('keeps on-chain risk analysis available when market endpoint returns HTTP 5xx', async () => {
+  const restore = installFetchWithMarketFailure({
+    ok: true,
+    tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    authorities: { mint: { address: 'MintAuthority1111111111111111111111111111111' } },
+    distribution: { top10Percentage: 10 },
+  });
+  try {
+    const result = await onRequestGet({ request: new Request(`https://solmint.ir/api/tools/token-risk?mint=${MINT}`) });
+    assert.equal(result.status, 200);
+    const body = await result.json() as any;
+    assert.equal(body.ok, true);
+    assert.equal(body.availability.onChain, true);
+    assert.equal(body.availability.market, false);
+    assert.ok(body.flags.some((flag: any) => flag.code === 'no-market-pairs-found'));
+    assert.ok(body.flags.some((flag: any) => flag.code === 'mint-authority-active'));
   } finally {
     restore();
   }
