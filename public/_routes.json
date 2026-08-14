@@ -2,6 +2,7 @@
   "version": 1,
   "include": [
     "/sitemap.xml",
+    "/blog",
     "/article/*",
     "/api/article-categories*",
     "/api/comments",
