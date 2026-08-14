@@ -22,18 +22,39 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   const up = typeof change === 'number' && change >= 0;
   const logoSrc = LOCAL_LOGOS[item.symbol.toUpperCase()];
   if (!logoSrc) return null;
-  return (
-    <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">
-      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white shadow-sm" aria-hidden="true">
-        <img src={logoSrc} alt="" className="h-[17px] w-[17px] object-contain" loading="eager" decoding="async" />
-      </span>
+
+  const content = (
+    <>
+      <img
+        src={logoSrc}
+        alt=""
+        aria-hidden="true"
+        className="h-6 w-6 shrink-0 rounded-full object-contain bg-white/95"
+        loading="eager"
+        decoding="async"
+      />
       <span className="text-[11px] font-black tracking-wide text-white">{item.symbol}</span>
       <span className="font-mono text-[10px] font-semibold text-slate-300">{formatUsd(item.priceUsd)}</span>
       <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
         {change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}
       </span>
-    </div>
+    </>
   );
+
+  if (item.symbol.toUpperCase() === 'SOL') {
+    return (
+      <a
+        href="/solana-price"
+        aria-label="قیمت لحظه‌ای سولانا SOL"
+        className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0 no-underline"
+        dir="ltr"
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">{content}</div>;
 };
 
 const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration: number }> = ({ items, reverse = false, duration }) => {
@@ -41,12 +62,12 @@ const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration
   if (!visible.length) return null;
   const track = [...visible, ...visible];
   return (
-    <div className="relative h-10 min-w-0 overflow-hidden">
+    <div className="relative h-10 min-w-0 overflow-hidden" role="presentation">
       <div className="flex h-full w-max items-center will-change-transform" style={{ animation: `solmintMarketRail ${duration}s linear infinite`, animationDirection: reverse ? 'reverse' : 'normal' }}>
         {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
       </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#05050a] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#05050a] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#05050a] to-transparent" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#05050a] to-transparent" aria-hidden="true" />
     </div>
   );
 };
@@ -81,14 +102,18 @@ export const MemeTicker: React.FC = () => {
   const baseDuration = Math.max(110, feed.speedSeconds || 120);
 
   return createPortal(
-    <div className="relative block w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95" aria-label="قیمت لحظه‌ای بازار">
+    <section
+      className="relative block w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95"
+      aria-label="قیمت لحظه‌ای ارزهای دیجیتال"
+    >
+      <h2 className="sr-only">قیمت لحظه‌ای ارزهای دیجیتال</h2>
       <div className="mx-auto max-w-7xl" dir="ltr">
         <TickerRow items={firstRow} duration={baseDuration} />
         <div className="h-px bg-white/[0.045]" aria-hidden="true" />
         <TickerRow items={secondRow} duration={baseDuration + 15} reverse />
       </div>
       <style>{`@keyframes solmintMarketRail{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
-    </div>,
+    </section>,
     header
   );
 };
