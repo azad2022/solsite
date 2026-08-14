@@ -24,8 +24,7 @@ const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-ZwqYhdkVw_cOwO9OLt
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;').replace(/'/g, '&apos;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
 function slugify(value: string): string {
@@ -47,16 +46,13 @@ function isPublished(article: ArticleRow): boolean {
 }
 
 export const onRequestGet = async ({ env }: { env: Env }) => {
-  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const supabaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 
   const staticRoutes = [
     '/', '/solana-price', '/solana-wallet', '/solana-token', '/solana-meme-coin',
     '/solana-nft', '/app-guide', '/security', '/download', '/blog', '/faq',
-    '/article/راهنمای-ساخت-میم-کوین-با-سولمینت-و-افزودن-نقدینگی',
-    '/article/راهنمای-کامل-دریافت-اولین-آردراپ-در-بلاکچین-سولانا-msdoxymc',
-    '/article/ساخت-توکن-سولانا-بدون-کدنویسی-راهنمای-جامع-با-سولمینت-msebbjy9',
-    '/article/solflare', '/article/wallet_sol'
+    '/tools/solana-token-tools', '/tools/solana-token-scanner', '/tools/token-2022-inspector'
   ];
 
   const urls = new Map<string, string | null>();
@@ -64,8 +60,10 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   const taxonomyCounts = new Map<string, { type: 'category' | 'tag'; slug: string; count: number }>();
 
   try {
-    const categoriesEndpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/article_categories?select=id,slug,is_active`;
-    const categoriesResponse = await fetch(categoriesEndpoint, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/json' } });
+    const categoriesEndpoint = `${supabaseUrl}/rest/v1/article_categories?select=id,slug,is_active`;
+    const categoriesResponse = await fetch(categoriesEndpoint, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/json' },
+    });
     const categoryRows = categoriesResponse.ok ? await categoriesResponse.json() as CategoryRow[] : [];
     const categorySlugs = new Map<string, string>();
     for (const category of Array.isArray(categoryRows) ? categoryRows : []) {
@@ -74,33 +72,38 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       if (id && slug && category.is_active !== false) categorySlugs.set(id, slug);
     }
 
-    const endpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/articles?select=slug,category,category_id,tags,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`;
-    const response = await fetch(endpoint, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/json' } });
+    const endpoint = `${supabaseUrl}/rest/v1/articles?select=slug,category,category_id,tags,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`;
+    const response = await fetch(endpoint, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/json' },
+    });
     if (response.ok) {
       const articles = await response.json() as ArticleRow[];
-      for (const article of articles) {
+      for (const article of Array.isArray(articles) ? articles : []) {
         if (!isPublished(article)) continue;
         const slug = String(article.slug || '').trim().replace(/^\/+|\/+$/g, '');
         if (!slug) continue;
         urls.set(`${BASE_URL}/article/${encodeURIComponent(slug)}`, lastModified(article));
+
         const taxonomySlug = article.category_id ? categorySlugs.get(String(article.category_id)) : '';
         if (taxonomySlug) {
           const key = `category:${taxonomySlug}`;
           const current = taxonomyCounts.get(key) || { type: 'category', slug: taxonomySlug, count: 0 };
-          current.count += 1; taxonomyCounts.set(key, current);
+          current.count += 1;
+          taxonomyCounts.set(key, current);
         }
+
         for (const tag of Array.isArray(article.tags) ? article.tags : []) {
-          const name = String(tag || '').trim();
-          const tagSlug = slugify(name);
+          const tagSlug = slugify(String(tag || '').trim());
           if (!tagSlug) continue;
           const key = `tag:${tagSlug}`;
           const current = taxonomyCounts.get(key) || { type: 'tag', slug: tagSlug, count: 0 };
-          current.count += 1; taxonomyCounts.set(key, current);
+          current.count += 1;
+          taxonomyCounts.set(key, current);
         }
       }
     }
   } catch {
-    // Keep the static SEO-critical URLs in the sitemap during a temporary DB outage.
+    // Keep static URLs when Supabase is temporarily unavailable.
   }
 
   for (const item of taxonomyCounts.values()) {
@@ -121,7 +124,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=3600'
+      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300'
     }
   });
 };
