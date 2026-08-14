@@ -4,111 +4,43 @@ const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1Q9fD7Jq3d3Y7h';
 
-interface Env {
-  SOLANA_RPC_URL?: string;
-}
-
-const headers = {
-  'Content-Type': 'application/json; charset=utf-8',
-  'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=300',
-  'CDN-Cache-Control': 'public, max-age=30, stale-while-revalidate=300',
-  'Access-Control-Allow-Origin': 'https://solmint.ir',
-  'X-Content-Type-Options': 'nosniff'
-};
-
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), { status, headers });
-}
-
-function isValidMint(value: string): boolean {
-  return value.length <= MAX_MINT_LENGTH && BASE58_RE.test(value);
-}
-
+interface Env { SOLANA_RPC_URL?: string; }
+const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=300', 'CDN-Cache-Control': 'public, max-age=30, stale-while-revalidate=300', 'Access-Control-Allow-Origin': 'https://solmint.ir', 'X-Content-Type-Options': 'nosniff' };
+function json(data: unknown, status = 200): Response { return new Response(JSON.stringify(data), { status, headers }); }
+function isValidMint(value: string): boolean { return value.length <= MAX_MINT_LENGTH && BASE58_RE.test(value); }
 async function rpc(url: string, method: string, params: unknown[], timeoutMs = 8000): Promise<any> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-      signal: controller.signal,
-      cache: 'no-store'
-    });
-    if (!response.ok) throw new Error(`RPC HTTP ${response.status}`);
-    const payload = await response.json() as any;
-    if (payload?.error) throw new Error(payload.error.message || 'RPC request failed');
-    return payload?.result ?? null;
-  } finally {
-    clearTimeout(timer);
-  }
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try { const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: controller.signal, cache: 'no-store' }); if (!response.ok) throw new Error(`RPC HTTP ${response.status}`); const payload = await response.json() as any; if (payload?.error) throw new Error(payload.error.message || 'RPC request failed'); return payload?.result ?? null; } finally { clearTimeout(timer); }
 }
-
-function normalizeAuthority(value: unknown): string | null {
-  if (typeof value === 'string') return value;
-  return null;
-}
-
-function normalizeExtensions(value: unknown): Array<{ type: string; data?: unknown }> {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item: any) => item && typeof item === 'object' && typeof item.type === 'string')
-    .map((item: any) => ({ type: item.type, data: item.info ?? item.data }));
+function normalizeAuthority(value: unknown): string | null { return typeof value === 'string' ? value : null; }
+function normalizeExtensions(value: unknown): Array<{ type: string; data?: unknown }> { if (!Array.isArray(value)) return []; return value.filter((item: any) => item && typeof item.type === 'string').map((item: any) => ({ type: item.type, data: item.info ?? item.data })); }
+function percentOf(amount: string, total: string): string { try { const a = BigInt(amount); const t = BigInt(total); if (t <= 0n) return '0.00'; return `${Number((a * 10000n) / t) / 100}`; } catch { return '0.00'; } }
+function riskProfile(mintAuthority: string | null, freezeAuthority: string | null, top10Pct: number, token2022: boolean, extensions: Array<{ type: string }>) {
+  const flags: Array<{ code: string; severity: 'info' | 'warning' | 'high'; title: string; detail: string }> = [];
+  if (mintAuthority) flags.push({ code: 'mint-authority', severity: 'warning', title: 'Mint Authority فعال است', detail: 'دارنده این Authority از نظر فنی می‌تواند عرضه توکن را افزایش دهد.' }); else flags.push({ code: 'mint-authority-revoked', severity: 'info', title: 'Mint Authority لغو شده است', detail: 'در وضعیت فعلی Mint Authority قابل استفاده نیست.' });
+  if (freezeAuthority) flags.push({ code: 'freeze-authority', severity: 'warning', title: 'Freeze Authority فعال است', detail: 'این Authority می‌تواند مطابق قوانین Token Program حساب‌های توکن را freeze کند.' }); else flags.push({ code: 'freeze-authority-revoked', severity: 'info', title: 'Freeze Authority لغو شده است', detail: 'Freeze Authority در Mint فعال نیست.' });
+  if (top10Pct >= 50) flags.push({ code: 'concentration-high', severity: 'high', title: 'تمرکز بالا در ۱۰ حساب بزرگ', detail: `${top10Pct.toFixed(2)}٪ از عرضه در ۱۰ Token Account بزرگ دیده می‌شود.` }); else if (top10Pct >= 25) flags.push({ code: 'concentration-medium', severity: 'warning', title: 'تمرکز قابل توجه در ۱۰ حساب بزرگ', detail: `${top10Pct.toFixed(2)}٪ از عرضه در ۱۰ Token Account بزرگ دیده می‌شود.` });
+  if (token2022 && extensions.some(extension => extension.type.toLowerCase().includes('transferfee'))) flags.push({ code: 'transfer-fee', severity: 'warning', title: 'Transfer Fee Extension فعال است', detail: 'این Token-2022 می‌تواند روی انتقال‌ها fee اعمال کند؛ جزئیات Extension را بررسی کنید.' });
+  return { flags, disclaimer: 'این پروفایل فقط بر اساس داده‌های قابل مشاهده on-chain ساخته شده و نتیجه آن «امن»، «اسکم» یا توصیه سرمایه‌گذاری نیست.' };
 }
 
 export const onRequestGet = async ({ request, env }: { request: Request; env?: Env }) => {
-  const url = new URL(request.url);
-  const mint = (url.searchParams.get('mint') || '').trim();
-  const mode = url.searchParams.get('mode') === 'extensions' ? 'extensions' : 'token';
-
-  if (!isValidMint(mint)) {
-    return json({ ok: false, error: 'آدرس Mint معتبر نیست.' }, 400);
-  }
-
+  const url = new URL(request.url); const mint = (url.searchParams.get('mint') || '').trim(); const mode = url.searchParams.get('mode') === 'extensions' ? 'extensions' : 'token';
+  if (!isValidMint(mint)) return json({ ok: false, error: 'آدرس Mint معتبر نیست.' }, 400);
   const rpcUrl = env?.SOLANA_RPC_URL || DEFAULT_RPC_URL;
-
   try {
-    const result = await rpc(rpcUrl, 'getAccountInfo', [mint, {
-      commitment: 'confirmed',
-      encoding: 'jsonParsed'
-    }]);
-
-    const account = result?.value;
+    const accountResult = await rpc(rpcUrl, 'getAccountInfo', [mint, { commitment: 'confirmed', encoding: 'jsonParsed' }]); const account = accountResult?.value;
     if (!account) return json({ ok: false, error: 'این Account روی شبکه اصلی Solana پیدا نشد.' }, 404);
+    const owner = account.owner; const parsed = account.data?.parsed; const info = parsed?.info; const token2022 = owner === TOKEN_2022_PROGRAM; const tokenProgram = token2022 ? 'Token-2022' : owner === TOKEN_PROGRAM ? 'SPL Token Program' : owner;
+    if (!info || parsed?.type !== 'mint' || (owner !== TOKEN_PROGRAM && owner !== TOKEN_2022_PROGRAM)) return json({ ok: false, error: 'این آدرس یک Token Mint معتبر از Token Programهای شناخته‌شده نیست.' }, 422);
 
-    const owner = account.owner;
-    const parsed = account.data?.parsed;
-    const info = parsed?.info;
-    const program = parsed?.type === 'mint' ? (parsed?.info ? 'token-mint' : parsed?.type) : parsed?.type;
-    const tokenProgram = owner === TOKEN_2022_PROGRAM ? 'Token-2022' : owner === TOKEN_PROGRAM ? 'SPL Token Program' : owner;
-
-    if (!info || parsed?.type !== 'mint' || (owner !== TOKEN_PROGRAM && owner !== TOKEN_2022_PROGRAM)) {
-      return json({ ok: false, error: 'این آدرس یک Token Mint معتبر از Token Programهای شناخته‌شده نیست.' }, 422);
-    }
-
-    const base = {
-      ok: true,
-      mint,
-      tokenProgram,
-      owner,
-      slot: result?.context?.slot ?? null,
-      decimals: Number(info.decimals ?? 0),
-      supply: String(info.supply ?? '0'),
-      isInitialized: Boolean(info.isInitialized),
-      mintAuthority: normalizeAuthority(info.mintAuthority),
-      freezeAuthority: normalizeAuthority(info.freezeAuthority),
-      extensions: normalizeExtensions(info.extensions),
-      rawType: program,
-      analyzedAt: new Date().toISOString()
-    };
-
-    if (mode === 'extensions' && owner !== TOKEN_2022_PROGRAM) {
-      return json({ ...base, ok: true, inspector: { isToken2022: false, extensions: [] } });
-    }
-
-    return json({ ...base, inspector: { isToken2022: owner === TOKEN_2022_PROGRAM, extensions: base.extensions } });
-  } catch (error) {
-    console.error('Solana token analyzer failed:', error);
-    return json({ ok: false, error: 'دریافت اطلاعات از شبکه Solana موقتاً ناموفق بود.' }, 502);
-  }
+    const largestResult = await rpc(rpcUrl, 'getTokenLargestAccounts', [mint, { commitment: 'confirmed' }]); const largest = Array.isArray(largestResult?.value) ? largestResult.value : []; const top20 = largest.slice(0, 20);
+    const addresses = top20.map((item: any) => item.address).filter(Boolean); let ownerAccounts: any[] = [];
+    if (addresses.length) { const ownerResult = await rpc(rpcUrl, 'getMultipleAccounts', [addresses, { commitment: 'confirmed', encoding: 'jsonParsed' }]); ownerAccounts = Array.isArray(ownerResult?.value) ? ownerResult.value : []; }
+    const largestAccounts = top20.map((item: any, index: number) => { const tokenInfo = ownerAccounts[index]?.data?.parsed?.info; return { rank: index + 1, address: item.address, amount: String(item.amount ?? '0'), uiAmount: item.uiAmountString ?? item.uiAmount ?? null, percentageOfSupply: percentOf(String(item.amount ?? '0'), String(info.supply ?? '0')), owner: typeof tokenInfo?.owner === 'string' ? tokenInfo.owner : null, delegate: typeof tokenInfo?.delegate === 'string' ? tokenInfo.delegate : null, state: tokenInfo?.state ?? null }; });
+    const top10Pct = largest.slice(0, 10).reduce((sum: number, item: any) => sum + Number(percentOf(String(item.amount ?? '0'), String(info.supply ?? '0'))), 0); const extensions = normalizeExtensions(info.extensions); const mintAuthority = normalizeAuthority(info.mintAuthority); const freezeAuthority = normalizeAuthority(info.freezeAuthority);
+    const base = { ok: true, mint, tokenProgram, owner, slot: accountResult?.context?.slot ?? null, decimals: Number(info.decimals ?? 0), supply: String(info.supply ?? '0'), isInitialized: Boolean(info.isInitialized), mintAuthority, freezeAuthority, extensions, rawType: parsed?.type, analyzedAt: new Date().toISOString(), distribution: { sampledAccounts: largestAccounts.length, top10Percentage: Number(top10Pct.toFixed(2)), source: 'getTokenLargestAccounts', accounts: largestAccounts }, riskProfile: riskProfile(mintAuthority, freezeAuthority, top10Pct, token2022, extensions) };
+    if (mode === 'extensions' && !token2022) return json({ ...base, inspector: { isToken2022: false, extensions: [] } });
+    return json({ ...base, inspector: { isToken2022: token2022, extensions } });
+  } catch (error) { console.error('Solana token analyzer failed:', error); return json({ ok: false, error: 'دریافت اطلاعات از شبکه Solana موقتاً ناموفق بود.' }, 502); }
 };
