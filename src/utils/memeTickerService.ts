@@ -1,7 +1,11 @@
 import { getSupabaseClient } from './supabaseClient';
 
+export type MarketTickerSource = 'binance' | 'jupiter';
+
 export interface MemeTickerItem {
   id: string;
+  source?: MarketTickerSource;
+  pair?: string;
   mint: string;
   symbol: string;
   name: string;
