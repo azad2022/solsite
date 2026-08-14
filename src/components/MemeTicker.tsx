@@ -4,9 +4,16 @@ import { fetchMemeTickerFeed, MemeTickerFeed, MemeTickerItem } from '../utils/me
 
 const FALLBACK: MemeTickerFeed = { enabled: false, items: [] };
 const LOCAL_LOGOS: Record<string, string> = {
-  SOL: '/assets/crypto/sol.svg', BTC: '/assets/crypto/btc.svg', ETH: '/assets/crypto/eth.svg',
-  USDT: '/assets/crypto/usdt.svg', XRP: '/assets/crypto/xrp.svg', DOGE: '/assets/crypto/doge.svg',
-  LINK: '/assets/crypto/link.svg', DOT: '/assets/crypto/polkadot.svg', LTC: '/assets/crypto/litecoin.svg'
+  SOL: '/assets/crypto/sol.svg',
+  BTC: '/assets/crypto/btc.svg',
+  ETH: '/assets/crypto/eth.svg',
+  USDT: '/assets/crypto/usdt.svg',
+  XRP: '/assets/crypto/xrp.svg',
+  DOGE: '/assets/crypto/doge.svg',
+  ADA: '/assets/crypto/ada.svg',
+  LINK: '/assets/crypto/link.svg',
+  DOT: '/assets/crypto/polkadot.svg',
+  LTC: '/assets/crypto/litecoin.svg',
 };
 
 function formatUsd(value: number | null) {
@@ -18,9 +25,12 @@ function formatUsd(value: number | null) {
 }
 
 const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
+  const symbol = item.symbol.toUpperCase();
   const change = item.change24h;
   const up = typeof change === 'number' && change >= 0;
-  const logoSrc = LOCAL_LOGOS[item.symbol.toUpperCase()];
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoSrc = !logoFailed ? (LOCAL_LOGOS[symbol] || item.logoUrl || '') : item.logoUrl || '';
+
   if (!logoSrc) return null;
 
   const content = (
@@ -32,8 +42,9 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
         className="h-6 w-6 shrink-0 rounded-full object-contain bg-white/95"
         loading="eager"
         decoding="async"
+        onError={() => setLogoFailed(true)}
       />
-      <span className="text-[11px] font-black tracking-wide text-white">{item.symbol}</span>
+      <span className="text-[11px] font-black tracking-wide text-white">{symbol}</span>
       <span className="font-mono text-[10px] font-semibold text-slate-300">{formatUsd(item.priceUsd)}</span>
       <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
         {change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}
@@ -41,7 +52,7 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
     </>
   );
 
-  if (item.symbol.toUpperCase() === 'SOL') {
+  if (symbol === 'SOL') {
     return (
       <a
         href="/solana-price"
@@ -54,16 +65,26 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
     );
   }
 
-  return <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">{content}</div>;
+  return (
+    <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">
+      {content}
+    </div>
+  );
 };
 
 const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration: number }> = ({ items, reverse = false, duration }) => {
-  const visible = items.filter(item => Boolean(LOCAL_LOGOS[item.symbol.toUpperCase()]));
+  const visible = items.filter(item => Boolean(item.logoUrl || LOCAL_LOGOS[item.symbol.toUpperCase()]));
   if (!visible.length) return null;
   const track = [...visible, ...visible];
   return (
     <div className="relative h-10 min-w-0 overflow-hidden" role="presentation">
-      <div className="flex h-full w-max items-center will-change-transform" style={{ animation: `solmintMarketRail ${duration}s linear infinite`, animationDirection: reverse ? 'reverse' : 'normal' }}>
+      <div
+        className="flex h-full w-max items-center will-change-transform"
+        style={{
+          animation: `solmintMarketRail ${duration}s linear infinite`,
+          animationDirection: reverse ? 'reverse' : 'normal',
+        }}
+      >
         {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
       </div>
       <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#05050a] to-transparent" aria-hidden="true" />
@@ -78,9 +99,13 @@ export const MemeTicker: React.FC = () => {
   const [header, setHeader] = useState<HTMLElement | null>(null);
 
   const load = async () => {
-    try { setFeed(await fetchMemeTickerFeed()); }
-    catch { setFeed(current => current.items.length ? { ...current, stale: true } : FALLBACK); }
-    finally { setLoading(false); }
+    try {
+      setFeed(await fetchMemeTickerFeed());
+    } catch {
+      setFeed(current => current.items.length ? { ...current, stale: true } : FALLBACK);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -93,7 +118,13 @@ export const MemeTicker: React.FC = () => {
     setHeader(document.querySelector('header'));
   }, []);
 
-  const items = useMemo(() => (feed.items || []).filter(item => item.enabled && item.priceUsd !== null).sort((a, b) => a.order - b.order), [feed.items]);
+  const items = useMemo(
+    () => (feed.items || [])
+      .filter(item => item.enabled && item.priceUsd !== null && (item.logoUrl || LOCAL_LOGOS[item.symbol.toUpperCase()]))
+      .sort((a, b) => a.order - b.order),
+    [feed.items]
+  );
+
   if (loading || !feed.enabled || !items.length || !header) return null;
 
   const midpoint = Math.ceil(items.length / 2);
