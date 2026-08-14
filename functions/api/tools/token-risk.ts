@@ -105,43 +105,56 @@ async function fetchJson(url: string, timeoutMs = 9000): Promise<any> {
   }
 }
 
+async function fetchJsonSafe(url: string): Promise<{ ok: true; data: any } | { ok: false; error: string }> {
+  try {
+    const data = await fetchJson(url);
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'upstream unavailable' };
+  }
+}
+
 export async function onRequestGet(context: { request: Request }): Promise<Response> {
   const requestUrl = new URL(context.request.url);
   const mint = (requestUrl.searchParams.get('mint') || '').trim();
   if (!validMint(mint)) return json({ ok: false, error: 'آدرس Mint از نظر قالب Base58 معتبر نیست.' }, 400);
 
   const origin = requestUrl.origin;
-  try {
-    const [token, market] = await Promise.all([
-      fetchJson(`${origin}/api/tools/solana-token?mint=${encodeURIComponent(mint)}`),
-      fetchJson(`${origin}/api/tools/market-context?mint=${encodeURIComponent(mint)}`),
-    ]);
+  const [tokenResult, marketResult] = await Promise.all([
+    fetchJsonSafe(`${origin}/api/tools/solana-token?mint=${encodeURIComponent(mint)}`),
+    fetchJsonSafe(`${origin}/api/tools/market-context?mint=${encodeURIComponent(mint)}`),
+  ]);
 
-    const flags = buildFlags(token, market);
-    const result = summary(flags);
-
-    return json({
-      ok: true,
-      mint,
-      observedAt: new Date().toISOString(),
-      summary: result,
-      flags,
-      sources: {
-        onChain: 'Solana RPC via Solmint Token Scanner',
-        market: market?.source || 'dexscreener',
-      },
-      methodology: {
-        version: 1,
-        explainable: true,
-        note: 'این پروفایل یک تحلیل فنی و rule-based بر اساس داده‌های قابل مشاهده است؛ ممیزی امنیتی، تشخیص قطعی کلاهبرداری یا توصیه سرمایه‌گذاری نیست.',
-      },
-      availability: {
-        onChain: Boolean(token?.ok),
-        market: Boolean(market?.ok),
-      },
-    });
-  } catch (error) {
-    console.warn('Token risk profile failed:', error);
-    return json({ ok: false, error: 'تکمیل پروفایل فنی توکن در حال حاضر ممکن نیست.', code: 'RISK_ENGINE_UNAVAILABLE' }, 503);
+  // On-chain analysis is the core of this endpoint. Market data is optional and
+  // must never make an otherwise usable on-chain profile unavailable.
+  if (!tokenResult.ok) {
+    console.warn('Token risk on-chain source unavailable:', tokenResult.error);
+    return json({ ok: false, error: 'دریافت داده اصلی توکن از شبکه در حال حاضر ممکن نیست.', code: 'ONCHAIN_UNAVAILABLE', availability: { onChain: false, market: marketResult.ok } }, 503);
   }
+
+  const token = tokenResult.data;
+  const market = marketResult.ok ? marketResult.data : { ok: false, code: 'UPSTREAM_UNAVAILABLE' };
+  const flags = buildFlags(token, market);
+  const result = summary(flags);
+
+  return json({
+    ok: true,
+    mint,
+    observedAt: new Date().toISOString(),
+    summary: result,
+    flags,
+    sources: {
+      onChain: 'Solana RPC via Solmint Token Scanner',
+      market: market?.source || 'dexscreener',
+    },
+    methodology: {
+      version: 1,
+      explainable: true,
+      note: 'این پروفایل یک تحلیل فنی و rule-based بر اساس داده‌های قابل مشاهده است؛ ممیزی امنیتی، تشخیص قطعی کلاهبرداری یا توصیه سرمایه‌گذاری نیست.',
+    },
+    availability: {
+      onChain: true,
+      market: marketResult.ok && Boolean(market?.ok),
+    },
+  });
 }
