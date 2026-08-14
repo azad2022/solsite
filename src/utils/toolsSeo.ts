@@ -7,17 +7,6 @@ type ToolSeoInput = {
   image?: string;
 };
 
-type PublicArticle = {
-  id?: string;
-  title?: string;
-  slug?: string;
-  category?: string;
-  tags?: string[];
-  summary?: string;
-  isDraft?: boolean;
-  is_draft?: boolean;
-};
-
 const TOOL_SCHEMA_ID = 'solmint-tools-jsonld';
 const TOOL_GUIDE_ID = 'solmint-tool-guide';
 const MARKET_RISK_ID = 'solmint-market-risk';
@@ -101,31 +90,58 @@ function guideData(path: string) {
   return null;
 }
 
-function relatedKeywords(path: string): string[] {
-  if (path === '/tools/token-2022-inspector') return ['token-2022', 'token 2022', 'extension', 'transfer fee', 'transfer hook', 'توکن-2022', 'امنیت توکن'];
-  if (path === '/tools/solana-token-scanner') return ['solana', 'توکن سولانا', 'mint', 'authority', 'freeze authority', 'mint authority', 'token', 'امنیت توکن', 'tokenomics'];
-  return ['solana', 'توکن', 'token-2022', 'spl token', 'mint', 'authority', 'امنیت', 'ساخت توکن سولانا'];
-}
+function mountToolGuide(path: string, generation: number) {
+  if (generation !== toolMountGeneration || !window.location.pathname.startsWith('/tools/')) return;
+  document.getElementById(TOOL_GUIDE_ID)?.remove();
+  const data = guideData(path);
+  if (!data) return;
+  const main = document.querySelector('main');
+  if (!main || generation !== toolMountGeneration) return;
 
-function scoreRelatedArticle(article: PublicArticle, keywords: string[]): number {
-  const title = String(article.title || '').toLocaleLowerCase('fa-IR');
-  const summary = String(article.summary || '').toLocaleLowerCase('fa-IR');
-  const tags = Array.isArray(article.tags) ? article.tags.join(' ').toLocaleLowerCase('fa-IR') : '';
-  const text = `${title} ${summary} ${tags}`;
-  let score = 0;
-  for (const keyword of keywords) {
-    const normalized = keyword.toLocaleLowerCase('fa-IR');
-    if (title.includes(normalized)) score += 10;
-    else if (tags.includes(normalized)) score += 7;
-    else if (summary.includes(normalized)) score += 4;
+  const section = document.createElement('section');
+  section.id = TOOL_GUIDE_ID;
+  section.dir = 'rtl';
+  section.setAttribute('aria-labelledby', `${TOOL_GUIDE_ID}-title`);
+  section.className = 'relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6';
+
+  const card = document.createElement('div');
+  card.className = 'rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7';
+  const heading = document.createElement('h2');
+  heading.id = `${TOOL_GUIDE_ID}-title`;
+  heading.className = 'text-xl font-black text-white sm:text-2xl';
+  heading.textContent = data.title;
+  card.appendChild(heading);
+  const intro = document.createElement('p');
+  intro.className = 'mt-3 max-w-3xl text-sm leading-7 text-slate-400';
+  intro.textContent = data.intro;
+  card.appendChild(intro);
+  const list = document.createElement('div');
+  list.className = 'mt-6 space-y-3';
+  for (const [summaryText, bodyText] of data.items) {
+    const details = document.createElement('details');
+    details.className = 'group rounded-2xl border border-slate-800 bg-slate-900/50 px-4 sm:px-5';
+    const summary = document.createElement('summary');
+    summary.className = 'cursor-pointer list-none py-4 text-sm font-extrabold text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-[#14F195]/50';
+    summary.textContent = summaryText;
+    const body = document.createElement('div');
+    body.className = 'border-t border-slate-800/80 pb-4 pt-3 text-sm leading-7 text-slate-400';
+    body.textContent = bodyText;
+    details.append(summary, body);
+    list.appendChild(details);
   }
-  if (String(article.category || '').includes('سولانا') && keywords.some(k => k.includes('solana') || k.includes('سولانا'))) score += 5;
-  return score;
+  const note = document.createElement('p');
+  note.className = 'mt-5 text-xs leading-6 text-slate-500';
+  note.textContent = 'این راهنما خلاصه است؛ برای تحلیل جدی، هر نتیجه را با داده‌های مستقل و منابع رسمی پروژه تطبیق دهید.';
+  card.appendChild(list);
+  card.appendChild(note);
+  section.appendChild(card);
+  main.appendChild(section);
 }
 
 async function mountRelatedArticles(path: string, generation: number) {
-  document.getElementById(RELATED_ARTICLES_ID)?.remove();
   if (generation !== toolMountGeneration || !window.location.pathname.startsWith('/tools/')) return;
+  if (document.getElementById('tool-related-articles')) return;
+  document.getElementById(RELATED_ARTICLES_ID)?.remove();
 
   const main = document.querySelector('main');
   if (!main || generation !== toolMountGeneration) return;
@@ -186,54 +202,6 @@ async function mountRelatedArticles(path: string, generation: number) {
   } catch {
     // Related links are an enhancement; never block the tool page when the article API is unavailable.
   }
-}
-
-function mountToolGuide(path: string, generation: number) {
-  if (generation !== toolMountGeneration || !window.location.pathname.startsWith('/tools/')) return;
-  document.getElementById(TOOL_GUIDE_ID)?.remove();
-  const data = guideData(path);
-  if (!data) return;
-  const main = document.querySelector('main');
-  if (!main || generation !== toolMountGeneration) return;
-
-  const section = document.createElement('section');
-  section.id = TOOL_GUIDE_ID;
-  section.dir = 'rtl';
-  section.setAttribute('aria-labelledby', `${TOOL_GUIDE_ID}-title`);
-  section.className = 'relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6';
-
-  const card = document.createElement('div');
-  card.className = 'rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7';
-  const heading = document.createElement('h2');
-  heading.id = `${TOOL_GUIDE_ID}-title`;
-  heading.className = 'text-xl font-black text-white sm:text-2xl';
-  heading.textContent = data.title;
-  card.appendChild(heading);
-  const intro = document.createElement('p');
-  intro.className = 'mt-3 max-w-3xl text-sm leading-7 text-slate-400';
-  intro.textContent = data.intro;
-  card.appendChild(intro);
-  const list = document.createElement('div');
-  list.className = 'mt-6 space-y-3';
-  for (const [summaryText, bodyText] of data.items) {
-    const details = document.createElement('details');
-    details.className = 'group rounded-2xl border border-slate-800 bg-slate-900/50 px-4 sm:px-5';
-    const summary = document.createElement('summary');
-    summary.className = 'cursor-pointer list-none py-4 text-sm font-extrabold text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-[#14F195]/50';
-    summary.textContent = summaryText;
-    const body = document.createElement('div');
-    body.className = 'border-t border-slate-800/80 pb-4 pt-3 text-sm leading-7 text-slate-400';
-    body.textContent = bodyText;
-    details.append(summary, body);
-    list.appendChild(details);
-  }
-  const note = document.createElement('p');
-  note.className = 'mt-5 text-xs leading-6 text-slate-500';
-  note.textContent = 'این راهنما خلاصه است؛ برای تحلیل جدی، هر نتیجه را با داده‌های مستقل و منابع رسمی پروژه تطبیق دهید.';
-  card.appendChild(list);
-  card.appendChild(note);
-  section.appendChild(card);
-  main.appendChild(section);
 }
 
 async function mountMarketRisk(path: string, generation: number) {
