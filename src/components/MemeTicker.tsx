@@ -24,10 +24,14 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   if (!logoSrc) return null;
   return (
     <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">
-      <img src={logoSrc} alt="" aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full object-contain" loading="eager" decoding="async" />
+      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white shadow-sm" aria-hidden="true">
+        <img src={logoSrc} alt="" className="h-[17px] w-[17px] object-contain" loading="eager" decoding="async" />
+      </span>
       <span className="text-[11px] font-black tracking-wide text-white">{item.symbol}</span>
       <span className="font-mono text-[10px] font-semibold text-slate-300">{formatUsd(item.priceUsd)}</span>
-      <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>{change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
+      <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
+        {change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}
+      </span>
     </div>
   );
 };
