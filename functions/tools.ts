@@ -10,23 +10,13 @@ type ArticleRow = {
 
 type PageContext = { request: Request; next: () => Promise<Response>; env?: Record<string, string | undefined> };
 
-const SITE_ORIGIN = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-ZqYhdkVw_cOwO9OLt';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-Zq6YhdkVw_cOwO9OLt';
 
-const TOOL_CONTEXT: Record<string, { title: string; keywords: string[] }> = {
-  '/tools/solana-token-tools': {
-    title: 'ابزارهای بررسی توکن سولانا',
-    keywords: ['سولانا', 'توکن', 'token-2022', 'spl token', 'mint', 'authority', 'امنیت'],
-  },
-  '/tools/solana-token-scanner': {
-    title: 'بررسی توکن سولانا',
-    keywords: ['سولانا', 'توکن', 'token-2022', 'mint', 'mint authority', 'freeze authority', 'tokenomics', 'امنیت'],
-  },
-  '/tools/token-2022-inspector': {
-    title: 'بازرس Token-2022',
-    keywords: ['token-2022', 'سولانا', 'توکن', 'spl token', 'extension', 'transfer fee', 'transfer hook'],
-  },
+const TOOL_CONTEXT: Record<string, { keywords: string[] }> = {
+  '/tools/solana-token-tools': { keywords: ['سولانا', 'توکن', 'token-2022', 'spl token', 'mint', 'authority', 'امنیت'] },
+  '/tools/solana-token-scanner': { keywords: ['سولانا', 'توکن', 'token-2022', 'mint', 'mint authority', 'freeze authority', 'tokenomics', 'امنیت'] },
+  '/tools/token-2022-inspector': { keywords: ['token-2022', 'سولانا', 'توکن', 'spl token', 'extension', 'transfer fee', 'transfer hook'] },
 };
 
 function esc(value: unknown) {
@@ -42,9 +32,7 @@ function normalize(value: unknown) {
 function scoreArticle(article: ArticleRow, keywords: string[]) {
   const text = normalize(`${article.title} ${article.summary} ${(article.tags || []).join(' ')}`);
   let score = 0;
-  for (const keyword of keywords) {
-    if (text.includes(normalize(keyword))) score += keyword.length > 8 ? 4 : 2;
-  }
+  for (const keyword of keywords) if (text.includes(normalize(keyword))) score += keyword.length > 8 ? 4 : 2;
   if (normalize(article.category).includes('سولانا')) score += 3;
   return score;
 }
@@ -57,13 +45,16 @@ function relatedSection(articles: ArticleRow[], path: string) {
     .filter(article => !article.is_draft && article.slug && article.title)
     .map(article => ({ article, score: scoreArticle(article, context.keywords) }))
     .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score || String(b.article.title).localeCompare(String(a.article.title), 'fa'))
+    .sort((a, b) => b.score - a.score)
     .slice(0, 5)
     .map(item => item.article);
 
   if (!related.length) return '';
 
-  const items = related.map(article => `<li><a href="${esc(`/article/${encodeURIComponent(String(article.slug).replace(/^\/+|\/+$/g, ''))}`)}">${esc(article.title)}</a></li>`).join('');
+  const items = related.map(article => {
+    const slug = String(article.slug).replace(/^\/+|\/+$/g, '');
+    return `<li><a href="${esc(`/article/${encodeURIComponent(slug)}`)}">${esc(article.title)}</a></li>`;
+  }).join('');
 
   return `<section id="tool-related-articles" dir="rtl" aria-labelledby="tool-related-articles-title"><div><h2 id="tool-related-articles-title">مقالات مرتبط</h2><ul>${items}</ul></div></section>`;
 }
@@ -71,7 +62,11 @@ function relatedSection(articles: ArticleRow[], path: string) {
 function inject(html: string, section: string) {
   if (!section) return html;
   const style = `<style id="tool-related-articles-style">#tool-related-articles{max-width:1200px;margin:0 auto;padding:0 16px 48px;color:#e2e8f0}#tool-related-articles>div{border:1px solid rgba(148,163,184,.16);border-radius:24px;background:rgba(15,23,42,.7);padding:20px}@media(min-width:640px){#tool-related-articles>div{padding:28px}}#tool-related-articles h2{margin:0;font-size:22px;font-weight:900;color:#fff}#tool-related-articles ul{margin:14px 0 0;padding:0;list-style:none;border-top:1px solid rgba(148,163,184,.12)}#tool-related-articles li{border-bottom:1px solid rgba(148,163,184,.12)}#tool-related-articles li:last-child{border-bottom:0}#tool-related-articles a{display:block;padding:12px 0;color:#e2e8f0;text-decoration:none;font-size:15px;font-weight:700;line-height:1.8}#tool-related-articles a:hover{color:#14F195}</style>`;
-  return html.replace('</head>', `${style}</head>`).replace(/<div id="root"><\/div>/i, `<div id="root">${section}</div>`);
+  const root = '<div id="root"></div>';
+  const withStyle = html.replace('</head>', `${style}</head>`);
+  return /<div id="root"><\/div>/i.test(withStyle)
+    ? withStyle.replace(/<div id="root"><\/div>/i, `${root}${section}`)
+    : withStyle;
 }
 
 export async function onRequest(context: PageContext): Promise<Response> {
@@ -101,6 +96,6 @@ export async function onRequest(context: PageContext): Promise<Response> {
   const section = relatedSection(articles, pathname);
   const headers = new Headers(upstream.headers);
   headers.set('Content-Type', 'text/html; charset=UTF-8');
-  headers.set('X-Solmint-SSR', 'tool-related-articles-v1');
+  headers.set('X-Solmint-SSR', 'tool-related-articles-v2');
   return new Response(inject(html, section), { status: upstream.status, headers });
 }
