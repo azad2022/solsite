@@ -1,34 +1,15 @@
 name: DeepSeek Auto Publish
 
+# Disabled intentionally. The website uses the DeepSeek chatbot manually and
+# does not currently use the automatic article publishing scheduler.
+# Kept in the repository so it can be re-enabled later without reconstruction.
+
 on:
-  schedule:
-    # Run frequently enough to tolerate platform scheduling delays.
-    # The application itself decides whether a publish slot is actually due.
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  trigger:
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger production scheduler
-        env:
-          SITE_URL: https://solmint.ir
-          CRON_SECRET: ${{ secrets.AUTOPUBLISH_CRON_SECRET }}
-        run: |
-          set -euo pipefail
-          if [ -z "${CRON_SECRET}" ]; then
-            echo "AUTOPUBLISH_CRON_SECRET is not configured in GitHub repository secrets."
-            exit 1
-          fi
-
-          response=$(curl --fail-with-body --silent --show-error \
-            --max-time 90 \
-            -X POST "${SITE_URL}/api/deepseek/auto-publish/scheduled" \
-            -H "x-autopublish-cron-secret: ${CRON_SECRET}" \
-            -H "Content-Type: application/json")
-
-          echo "${response}"
+      - name: Explain disabled workflow
+        run: echo "DeepSeek auto-publish workflow is intentionally disabled."
