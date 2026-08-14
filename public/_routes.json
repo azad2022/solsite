@@ -3,6 +3,7 @@
   "include": [
     "/sitemap.xml",
     "/blog",
+    "/tools/*",
     "/article/*",
     "/api/article-categories*",
     "/api/comments",
