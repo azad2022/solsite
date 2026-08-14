@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { SolanaStatus, UserAccount } from '../types';
-import { Send, Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search } from 'lucide-react';
+import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search } from 'lucide-react';
 
 export const SolanaLogoIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
   <svg className={className} viewBox="0 0 397 311" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_1)"/>
+    <path d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-4.6-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_1)"/>
     <path d="M64.6 3.8C67 1.4 70.3 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-4.6-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_2)"/>
     <path d="M332.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H5.5c-5.8 0-8.7 5.8-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-5.8 4.6-11.1l-62.7-62.7z" fill="url(#sol_grad_3)"/>
     <defs>
@@ -53,9 +53,12 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
           <a href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
           <a href="/security" onClick={e => { e.preventDefault(); handleNav('/security'); }} className={navClass(currentPath === '/security')}>امنیت</a>
 
-          <div className="relative" onMouseEnter={() => setToolsOpen(true)} onMouseLeave={() => setToolsOpen(false)}>
-            <button type="button" aria-haspopup="menu" aria-expanded={toolsOpen} onClick={() => setToolsOpen(v => !v)} className={`${navClass(toolsActive)} inline-flex items-center gap-1.5 ${toolsActive ? 'bg-[#14F195]/10 text-[#14F195] border border-[#14F195]/25' : ''}`}>
-              <Wrench className="w-3.5 h-3.5" /><span>ابزارها</span><ChevronDown className={`w-3 h-3 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
+          <div className="relative flex items-center" onMouseEnter={() => setToolsOpen(true)} onMouseLeave={() => setToolsOpen(false)}>
+            <a href="/tools/solana-token-tools" onClick={e => { e.preventDefault(); handleNav('/tools/solana-token-tools'); }} className={`${navClass(toolsActive)} inline-flex items-center gap-1.5 ${toolsActive ? 'bg-[#14F195]/10 text-[#14F195] border border-[#14F195]/25' : ''}`} aria-label="ابزارهای سولمینت">
+              <Wrench className="w-3.5 h-3.5" /><span>ابزارها</span>
+            </a>
+            <button type="button" aria-haspopup="menu" aria-expanded={toolsOpen} aria-label="نمایش فهرست ابزارها" onClick={() => setToolsOpen(v => !v)} className={`${navClass(toolsActive)} !px-1 inline-flex items-center ${toolsActive ? 'bg-[#14F195]/10 text-[#14F195]' : ''}`}>
+              <ChevronDown className={`w-3 h-3 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
             </button>
             {toolsOpen && (
               <div role="menu" className="absolute right-0 top-full pt-2 w-72">
