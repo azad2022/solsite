@@ -84,11 +84,11 @@ test('returns explainable high-attention flags from on-chain and market evidence
   }
 });
 
-test('does not turn missing market data into a false claim that no market exists', async () => {
+test('distinguishes unavailable market data from an empty market result', async () => {
   const restore = installFetch(
     {
       ok: true,
-      tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      tokenProgram: 'TokenkegQfeZyiNwAJYbNbGKPFXCWuBvf9Ss623VQ5DA',
       authorities: {},
       distribution: { top10Percentage: 12 },
     },
@@ -98,10 +98,33 @@ test('does not turn missing market data into a false claim that no market exists
     const result = await onRequestGet({ request: new Request(`https://solmint.ir/api/tools/token-risk?mint=${MINT}`) });
     assert.equal(result.status, 200);
     const body = await result.json() as any;
+    const flag = body.flags.find((item: any) => item.code === 'market-data-unavailable');
+    assert.equal(flag?.severity, 'info');
+    assert.equal(body.flags.some((item: any) => item.code === 'no-market-pairs-found'), false);
+    assert.equal(body.availability.market, false);
+  } finally {
+    restore();
+  }
+});
+
+test('reports a real empty market result as a market observation', async () => {
+  const restore = installFetch(
+    {
+      ok: true,
+      tokenProgram: 'TokenkegQfeZyiNwAJYbNbGKPFXCWuBvf9Ss623VQ5DA',
+      authorities: {},
+      distribution: { top10Percentage: 12 },
+    },
+    { ok: true, source: 'dexscreener', pairCount: 0, totalLiquidityUsd: 0, totalVolume24h: 0 },
+  );
+  try {
+    const result = await onRequestGet({ request: new Request(`https://solmint.ir/api/tools/token-risk?mint=${MINT}`) });
+    assert.equal(result.status, 200);
+    const body = await result.json() as any;
     const flag = body.flags.find((item: any) => item.code === 'no-market-pairs-found');
     assert.equal(flag?.severity, 'warning');
     assert.match(flag?.reason ?? '', /اثبات نمی‌کند/);
-    assert.equal(body.availability.market, false);
+    assert.equal(body.availability.market, true);
   } finally {
     restore();
   }
@@ -110,7 +133,7 @@ test('does not turn missing market data into a false claim that no market exists
 test('keeps on-chain risk analysis available when market endpoint returns HTTP 5xx', async () => {
   const restore = installFetchWithMarketFailure({
     ok: true,
-    tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    tokenProgram: 'TokenkegQfeZyiNwAJYbNbGKPFXCWuBvf9Ss623VQ5DA',
     authorities: { mint: { address: 'MintAuthority1111111111111111111111111111111' } },
     distribution: { top10Percentage: 10 },
   });
@@ -121,7 +144,7 @@ test('keeps on-chain risk analysis available when market endpoint returns HTTP 5
     assert.equal(body.ok, true);
     assert.equal(body.availability.onChain, true);
     assert.equal(body.availability.market, false);
-    assert.ok(body.flags.some((flag: any) => flag.code === 'no-market-pairs-found'));
+    assert.ok(body.flags.some((flag: any) => flag.code === 'market-data-unavailable'));
     assert.ok(body.flags.some((flag: any) => flag.code === 'mint-authority-active'));
   } finally {
     restore();
