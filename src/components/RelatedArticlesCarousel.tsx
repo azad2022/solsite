@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Article } from '../types';
 import { getRelatedArticles } from '../utils/articleLinking';
 import { AuthorAvatar } from './AuthorAvatar';
@@ -11,11 +11,100 @@ type Props = {
   onNavigate?: (path: string) => void;
 };
 
+const AUTO_ADVANCE_MS = 4200;
+const RESUME_AFTER_INTERACTION_MS = 1600;
+
 export const RelatedArticlesCarousel: React.FC<Props> = ({ article, articles, onNavigate }) => {
   const related = useMemo(
     () => getRelatedArticles(article, articles.filter(candidate => !candidate.isDraft), 10),
     [article, articles]
   );
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const resumeTimerRef = useRef<number | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    if (related.length < 2) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (reduceMotion) return;
+
+    const clearResumeTimer = () => {
+      if (resumeTimerRef.current !== null) {
+        window.clearTimeout(resumeTimerRef.current);
+        resumeTimerRef.current = null;
+      }
+    };
+
+    const pause = () => {
+      clearResumeTimer();
+      setIsPaused(true);
+    };
+
+    const resumeSoon = () => {
+      clearResumeTimer();
+      resumeTimerRef.current = window.setTimeout(() => {
+        setIsPaused(false);
+        resumeTimerRef.current = null;
+      }, RESUME_AFTER_INTERACTION_MS);
+    };
+
+    const handlePointerDown = () => pause();
+    const handlePointerUp = () => resumeSoon();
+    const handleWheel = () => { pause(); resumeSoon(); };
+    const handleFocusIn = () => pause();
+    const handleFocusOut = () => resumeSoon();
+
+    scroller.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    scroller.addEventListener('pointerup', handlePointerUp, { passive: true });
+    scroller.addEventListener('pointercancel', handlePointerUp, { passive: true });
+    scroller.addEventListener('wheel', handleWheel, { passive: true });
+    scroller.addEventListener('focusin', handleFocusIn);
+    scroller.addEventListener('focusout', handleFocusOut);
+
+    return () => {
+      clearResumeTimer();
+      scroller.removeEventListener('pointerdown', handlePointerDown);
+      scroller.removeEventListener('pointerup', handlePointerUp);
+      scroller.removeEventListener('pointercancel', handlePointerUp);
+      scroller.removeEventListener('wheel', handleWheel);
+      scroller.removeEventListener('focusin', handleFocusIn);
+      scroller.removeEventListener('focusout', handleFocusOut);
+    };
+  }, [related.length]);
+
+  useEffect(() => () => {
+    if (resumeTimerRef.current !== null) window.clearTimeout(resumeTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!related.length || isPaused) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (reduceMotion) return;
+
+    const advance = () => {
+      const firstCard = scroller.querySelector<HTMLElement>('[data-related-card]');
+      if (!firstCard) return;
+
+      const styles = window.getComputedStyle(firstCard.parentElement ?? scroller);
+      const gap = Number.parseFloat(styles.columnGap || styles.gap || '0') || 0;
+      const step = firstCard.offsetWidth + gap;
+      const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth;
+      if (maxScrollLeft <= 0) return;
+
+      const nextPosition = Math.min(scroller.scrollLeft + step, maxScrollLeft);
+      scroller.scrollTo({ left: nextPosition, behavior: 'smooth' });
+      if (nextPosition >= maxScrollLeft - 2) setIsPaused(true);
+    };
+
+    const timer = window.setInterval(advance, AUTO_ADVANCE_MS);
+    return () => window.clearInterval(timer);
+  }, [isPaused, related.length]);
 
   if (!related.length) return null;
 
@@ -29,10 +118,21 @@ export const RelatedArticlesCarousel: React.FC<Props> = ({ article, articles, on
         <span className="hidden text-[11px] text-slate-600 sm:block">برای مشاهده موارد بیشتر به چپ یا راست حرکت کنید</span>
       </div>
 
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 pb-2 snap-x snap-mandatory [scrollbar-color:rgba(71,85,105,.7)_transparent] [scrollbar-width:thin]" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div
+        ref={scrollerRef}
+        dir="ltr"
+        className="-mx-1 overflow-x-auto overscroll-x-contain px-1 pb-2 snap-x snap-mandatory [scrollbar-color:rgba(71,85,105,.7)_transparent] [scrollbar-width:thin]"
+        style={{ WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
+        aria-label="مقالات مرتبط"
+      >
         <div className="flex w-max gap-4">
           {related.map(relatedArticle => (
-            <article key={relatedArticle.id || relatedArticle.slug} className="w-[290px] shrink-0 snap-start overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 transition-colors hover:border-slate-700 sm:w-[320px]">
+            <article
+              key={relatedArticle.id || relatedArticle.slug}
+              data-related-card
+              dir="rtl"
+              className="w-[290px] shrink-0 snap-start overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 transition-colors hover:border-slate-700 sm:w-[320px]"
+            >
               <a
                 href={`/article/${encodeURIComponent(relatedArticle.slug)}`}
                 onClick={event => {
