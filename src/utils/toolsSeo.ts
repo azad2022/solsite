@@ -10,16 +10,13 @@ type ToolSeoInput = {
 const TOOL_SCHEMA_ID = 'solmint-tools-jsonld';
 const TOOL_GUIDE_ID = 'solmint-tool-guide';
 const MARKET_RISK_ID = 'solmint-market-risk';
-const RELATED_ARTICLES_ID = 'solmint-related-articles';
 
-let toolDomObserver: MutationObserver | null = null;
 let toolMountGeneration = 0;
 
 function cleanupToolArtifacts() {
   toolMountGeneration += 1;
   document.getElementById(TOOL_GUIDE_ID)?.remove();
   document.getElementById(MARKET_RISK_ID)?.remove();
-  document.getElementById(RELATED_ARTICLES_ID)?.remove();
 }
 
 function upsertMeta(selector: string, attrs: Record<string, string>, content: string) {
@@ -138,72 +135,6 @@ function mountToolGuide(path: string, generation: number) {
   main.appendChild(section);
 }
 
-async function mountRelatedArticles(path: string, generation: number) {
-  if (generation !== toolMountGeneration || !window.location.pathname.startsWith('/tools/')) return;
-  if (document.getElementById('tool-related-articles')) return;
-  document.getElementById(RELATED_ARTICLES_ID)?.remove();
-
-  const main = document.querySelector('main');
-  if (!main || generation !== toolMountGeneration) return;
-
-  try {
-    const response = await fetch('/api/articles', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
-    if (!response.ok) return;
-    const payload = await response.json() as { articles?: PublicArticle[] };
-    const articles = Array.isArray(payload.articles)
-      ? payload.articles.filter(article => !article.isDraft && !article.is_draft && article.slug && article.title)
-      : [];
-    const keywords = relatedKeywords(path);
-    const related = articles
-      .map(article => ({ article, score: scoreRelatedArticle(article, keywords) }))
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map(item => item.article);
-
-    if (!related.length || generation !== toolMountGeneration) return;
-
-    const section = document.createElement('section');
-    section.id = RELATED_ARTICLES_ID;
-    section.dir = 'rtl';
-    section.className = 'relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6';
-    section.setAttribute('aria-labelledby', `${RELATED_ARTICLES_ID}-title`);
-
-    const card = document.createElement('div');
-    card.className = 'rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7';
-
-    const heading = document.createElement('h2');
-    heading.id = `${RELATED_ARTICLES_ID}-title`;
-    heading.className = 'text-xl font-black text-white sm:text-2xl';
-    heading.textContent = 'مقالات مرتبط';
-    card.appendChild(heading);
-
-    const nav = document.createElement('nav');
-    nav.className = 'mt-4';
-    nav.setAttribute('aria-label', 'مقالات مرتبط');
-
-    const list = document.createElement('ul');
-    list.className = 'divide-y divide-slate-800/80';
-
-    for (const article of related) {
-      const item = document.createElement('li');
-      const link = document.createElement('a');
-      link.href = `/article/${encodeURIComponent(String(article.slug))}`;
-      link.className = 'block py-3 text-sm font-bold leading-7 text-slate-200 transition hover:text-[#14F195] sm:text-base';
-      link.textContent = String(article.title);
-      item.appendChild(link);
-      list.appendChild(item);
-    }
-
-    nav.appendChild(list);
-    card.appendChild(nav);
-    section.appendChild(card);
-    main.appendChild(section);
-  } catch {
-    // Related links are an enhancement; never block the tool page when the article API is unavailable.
-  }
-}
-
 async function mountMarketRisk(path: string, generation: number) {
   document.getElementById(MARKET_RISK_ID)?.remove();
   if (path !== '/tools/solana-token-scanner' || generation !== toolMountGeneration) return;
@@ -211,12 +142,14 @@ async function mountMarketRisk(path: string, generation: number) {
   if (!mint) return;
   const main = document.querySelector('main');
   if (!main || generation !== toolMountGeneration) return;
+
   const section = document.createElement('section');
   section.id = MARKET_RISK_ID;
   section.dir = 'rtl';
   section.className = 'relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6';
   section.innerHTML = '<div class="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7"><div class="flex items-center justify-between gap-4"><h2 class="text-lg font-black text-white">تحلیل بازار و ریسک</h2><span class="text-xs text-slate-500">On-chain + Market Data</span></div><p class="mt-3 text-sm text-slate-400">در حال دریافت تحلیل ترکیبی...</p></div>';
   main.appendChild(section);
+
   try {
     const response = await fetch(`/api/tools/token-risk?mint=${encodeURIComponent(mint)}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
     const payload = await response.json() as any;
@@ -238,8 +171,6 @@ export function applyToolSeo({ title, description, path, image = `${SITE_DOMAIN}
   const hasQuery = window.location.search.length > 0;
   toolMountGeneration += 1;
   const generation = toolMountGeneration;
-  toolDomObserver?.disconnect();
-  toolDomObserver = null;
 
   document.title = title;
   upsertMeta('meta[name="title"]', { name: 'title' }, title);
@@ -262,14 +193,6 @@ export function applyToolSeo({ title, description, path, image = `${SITE_DOMAIN}
   window.requestAnimationFrame(() => {
     if (generation !== toolMountGeneration || !window.location.pathname.startsWith('/tools/')) return;
     mountToolGuide(path, generation);
-    void mountRelatedArticles(path, generation);
     void mountMarketRisk(path, generation);
-    const main = document.querySelector('main');
-    if (main) {
-      toolDomObserver = new MutationObserver(() => {
-        if (!window.location.pathname.startsWith('/tools/')) cleanupToolArtifacts();
-      });
-      toolDomObserver.observe(main, { childList: true, subtree: true });
-    }
   });
 }
