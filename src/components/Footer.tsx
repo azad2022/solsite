@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Lock, Github } from 'lucide-react';
 
 interface FooterProps {
@@ -6,7 +6,94 @@ interface FooterProps {
   openAdminModal: () => void;
 }
 
+type PublicArticle = {
+  id?: string;
+  title?: string;
+  slug?: string;
+  category?: string;
+  tags?: string[];
+  summary?: string;
+  isDraft?: boolean;
+  is_draft?: boolean;
+};
+
+const TOOL_KEYWORDS: Record<string, string[]> = {
+  '/tools/solana-token-tools': ['سولانا', 'توکن', 'token-2022', 'spl token', 'mint', 'authority', 'امنیت'],
+  '/tools/solana-token-scanner': ['سولانا', 'توکن', 'token-2022', 'mint', 'mint authority', 'freeze authority', 'tokenomics', 'امنیت'],
+  '/tools/token-2022-inspector': ['token-2022', 'سولانا', 'توکن', 'spl token', 'extension', 'transfer fee', 'transfer hook'],
+};
+
+function normalize(value: unknown) {
+  return String(value ?? '').toLocaleLowerCase('fa-IR').replace(/\u200c/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function scoreArticle(article: PublicArticle, keywords: string[]) {
+  const text = normalize(`${article.title} ${article.summary} ${(article.tags || []).join(' ')} ${article.category}`);
+  return keywords.reduce((total, keyword) => total + (text.includes(normalize(keyword)) ? (keyword.length > 8 ? 4 : 2) : 0), 0);
+}
+
+const ToolRelatedArticles: React.FC<{ articles: PublicArticle[]; pathname: string }> = ({ articles, pathname }) => {
+  const related = useMemo(() => {
+    const keywords = TOOL_KEYWORDS[pathname] || [];
+    return articles
+      .filter(article => !article.isDraft && !article.is_draft && article.slug && article.title)
+      .map(article => ({ article, score: scoreArticle(article, keywords) }))
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(item => item.article);
+  }, [articles, pathname]);
+
+  if (!related.length) return null;
+
+  return (
+    <section className="mx-auto mb-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8" dir="rtl" aria-labelledby="footer-related-articles-title">
+      <div className="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7">
+        <h2 id="footer-related-articles-title" className="text-xl font-black text-white sm:text-2xl">مقالات مرتبط</h2>
+        <nav className="mt-4" aria-label="مقالات مرتبط">
+          <ul className="divide-y divide-slate-800/80">
+            {related.map(article => (
+              <li key={article.id || article.slug}>
+                <a href={`/article/${encodeURIComponent(String(article.slug))}`} className="block py-3 text-sm font-bold leading-7 text-slate-200 transition hover:text-[#14F195] sm:text-base">
+                  {article.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+    </section>
+  );
+};
+
 export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) => {
+  const [articles, setArticles] = useState<PublicArticle[]>([]);
+  const [pathname, setPathname] = useState(() => window.location.pathname.replace(/\/+$/, '') || '/');
+
+  useEffect(() => {
+    const nextPath = () => setPathname(window.location.pathname.replace(/\/+$/, '') || '/');
+    window.addEventListener('popstate', nextPath);
+    let cancelled = false;
+
+    if (TOOL_KEYWORDS[window.location.pathname.replace(/\/+$/, '') || '/']) {
+      fetch('/api/articles', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+        .then(response => response.ok ? response.json() : null)
+        .then(payload => {
+          if (cancelled) return;
+          const items = Array.isArray(payload?.articles) ? payload.articles : [];
+          setArticles(items);
+        })
+        .catch(() => {
+          if (!cancelled) setArticles([]);
+        });
+    }
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('popstate', nextPath);
+    };
+  }, []);
+
   const handleNav = (path: string) => {
     if (onNavigate) onNavigate(path);
     else window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -14,6 +101,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
 
   return (
     <footer className="bg-[#05050a] border-t border-white/[0.08] pt-16 pb-10 text-slate-300 text-xs sm:text-sm">
+      {TOOL_KEYWORDS[pathname] && <ToolRelatedArticles articles={articles} pathname={pathname} />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-3 text-center md:text-right">
