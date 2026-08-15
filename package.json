@@ -6,7 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx scripts/start-server.mjs",
-    "build": "node scripts/generate-sitemap.js && vite build",
+    "build": "node scripts/production-comments-client-wiring.mjs && node scripts/generate-sitemap.js && vite build",
     "prepare:source": "node scripts/prepare-production-source.mjs",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
@@ -18,7 +18,6 @@
     "@google/genai": "^2.4.0",
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.0",
     "compression": "^1.8.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
@@ -32,7 +31,6 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "10.4.21",
     "tailwindcss": "4.1.18",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.2",
     "vite": "^6.4.3"
   }
