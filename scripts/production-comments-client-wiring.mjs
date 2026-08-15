@@ -8,6 +8,10 @@ if (!source.includes("import { CommentsSection } from './CommentsSection';")) {
   source = source.replace("import { AuthorAvatar } from './AuthorAvatar';", "import { AuthorAvatar } from './AuthorAvatar';\nimport { CommentsSection } from './CommentsSection';");
 }
 
+if (!source.includes("import { RelatedArticlesCarousel } from './RelatedArticlesCarousel';")) {
+  source = source.replace("import { AuthorAvatar } from './AuthorAvatar';", "import { AuthorAvatar } from './AuthorAvatar';\nimport { RelatedArticlesCarousel } from './RelatedArticlesCarousel';");
+}
+
 source = source.replace(/  const \[commentText, setCommentText\] = useState\(''\);\n/, '');
 
 source = source.replace(/  const handleAddComment = async \(e: React\.FormEvent\) => \{[\s\S]*?\n  \};\n  const handleCopyArticleLink/, "  const handleCommentCreated = (comment: ArticleComment) => {\n    if (!comment.approved) return;\n    setArticles(prev => prev.map(a => a.id === readingArticle?.id ? { ...a, comments: [comment, ...(a.comments || [])] } : a));\n    setReadingArticle(prev => prev ? { ...prev, comments: [comment, ...(prev.comments || [])] } : null);\n  };\n  const handleCopyArticleLink");
@@ -19,12 +23,15 @@ if (start < 0 || end <= start) {
   throw new Error('BlogHub comment UI markers not found; refusing to produce a partial production build.');
 }
 
-const replacement = `        <CommentsSection articleId={readingArticle.id} comments={readingArticle.comments || []} currentUser={currentUser} openAuthModal={openAuthModal} onCommentCreated={handleCommentCreated} />\n`;
+const replacement = `        <RelatedArticlesCarousel article={readingArticle} articles={articles} onNavigate={onNavigate} />\n        <CommentsSection articleId={readingArticle.id} comments={readingArticle.comments || []} currentUser={currentUser} openAuthModal={openAuthModal} onCommentCreated={handleCommentCreated} />\n`;
 source = source.slice(0, start) + replacement + source.slice(end);
 
+if (!source.includes('<RelatedArticlesCarousel article={readingArticle}')) {
+  throw new Error('BlogHub related articles wiring was not applied.');
+}
 if (!source.includes('<CommentsSection articleId={readingArticle.id}')) {
   throw new Error('BlogHub comments wiring was not applied.');
 }
 
 if (source !== original) fs.writeFileSync(filePath, source, 'utf8');
-console.log('✓ Public comments client wiring applied.');
+console.log('✓ Public comments and related articles client wiring applied.');
