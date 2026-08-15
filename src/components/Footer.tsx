@@ -11,7 +11,7 @@ type PublicArticle = {
   title?: string;
   slug?: string;
   category?: string;
-  tags?: string[];
+  tags?: string[] | unknown;
   summary?: string;
   isDraft?: boolean;
   is_draft?: boolean;
@@ -27,8 +27,14 @@ function normalize(value: unknown) {
   return String(value ?? '').toLocaleLowerCase('fa-IR').replace(/\u200c/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function tagsToText(tags: unknown) {
+  if (Array.isArray(tags)) return tags.map(tag => typeof tag === 'string' ? tag : JSON.stringify(tag)).join(' ');
+  if (typeof tags === 'string') return tags;
+  return '';
+}
+
 function scoreArticle(article: PublicArticle, keywords: string[]) {
-  const text = normalize(`${article.title} ${article.summary} ${(article.tags || []).join(' ')} ${article.category}`);
+  const text = normalize(`${article.title || ''} ${article.summary || ''} ${tagsToText(article.tags)} ${article.category || ''}`);
   return keywords.reduce((total, keyword) => total + (text.includes(normalize(keyword)) ? (keyword.length > 8 ? 4 : 2) : 0), 0);
 }
 
@@ -39,7 +45,7 @@ const ToolRelatedArticles: React.FC<{ articles: PublicArticle[]; pathname: strin
       .filter(article => !article.isDraft && !article.is_draft && article.slug && article.title)
       .map(article => ({ article, score: scoreArticle(article, keywords) }))
       .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score || String(a.article.title).localeCompare(String(b.article.title), 'fa'))
       .slice(0, 5)
       .map(item => item.article);
   }, [articles, pathname]);
@@ -47,10 +53,10 @@ const ToolRelatedArticles: React.FC<{ articles: PublicArticle[]; pathname: strin
   if (!related.length) return null;
 
   return (
-    <section className="mx-auto mb-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8" dir="rtl" aria-labelledby="footer-related-articles-title">
-      <div className="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7">
+    <section className="w-full border-b border-slate-800/60 bg-[#08080f] px-4 py-8 sm:px-6" dir="rtl" aria-labelledby="footer-related-articles-title">
+      <div className="mx-auto w-full max-w-7xl">
         <h2 id="footer-related-articles-title" className="text-xl font-black text-white sm:text-2xl">مقالات مرتبط</h2>
-        <nav className="mt-4" aria-label="مقالات مرتبط">
+        <nav className="mt-3" aria-label="مقالات مرتبط">
           <ul className="divide-y divide-slate-800/80">
             {related.map(article => (
               <li key={article.id || article.slug}>
@@ -74,25 +80,40 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
     const nextPath = () => setPathname(window.location.pathname.replace(/\/+$/, '') || '/');
     window.addEventListener('popstate', nextPath);
     let cancelled = false;
+    const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
 
-    if (TOOL_KEYWORDS[window.location.pathname.replace(/\/+$/, '') || '/']) {
-      fetch('/api/articles', { headers: { Accept: 'application/json' }, cache: 'no-store' })
-        .then(response => response.ok ? response.json() : null)
-        .then(payload => {
-          if (cancelled) return;
-          const items = Array.isArray(payload?.articles) ? payload.articles : [];
-          setArticles(items);
-        })
-        .catch(() => {
-          if (!cancelled) setArticles([]);
-        });
+    if (!TOOL_KEYWORDS[currentPath]) {
+      setArticles([]);
+      return () => {
+        cancelled = true;
+        window.removeEventListener('popstate', nextPath);
+      };
     }
+
+    const loadArticles = async () => {
+      try {
+        const response = await fetch('/api/articles', {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        const items = Array.isArray(payload?.articles) ? payload.articles : [];
+        if (!cancelled) setArticles(items);
+      } catch (error) {
+        console.warn('Related articles could not be loaded:', error);
+        if (!cancelled) setArticles([]);
+      }
+    };
+
+    void loadArticles();
 
     return () => {
       cancelled = true;
       window.removeEventListener('popstate', nextPath);
     };
-  }, []);
+  }, [pathname]);
 
   const handleNav = (path: string) => {
     if (onNavigate) onNavigate(path);
