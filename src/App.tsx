@@ -125,6 +125,6 @@ export default function App() {
     </Suspense></main>
     {isAdminModalOpen && <div className="relative z-[60]"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense><AdminQuickActionsPortal enabled={isPrivilegedAdmin} onOpenMarket={() => setIsMemeTickerAdminOpen(true)} onOpenShowcase={() => setIsShowcaseAdminOpen(true)} />{isPrivilegedAdmin && <><MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} /><AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} /></>}</div>}
     {!isAdminModalOpen && <Suspense fallback={null}><DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} /></Suspense>}
-    <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} />
+    <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} currentPath={currentPath} articles={articles} />
   </div>;
 }
