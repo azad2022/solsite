@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Lock, Github } from 'lucide-react';
 import type { Article } from '../types';
 
 interface FooterProps {
   onNavigate?: (path: string) => void;
   openAdminModal: () => void;
+  currentPath: string;
+  articles: Article[];
 }
 
 const TOOL_KEYWORDS: Record<string, string[]> = {
@@ -49,7 +51,7 @@ const ToolRelatedArticles: React.FC<{ articles: Article[]; pathname: string }> =
   if (!related.length) return null;
 
   return (
-    <section className="mx-auto mb-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8" dir="rtl" aria-labelledby="footer-related-articles-title">
+    <section className="w-full" dir="rtl" aria-labelledby="footer-related-articles-title">
       <div className="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 sm:p-7">
         <h2 id="footer-related-articles-title" className="text-xl font-black text-white sm:text-2xl">مقالات مرتبط</h2>
         <nav className="mt-4" aria-label="مقالات مرتبط">
@@ -68,37 +70,8 @@ const ToolRelatedArticles: React.FC<{ articles: Article[]; pathname: string }> =
   );
 };
 
-export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) => {
-  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
-  const [articles, setArticles] = useState<Article[]>([]);
-
-  useEffect(() => {
-    if (!TOOL_KEYWORDS[pathname]) {
-      setArticles([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    setArticles([]);
-
-    fetch('/api/articles', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    })
-      .then(response => response.ok ? response.json() : null)
-      .then(payload => {
-        if (controller.signal.aborted) return;
-        const items = Array.isArray(payload?.articles) ? payload.articles : [];
-        setArticles(items);
-      })
-      .catch(error => {
-        if (error?.name !== 'AbortError') setArticles([]);
-      });
-
-    return () => controller.abort();
-  }, [pathname]);
+export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal, currentPath, articles }) => {
+  const normalizedPath = currentPath.replace(/\/+$/, '') || '/';
 
   const handleNav = (path: string) => {
     if (onNavigate) onNavigate(path);
@@ -108,7 +81,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal }) =>
   return (
     <footer className="bg-[#05050a] border-t border-white/[0.08] pt-16 pb-10 text-slate-300 text-xs sm:text-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        {TOOL_KEYWORDS[pathname] && <ToolRelatedArticles articles={articles} pathname={pathname} />}
+        {TOOL_KEYWORDS[normalizedPath] && <ToolRelatedArticles articles={articles} pathname={normalizedPath} />}
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-3 text-center md:text-right">
             <span className="font-bold text-white text-base block">دسترسی سریع و صفحات رسمی</span>
