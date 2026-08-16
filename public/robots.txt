@@ -1,19 +1,19 @@
 # SolMint.ir - Production robots.txt
-# Public content is available to search and AI crawlers.
-
-User-agent: *
-Allow: /
+# Public content is intentionally available to search engines and AI crawlers.
 
 # OpenAI - ChatGPT Search
 User-agent: OAI-SearchBot
+Allow: /
+
+# OpenAI - model training / publicly available content
+User-agent: GPTBot
 Allow: /
 
 # OpenAI - ChatGPT ad landing-page crawler
 User-agent: OAI-AdsBot
 Allow: /
 
-# Google - Gemini grounding / future model controls.
-# Explicitly allow public content; this does not affect Google Search ranking.
+# Google - Gemini / Vertex AI model and grounding controls
 User-agent: Google-Extended
 Allow: /
 
@@ -21,8 +21,14 @@ Allow: /
 User-agent: ClaudeBot
 Allow: /
 
+# DeepSeek crawler (where this user-agent is used)
+User-agent: DeepSeekBot
+Allow: /
+
+# General policy: public site content is crawlable.
 # Private application and API endpoints are not public content.
 User-agent: *
+Allow: /
 Disallow: /admin
 Disallow: /api/
 
