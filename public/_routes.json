@@ -5,6 +5,7 @@
     "/blog",
     "/tools/*",
     "/article/*",
+    "/solana-price",
     "/api/article-categories*",
     "/api/comments",
     "/api/comments/*",
