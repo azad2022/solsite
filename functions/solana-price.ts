@@ -11,7 +11,7 @@ type PageContext = {
 };
 
 type KrakenTicker = {
-  result?: Record<string, { c?: string[]; p?: string[]; h?: string[]; l?: string[]; v?: string[] }>;
+  result?: Record<string, { c?: string[]; o?: string[]; p?: string[]; h?: string[]; l?: string[]; v?: string[] }>;
 };
 
 const SITE_URL = 'https://solmint.ir';
@@ -59,8 +59,8 @@ function setCanonical(html: string): string {
 }
 
 function setJsonLd(html: string, value: unknown): string {
-  const tag = `<script id="solmint-solana-price-ssr-jsonld" type="application/ld+json">${escapeJsonLd(value)}</script>`;
-  const rx = /<script[^>]*id=["']solmint-solana-price-ssr-jsonld["'][^>]*>[\s\S]*?<\/script>/i;
+  const tag = `<script id="solmint-solana-price-jsonld" type="application/ld+json">${escapeJsonLd(value)}</script>`;
+  const rx = /<script[^>]*id=["']solmint-solana-price-jsonld["'][^>]*>[\s\S]*?<\/script>/i;
   return rx.test(html) ? html.replace(rx, tag) : html.replace('</head>', `  ${tag}\n</head>`);
 }
 
@@ -114,8 +114,8 @@ function buildSeoShell(market: { price: number; change24h: number } | null): str
 </div>`;
 }
 
-function buildJsonLd(market: { price: number; change24h: number } | null) {
-  const data: Record<string, unknown> = {
+function buildJsonLd() {
+  return {
     '@context': 'https://schema.org',
     '@graph': [
       {
@@ -128,6 +128,7 @@ function buildJsonLd(market: { price: number; change24h: number } | null) {
         isPartOf: { '@type': 'WebSite', '@id': `${SITE_URL}#website`, url: SITE_URL, name: 'سولمینت' },
         about: { '@type': 'Thing', name: 'Solana (SOL)', sameAs: 'https://solana.com/' },
         breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` },
+        mainEntity: { '@id': `${PAGE_URL}#market-data` },
       },
       {
         '@type': 'BreadcrumbList',
@@ -151,20 +152,6 @@ function buildJsonLd(market: { price: number; change24h: number } | null) {
       },
     ],
   };
-
-  if (market) {
-    (data['@graph'] as Array<Record<string, unknown>>).push({
-      '@type': 'Observation',
-      '@id': `${PAGE_URL}#current-observation`,
-      name: 'مشاهده فعلی قیمت SOL/USD',
-      value: market.price,
-      unitText: 'USD',
-      observationDate: new Date().toISOString(),
-      observedNode: { '@type': 'Thing', name: 'Solana (SOL)' },
-    });
-  }
-
-  return data;
 }
 
 export const onRequest = async (context: PageContext): Promise<Response> => {
@@ -190,7 +177,7 @@ export const onRequest = async (context: PageContext): Promise<Response> => {
   html = setProperty(html, 'og:locale', 'fa_IR');
   html = setProperty(html, 'og:image', `${SITE_URL}/images/solmint-banner.jpg`);
   html = setCanonical(html);
-  html = setJsonLd(html, buildJsonLd(market));
+  html = setJsonLd(html, buildJsonLd());
 
   const shell = buildSeoShell(market);
   if (/<div id="root"><\/div>/i.test(html)) {
