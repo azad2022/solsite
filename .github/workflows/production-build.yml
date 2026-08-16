@@ -29,17 +29,19 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Apply authentication hardening
         run: node scripts/harden-admin-frontend-auth.mjs
+      - name: Repair production TypeScript mismatches
+        run: node scripts/repair-production-types.mjs
       - name: Verify hardened source
         run: |
           ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          if ! git diff --quiet -- src/components/AdminCmsModal.tsx; then
+          if ! git diff --quiet -- src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/components/AdminCmsModal.tsx
-            git commit -m "security: persist frontend auth cleanup"
+            git add src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx
+            git commit -m "fix: repair production TypeScript mismatches"
             git push
           fi
       - name: Production build
