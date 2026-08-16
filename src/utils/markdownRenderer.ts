@@ -130,11 +130,22 @@ function renderMarkdownTable(lines: string[], start: number) {
   };
 }
 
+function detectArticleDirection(source: string): 'rtl' | 'ltr' {
+  // Arabic/Persian script is the reliable signal for Solmint's current RTL content.
+  // Latin/English content defaults to LTR. Numbers and punctuation do not affect it.
+  return /[\u0600-\u06FF\u0750-\u077F]/.test(source) ? 'rtl' : 'ltr';
+}
+
+function wrapArticleContent(html: string, direction: 'rtl' | 'ltr'): string {
+  return `<div class="article-content-inner" dir="${direction}" lang="${direction === 'rtl' ? 'fa' : 'en'}">${html}</div>`;
+}
+
 export function renderMarkdownToHtml(markdown: string): string {
   const source = String(markdown ?? '').replace(/\r\n?/g, '\n').trim();
   if (!source) return '';
+  const direction = detectArticleDirection(source);
   if (/<(?:h[2-6]|p|ul|ol|table|blockquote|pre|div|iframe)\b/i.test(source)) {
-    return sanitizeArticleHtml(source);
+    return wrapArticleContent(sanitizeArticleHtml(source), direction);
   }
 
   const lines = source.split('\n');
@@ -223,5 +234,5 @@ export function renderMarkdownToHtml(markdown: string): string {
   }
 
   flush();
-  return output.join('\n');
+  return wrapArticleContent(output.join('\n'), direction);
 }
