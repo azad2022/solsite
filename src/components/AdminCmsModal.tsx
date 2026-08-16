@@ -226,7 +226,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [lockoutTimer, setLockoutTimer] = useState(0);
 
   // Active Admin Tab
-  const [adminTab, setAdminTab] = useState<'articles' | 'editor' | 'comments' | 'media' | 'seo' | 'downloads' | 'deepseek' | 'chatbot' | 'security' | 'database' | 'users'>('articles');
+  const [adminTab, setAdminTab] = useState<AdminPermission>('articles');
 
   // Database Management Form State
   const [dbConfig, setDbConfig] = useState<DatabaseConfig>(() => getDatabaseConfig());
@@ -832,7 +832,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState('');
   const [formSlug, setFormSlug] = useState('');
-  const [formCategory, setFormCategory] = useState<'آموزش سولانا' | 'توسعه وب۳' | 'امنیت' | 'اخبار و تحلیل'>('آموزش سولانا');
+  const [formCategory, setFormCategory] = useState<Article['category']>('آموزش سولانا');
   const [formTags, setFormTags] = useState('');
   const [formSummary, setFormSummary] = useState('');
   const [formContent, setFormContent] = useState('');
@@ -2864,7 +2864,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                             return filename.includes(q) || altText.includes(q) || title.includes(q);
                           })
                           .map((asset) => {
-                            const publicUrl = asset.publicUrl || asset.url || '';
+                            const publicUrl = asset.publicUrl || asset.publicUrl || '';
                             const filename = asset.filename || 'تصویر';
                             const isUsed = articles.some(a => a.coverImage === publicUrl || a.coverImageAssetId === asset.id);
                             return (
@@ -5745,7 +5745,7 @@ Sitemap: https://solmint.ir/sitemap.xml
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {githubMediaAssets.map((asset) => {
-                      const url = asset.publicUrl || asset.url || '';
+                      const url = asset.publicUrl || asset.publicUrl || '';
                       const filename = asset.filename || 'تصویر';
                       return (
                         <div
