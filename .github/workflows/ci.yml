@@ -30,7 +30,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Typecheck
-        run: node scripts/fix-auth-pbkdf2-buffers.mjs && npm run lint
+        run: node scripts/fix-auth-pbkdf2-buffers.mjs && node scripts/repair-production-types.mjs && npm run lint
 
       - name: Production build
         run: npm run build
