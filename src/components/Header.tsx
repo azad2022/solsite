@@ -6,8 +6,8 @@ import { getLocalizedPath } from '../utils/i18n';
 export const SolanaLogoIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
   <svg className={className} viewBox="0 0 397 311" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-4.6-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_1)"/>
-    <path d="M64.6 3.8C67 1.4 70.3 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-5.8-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_2)"/>
-    <path d="M332.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H5.5c-5.8 0-8.7 5.8-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-7 4.6-11.1l-62.7-62.7z" fill="url(#sol_grad_3)"/>
+    <path d="M64.6 3.8C67 1.4 70.3 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-4.6-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_2)"/>
+    <path d="M332.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H5.5c-5.8 0-8.7 5.8-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-5.8 4.6-11.1l-62.7-62.7z" fill="url(#sol_grad_3)"/>
     <defs>
       <linearGradient id="sol_grad_1" x1="391" y1="234" x2="3" y2="311" gradientUnits="userSpaceOnUse"><stop stopColor="#00FFA3"/><stop offset="1" stopColor="#DC1FFF"/></linearGradient>
       <linearGradient id="sol_grad_2" x1="391" y1="0" x2="3" y2="77" gradientUnits="userSpaceOnUse"><stop stopColor="#00FFA3"/><stop offset="1" stopColor="#DC1FFF"/></linearGradient>
@@ -59,7 +59,6 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
           </div>
           <div className="hidden sm:flex flex-col"><span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1.5">{english ? 'Solmint' : 'سولمینت'} <span className="text-[10px] font-mono text-[#14F195] font-bold bg-[#14F195]/10 px-2 py-0.5 rounded-full border border-[#14F195]/20">Solmint</span></span></div>
         </div>
-
         <nav className="hidden lg:flex items-center gap-0.5 bg-white/[0.03] p-1 rounded-full border border-white/10 whitespace-nowrap overflow-visible">
           <a href={homePath} onClick={e => { e.preventDefault(); handleNav(homePath); }} className={navClass(currentPath === homePath)}>{labels.home}</a>
           {!english ? <>
@@ -85,7 +84,6 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
           {!english && <a href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 text-inherit decoration-none ${currentPath === '/blog' || currentPath.startsWith('/article/') ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black shadow-md' : 'text-slate-300 hover:text-white'}`}><BookOpen className="w-3.5 h-3.5 shrink-0" /><span>{labels.blog}</span></a>}
           <a href={languageSwitchPath} className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white">{labels.languageLabel}</a>
         </nav>
-
         <div className="hidden sm:flex items-center gap-2.5 shrink-0">
           {currentUser ? (
             <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs text-slate-200">
@@ -97,10 +95,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
             <button onClick={openAdminModal} title={labels.login} aria-label={labels.login} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 transition-colors cursor-pointer text-xs font-bold"><User className="w-4 h-4 text-[#14F195]" /><span>{labels.login}</span></button>
           )}
         </div>
-
         <button onClick={() => setMobileMenuOpen(v => !v)} aria-label={mobileMenuOpen ? (english ? 'Close menu' : 'بستن منوی اصلی') : (english ? 'Open menu' : 'باز کردن منوی اصلی')} className="lg:hidden p-2 rounded-xl bg-white/5 text-slate-300 hover:text-white border border-white/10">{mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}</button>
       </div>
-
       {mobileMenuOpen && (
         <div className="lg:hidden bg-[#08080f]/98 border-b border-white/10 px-4 py-5 space-y-2 backdrop-blur-2xl max-h-[calc(100vh-4rem)] overflow-y-auto">
           <button onClick={() => handleNav(homePath)} className={mobileNavClass(currentPath === homePath, english)}>{labels.home}</button>
