@@ -47,7 +47,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
     const slug = url.searchParams.get('slug');
     const select = ['id','title','slug','category','tags','summary','content','cover_image','cover_image_asset_id','video_url','author','published_at','published_at_jalali','published_at_gregorian','read_time_minutes','views_count','comments','seo_score','is_draft','created_at','language','translation_group_id'].join(',');
     const params = new URLSearchParams({ select, language: `eq.${language}`, is_draft: 'eq.false', order: 'created_at.desc', limit: slug ? '1' : '50' });
-    if (slug) params.set('slug', `eq.${encodeURIComponent(slug)}`);
+    if (slug) params.set('slug', `eq.${slug}`);
     const response = await fetch(`${base}/rest/v1/articles?${params.toString()}`, { headers });
     const text = await response.text();
     if (!response.ok) return jsonResponse({ success: false, code: 'LOCALIZED_ARTICLE_LIST_FAILED', message: 'Localized article query failed.' }, 502);
