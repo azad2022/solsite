@@ -138,7 +138,18 @@ export const RelatedArticlesCarousel: React.FC<Props> = ({ article, articles, on
                 onClick={event => {
                   if (!onNavigate || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
                   event.preventDefault();
+
                   onNavigate(`/article/${relatedArticle.slug}`);
+
+                  // The article navigation is client-side. Scroll the page after the
+                  // new route has had a chance to render so the new article starts
+                  // at its own top rather than inheriting the previous scroll position.
+                  window.requestAnimationFrame(() => {
+                    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+                    window.requestAnimationFrame(() => {
+                      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+                    });
+                  });
                 }}
                 className="block h-full text-right no-underline"
               >
@@ -165,7 +176,9 @@ export const RelatedArticlesCarousel: React.FC<Props> = ({ article, articles, on
                     <span>•</span>
                     <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{relatedArticle.readTimeMinutes} دقیقه</span>
                   </div>
-                  <h3 className="line-clamp-2 text-base font-extrabold leading-7 text-white transition-colors hover:text-sky-300">{relatedArticle.title}</h3>
+                  <h3 className="line-clamp-2 text-base font-extrabold leading-7 text-sky-400 transition-colors hover:text-sky-300">
+                    {relatedArticle.title}
+                  </h3>
                   <p className="line-clamp-2 text-xs leading-6 text-slate-400">{relatedArticle.summary}</p>
 
                   <div className="flex items-center justify-between gap-3 border-t border-slate-800 pt-3">
