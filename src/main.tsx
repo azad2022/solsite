@@ -1,6 +1,8 @@
-import React, { Component, ReactNode } from 'react';
+import React, { Component, ReactNode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+import { EnglishSite } from './components/english/EnglishSite';
+import { getLocaleFromPath, getAlternateLocalePath, normalizeLocalePath, setDocumentLocale, upsertAlternateLink, removeAlternateLinks } from './utils/i18n';
 import './index.css';
 
 interface ErrorBoundaryProps { children: ReactNode; }
@@ -41,9 +43,55 @@ function installArticleImageGuard() {
   document.addEventListener('error', handleImageError, true);
 }
 
+function LocaleDocumentController() {
+  const [path, setPath] = useState(() => normalizeLocalePath(window.location.pathname || '/'));
+
+  useEffect(() => {
+    const handlePopState = () => setPath(normalizeLocalePath(window.location.pathname || '/'));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const locale = getLocaleFromPath(path);
+    setDocumentLocale(locale);
+    removeAlternateLinks();
+    upsertAlternateLink('fa-IR', `${window.location.origin}${getAlternateLocalePath(path, 'fa')}`);
+    upsertAlternateLink('en', `${window.location.origin}${getAlternateLocalePath(path, 'en')}`);
+    upsertAlternateLink('x-default', `${window.location.origin}${getAlternateLocalePath(path, 'fa')}`);
+  }, [path]);
+
+  return null;
+}
+
+function BilingualEntry() {
+  const [path, setPath] = useState(() => normalizeLocalePath(window.location.pathname || '/'));
+
+  useEffect(() => {
+    const handlePopState = () => setPath(normalizeLocalePath(window.location.pathname || '/'));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (nextPath: string) => {
+    const normalized = normalizeLocalePath(nextPath);
+    if (normalized !== normalizeLocalePath(window.location.pathname)) window.history.pushState({}, '', normalized);
+    setPath(normalized);
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  };
+
+  const isEnglish = getLocaleFromPath(path) === 'en';
+  return (
+    <>
+      <LocaleDocumentController />
+      {isEnglish ? <EnglishSite path={path} onNavigate={navigate} /> : <App />}
+    </>
+  );
+}
+
 installArticleImageGuard();
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ErrorBoundary><App /></ErrorBoundary>
+    <ErrorBoundary><BilingualEntry /></ErrorBoundary>
   </React.StrictMode>
 );
