@@ -12,6 +12,7 @@ test('locale detection recognizes /en and nested English routes', () => {
   assert.equal(getLocaleFromPath('/en'), 'en');
   assert.equal(getLocaleFromPath('/en/'), 'en');
   assert.equal(getLocaleFromPath('/en/solana-price'), 'en');
+  assert.equal(getLocaleFromPath('/en/articles/solana'), 'en');
 });
 
 test('localized paths preserve existing Persian URLs and add /en for English', () => {
@@ -21,8 +22,15 @@ test('localized paths preserve existing Persian URLs and add /en for English', (
   assert.equal(getLocalizedPath('/en/solana-price', 'en'), '/en/solana-price');
 });
 
-test('alternate locale paths map a route to its counterpart', () => {
-  assert.equal(getAlternateLocalePath('/solana-price', 'en'), '/en/solana-price');
-  assert.equal(getAlternateLocalePath('/en/solana-price', 'fa'), '/solana-price');
+test('localized article paths map to the existing Persian article URL', () => {
+  assert.equal(getLocalizedPath('/article/solana-defi', 'en'), '/en/articles/solana-defi');
+  assert.equal(getLocalizedPath('/en/articles/solana-defi', 'fa'), '/article/solana-defi');
+  assert.equal(getAlternateLocalePath('/en/articles/solana-defi', 'fa'), '/article/solana-defi');
+  assert.equal(getAlternateLocalePath('/article/solana-defi', 'en'), '/en/articles/solana-defi');
+});
+
+test('path normalization strips the English prefix only for locale handling', () => {
   assert.equal(getPathWithoutLocale('/en'), '/');
+  assert.equal(getPathWithoutLocale('/en/solana-price'), '/solana-price');
+  assert.equal(getPathWithoutLocale('/en/articles/solana-defi'), '/articles/solana-defi');
 });
