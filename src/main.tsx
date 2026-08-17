@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { EnglishSite } from './components/english/EnglishSite';
 import { getLocaleFromPath, getAlternateLocalePath, normalizeLocalePath, setDocumentLocale, upsertAlternateLink, removeAlternateLinks } from './utils/i18n';
-import { updateEnglishSeo } from './utils/localizedSeo';
+import { updateEnglishArticleSeo, updateEnglishSeo } from './utils/localizedSeo';
 import './index.css';
 
 interface ErrorBoundaryProps { children: ReactNode; }
@@ -13,9 +13,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly childContent: ReactNode;
   state: ErrorBoundaryState = { hasError: false, errorMessage: '' };
   constructor(props: ErrorBoundaryProps) { super(props); this.childContent = props.children; }
-  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    return { hasError: true, errorMessage: error instanceof Error ? error.message : 'خطای ناشناخته در اجرای صفحه' };
-  }
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState { return { hasError: true, errorMessage: error instanceof Error ? error.message : 'خطای ناشناخته در اجرای صفحه' }; }
   componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) { console.error('Solmint React render error:', error, errorInfo); }
   handleReload = () => window.location.reload();
   render() {
@@ -54,13 +52,29 @@ function LocaleDocumentController() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const locale = getLocaleFromPath(path);
     setDocumentLocale(locale);
     removeAlternateLinks();
     upsertAlternateLink('fa-IR', `${window.location.origin}${getAlternateLocalePath(path, 'fa')}`);
     upsertAlternateLink('en', `${window.location.origin}${getAlternateLocalePath(path, 'en')}`);
     upsertAlternateLink('x-default', `${window.location.origin}${getAlternateLocalePath(path, 'fa')}`);
-    if (locale === 'en') updateEnglishSeo(path);
+    if (locale !== 'en') return () => { cancelled = true; };
+
+    updateEnglishSeo(path);
+    const basePath = path.startsWith('/en/') ? path.slice('/en'.length) : path;
+    if (basePath.startsWith('/articles/')) {
+      const slug = decodeURIComponent(basePath.slice('/articles/'.length));
+      fetch(`/api/articles/localized?language=en&slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin', cache: 'no-store' })
+        .then(response => response.ok ? response.json() : null)
+        .then(data => {
+          if (cancelled) return;
+          const article = Array.isArray(data?.articles) ? data.articles[0] : null;
+          if (article) updateEnglishArticleSeo(article);
+        })
+        .catch(() => undefined);
+    }
+    return () => { cancelled = true; };
   }, [path]);
 
   return null;
