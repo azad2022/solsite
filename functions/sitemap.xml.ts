@@ -18,6 +18,7 @@ type ArticleRow = {
   published_at?: string | null;
   published_at_gregorian?: string | null;
   is_draft?: boolean | number | string | null;
+  language?: string | null;
 };
 
 type CategoryRow = { id?: string | null; slug?: string | null; name?: string | null; is_active?: boolean | null };
@@ -55,7 +56,8 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   const staticRoutes = [
     '/', '/solana-price', '/solana-wallet', '/wallet-analyzer', '/solana-token', '/solana-meme-coin',
     '/solana-nft', '/app-guide', '/security', '/download', '/blog', '/faq',
-    '/tools/solana-token-tools', '/tools/solana-token-scanner', '/tools/token-2022-inspector'
+    '/tools/solana-token-tools', '/tools/solana-token-scanner', '/tools/token-2022-inspector',
+    '/en', '/en/solana-price', '/en/blog'
   ];
 
   if (!key) return new Response('Sitemap configuration error', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
@@ -80,7 +82,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       }
     }
 
-    const endpoint = `${supabaseUrl}/rest/v1/articles?select=slug,category_id,category,tags,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`;
+    const endpoint = `${supabaseUrl}/rest/v1/articles?select=slug,category_id,category,tags,updated_at,published_at,published_at_gregorian,is_draft,language&is_draft=eq.false&order=updated_at.desc`;
     const response = await fetch(endpoint, { headers: authHeaders(key) });
     if (!response.ok) throw new Error(`articles query failed: ${response.status}`);
     const articles = await response.json() as ArticleRow[];
@@ -90,7 +92,12 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       if (!isPublished(article)) continue;
       const slug = String(article.slug || '').trim().replace(/^\/+|\/+$/g, '');
       if (!slug) continue;
-      urls.set(`${BASE_URL}/article/${encodeURIComponent(slug)}`, lastModified(article));
+
+      const language = article.language === 'en' ? 'en' : 'fa';
+      const articlePath = language === 'en' ? `/en/articles/${encodeURIComponent(slug)}` : `/article/${encodeURIComponent(slug)}`;
+      urls.set(`${BASE_URL}${articlePath}`, lastModified(article));
+
+      if (language !== 'fa') continue;
 
       const categorySlug = article.category_id ? categorySlugs.get(String(article.category_id)) : '';
       if (categorySlug) {
