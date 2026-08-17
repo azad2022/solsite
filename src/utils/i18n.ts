@@ -21,14 +21,23 @@ export function getPathWithoutLocale(path: string): string {
   return normalized;
 }
 
+function normalizeContentPath(basePath: string, locale: SupportedLocale): string {
+  if (locale === 'fa') {
+    if (basePath.startsWith('/articles/')) return `/article/${basePath.slice('/articles/'.length)}`;
+    return basePath;
+  }
+  if (basePath.startsWith('/article/')) return `/articles/${basePath.slice('/article/'.length)}`;
+  return basePath;
+}
+
 export function getLocalizedPath(path: string, locale: SupportedLocale): string {
-  const basePath = getPathWithoutLocale(path);
+  const basePath = normalizeContentPath(getPathWithoutLocale(path), locale);
   if (locale === 'fa') return basePath;
   return basePath === '/' ? ENGLISH_PREFIX : `${ENGLISH_PREFIX}${basePath}`;
 }
 
 export function getAlternateLocalePath(path: string, locale: SupportedLocale): string {
-  return getLocalizedPath(getPathWithoutLocale(path), locale);
+  return getLocalizedPath(path, locale);
 }
 
 export function setDocumentLocale(locale: SupportedLocale): void {
