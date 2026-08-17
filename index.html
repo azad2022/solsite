@@ -3,7 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
+    <script>
+      (() => {
+        const path = window.location.pathname.replace(/\/+$/, '') || '/';
+        if (path === '/en' || path.startsWith('/en/')) {
+          document.documentElement.lang = 'en';
+          document.documentElement.dir = 'ltr';
+        }
+      })();
+    </script>
     <!-- Primary Title & SEO Meta Tags -->
     <title>سولمینت | کیف پول غیرامانی سولانا، ساخت توکن، میم کوین و مدیریت وب۳</title>
     <meta name="title" content="سولمینت | کیف پول غیرامانی سولانا، ساخت توکن، میم کوین و مدیریت وب۳" />
