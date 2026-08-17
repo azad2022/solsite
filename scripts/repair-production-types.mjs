@@ -34,6 +34,7 @@ let changed = [];
   }
 
   source = source.replace(/setAdminTab\(tab\)/g, 'setAdminTab(tab as AdminPermission)');
+  source = source.replace(/setAdminTab\(userPerms\[0\] \|\| 'articles'\)/g, "setAdminTab((userPerms[0] || 'articles') as AdminPermission)");
   source = source.replace(/asset\.url/g, 'asset.publicUrl');
 
   if (source !== before) {
