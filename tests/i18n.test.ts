@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getAlternateLocalePath, getLocaleFromPath, getLocalizedPath, getPathWithoutLocale } from '../src/utils/i18n';
+import { getAlternateLocalePath, getLocaleFromPath, getLocalizedPath, getPathWithoutLocale } from '../src/utils/i18n.ts';
 
 test('locale detection keeps existing Persian routes as fa', () => {
   assert.equal(getLocaleFromPath('/'), 'fa');
