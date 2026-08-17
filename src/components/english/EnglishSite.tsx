@@ -15,6 +15,7 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
   const [articles, setArticles] = useState<Article[]>([]);
   const [solanaStatus, setSolanaStatus] = useState<SolanaStatus>(defaultSolanaStatus);
   const [currentUser] = useState<UserAccount | null>(() => safeGetLocalStorage<UserAccount | null>('solmint_current_user', null));
+  const [languageSwitchPath, setLanguageSwitchPath] = useState(() => getLocalizedPath(path, 'fa'));
   const articleMatch = normalized.match(/^\/en\/articles\/([^/]+)$/);
   const articleSlug = articleMatch ? decodeURIComponent(articleMatch[1]) : '';
 
@@ -36,11 +37,36 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const resolveTranslation = async () => {
+      if (!articleSlug) {
+        setLanguageSwitchPath(getLocalizedPath(path, 'fa'));
+        return;
+      }
+      const article = articles.find(item => item.slug === articleSlug) as (Article & { translationGroupId?: string | null }) | undefined;
+      const groupId = article?.translationGroupId || article?.id;
+      if (!groupId) {
+        setLanguageSwitchPath('/');
+        return;
+      }
+      try {
+        const response = await fetch(`/api/articles/translation?groupId=${encodeURIComponent(groupId)}&language=fa`, { credentials: 'same-origin', cache: 'no-store' });
+        const data = response.ok ? await response.json() : null;
+        const slug = data?.article?.slug;
+        if (!cancelled) setLanguageSwitchPath(slug ? `/article/${encodeURIComponent(slug)}` : '/');
+      } catch {
+        if (!cancelled) setLanguageSwitchPath('/');
+      }
+    };
+    resolveTranslation();
+    return () => { cancelled = true; };
+  }, [path, articleSlug, articles]);
+
   const refreshStatus = () => {
     fetch('/api/solana/status', { cache: 'no-store' }).then(response => response.ok ? response.json() : null).then(data => { if (data) setSolanaStatus(data); }).catch(() => undefined);
   };
   const openAuth = () => { window.location.href = '/'; };
-  const languageSwitchPath = getLocalizedPath(path, 'fa');
 
   return (
     <div dir="ltr" className="min-h-screen bg-[#08080f] text-slate-100 antialiased font-['Vazirmatn',sans-serif]">
