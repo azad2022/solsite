@@ -1,4 +1,5 @@
 import { error, handleOptions, json, normalizeTags, supabase } from '../_shared';
+import { getCanonicalTagSlug } from '../../../../src/config/articleTaxonomy';
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: Record<string, string | undefined> }) => {
   const options = handleOptions(request);
@@ -17,7 +18,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Re
       for (const tag of normalizeTags(row.tags)) counts.set(tag, (counts.get(tag) || 0) + 1);
     }
     const data = Array.from(counts.entries())
-      .map(([name, articleCount]) => ({ name, articleCount }))
+      .map(([name, articleCount]) => ({ name, slug: getCanonicalTagSlug(name), articleCount }))
       .sort((a, b) => b.articleCount - a.articleCount || a.name.localeCompare(b.name, 'fa'));
 
     return json(request, { success: true, data });
