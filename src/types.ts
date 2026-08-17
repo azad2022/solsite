@@ -72,6 +72,12 @@ export interface Article {
   id: string;
   title: string;
   slug: string;
+  /**
+   * Language metadata is optional during the migration so all existing
+   * production articles remain valid without a database migration.
+   */
+  language?: 'fa' | 'en';
+  translationGroupId?: string;
   category: 'آموزش سولانا' | 'توسعه وب۳' | 'امنیت' | 'اخبار و تحلیل' | 'آموزش ساخت میم کوین' | 'آموزش ساخت NFT' | 'کیف پول سولانا' | 'ترید' | 'پراپ تریدینگ';
   tags: string[];
   summary: string;
@@ -173,21 +179,8 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
 export interface ChatbotSettings { enabled: boolean; apiKey?: string; apiBaseUrl?: string; botName: string; botAvatar: string; welcomeMessage: string; systemPrompt: string; suggestedQuestions: string[]; placeholderText: string; model: string; maxHistoryTurns: number; }
 
 export const DEFAULT_CHATBOT_SETTINGS: ChatbotSettings = {
-  // Public visibility is server-controlled. Until /api/cms/settings explicitly
-  // enables the chatbot, the widget must remain hidden.
   enabled: false, apiKey: '', apiBaseUrl: 'https://api.deepseek.com/v1', botName: 'پشتیبان هوشمند سولمینت', botAvatar: '🤖',
   welcomeMessage: 'سلام! 👋 من دستیار هوشمند سولمینت هستم. چطور می‌توانم در زمینه ساخت توکن، کیف پول سولانا، یا بازیابی کارمزد اجاره (Rent Claim) به شما کمک کنم؟',
-  systemPrompt: `شما "پشتیبان هوشمند رسمی وبسایت و اپلیکیشن سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
-
-دستورالعمل‌های پاسخ‌دهی به کاربران:
-۱. پاسخ‌های شما باید بسیار محترمانه، صمیمی، دقیق، کاربردی و به زبان فارسی روان باشد.
-۲. ویژگی‌های سولمینت:
-  - ساخت توکن و میم‌کوین بدون نیاز به هیچ‌گونه کدنویسی یا سیستم خانگی (کاملاً با گوشی موبایل).
-  - بازیابی کارمزد اجاره حساب‌های خالی سولانا (SOL Rent Claim) جهت بازگرداندن سولانای قفل شده.
-  - کیف پول غیرامانی (Non-Custodial): کلیدهای خصوصی تنها روی دستگاه کاربر نگهداری می‌شوند.
-  - ضرب NFT، انتقال سریع و کارمزد نزدیک به صفر.
-۳. در صورت پرسش درباره لینک دانلود، کاربر را به کانال تلگرام رسمی @solmintchannel یا وبسایت solmint.ir راهنمایی کنید.
-۴. از ایموجی‌های مناسب و فرمت‌بندی خوانا (بولت‌پوینت) استفاده کنید.`,
-  suggestedQuestions: ['چگونه در سولمینت توکن بسازم؟','بازیابی کارمزد اجاره (Rent Claim) چیست؟','آیا سولمینت کلید خصوصی من را ذخیره می‌کند؟','لینک دانلود مستقیم اپلیکیشن سولمینت'],
-  placeholderText: 'سوال خود را بپرسید...', model: 'deepseek-chat', maxHistoryTurns: 8
+  systemPrompt: `شما "پشتیبان هوشمند رسمی وبسایت و اپلیکیشن سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.`,
+  suggestedQuestions: ['قیمت سولانا چقدر است؟','چطور توکن سولانا بسازم؟','کیف پول غیرامانی چیست؟'], placeholderText: 'پیام خود را بنویسید...', model: 'deepseek-chat', maxHistoryTurns: 8
 };
