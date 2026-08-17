@@ -1,4 +1,4 @@
-import { error, handleOptions, json, normalizeArticle, parsePositiveInt, quote, supabase } from '../_shared';
+import { error, handleOptions, json, normalizeArticle, parsePositiveInt, supabase } from '../_shared';
 
 const SELECT = [
   'id','title','slug','category','tags','summary','content','cover_image','cover_image_asset_id',
@@ -37,19 +37,16 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Re
     const db = supabase(env);
     const filters: string[] = ['is_draft=eq.false'];
     if (category) filters.push(`category=eq.${encodeURIComponent(category)}`);
-    if (tag) filters.push(`tags=cs.{${quote(tag)}}`);
+    if (tag) filters.push(`tags=cs.${encodeURIComponent(`{${tag}}`)}`);
     if (search) {
-      const term = `*${search.replace(/[*]/g, ' ').trim()}*`;
-      filters.push(`or=(title.ilike.${encodeURIComponent(term)},summary.ilike.${encodeURIComponent(term)},content.ilike.${encodeURIComponent(term)})`);
+      const pattern = `*${search.replace(/[,*()]/g, ' ').replace(/\s+/g, ' ').trim()}*`;
+      const or = `(title.ilike.${pattern},summary.ilike.${pattern},content.ilike.${pattern})`;
+      filters.push(`or=${encodeURIComponent(or)}`);
     }
 
     const from = (page - 1) * limit;
-    const to = from + limit - 1;
     const endpoint = `${db.base}/rest/v1/articles?select=${encodeURIComponent(SELECT)}&${filters.join('&')}&order=${sortColumn}.${order}&offset=${from}&limit=${limit}`;
-    const response = await fetch(endpoint, {
-      headers: { ...db.headers, Prefer: 'count=exact' },
-      cf: { cacheTtl: 60, cacheEverything: false }
-    });
+    const response = await fetch(endpoint, { headers: { ...db.headers, Prefer: 'count=exact' } });
     const text = await response.text();
     if (!response.ok) return error(request, 'UPSTREAM_ERROR', 'Unable to retrieve articles.', 502);
     const rows = text ? JSON.parse(text) : [];
