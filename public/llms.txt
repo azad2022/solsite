@@ -1,11 +1,12 @@
 # Solmint - Next-Generation Solana Ecosystem Platform & Wallet
 
-> Solmint (سولمینت) is the premier Persian platform for the Solana blockchain ecosystem, offering secure non-custodial mobile wallet tools, instant token minting, meme coin launching, NFT minting, and comprehensive cryptocurrency educational resources.
+> Solmint (سولمینت) is the premier Persian platform for the Solana blockchain ecosystem, offering secure non-custodial mobile wallet tools, instant token minting, meme coin launching, NFT minting, wallet analysis, and comprehensive cryptocurrency educational resources.
 
 ## Key Services & Documentation
 
 - [Solmint Official Platform](https://solmint.ir/): Main portal, feature overview, and ecosystem updates.
 - [Solana Wallet](https://solmint.ir/solana-wallet): Non-custodial, high-security mobile wallet interface and guide.
+- [Wallet Analyzer](https://solmint.ir/wallet-analyzer): Read-only public wallet analysis page for checking crypto wallet addresses, with an initial focus on Solana and a roadmap toward multi-chain analysis.
 - [Solana Token Creator](https://solmint.ir/solana-token): No-code SPL token creation and minting utilities on Solana.
 - [Solana Meme Coin Launchpad](https://solmint.ir/solana-meme-coin): Instant meme coin deployment, liquidity configuration, and tokenomics tools.
 - [Solana NFT Minting](https://solmint.ir/solana-nft): NFT collection generation, metadata configuration, and minting suite.
