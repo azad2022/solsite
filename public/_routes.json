@@ -13,6 +13,8 @@
     "/api/market/*",
     "/api/tools/*",
     "/api/users/*",
+    "/api/v1",
+    "/api/v1/*",
     "/solana-token",
     "/solana-wallet",
     "/solana-nft",
