@@ -20,7 +20,7 @@ export type ArticlePublic = {
   category: string;
   tags: string[];
   summary: string;
-  content: string;
+  content: string | null;
   coverImage: string | null;
   coverImageAssetId: string | null;
   videoUrl: string | null;
@@ -30,7 +30,7 @@ export type ArticlePublic = {
   publishedAtGregorian: string | null;
   readTimeMinutes: number;
   viewsCount: number;
-  commentsCount: number;
+  commentsCount: number | null;
   relatedArticles?: RelatedArticle[];
 };
 
@@ -107,7 +107,7 @@ export function normalizeAuthor(value: unknown): ArticlePublic['author'] {
   };
 }
 
-export function normalizeArticle(row: Record<string, unknown>): ArticlePublic {
+export function normalizeArticle(row: Record<string, unknown>, includeContent = false): ArticlePublic {
   const comments = Array.isArray(row.comments) ? row.comments : [];
   return {
     id: String(row.id || ''),
@@ -116,7 +116,7 @@ export function normalizeArticle(row: Record<string, unknown>): ArticlePublic {
     category: String(row.category || 'آموزش سولانا'),
     tags: normalizeTags(row.tags),
     summary: String(row.summary || ''),
-    content: String(row.content || ''),
+    content: includeContent ? String(row.content || '') : null,
     coverImage: row.cover_image ? String(row.cover_image) : null,
     coverImageAssetId: row.cover_image_asset_id ? String(row.cover_image_asset_id) : null,
     videoUrl: row.video_url ? String(row.video_url) : null,
@@ -126,12 +126,12 @@ export function normalizeArticle(row: Record<string, unknown>): ArticlePublic {
     publishedAtGregorian: row.published_at_gregorian ? String(row.published_at_gregorian) : null,
     readTimeMinutes: Number(row.read_time_minutes ?? 5),
     viewsCount: Number(row.views_count ?? 0),
-    commentsCount: comments.length
+    commentsCount: Array.isArray(row.comments) ? comments.length : null
   };
 }
 
 export function relatedFromArticle(row: Record<string, unknown>): RelatedArticle {
-  const article = normalizeArticle(row);
+  const article = normalizeArticle(row, false);
   return {
     id: article.id,
     title: article.title,
@@ -141,10 +141,6 @@ export function relatedFromArticle(row: Record<string, unknown>): RelatedArticle
     category: article.category,
     publishedAt: article.publishedAt
   };
-}
-
-export function quote(value: string): string {
-  return value.replace(/,/g, '\\,').replace(/([()])/g, '\\$1');
 }
 
 export function isValidSlug(value: string): boolean {
