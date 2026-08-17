@@ -87,7 +87,7 @@ function rpcEndpoints(env: Env) {
   return configured ? [configured, ...RPC_ENDPOINTS.filter(x => x !== configured)] : RPC_ENDPOINTS;
 }
 
-async function rpcCall(env: Env, method: string, params: unknown[]): Promise<unknown> {
+async function rpcCall(env: Env, method: string, params: readonly unknown[]): Promise<unknown> {
   let lastError = 'RPC request failed';
   for (const endpoint of rpcEndpoints(env)) {
     try {

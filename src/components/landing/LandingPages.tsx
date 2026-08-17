@@ -262,8 +262,8 @@ export const SecurityPage: React.FC<LandingPageProps> = () => {
    6. OFFICIAL DOWNLOAD PAGE (/download)
    ==================================================================== */
 export const OfficialDownloadPage: React.FC<LandingPageProps> = ({ downloadLinks }) => {
-  const directApkUrl = downloadLinks?.directApkUrl || 'https://t.me/solmintchannel';
-  const tgChannelUrl = downloadLinks?.telegramChannelUrl || 'https://t.me/solmintchannel';
+  const directApkUrl = downloadLinks?.apkUrl || 'https://t.me/solmintchannel';
+  const tgChannelUrl = downloadLinks?.telegramUrl || 'https://t.me/solmintchannel';
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12 space-y-12 dir-rtl">

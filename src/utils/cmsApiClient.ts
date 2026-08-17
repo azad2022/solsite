@@ -15,6 +15,7 @@ export interface CmsSettings {
 }
 
 export interface ModerationComment extends ArticleComment {
+  articleId?: string;
   approved?: boolean;
   parentId?: string | null;
   likeCount?: number;
