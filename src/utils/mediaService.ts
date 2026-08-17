@@ -1,4 +1,4 @@
-import { MediaAsset, MediaStorageConfig, DEFAULT_MEDIA_STORAGE_CONFIG } from '../types';
+import { MediaAsset, MediaStorageConfig, DEFAULT_MEDIA_STORAGE_CONFIG } from '../types.ts';
 
 async function serverJson<T = any>(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; data: T | null }> {
   try {
