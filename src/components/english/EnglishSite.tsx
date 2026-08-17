@@ -1,58 +1,69 @@
 import React, { useEffect, useState } from 'react';
 import { getLocalizedPath } from '../../utils/i18n';
+import { HeroSection } from '../HeroSection';
 
 type EnglishSiteProps = { path: string; onNavigate: (path: string) => void };
 
 const EnglishHeader: React.FC<{ path: string; onNavigate: (path: string) => void }> = ({ path, onNavigate }) => (
-  <header className="sticky top-0 z-40 border-b border-white/10 bg-[#05050a]/95 backdrop-blur-xl">
-    <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-      <button type="button" onClick={() => onNavigate('/en')} className="flex items-center gap-3 text-left">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-[#9945FF] via-[#14F195] to-[#00C2FF] p-0.5">
-          <span className="flex h-full w-full items-center justify-center rounded-[10px] bg-[#05050a] text-sm font-black text-white">S</span>
-        </span>
-        <span className="font-extrabold tracking-tight text-white">Solmint</span>
+  <header className="relative w-full z-40 bg-[#05050a]/90 backdrop-blur-xl border-b border-white/[0.08]">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      <button type="button" onClick={() => onNavigate('/en')} className="flex items-center gap-2.5 cursor-pointer group shrink-0 bg-transparent border-0 p-0">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#9945FF] via-[#14F195] to-[#00C2FF] p-0.5 shadow-lg shadow-[#9945FF]/20 group-hover:scale-105 transition-transform flex items-center justify-center">
+          <div className="w-full h-full bg-[#05050a] rounded-[10px] flex items-center justify-center"><span className="font-black text-white text-base">S</span></div>
+        </div>
+        <span className="font-extrabold text-lg tracking-tight text-white">Solmint</span>
       </button>
-      <nav className="hidden items-center gap-1 sm:flex">
-        <button onClick={() => onNavigate('/en')} className={`rounded-full px-3 py-2 text-sm ${path === '/en' ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}>Home</button>
-        <button onClick={() => onNavigate('/en/solana-price')} className={`rounded-full px-3 py-2 text-sm ${path === '/en/solana-price' ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}>Solana Price</button>
-        <a href={getLocalizedPath(path, 'fa')} className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300 hover:text-white">فارسی</a>
+
+      <nav className="hidden lg:flex items-center gap-0.5 bg-white/[0.03] p-1 rounded-full border border-white/10 whitespace-nowrap overflow-visible">
+        {[
+          ['/en', 'Home'],
+          ['/en/solana-price', 'Solana Price'],
+          ['/en#wallet', 'Wallet'],
+          ['/en#web3', 'Web3'],
+          ['/en#open-source', 'Open Source']
+        ].map(([href, label]) => {
+          const route = href.startsWith('/en/') ? href : href.split('#')[0];
+          const active = route && path === route;
+          return <a key={href} href={href.startsWith('/en#') ? href : href} onClick={e => { if (href.startsWith('/en#')) { e.preventDefault(); onNavigate('/en'); } else { e.preventDefault(); onNavigate(route); } }} className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${active ? 'bg-white/10 text-white font-bold' : 'text-slate-300 hover:text-white'}`}>{label}</a>;
+        })}
+        <a href={getLocalizedPath(path, 'fa')} className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white">فارسی</a>
       </nav>
-      <a href={getLocalizedPath(path, 'fa')} className="sm:hidden rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">فارسی</a>
+
+      <a href={getLocalizedPath(path, 'fa')} className="sm:hidden rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-300">فارسی</a>
     </div>
   </header>
 );
 
 const EnglishHome: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
   <>
-    <section className="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 lg:px-8 lg:pt-24">
-      <div className="max-w-3xl">
-        <p className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-[#14F195]">Solana • Web3 • Open Source</p>
-        <h1 className="text-4xl font-black leading-tight text-white sm:text-6xl">Solmint — a Solana-focused platform for wallets, market data and Web3 education.</h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">Solmint is building an open, non-custodial ecosystem around Solana. Explore live SOL market data, learn about Solana and follow the development of the upcoming open-source wallet.</p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <button onClick={() => onNavigate('/en/solana-price')} className="rounded-xl bg-[#14F195] px-5 py-3 font-extrabold text-black">View SOL Price</button>
-          <a href="https://github.com/azad2022/solsite" target="_blank" rel="noreferrer" className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-bold text-white hover:bg-white/10">View Source on GitHub</a>
+    <HeroSection locale="en" onExploreFeatures={() => onNavigate('/en#features')} />
+    <section id="features" dir="ltr" className="py-20 border-b border-white/5 relative overflow-hidden">
+      <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 bg-[#9945FF]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-[#14F195]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
+        <div className="text-center space-y-4 max-w-3xl mx-auto">
+          <h2 className="text-[48px] font-bold text-white leading-[62.5px]">Solmint platform <br className="hidden sm:block" /><span className="bg-gradient-to-r from-[#9945FF] to-[#14F195] bg-clip-text text-transparent">at a glance</span></h2>
+          <p className="text-slate-400 text-[13px] leading-relaxed">The English experience uses the same visual system and layout language as the existing Solmint platform.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[
+            ['Non-Custodial Direction', 'A wallet architecture centered on user-controlled keys and transparent client-side signing.'],
+            ['Solana Market Data', 'Live SOL market information is served from the same production infrastructure used by the current site.'],
+            ['Open-Source Development', 'The public codebase gives the international version the same transparent development model.']
+          ].map(([title, body]) => (
+            <article key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 hover:bg-white/[0.05] transition-colors">
+              <h3 className="text-lg font-black text-white">{title}</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-400">{body}</p>
+            </article>
+          ))}
         </div>
       </div>
     </section>
-    <section className="border-y border-white/10 bg-white/[0.02]">
-      <div className="mx-auto grid max-w-7xl gap-5 px-4 py-12 sm:px-6 md:grid-cols-3 lg:px-8">
-        {[
-          ['Non-custodial direction', 'The wallet roadmap is designed around user-controlled keys and a transparent architecture.'],
-          ['Solana market data', 'Live network and price experiences are integrated into the same platform.'],
-          ['Open-source approach', 'The public codebase allows the product direction to be reviewed and developed openly.']
-        ].map(([title, body]) => (
-          <article key={title} className="rounded-2xl border border-white/10 bg-[#0b0b13] p-6">
-            <h2 className="text-lg font-extrabold text-white">{title}</h2>
-            <p className="mt-2 text-sm leading-7 text-slate-400">{body}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-    <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+    <section id="open-source" dir="ltr" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
       <div className="rounded-3xl border border-[#9945FF]/20 bg-gradient-to-br from-[#9945FF]/10 to-[#14F195]/5 p-8 sm:p-10">
-        <h2 className="text-2xl font-black text-white">Building the wallet in public</h2>
-        <p className="mt-3 max-w-3xl leading-8 text-slate-300">The English site will become the international surface of Solmint while the existing Persian URLs remain stable. This page is the first production slice of that migration.</p>
+        <h2 className="text-2xl font-black text-white">Building Solmint in public</h2>
+        <p className="mt-3 max-w-3xl leading-8 text-slate-300">The English surface is being added without moving or breaking the existing Persian URLs. The same production project remains the single source of code, data and deployment.</p>
+        <a href="https://github.com/azad2022/solsite" target="_blank" rel="noreferrer" className="inline-flex mt-6 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-bold text-white hover:bg-white/10">View source on GitHub</a>
       </div>
     </section>
   </>
@@ -63,27 +74,19 @@ const EnglishSolanaPrice: React.FC = () => {
   const [change, setChange] = useState<number | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/solana/status')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (!cancelled && data) { setPrice(Number(data.price)); setChange(Number(data.change24h)); } })
-      .catch(() => undefined);
+    fetch('/api/solana/status').then(res => res.ok ? res.json() : null).then(data => { if (!cancelled && data) { setPrice(Number(data.price)); setChange(Number(data.change24h)); } }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
   return (
-    <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-      <div className="max-w-3xl">
-        <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#14F195]">Solana market</p>
-        <h1 className="mt-3 text-4xl font-black text-white sm:text-5xl">Solana (SOL) price and live market data</h1>
-        <p className="mt-5 text-lg leading-8 text-slate-300">Track the current SOL price and 24-hour market movement on Solmint. This English route is connected to the same production market endpoint used by the existing platform.</p>
-      </div>
-      <div className="mt-10 grid max-w-3xl gap-5 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-[#0b0b13] p-6">
-          <div className="text-sm text-slate-400">SOL price</div>
-          <div className="mt-2 text-4xl font-black text-white">{price == null ? '—' : `$${price.toLocaleString('en-US', { maximumFractionDigits: 4 })}`}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-[#0b0b13] p-6">
-          <div className="text-sm text-slate-400">24h change</div>
-          <div className="mt-2 text-4xl font-black text-white">{change == null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`}</div>
+    <section dir="ltr" className="relative pt-12 pb-20 overflow-hidden border-b border-white/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto space-y-8 text-left">
+          <h1 className="text-[42px] sm:text-[48px] font-black text-white leading-tight tracking-tight">Solana (SOL) price and live market data</h1>
+          <p className="text-slate-300 text-[13px] sm:text-[14px] max-w-3xl leading-7">Track the current SOL price and 24-hour movement using the same production market endpoint as the existing Solmint platform.</p>
+          <div className="grid max-w-3xl gap-5 sm:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6"><div className="text-xs text-slate-400">SOL price</div><div className="mt-2 text-4xl font-black text-white">{price == null ? '—' : `$${price.toLocaleString('en-US', { maximumFractionDigits: 4 })}`}</div></div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6"><div className="text-xs text-slate-400">24h change</div><div className="mt-2 text-4xl font-black text-white">{change == null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`}</div></div>
+          </div>
         </div>
       </div>
     </section>
@@ -91,7 +94,7 @@ const EnglishSolanaPrice: React.FC = () => {
 };
 
 const EnglishNotFound: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
-  <section className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6 lg:px-8">
+  <section dir="ltr" className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6 lg:px-8">
     <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#14F195]">404</p>
     <h1 className="mt-3 text-4xl font-black text-white">Page not found</h1>
     <p className="mx-auto mt-4 max-w-xl leading-8 text-slate-400">The requested English page does not exist yet.</p>
