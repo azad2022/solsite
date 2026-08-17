@@ -40,6 +40,7 @@ const AppUserGuidePage = lazy(() => import('./components/AppUserGuidePage').then
 const SolanaTokenToolsHub = lazy(() => import('./components/tools/SolanaTokenToolsHub').then(m => ({ default: m.SolanaTokenToolsHub })));
 const SolanaTokenScannerPage = lazy(() => import('./components/tools/SolanaTokenScannerPage').then(m => ({ default: m.SolanaTokenScannerPage })));
 const Token2022InspectorPage = lazy(() => import('./components/tools/Token2022InspectorPage').then(m => ({ default: m.Token2022InspectorPage })));
+const WalletAnalyzerPage = lazy(() => import('./components/wallet/WalletAnalyzerPage').then(m => ({ default: m.WalletAnalyzerPage })));
 
 const normalizePath = (path: string) => { const withoutQuery = (path || '/').split('?')[0].split('#')[0]; const normalized = withoutQuery.replace(/\/+$/, ''); return normalized || '/'; };
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
@@ -147,6 +148,7 @@ export default function App() {
       {currentPath === '/download' && <OfficialDownloadPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/faq' && <FaqPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/app-guide' && <AppUserGuidePage onNavigate={handleNavigate} />}
+      {currentPath === '/wallet-analyzer' && <WalletAnalyzerPage onNavigate={handleNavigate} />}
       {currentPath === '/tools/solana-token-tools' && <SolanaTokenToolsHub onNavigate={handleNavigate} />}
       {currentPath === '/tools/solana-token-scanner' && <SolanaTokenScannerPage onNavigate={handleNavigate} />}
       {currentPath === '/tools/token-2022-inspector' && <Token2022InspectorPage onNavigate={handleNavigate} />}
