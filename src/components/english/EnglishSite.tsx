@@ -90,6 +90,15 @@ const EnglishSolanaPrice: React.FC = () => {
   );
 };
 
+const EnglishNotFound: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
+  <section className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6 lg:px-8">
+    <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#14F195]">404</p>
+    <h1 className="mt-3 text-4xl font-black text-white">Page not found</h1>
+    <p className="mx-auto mt-4 max-w-xl leading-8 text-slate-400">The requested English page does not exist yet.</p>
+    <button onClick={() => onNavigate('/en')} className="mt-8 rounded-xl bg-[#14F195] px-5 py-3 font-extrabold text-black">Back to Solmint</button>
+  </section>
+);
+
 export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) => {
   const normalized = path === '/en' ? '/en' : path.replace(/\/+$/, '');
   return (
@@ -98,6 +107,7 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
       <main>
         {normalized === '/en' && <EnglishHome onNavigate={onNavigate} />}
         {normalized === '/en/solana-price' && <EnglishSolanaPrice />}
+        {normalized !== '/en' && normalized !== '/en/solana-price' && <EnglishNotFound onNavigate={onNavigate} />}
       </main>
     </div>
   );
