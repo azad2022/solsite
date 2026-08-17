@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SolanaStatus, UserAccount } from '../types';
-import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search } from 'lucide-react';
+import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search, Activity } from 'lucide-react';
 
 export const SolanaLogoIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
   <svg className={className} viewBox="0 0 397 311" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -34,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
   const handleNav = (path: string) => { setMobileMenuOpen(false); setToolsOpen(false); onNavigate(path); };
   const canManageShowcase = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
   const toolsActive = currentPath.startsWith('/tools/');
+  const walletAnalyzerActive = currentPath === '/wallet-analyzer';
 
   return (
     <header className="relative w-full z-40 bg-[#05050a]/90 backdrop-blur-xl border-b border-white/[0.08]">
@@ -48,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
         <nav className="hidden lg:flex items-center gap-0.5 bg-white/[0.03] p-1 rounded-full border border-white/10 whitespace-nowrap overflow-visible">
           <a href="/" onClick={e => { e.preventDefault(); handleNav('/'); }} className={navClass(currentPath === '/')}>صفحه اصلی</a>
           <a href="/solana-wallet" onClick={e => { e.preventDefault(); handleNav('/solana-wallet'); }} className={navClass(currentPath === '/solana-wallet')}>کیف پول سولانا</a>
+          <a href="/wallet-analyzer" onClick={e => { e.preventDefault(); handleNav('/wallet-analyzer'); }} className={`${navClass(walletAnalyzerActive)} inline-flex items-center gap-1.5 ${walletAnalyzerActive ? 'bg-[#14F195]/10 text-[#14F195] border border-[#14F195]/25' : ''}`}><Activity className="h-3.5 w-3.5" /><span>تحلیل کیف پول</span></a>
           <a href="/solana-price" onClick={e => { e.preventDefault(); handleNav('/solana-price'); }} className={`${navClass(currentPath === '/solana-price')} ${currentPath === '/solana-price' ? 'bg-[#14F195]/15 text-[#14F195] border border-[#14F195]/30' : ''}`}>قیمت لحظه‌ای سولانا</a>
           <a href="/solana-token" onClick={e => { e.preventDefault(); handleNav('/solana-token'); }} className={navClass(currentPath === '/solana-token')}>ساخت توکن</a>
           <a href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
@@ -104,6 +106,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
         <div className="lg:hidden bg-[#08080f]/98 border-b border-white/10 px-4 py-5 space-y-2 backdrop-blur-2xl max-h-[calc(100vh-4rem)] overflow-y-auto">
           <button onClick={() => handleNav('/')} className={mobileNavClass(currentPath === '/')}>صفحه اصلی</button>
           <button onClick={() => handleNav('/solana-wallet')} className={mobileNavClass(currentPath === '/solana-wallet')}>کیف پول سولانا</button>
+          <button onClick={() => handleNav('/wallet-analyzer')} className={mobileNavClass(walletAnalyzerActive)}>تحلیل کیف پول ارز دیجیتال</button>
           <button onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
           <button onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
           <button onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>ساخت میم کوین</button>
