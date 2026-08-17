@@ -922,7 +922,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       const userPerms = user.permissions && user.permissions.length > 0
         ? user.permissions
         : (user.role === 'superadmin' || user.role === 'admin' ? ALL_ADMIN_PERMISSIONS : ['articles', 'editor', 'comments', 'media']);
-      if (!userPerms.includes(adminTab)) setAdminTab(userPerms[0] || 'articles');
+      if (!userPerms.includes(adminTab)) setAdminTab((userPerms[0] || 'articles') as AdminPermission);
       return;
     }
 
