@@ -1,9 +1,9 @@
 import { error, handleOptions, json, normalizeArticle, parsePositiveInt, supabase } from '../_shared';
 
 const SELECT = [
-  'id','title','slug','category','tags','summary','content','cover_image','cover_image_asset_id',
+  'id','title','slug','category','tags','summary','cover_image','cover_image_asset_id',
   'video_url','author','published_at','published_at_jalali','published_at_gregorian',
-  'read_time_minutes','views_count','comments','created_at','updated_at'
+  'read_time_minutes','views_count','created_at','updated_at'
 ].join(',');
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: Record<string, string | undefined> }) => {
@@ -59,7 +59,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Re
 
     return json(request, {
       success: true,
-      data: rows.map((row: Record<string, unknown>) => normalizeArticle(row)),
+      data: rows.map((row: Record<string, unknown>) => normalizeArticle(row, false)),
       pagination: { page, limit, total, pages, hasNext: total === null ? rows.length === limit : page < pages, hasPrevious: page > 1 },
       filters: { search: search || null, category: category || null, tag: tag || null, sort, order }
     });
