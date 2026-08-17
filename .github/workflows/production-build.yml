@@ -37,10 +37,10 @@ jobs:
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          if ! git diff --quiet -- src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx; then
+          if ! git diff --quiet -- src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx
+            git add src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts
             git commit -m "fix: repair production TypeScript mismatches"
             git push
           fi
