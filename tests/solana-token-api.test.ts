@@ -9,6 +9,12 @@ function response(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
 }
 
+async function readRequestBody(input: RequestInfo | URL, init?: RequestInit) {
+  if (init?.body) return JSON.parse(String(init.body));
+  if (input instanceof Request) return await input.clone().json();
+  return {};
+}
+
 test('solana token scanner rejects malformed mint without upstream request', async () => {
   let called = false;
   globalThis.fetch = async () => { called = true; return response({}); };
@@ -21,8 +27,8 @@ test('solana token scanner rejects malformed mint without upstream request', asy
 
 test('token-2022 inspector mode skips expensive holder and metadata calls', async () => {
   const calls: string[] = [];
-  globalThis.fetch = async (input) => {
-    const body = JSON.parse(String((input as Request).body || '{}'));
+  globalThis.fetch = async (input, init) => {
+    const body = await readRequestBody(input, init);
     calls.push(body.method);
     if (body.method === 'getAccountInfo') return response({ result: { context: { slot: 123 }, value: { owner: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1Q9fD7j3Y7h', data: { parsed: { type: 'mint', info: { decimals: 6, supply: '1000000', isInitialized: true, mintAuthority: null, freezeAuthority: null, extensions: [{ type: 'TransferFeeConfig' }] } } } } } });
     throw new Error(`unexpected RPC method: ${body.method}`);
