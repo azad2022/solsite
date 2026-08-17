@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { EnglishSite } from './components/english/EnglishSite';
 import { getLocaleFromPath, getAlternateLocalePath, normalizeLocalePath, setDocumentLocale, upsertAlternateLink, removeAlternateLinks } from './utils/i18n';
+import { updateEnglishSeo } from './utils/localizedSeo';
 import './index.css';
 
 interface ErrorBoundaryProps { children: ReactNode; }
@@ -59,6 +60,7 @@ function LocaleDocumentController() {
     upsertAlternateLink('fa-IR', `${window.location.origin}${getAlternateLocalePath(path, 'fa')}`);
     upsertAlternateLink('en', `${window.location.origin}${getAlternateLocalePath(path, 'en')}`);
     upsertAlternateLink('x-default', `${window.location.origin}${getAlternateLocalePath(path, 'fa')}`);
+    if (locale === 'en') updateEnglishSeo(path);
   }, [path]);
 
   return null;
