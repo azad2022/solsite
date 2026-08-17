@@ -8,13 +8,56 @@ const SEO = {
 
 const body = `<main id="seo-static-content" dir="rtl" lang="fa"><article><nav aria-label="مسیر صفحه"><a href="/">سولمینت</a> / <span>تحلیل کیف پول</span></nav><h1>بررسی کیف پول ارز دیجیتال؛ تحلیل کیف پول سولانا با آدرس عمومی</h1><p>با ابزار بررسی کیف پول Solmint می‌توانید یک آدرس عمومی کریپتویی را برای تحلیل داده‌های قابل مشاهده روی بلاکچین وارد کنید. هدف ابزار، ارائه یک نمای خوانا از موجودی، دارایی‌ها، تراکنش‌ها و فعالیت‌های قابل استخراج از شبکه است؛ بدون اینکه کاربر Seed Phrase، Private Key یا دسترسی به دارایی خود را در اختیار سرویس قرار دهد.</p><h2>بررسی کیف پول ارز دیجیتال یعنی چه؟</h2><p>وقتی از بررسی کیف پول یا Wallet Analyzer صحبت می‌کنیم، منظور تحلیل داده‌های عمومی مربوط به یک آدرس بلاکچینی است. آدرس عمومی می‌تواند سابقه تراکنش، موجودی و تعاملات زنجیره‌ای قابل مشاهده داشته باشد، اما این داده‌ها به‌تنهایی هویت واقعی صاحب کیف پول را اثبات نمی‌کنند.</p><h2>بررسی کیف پول سولانا</h2><p>سولانا یکی از شبکه‌هایی است که برای تحلیل آدرس‌ها داده‌های on-chain متنوعی در اختیار ابزارهای read-only قرار می‌دهد. در معماری آینده Solmint، بررسی کیف پول سولانا می‌تواند شامل موجودی SOL، Token Accountها، دارایی‌های قابل مشاهده، تراکنش‌های اخیر و شاخص‌های فعالیت باشد.</p><h2>چه اطلاعاتی را می‌توان از یک آدرس کیف پول دید؟</h2><p>بسته به شبکه و داده‌ای که از RPC یا ایندکس‌کننده دریافت می‌شود، می‌توان موجودی، توکن‌ها، NFTها، تراکنش‌ها، زمان اولین فعالیت، آخرین فعالیت و تعامل با برنامه‌های زنجیره‌ای را بررسی کرد. هر شاخص باید بر پایه داده قابل اثبات نمایش داده شود و در صورت نبود داده کافی، ابزار نباید نتیجه‌ای را حدس بزند.</p><h2>آیا برای تحلیل کیف پول به Seed Phrase نیاز است؟</h2><p>خیر. برای مشاهده داده عمومی یک آدرس، Seed Phrase و Private Key هیچ کاربردی ندارند و نباید در ابزار تحلیل کیف پول وارد شوند. اگر سرویسی برای بررسی موجودی یا فعالیت کیف پول از شما عبارت بازیابی می‌خواهد، اطلاعات حساس را ارائه نکنید.</p><h2>آیا تحلیل کیف پول به معنی شناسایی صاحب آن است؟</h2><p>خیر. یک آدرس عمومی ممکن است با یک شخص، شرکت، صرافی، ربات یا قرارداد هوشمند مرتبط باشد، اما از روی داده زنجیره‌ای عمومی نمی‌توان هویت واقعی مالک را صرفاً با قطعیت نتیجه گرفت.</p><h2>آیا بررسی کیف پول رایگان است؟</h2><p>نسخه پایه Wallet Analyzer سولمینت با هدف ارائه تحلیل read-only طراحی شده است. معماری صفحه برای استفاده از منابع عمومی و کنترل‌شده ساخته شده و در مراحل بعد می‌تواند شاخص‌های بیشتری را بدون نیاز به اتصال کیف پول اضافه کند.</p><h2>تحلیل عملکرد و سود و زیان کیف پول</h2><p>محاسبه PnL و عملکرد معاملاتی به مراتب پیچیده‌تر از نمایش موجودی است، زیرا قیمت تاریخی، زمان معامله، انتقال بین کیف پول‌ها، واریز و برداشت و داده صرافی‌ها باید به‌درستی تفسیر شوند. Solmint این قابلیت‌ها را فقط زمانی اضافه می‌کند که داده کافی برای محاسبه قابل اتکا وجود داشته باشد.</p><h2>معماری آینده Wallet Analyzer سولمینت</h2><p>تمرکز اولیه روی سولانا است، اما ساختار رابط برای توسعه به شبکه‌های دیگر مانند Ethereum، Base، Arbitrum و BNB Chain آماده شده است. این تفکیک به Solmint اجازه می‌دهد در آینده «بررسی کیف پول کریپتویی» را به یک سرویس چندزنجیره‌ای تبدیل کند بدون اینکه تجربه اصلی کاربر از نو طراحی شود.</p><h2>شروع تحلیل</h2><p>برای شروع، فقط آدرس عمومی کیف پول را از منبع معتبر کپی کنید و در ابزار وارد کنید. <a href="/solana-wallet">راهنمای کیف پول سولانا</a>، <a href="/security">راهنمای امنیت</a> و <a href="/tools/solana-token-scanner">بررسی توکن سولانا</a> نیز برای تحقیقات تکمیلی در دسترس هستند.</p><h2>سؤالات متداول</h2><h3>آیا Wallet Analyzer می‌تواند به کیف پول من دسترسی پیدا کند؟</h3><p>نسخه read-only برای دریافت داده عمومی طراحی شده است و نباید Seed Phrase یا Private Key دریافت کند.</p><h3>آیا می‌توان آدرس کیف پول دیگران را بررسی کرد؟</h3><p>در مورد داده‌های عمومی بلاکچین، بررسی آدرس از نظر فنی امکان‌پذیر است؛ اما نباید از آن برای نتیجه‌گیری قطعی درباره هویت واقعی فرد استفاده کرد.</p><h3>بررسی کیف پول سولانا با آدرس عمومی انجام می‌شود؟</h3><p>بله. برای مشاهده داده عمومی، آدرس عمومی کافی است و نیازی به امضای تراکنش یا اتصال Wallet وجود ندارد.</p><h3>بهترین روش برای بررسی یک Wallet چیست؟</h3><p>آدرس را از منبع معتبر بردارید، داده‌های on-chain را با چند منبع مستقل تطبیق دهید و هر ادعای سود، مالکیت یا ریسک را جداگانه بررسی کنید.</p></article></main>`;
 
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': `${SEO.canonical}#webpage`,
+      url: SEO.canonical,
+      name: SEO.title,
+      description: SEO.description,
+      inLanguage: 'fa-IR',
+      isPartOf: { '@id': 'https://solmint.ir/#website' }
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': `${SEO.canonical}#app`,
+      name: 'Solmint Wallet Analyzer',
+      url: SEO.canonical,
+      applicationCategory: 'FinanceApplication',
+      operatingSystem: 'Web',
+      browserRequirements: 'Requires JavaScript and a modern web browser.'
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'خانه', item: 'https://solmint.ir/' },
+        { '@type': 'ListItem', position: 2, name: 'تحلیل کیف پول', item: SEO.canonical }
+      ]
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: [
+        { '@type': 'Question', name: 'آیا Wallet Analyzer می‌تواند به کیف پول من دسترسی پیدا کند؟', acceptedAnswer: { '@type': 'Answer', text: 'نسخه read-only برای دریافت داده عمومی طراحی شده است و نباید Seed Phrase یا Private Key دریافت کند.' } },
+        { '@type': 'Question', name: 'آیا می‌توان آدرس کیف پول دیگران را بررسی کرد؟', acceptedAnswer: { '@type': 'Answer', text: 'در مورد داده‌های عمومی بلاکچین، بررسی آدرس از نظر فنی امکان‌پذیر است؛ اما نباید از آن برای نتیجه‌گیری قطعی درباره هویت واقعی فرد استفاده کرد.' } },
+        { '@type': 'Question', name: 'بررسی کیف پول سولانا با آدرس عمومی انجام می‌شود؟', acceptedAnswer: { '@type': 'Answer', text: 'بله. برای مشاهده داده عمومی، آدرس عمومی کافی است و نیازی به امضای تراکنش یا اتصال Wallet وجود ندارد.' } },
+        { '@type': 'Question', name: 'بهترین روش برای بررسی یک Wallet چیست؟', acceptedAnswer: { '@type': 'Answer', text: 'آدرس را از منبع معتبر بردارید، داده‌های on-chain را با چند منبع مستقل تطبیق دهید و هر ادعای سود، مالکیت یا ریسک را جداگانه بررسی کنید.' } }
+      ]
+    }
+  ]
+};
+
 function inject(html: string) {
+  const jsonLd = `<script id="wallet-analyzer-jsonld" type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</script>`;
   html = html
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${SEO.title}</title>`)
     .replace(/<meta\s+name=["']description["'][^>]*>/i, `<meta name="description" content="${SEO.description}">`)
     .replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${SEO.canonical}">`)
     .replace(/<meta\s+name=["']robots["'][^>]*>/i, `<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">`)
+    .replace(/<script[^>]*id=["']wallet-analyzer-jsonld["'][^>]*>[\s\S]*?<\/script>/i, jsonLd)
     .replace(/<div id="root"><\/div>/i, `<div id="root">${body}</div>`);
+  if (!/id=["']wallet-analyzer-jsonld["']/.test(html)) html = html.replace('</head>', `  ${jsonLd}\n</head>`);
   return html;
 }
 
