@@ -19,9 +19,11 @@ type ArticleRow = {
   published_at_gregorian?: string | null;
   is_draft?: boolean | number | string | null;
   language?: string | null;
+  translation_group_id?: string | null;
 };
 
 type CategoryRow = { id?: string | null; slug?: string | null; name?: string | null; is_active?: boolean | null };
+type LocalizedUrl = { url: string; lastmod: string | null; language?: 'fa' | 'en'; translationGroupId?: string | null };
 
 const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
@@ -62,8 +64,9 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
 
   if (!key) return new Response('Sitemap configuration error', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 
-  const urls = new Map<string, string | null>();
-  for (const route of staticRoutes) urls.set(`${BASE_URL}${route}`, null);
+  const urls = new Map<string, LocalizedUrl>();
+  const translationGroups = new Map<string, Map<'fa' | 'en', string>>();
+  for (const route of staticRoutes) urls.set(`${BASE_URL}${route}`, { url: `${BASE_URL}${route}`, lastmod: null });
   const taxonomyCounts = new Map<string, { type: 'category' | 'tag'; slug: string; count: number }>();
 
   try {
@@ -82,7 +85,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       }
     }
 
-    const endpoint = `${supabaseUrl}/rest/v1/articles?select=slug,category_id,category,tags,updated_at,published_at,published_at_gregorian,is_draft,language&is_draft=eq.false&order=updated_at.desc`;
+    const endpoint = `${supabaseUrl}/rest/v1/articles?select=slug,category_id,category,tags,updated_at,published_at,published_at_gregorian,is_draft,language,translation_group_id&is_draft=eq.false&order=updated_at.desc`;
     const response = await fetch(endpoint, { headers: authHeaders(key) });
     if (!response.ok) throw new Error(`articles query failed: ${response.status}`);
     const articles = await response.json() as ArticleRow[];
@@ -95,7 +98,15 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
 
       const language = article.language === 'en' ? 'en' : 'fa';
       const articlePath = language === 'en' ? `/en/articles/${encodeURIComponent(slug)}` : `/article/${encodeURIComponent(slug)}`;
-      urls.set(`${BASE_URL}${articlePath}`, lastModified(article));
+      const articleUrl = `${BASE_URL}${articlePath}`;
+      const groupId = String(article.translation_group_id || article.slug || '').trim() || null;
+      urls.set(articleUrl, { url: articleUrl, lastmod: lastModified(article), language, translationGroupId: groupId });
+
+      if (groupId) {
+        const group = translationGroups.get(groupId) || new Map<'fa' | 'en', string>();
+        group.set(language, articleUrl);
+        translationGroups.set(groupId, group);
+      }
 
       if (language !== 'fa') continue;
 
@@ -123,13 +134,21 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
 
   for (const item of taxonomyCounts.values()) {
     if (item.count < 2) continue;
-    urls.set(`${BASE_URL}/blog/${item.type}/${encodeURIComponent(item.slug)}`, null);
+    const url = `${BASE_URL}/blog/${item.type}/${encodeURIComponent(item.slug)}`;
+    urls.set(url, { url, lastmod: null });
   }
 
-  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-  for (const [url, lastmod] of urls) {
-    xml += `  <url>\n    <loc>${xmlEscape(url)}</loc>\n`;
-    if (lastmod) xml += `    <lastmod>${xmlEscape(lastmod)}</lastmod>\n`;
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n';
+  for (const item of urls.values()) {
+    xml += `  <url>\n    <loc>${xmlEscape(item.url)}</loc>\n`;
+    if (item.lastmod) xml += `    <lastmod>${xmlEscape(item.lastmod)}</lastmod>\n`;
+    if (item.translationGroupId) {
+      const group = translationGroups.get(item.translationGroupId);
+      const faUrl = group?.get('fa');
+      const enUrl = group?.get('en');
+      if (faUrl) xml += `    <xhtml:link rel="alternate" hreflang="fa-IR" href="${xmlEscape(faUrl)}" />\n`;
+      if (enUrl) xml += `    <xhtml:link rel="alternate" hreflang="en" href="${xmlEscape(enUrl)}" />\n`;
+    }
     xml += '  </url>\n';
   }
   xml += '</urlset>\n';
