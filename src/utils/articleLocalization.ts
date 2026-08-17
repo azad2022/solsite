@@ -18,8 +18,8 @@ export function getArticleLocale(article: LocalizedArticle): ArticleLocale {
 }
 
 export function getArticleTranslationPath(article: LocalizedArticle, locale: ArticleLocale): string {
-  const base = `/article/${encodeURIComponent(article.slug)}`;
-  return locale === 'en' ? `/en${base}` : base;
+  if (locale === 'en') return `/en/articles/${encodeURIComponent(article.slug)}`;
+  return `/article/${encodeURIComponent(article.slug)}`;
 }
 
 export function getArticleTranslationGroup(article: LocalizedArticle): string | null {
