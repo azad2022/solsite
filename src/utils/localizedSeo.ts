@@ -81,6 +81,18 @@ export function updateEnglishSeo(path: string): void {
   applySeo({ title: 'Page not found | Solmint', description: 'The requested English page could not be found on Solmint.', canonical: `${SITE_URL}${getLocalizedPath(basePath, 'en')}`, robots: 'noindex, follow' });
 }
 
+export function updateEnglishArticleNotFoundSeo(path: string): void {
+  if (typeof document === 'undefined') return;
+  const canonical = `${SITE_URL}${getLocalizedPath(getPathWithoutLocale(path), 'en')}`;
+  applySeo({
+    title: 'Article not found | Solmint',
+    description: 'The requested English article could not be found on Solmint.',
+    canonical,
+    robots: 'noindex, follow'
+  });
+  setPropertyMeta('og:type', 'website');
+}
+
 export function updateEnglishArticleSeo(article: SeoArticle): void {
   if (typeof document === 'undefined') return;
   const title = `${article.title} | Solmint`;
