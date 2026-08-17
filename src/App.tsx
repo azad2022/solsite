@@ -81,7 +81,37 @@ export default function App() {
   const [isShowcaseAdminOpen, setIsShowcaseAdminOpen] = useState(false);
   const [isMemeTickerAdminOpen, setIsMemeTickerAdminOpen] = useState(false);
 
-  const handleNavigate = (path: string) => { const normalizedPath = normalizePath(path); setCurrentPath(normalizedPath); if (normalizePath(window.location.pathname) !== normalizedPath) window.history.pushState({}, '', normalizedPath); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  useEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => { window.history.scrollRestoration = previousRestoration; };
+  }, []);
+
+  const scrollToRouteTop = () => {
+    const reset = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    window.requestAnimationFrame(() => {
+      reset();
+      window.requestAnimationFrame(() => {
+        reset();
+        window.setTimeout(reset, 0);
+      });
+    });
+  };
+
+  const handleNavigate = (path: string) => {
+    const normalizedPath = normalizePath(path);
+    setCurrentPath(normalizedPath);
+    if (normalizePath(window.location.pathname) !== normalizedPath) window.history.pushState({}, '', normalizedPath);
+  };
+
+  useEffect(() => {
+    scrollToRouteTop();
+  }, [currentPath]);
+
   useEffect(() => { const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname || '/')); window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState); }, []);
   useEffect(() => {
     let cancelled = false;
