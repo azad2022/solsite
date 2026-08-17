@@ -1,4 +1,5 @@
 import { error, handleOptions, json, supabase } from '../_shared';
+import { CATEGORY_SLUGS } from '../../../../src/config/articleTaxonomy';
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: Record<string, string | undefined> }) => {
   const options = handleOptions(request);
@@ -6,7 +7,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Re
 
   try {
     const db = supabase(env);
-    const categoryResponse = await fetch(`${db.base}/rest/v1/article_categories?select=id,name,slug,description,is_active&is_active=eq.true&order=name.asc`, { headers: db.headers });
+    const categoryResponse = await fetch(`${db.base}/rest/v1/article_categories?select=id,name,description,is_active&is_active=eq.true&order=name.asc`, { headers: db.headers });
     const categoryText = await categoryResponse.text();
     if (!categoryResponse.ok) return error(request, 'UPSTREAM_ERROR', 'Unable to retrieve categories.', 502);
     const categories = categoryText ? JSON.parse(categoryText) : [];
@@ -25,13 +26,19 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Re
 
     return json(request, {
       success: true,
-      data: categories.map((category: Record<string, unknown>) => ({
-        id: String(category.id || ''),
-        name: String(category.name || ''),
-        slug: String(category.slug || ''),
-        description: category.description ? String(category.description) : null,
-        articleCount: counts.get(String(category.id || '')) || 0
-      }))
+      data: categories
+        .map((category: Record<string, unknown>) => {
+          const name = String(category.name || '').trim();
+          const slug = CATEGORY_SLUGS[name] || name.toLowerCase().replace(/\s+/g, '-');
+          return {
+            id: String(category.id || ''),
+            name,
+            slug,
+            description: category.description ? String(category.description) : null,
+            articleCount: counts.get(String(category.id || '')) || 0
+          };
+        })
+        .filter((category: { id: string; name: string; slug: string }) => Boolean(category.id && category.name && category.slug))
     });
   } catch (err) {
     console.error('API v1 categories failed:', err);
