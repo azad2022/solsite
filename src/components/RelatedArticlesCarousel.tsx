@@ -108,6 +108,27 @@ export const RelatedArticlesCarousel: React.FC<Props> = ({ article, articles, on
 
   if (!related.length) return null;
 
+  const resetArticleReaderScroll = () => {
+    const reset = () => {
+      const reader = document.querySelector<HTMLElement>(
+        'div.fixed.inset-0.z-30 > article.glass-card, div.fixed.inset-0.z-50 > article.glass-card'
+      );
+      if (reader) {
+        reader.scrollTop = 0;
+        reader.scrollLeft = 0;
+      }
+    };
+
+    reset();
+    window.requestAnimationFrame(() => {
+      reset();
+      window.requestAnimationFrame(() => {
+        reset();
+        window.setTimeout(reset, 0);
+      });
+    });
+  };
+
   return (
     <section className="my-10 border-t border-slate-800/70 pt-8" dir="rtl" aria-labelledby="related-articles-title">
       <div className="mb-4 flex items-end justify-between gap-4">
@@ -140,16 +161,7 @@ export const RelatedArticlesCarousel: React.FC<Props> = ({ article, articles, on
                   event.preventDefault();
 
                   onNavigate(`/article/${relatedArticle.slug}`);
-
-                  // The article navigation is client-side. Scroll the page after the
-                  // new route has had a chance to render so the new article starts
-                  // at its own top rather than inheriting the previous scroll position.
-                  window.requestAnimationFrame(() => {
-                    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-                    window.requestAnimationFrame(() => {
-                      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-                    });
-                  });
+                  resetArticleReaderScroll();
                 }}
                 className="block h-full text-right no-underline"
               >
