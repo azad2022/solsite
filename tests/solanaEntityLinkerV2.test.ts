@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { linkSolanaEntities } from '../src/utils/solanaEntityLinkerV2';
+import { linkSolanaEntities } from '../src/utils/solanaEntityLinkerV2.ts';
 
 test('maps specific subtopics to canonical supporting pages', () => {
   const output = linkSolanaEntities('Jupiter Lend و Raydium CLMM و Kamino Lend در سولانا مهم هستند.', { currentSlug: 'other', maxLinks: 5 });
