@@ -53,7 +53,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   const supabaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
   const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
   const staticRoutes = [
-    '/', '/solana-price', '/solana-wallet', '/solana-token', '/solana-meme-coin',
+    '/', '/solana-price', '/solana-wallet', '/wallet-analyzer', '/solana-token', '/solana-meme-coin',
     '/solana-nft', '/app-guide', '/security', '/download', '/blog', '/faq',
     '/tools/solana-token-tools', '/tools/solana-token-scanner', '/tools/token-2022-inspector'
   ];
@@ -75,8 +75,6 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       const name = String(category.name || '').trim();
       const dbSlug = String(category.slug || '').trim();
       if (id && category.is_active !== false) {
-        // The application owns the public taxonomy slug. DB slugs are read for
-        // compatibility/audit but are not allowed to diverge from the canonical map.
         const canonical = CATEGORY_SLUGS[name] || dbSlug;
         if (canonical) categorySlugs.set(id, canonical);
       }
