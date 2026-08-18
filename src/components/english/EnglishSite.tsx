@@ -6,6 +6,7 @@ import { EnglishHeader } from './EnglishHeader';
 import { EnglishHomeSections } from './EnglishHomeSections';
 import { EnglishAppGuidePage, EnglishDownloadPage, EnglishFaqPage, EnglishMemeCoinPage, EnglishNftPage, EnglishSecurityPage, EnglishTokenPage, EnglishToolsPage, EnglishWalletPage } from './EnglishLandingPages';
 import { EnglishTokenScannerPage, EnglishWalletAnalyzerPage } from './EnglishFunctionalTools';
+import { EnglishToken2022InspectorPage } from './EnglishToken2022InspectorPage';
 import { Article, SolanaStatus, UserAccount } from '../../types';
 import { safeGetLocalStorage } from '../../utils/security';
 
@@ -76,7 +77,7 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
   return <div dir="ltr" className="min-h-screen bg-[#08080f] font-['Vazirmatn',sans-serif] text-slate-100 antialiased">
     <EnglishHeader currentPath={normalized} onNavigate={onNavigate} solanaStatus={solanaStatus} currentUser={currentUser} openAuth={openAuth} />
     <main>
-      {normalized === '/en' && <><HeroSection locale="en" onExploreFeatures={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })} /><EnglishHomeSections articles={articles} status={solanaStatus} onNavigate={onNavigate} /></>}
+      {normalized === '/en' && <><HeroSection locale="en" onExploreFeatures={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })} /><EnglishHomeSections articles={articles} status={solanaStatus} onNavigate={onNavigate} />}</>}
       {normalized === '/en/solana-price' && <EnglishPricePage status={solanaStatus} onNavigate={onNavigate} />}
       {normalized === '/en/solana-wallet' && <EnglishWalletPage onNavigate={onNavigate} />}
       {normalized === '/en/wallet-analyzer' && <EnglishWalletAnalyzerPage onNavigate={onNavigate} />}
@@ -89,7 +90,7 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
       {normalized === '/en/download' && <EnglishDownloadPage onNavigate={onNavigate} />}
       {normalized === '/en/tools' && <EnglishToolsPage onNavigate={onNavigate} />}
       {normalized === '/en/tools/solana-token-scanner' && <EnglishTokenScannerPage onNavigate={onNavigate} />}
-      {normalized === '/en/tools/token-2022-inspector' && <EnglishTokenScannerPage onNavigate={onNavigate} />}
+      {normalized === '/en/tools/token-2022-inspector' && <EnglishToken2022InspectorPage onNavigate={onNavigate} />}
       {(normalized === '/en/blog' || Boolean(articleSlug)) && <EnglishBlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAuth} initialArticleSlug={articleSlug || undefined} onNavigate={onNavigate} />}
       {!isKnownRoute && <section className="mx-auto max-w-3xl px-4 py-24 text-center"><p className="text-sm font-black uppercase tracking-widest text-[#14F195]">404</p><h1 className="mt-3 text-4xl font-black text-white">Page not found</h1><p className="mt-4 text-slate-400">The requested English page does not exist yet.</p><button onClick={() => onNavigate('/en')} className="mt-8 rounded-xl bg-[#14F195] px-5 py-3 font-black text-slate-950">Back to Solmint</button></section>}
     </main>
