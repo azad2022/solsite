@@ -4,7 +4,8 @@ import { HeroSection } from '../HeroSection';
 import { EnglishBlogHub } from './EnglishBlogHub';
 import { EnglishHeader } from './EnglishHeader';
 import { EnglishHomeSections } from './EnglishHomeSections';
-import { EnglishAppGuidePage, EnglishDownloadPage, EnglishFaqPage, EnglishMemeCoinPage, EnglishNftPage, EnglishSecurityPage, EnglishTokenPage, EnglishToolsPage, EnglishWalletAnalyzerPage, EnglishWalletPage } from './EnglishLandingPages';
+import { EnglishAppGuidePage, EnglishDownloadPage, EnglishFaqPage, EnglishMemeCoinPage, EnglishNftPage, EnglishSecurityPage, EnglishTokenPage, EnglishToolsPage, EnglishWalletPage } from './EnglishLandingPages';
+import { EnglishTokenScannerPage, EnglishWalletAnalyzerPage } from './EnglishFunctionalTools';
 import { Article, SolanaStatus, UserAccount } from '../../types';
 import { safeGetLocalStorage } from '../../utils/security';
 
@@ -70,8 +71,7 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
   }, [path, articleSlug, articles]);
 
   const openAuth = () => { window.location.href = '/'; };
-  const refreshStatus = () => { fetch('/api/solana/status', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => data && setSolanaStatus(data)).catch(() => undefined); };
-  const isKnownRoute = normalized === '/en' || normalized === '/en/solana-price' || normalized === '/en/blog' || Boolean(articleSlug) || ['/en/solana-wallet','/en/wallet-analyzer','/en/solana-token','/en/solana-meme-coin','/en/solana-nft','/en/security','/en/faq','/en/app-guide','/en/download','/en/tools'].includes(normalized) || normalized.startsWith('/en/tools/');
+  const isKnownRoute = normalized === '/en' || normalized === '/en/solana-price' || normalized === '/en/blog' || Boolean(articleSlug) || ['/en/solana-wallet','/en/wallet-analyzer','/en/tools/solana-token-scanner','/en/tools/token-2022-inspector','/en/solana-token','/en/solana-meme-coin','/en/solana-nft','/en/security','/en/faq','/en/app-guide','/en/download','/en/tools'].includes(normalized);
 
   return <div dir="ltr" className="min-h-screen bg-[#08080f] font-['Vazirmatn',sans-serif] text-slate-100 antialiased">
     <EnglishHeader currentPath={normalized} onNavigate={onNavigate} solanaStatus={solanaStatus} currentUser={currentUser} openAuth={openAuth} />
@@ -87,7 +87,9 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
       {normalized === '/en/faq' && <EnglishFaqPage onNavigate={onNavigate} />}
       {normalized === '/en/app-guide' && <EnglishAppGuidePage onNavigate={onNavigate} />}
       {normalized === '/en/download' && <EnglishDownloadPage onNavigate={onNavigate} />}
-      {(normalized === '/en/tools' || normalized.startsWith('/en/tools/')) && <EnglishToolsPage onNavigate={onNavigate} />}
+      {normalized === '/en/tools' && <EnglishToolsPage onNavigate={onNavigate} />}
+      {normalized === '/en/tools/solana-token-scanner' && <EnglishTokenScannerPage onNavigate={onNavigate} />}
+      {normalized === '/en/tools/token-2022-inspector' && <EnglishTokenScannerPage onNavigate={onNavigate} />}
       {(normalized === '/en/blog' || Boolean(articleSlug)) && <EnglishBlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAuth} initialArticleSlug={articleSlug || undefined} onNavigate={onNavigate} />}
       {!isKnownRoute && <section className="mx-auto max-w-3xl px-4 py-24 text-center"><p className="text-sm font-black uppercase tracking-widest text-[#14F195]">404</p><h1 className="mt-3 text-4xl font-black text-white">Page not found</h1><p className="mt-4 text-slate-400">The requested English page does not exist yet.</p><button onClick={() => onNavigate('/en')} className="mt-8 rounded-xl bg-[#14F195] px-5 py-3 font-black text-slate-950">Back to Solmint</button></section>}
     </main>
