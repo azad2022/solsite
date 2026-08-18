@@ -8,6 +8,8 @@ export interface SolanaStatus {
   slot: number;
 }
 
+export type ArticleLanguage = 'fa' | 'en';
+
 export interface WalletTransaction {
   id: string;
   type: 'receive' | 'send' | 'airdrop' | 'rent_claim' | 'token_create' | 'nft_mint';
@@ -88,6 +90,8 @@ export interface Article {
   comments: ArticleComment[];
   seoScore?: number;
   isDraft?: boolean;
+  language?: ArticleLanguage;
+  translationGroupId?: string | null;
 }
 
 export interface MediaAsset {
@@ -123,8 +127,6 @@ export interface MediaStorageConfig {
   lastTestAt?: string;
 }
 
-// The production media library uses the main website repository itself.
-// GitHub credentials are kept server-side in Supabase (GITHUB_MEDIA_TOKEN).
 export const DEFAULT_MEDIA_STORAGE_CONFIG: MediaStorageConfig = {
   provider: 'github',
   githubOwner: 'azad2022',
@@ -159,7 +161,7 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
 دستورالعمل‌های تولید مقاله:
 ۱. مقاله باید کاملاً به زبان فارسی روان، جذاب، کاربردی و آموزنده نوشته شود.
 ۲. مقاله شامل یک ساختار کامل: عنوان جذاب و بدون عبارات اضافی، خلاصه مقاله (Meta Description)، متون اصلی با تیترهای H2 و H3 به صورت مارک‌داون، جدول یا نکات کلیدی، بخش سوالات متداول (FAQ) و دعوت به اقدام (CTA) جهت دانلود اپلیکیشن سولمینت باشد.
-۳. حتماً از کلمات کلیدی سئو تعیین شده در طول متن به طور طبیعی استفاده کنید.
+۳. حتماً از کلمات کلیدی سئو تعیین شده در طول متن به طور طبیعی استفاده شود.
 ۴. لحن مقاله روان و کاربردی برای علاقه‌مندان به بلاکچین، ارز دیجیتال و سولانا باشد.
 ۵. قوانین اکید عنوان و محتوا: به هیچ عنوان کلماتی نظیر "مقاله سئو شده"، "آموزش سئو شده"، "سئو شده" یا نام‌های هوش مصنوعی (مانند DeepSeek) را در عنوان مقاله یا متن یا به عنوان نویسنده یا لینک وارد نکنید. فقط عنوان اصلی مقاله درج شود.`,
   requireCoverImage: false,
@@ -173,8 +175,6 @@ export const DEFAULT_DEEPSEEK_SETTINGS: DeepSeekAiSettings = {
 export interface ChatbotSettings { enabled: boolean; apiKey?: string; apiBaseUrl?: string; botName: string; botAvatar: string; welcomeMessage: string; systemPrompt: string; suggestedQuestions: string[]; placeholderText: string; model: string; maxHistoryTurns: number; }
 
 export const DEFAULT_CHATBOT_SETTINGS: ChatbotSettings = {
-  // Public visibility is server-controlled. Until /api/cms/settings explicitly
-  // enables the chatbot, the widget must remain hidden.
   enabled: false, apiKey: '', apiBaseUrl: 'https://api.deepseek.com/v1', botName: 'پشتیبان هوشمند سولمینت', botAvatar: '🤖',
   welcomeMessage: 'سلام! 👋 من دستیار هوشمند سولمینت هستم. چطور می‌توانم در زمینه ساخت توکن، کیف پول سولانا، یا بازیابی کارمزد اجاره (Rent Claim) به شما کمک کنم؟',
   systemPrompt: `شما "پشتیبان هوشمند رسمی وبسایت و اپلیکیشن سولمینت (Solmint App)" هستید - اولین و امن‌ترین کیف پول غیرامانی سولانا و پلتفرم ساخت توکن، میم کوین و بازیابی کارمزد اجاره (Rent Claim) در ایران.
