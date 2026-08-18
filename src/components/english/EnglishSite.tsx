@@ -10,6 +10,8 @@ type EnglishSiteProps = { path: string; onNavigate: (path: string) => void };
 
 const defaultSolanaStatus: SolanaStatus = { price: 0, change24h: 0, tps: 0, avgFeeUsd: 0, avgFeeSol: 0, status: 'Mainnet Beta Online', slot: 0 };
 
+type LocalizedEnglishArticle = Article & { translationGroupId?: string | null };
+
 export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) => {
   const normalized = path === '/en' ? '/en' : path.replace(/\/+$/, '');
   const [articles, setArticles] = useState<Article[]>([]);
@@ -44,7 +46,25 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
         setLanguageSwitchPath(getLocalizedPath(path, 'fa'));
         return;
       }
-      const article = articles.find(item => item.slug === articleSlug) as (Article & { translationGroupId?: string | null }) | undefined;
+
+      let article = articles.find(item => item.slug === articleSlug) as LocalizedEnglishArticle | undefined;
+
+      if (!article) {
+        try {
+          const response = await fetch(`/api/articles/localized?language=en&slug=${encodeURIComponent(articleSlug)}`, { credentials: 'same-origin', cache: 'no-store' });
+          const data = response.ok ? await response.json() : null;
+          const exactArticle = Array.isArray(data?.articles) ? data.articles[0] : null;
+          if (exactArticle?.slug === articleSlug) {
+            article = exactArticle as LocalizedEnglishArticle;
+            if (!cancelled) {
+              setArticles(previous => previous.some(item => item.id === exactArticle.id) ? previous : [...previous, exactArticle]);
+            }
+          }
+        } catch {
+          article = undefined;
+        }
+      }
+
       const groupId = article?.translationGroupId || article?.id;
       if (!groupId) {
         setLanguageSwitchPath('/');
