@@ -1,4 +1,4 @@
-import { Article } from '../types';
+import { Article, ArticleLanguage } from '../types';
 import { fetchArticlesFromSupabase } from './supabaseClient';
 import { extractArticleKeywords } from './seoContentUtils';
 
@@ -43,6 +43,22 @@ async function getReadableResponseMessage(res: Response, fallback: string): Prom
 
 function showSuccessPopup(message: string): void {
   if (typeof window !== 'undefined') window.alert(message);
+}
+
+function detectArticleLanguage(article: Pick<Article, 'title' | 'summary' | 'content'>): ArticleLanguage {
+  const text = `${article.title || ''} ${article.summary || ''} ${article.content || ''}`;
+  const latin = (text.match(/[A-Za-z]/g) || []).length;
+  const persian = (text.match(/[\u0600-\u06FF]/g) || []).length;
+  return latin > persian ? 'en' : 'fa';
+}
+
+function normalizeArticleLocalization(article: Article): Article {
+  const detectedLanguage = detectArticleLanguage(article);
+  return {
+    ...article,
+    language: article.language || detectedLanguage,
+    translationGroupId: article.translationGroupId || crypto.randomUUID()
+  };
 }
 
 export function getDatabaseConfig(): DatabaseConfig {
@@ -143,11 +159,12 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
 }
 
 export async function saveArticleToActiveDatabase(article: Article): Promise<boolean> {
+  const localizedArticle = normalizeArticleLocalization(article);
   const preparedArticle: Article = {
-    ...article,
-    tags: article.tags?.length > 0 && article.tags.join(',') !== 'سولانا,سولمینت,وب۳'
-      ? article.tags
-      : extractArticleKeywords(article.title, article.content, article.summary, article.category)
+    ...localizedArticle,
+    tags: localizedArticle.tags?.length > 0 && localizedArticle.tags.join(',') !== 'سولانا,سولمینت,وب۳'
+      ? localizedArticle.tags
+      : extractArticleKeywords(localizedArticle.title, localizedArticle.content, localizedArticle.summary, localizedArticle.category)
   };
 
   const config = getDatabaseConfig();
@@ -162,8 +179,6 @@ export async function saveArticleToActiveDatabase(article: Article): Promise<boo
   }
 
   try {
-    // Canonical same-origin CMS route. The Pages Function validates the HttpOnly
-    // session and forwards the request to Supabase's article publish service.
     const response = await fetch('/api/articles', {
       method: 'POST',
       credentials: 'same-origin',
