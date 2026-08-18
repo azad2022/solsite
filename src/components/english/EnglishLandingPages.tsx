@@ -3,6 +3,12 @@ import { ArrowRight, BookOpen, CheckCircle2, Coins, Download, FileSearch, Flame,
 
 type Props = { onNavigate: (path: string) => void };
 
+type IconCard = {
+  icon: React.ElementType;
+  title: string;
+  body: string;
+};
+
 const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div dir="ltr" className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 space-y-14">{children}</div>
 );
@@ -24,10 +30,16 @@ const SecondaryButton: React.FC<{ onClick: () => void; children: React.ReactNode
   <button type="button" onClick={onClick} className="px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 font-bold text-sm transition-all inline-flex items-center gap-2">{children}</button>
 );
 
+const walletCards: IconCard[] = [
+  { icon: KeyRound, title: 'User-controlled keys', body: 'The wallet is designed around locally controlled signing material rather than a custodial server model.' },
+  { icon: Zap, title: 'Fast Solana transactions', body: 'Use Solana infrastructure for fast confirmations and low network costs.' },
+  { icon: Coins, title: 'SPL token support', body: 'Manage SOL and standard Solana assets from the same non-custodial experience.' }
+];
+
 export const EnglishWalletPage: React.FC<Props> = ({ onNavigate }) => (
   <Shell>
     <Hero icon={<ShieldCheck className="w-4 h-4" />} eyebrow="Non-custodial Solana wallet" title={<>A non-custodial Solana wallet built around user-controlled keys</>} body="Solmint is designed so signing authority stays with the user. The website explains the wallet architecture, while sensitive signing is handled locally by the Android application." actions={<><PrimaryButton onClick={() => onNavigate('/en/download')}><Download className="w-4 h-4" />Download the Android app</PrimaryButton><SecondaryButton onClick={() => onNavigate('/en/security')}><Lock className="w-4 h-4" />Read the security architecture</SecondaryButton></>} />
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{[[KeyRound, 'User-controlled keys', 'The wallet is designed around locally controlled signing material rather than a custodial server model.'], [Zap, 'Fast Solana transactions', 'Use Solana infrastructure for fast confirmations and low network costs.'], [Coins, 'SPL token support', 'Manage SOL and standard Solana assets from the same non-custodial experience.']].map(([Icon, title, body]) => <article key={title as string} className="p-6 rounded-3xl bg-slate-900/80 border border-white/10 space-y-4"><div className="w-12 h-12 rounded-2xl bg-[#9945FF]/20 text-[#14F195] flex items-center justify-center border border-[#9945FF]/30"><Icon className="w-6 h-6" /></div><h2 className="text-lg font-bold text-white">{title}</h2><p className="text-sm text-slate-300 leading-7">{body}</p></article>)}</div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{walletCards.map(({ icon: Icon, title, body }) => <article key={title} className="p-6 rounded-3xl bg-slate-900/80 border border-white/10 space-y-4"><div className="w-12 h-12 rounded-2xl bg-[#9945FF]/20 text-[#14F195] flex items-center justify-center border border-[#9945FF]/30"><Icon className="w-6 h-6" /></div><h2 className="text-lg font-bold text-white">{title}</h2><p className="text-sm text-slate-300 leading-7">{body}</p></article>)}</div>
     <section className="p-8 rounded-3xl bg-gradient-to-br from-slate-900 via-[#0a0a16] to-[#120c24] border border-[#9945FF]/30 space-y-4"><h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2"><Smartphone className="w-6 h-6 text-[#14F195]" />Why the Android app matters</h2><p className="text-sm text-slate-300 leading-8">Solmint keeps the public website focused on information, tooling and education while the wallet application handles sensitive signing operations locally. This separation reduces the amount of trust placed in the public web surface.</p></section>
   </Shell>
 );
