@@ -2,11 +2,11 @@ import React from 'react';
 import { ChevronDown, Menu, User, Wrench, X } from 'lucide-react';
 import { SolanaStatus, UserAccount } from '../../types';
 
-type Props = { currentPath: string; onNavigate: (path: string) => void; solanaStatus: SolanaStatus; currentUser: UserAccount | null; openAuth: () => void };
+type Props = { currentPath: string; languageSwitchPath: string; onNavigate: (path: string) => void; solanaStatus: SolanaStatus; currentUser: UserAccount | null; openAuth: () => void };
 
 const linkClass = (active: boolean) => `shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${active ? 'bg-white/10 text-white font-bold' : 'text-slate-300 hover:text-white'}`;
 
-export const EnglishHeader: React.FC<Props> = ({ currentPath, onNavigate, currentUser, openAuth }) => {
+export const EnglishHeader: React.FC<Props> = ({ currentPath, languageSwitchPath, onNavigate, currentUser, openAuth }) => {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [toolsOpen, setToolsOpen] = React.useState(false);
   const go = (path: string) => { setMobileOpen(false); setToolsOpen(false); onNavigate(path); };
@@ -36,11 +36,11 @@ export const EnglishHeader: React.FC<Props> = ({ currentPath, onNavigate, curren
           {toolsOpen && <div className="absolute left-0 top-full pt-2 w-72"><div className="rounded-2xl border border-white/10 bg-[#0a0a12]/98 p-2 shadow-2xl"><button type="button" onClick={() => go('/en/tools')} className="w-full text-left rounded-xl px-3 py-3 hover:bg-white/5 text-white font-bold">All Solana Tools</button><button type="button" onClick={() => go('/en/tools/solana-token-tools')} className="w-full text-left rounded-xl px-3 py-3 hover:bg-white/5 text-slate-200">Solana Token Tools</button><button type="button" onClick={() => go('/en/tools/solana-token-scanner')} className="w-full text-left rounded-xl px-3 py-3 hover:bg-white/5 text-slate-200">Solana Token Scanner</button><button type="button" onClick={() => go('/en/tools/token-2022-inspector')} className="w-full text-left rounded-xl px-3 py-3 hover:bg-white/5 text-slate-200">Token-2022 Inspector</button></div></div>}
         </div>
         {secondaryLinks.map(([path, label]) => <a key={path} href={path} onClick={e => { e.preventDefault(); go(path); }} className={linkClass(currentPath === path)}>{label}</a>)}
-        <a href="/" onClick={e => { e.preventDefault(); go('/'); }} className="px-2.5 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white">فارسی</a>
+        <a href={languageSwitchPath} onClick={e => { e.preventDefault(); go(languageSwitchPath); }} className="px-2.5 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white">فارسی</a>
       </nav>
       <div className="hidden sm:flex items-center gap-2"><button type="button" onClick={openAuth} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 text-xs font-bold"><User className="w-4 h-4 text-[#14F195]" />{currentUser ? currentUser.fullName : 'Login / Sign up'}</button></div>
       <button type="button" onClick={() => setMobileOpen(v => !v)} aria-label={mobileOpen ? 'Close menu' : 'Open menu'} className="xl:hidden p-2 rounded-xl bg-white/5 text-slate-300 hover:text-white"><span className="sr-only">Menu</span>{mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}</button>
     </div>
-    {mobileOpen && <div className="xl:hidden border-t border-white/10 bg-[#05050a] px-4 py-4 space-y-2">{primaryLinks.concat(secondaryLinks).map(([path, label]) => <button key={path} type="button" onClick={() => go(path)} className={`w-full text-left px-4 py-3 rounded-xl text-sm ${currentPath === path ? 'bg-[#9945FF]/20 text-[#14F195]' : 'text-slate-300 bg-white/5'}`}>{label}</button>)}<button type="button" onClick={() => go('/en/tools')} className="w-full text-left px-4 py-3 rounded-xl text-sm text-slate-300 bg-white/5 flex items-center gap-2"><Wrench className="w-4 h-4" />Tools</button><button type="button" onClick={() => go('/')} className="w-full text-left px-4 py-3 rounded-xl text-sm text-slate-300 bg-white/5">فارسی</button></div>}
+    {mobileOpen && <div className="xl:hidden border-t border-white/10 bg-[#05050a] px-4 py-4 space-y-2">{primaryLinks.concat(secondaryLinks).map(([path, label]) => <button key={path} type="button" onClick={() => go(path)} className={`w-full text-left px-4 py-3 rounded-xl text-sm ${currentPath === path ? 'bg-[#9945FF]/20 text-[#14F195]' : 'text-slate-300 bg-white/5'}`}>{label}</button>)}<button type="button" onClick={() => go('/en/tools')} className="w-full text-left px-4 py-3 rounded-xl text-sm text-slate-300 bg-white/5 flex items-center gap-2"><Wrench className="w-4 h-4" />Tools</button><button type="button" onClick={() => go(languageSwitchPath)} className="w-full text-left px-4 py-3 rounded-xl text-sm text-slate-300 bg-white/5">فارسی</button></div>}
   </header>;
 };
