@@ -25,8 +25,4 @@ create unique index if not exists articles_translation_group_language_key
   on public.articles (translation_group_id, language)
   where translation_group_id is not null;
 
-create index if not exists idx_articles_translation_group_id
-  on public.articles (translation_group_id)
-  where translation_group_id is not null;
-
 -- Keep article localization queries language-aware and forbid duplicate language variants.
