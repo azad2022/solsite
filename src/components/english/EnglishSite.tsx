@@ -13,14 +13,14 @@ type EnglishSiteProps = { path: string; onNavigate: (path: string) => void };
 type LocalizedEnglishArticle = Article & { translationGroupId?: string | null };
 const defaultSolanaStatus: SolanaStatus = { price: 0, change24h: 0, tps: 0, avgFeeUsd: 0, avgFeeSol: 0, status: 'Mainnet Beta Online', slot: 0 };
 
-const EnglishFooter: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
+const EnglishFooter: React.FC<{ onNavigate: (path: string) => void; languageSwitchPath: string }> = ({ onNavigate, languageSwitchPath }) => (
   <footer className="border-t border-white/10 bg-[#05050a] py-12 text-sm text-slate-400" dir="ltr">
     <div className="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
       <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
         <div><div className="text-base font-black text-white">Solmint</div><p className="mt-3 leading-7">Solana-focused non-custodial wallet and Web3 platform for the Android ecosystem.</p></div>
         <div><div className="font-black text-white">Product</div><div className="mt-3 space-y-2"><button onClick={() => onNavigate('/en/solana-wallet')} className="block hover:text-white">Solana Wallet</button><button onClick={() => onNavigate('/en/solana-token')} className="block hover:text-white">Token Creator</button><button onClick={() => onNavigate('/en/solana-meme-coin')} className="block hover:text-white">Meme Coin</button><button onClick={() => onNavigate('/en/solana-nft')} className="block hover:text-white">NFT</button></div></div>
         <div><div className="font-black text-white">Resources</div><div className="mt-3 space-y-2"><button onClick={() => onNavigate('/en/solana-price')} className="block hover:text-white">Live SOL Price</button><button onClick={() => onNavigate('/en/tools')} className="block hover:text-white">Solana Tools</button><button onClick={() => onNavigate('/en/blog')} className="block hover:text-white">Blog &amp; Academy</button><button onClick={() => onNavigate('/en/faq')} className="block hover:text-white">FAQ</button></div></div>
-        <div><div className="font-black text-white">Project</div><div className="mt-3 space-y-2"><a href="https://github.com/azad2022/solsite" target="_blank" rel="noreferrer" className="block hover:text-white">GitHub</a><button onClick={() => onNavigate('/')} className="block hover:text-white">فارسی</button></div></div>
+        <div><div className="font-black text-white">Project</div><div className="mt-3 space-y-2"><a href="https://github.com/azad2022/solsite" target="_blank" rel="noreferrer" className="block hover:text-white">GitHub</a><button onClick={() => onNavigate(languageSwitchPath)} className="block hover:text-white">فارسی</button></div></div>
       </div>
       <div className="border-t border-white/10 pt-6 text-xs text-slate-500">© Solmint. Existing Persian URLs remain unchanged.</div>
     </div>
@@ -74,7 +74,7 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
   const isKnownRoute = normalized === '/en' || normalized === '/en/solana-price' || normalized === '/en/blog' || Boolean(articleSlug) || ['/en/solana-wallet','/en/wallet-analyzer','/en/tools','/en/tools/solana-token-tools','/en/tools/solana-token-scanner','/en/tools/token-2022-inspector','/en/solana-token','/en/solana-meme-coin','/en/solana-nft','/en/security','/en/faq','/en/app-guide','/en/download'].includes(normalized);
 
   return <div dir="ltr" className="min-h-screen bg-[#08080f] font-['Vazirmatn',sans-serif] text-slate-100 antialiased">
-    <EnglishHeader currentPath={normalized} onNavigate={onNavigate} solanaStatus={solanaStatus} currentUser={currentUser} openAuth={openAuth} />
+    <EnglishHeader currentPath={normalized} languageSwitchPath={languageSwitchPath} onNavigate={onNavigate} solanaStatus={solanaStatus} currentUser={currentUser} openAuth={openAuth} />
     <main>
       {normalized === '/en' && <><HeroSection locale="en" onExploreFeatures={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })} /><EnglishHomeSections articles={articles} status={solanaStatus} onNavigate={onNavigate} /></>}
       {normalized === '/en/solana-price' && <EnglishPricePage status={solanaStatus} onNavigate={onNavigate} />}
@@ -93,7 +93,7 @@ export const EnglishSite: React.FC<EnglishSiteProps> = ({ path, onNavigate }) =>
       {(normalized === '/en/blog' || Boolean(articleSlug)) && <EnglishBlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAuth} initialArticleSlug={articleSlug || undefined} onNavigate={onNavigate} />}
       {!isKnownRoute && <section className="mx-auto max-w-3xl px-4 py-24 text-center"><p className="text-sm font-black uppercase tracking-widest text-[#14F195]">404</p><h1 className="mt-3 text-4xl font-black text-white">Page not found</h1><p className="mt-4 text-slate-400">The requested English page does not exist yet.</p><button onClick={() => onNavigate('/en')} className="mt-8 rounded-xl bg-[#14F195] px-5 py-3 font-black text-slate-950">Back to Solmint</button></section>}
     </main>
-    <EnglishFooter onNavigate={onNavigate} />
+    <EnglishFooter onNavigate={onNavigate} languageSwitchPath={languageSwitchPath} />
     <a href={languageSwitchPath} className="sr-only">Switch to Persian</a>
   </div>;
 };
