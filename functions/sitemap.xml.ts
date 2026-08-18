@@ -60,7 +60,8 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
     '/solana-nft', '/app-guide', '/security', '/download', '/blog', '/faq',
     '/tools/solana-token-tools', '/tools/solana-token-scanner', '/tools/token-2022-inspector',
     '/en', '/en/solana-price', '/en/solana-wallet', '/en/wallet-analyzer', '/en/solana-token', '/en/solana-meme-coin',
-    '/en/solana-nft', '/en/app-guide', '/en/security', '/en/download', '/en/faq', '/en/tools', '/en/blog'
+    '/en/solana-nft', '/en/app-guide', '/en/security', '/en/download', '/en/faq', '/en/tools',
+    '/en/tools/solana-token-tools', '/en/tools/solana-token-scanner', '/en/tools/token-2022-inspector', '/en/blog'
   ];
 
   if (!key) return new Response('Sitemap configuration error', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
