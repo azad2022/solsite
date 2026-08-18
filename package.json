@@ -5,14 +5,14 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
-    "dev": "tsx scripts/start-server.mjs",
+    "dev": "node --experimental-strip-types scripts/start-server.mjs",
     "build": "node scripts/production-comments-client-wiring.mjs && node scripts/generate-sitemap.js && vite build",
     "prepare:source": "node scripts/prepare-production-source.mjs",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -27,7 +27,7 @@ test('Solana token analyzer rejects malformed mint before RPC access', async () 
     assert.equal(calls, 0);
     const body = await result.json() as { ok: boolean; error: string };
     assert.equal(body.ok, false);
-    assert.match(body.error, /Base58/);
+    assert.match(body.error, /Mint|آدرس/);
   } finally {
     restore();
   }

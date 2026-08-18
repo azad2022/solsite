@@ -45,7 +45,9 @@ function normalizeArticle(item: any) {
     viewsCount: Number(item?.viewsCount ?? item?.views_count ?? 0),
     comments,
     seoScore: Number(item?.seoScore ?? item?.seo_score ?? 90),
-    isDraft: Boolean(item?.isDraft ?? item?.is_draft)
+    isDraft: Boolean(item?.isDraft ?? item?.is_draft),
+    language: item?.language === 'en' ? 'en' : 'fa',
+    translationGroupId: item?.translationGroupId || item?.translation_group_id || null
   };
 }
 
