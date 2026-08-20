@@ -20,7 +20,6 @@ type PageContext = {
 
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
-const SITE_ORIGIN = 'https://solmint.ir';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -93,5 +92,6 @@ export async function onRequest(context: PageContext): Promise<Response> {
   const headers = new Headers(upstream.headers);
   headers.set('Content-Type', 'text/html; charset=UTF-8');
   headers.set('X-Solmint-SSR', 'homepage-article-discovery-v1');
+  headers.set('Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=300');
   return new Response(html, { status: upstream.status, headers });
 }
