@@ -1,7 +1,8 @@
 {
   "version": 1,
   "include": [
-    "/sitemap.xml",
+    "/",
+    "/sitemap*.xml",
     "/blog",
     "/tools/*",
     "/article/*",
