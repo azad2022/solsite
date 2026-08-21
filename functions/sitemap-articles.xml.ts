@@ -17,6 +17,7 @@ type ArticleRow = {
 
 const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
+const BULK_TIMESTAMP_THRESHOLD = 10;
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
@@ -27,11 +28,23 @@ function xmlEscape(value: unknown): string {
     .replace(/'/g, '&apos;');
 }
 
-function lastModified(article: ArticleRow): string | null {
-  const raw = article.updated_at || article.published_at || article.published_at_gregorian;
-  if (!raw) return null;
-  const date = new Date(String(raw).replace(/\//g, '-'));
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
+function parseDate(value: unknown): Date | null {
+  if (!value) return null;
+  const date = new Date(String(value).replace(/\//g, '-'));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function lastModified(article: ArticleRow, bulkUpdatedAt: Set<string>): string | null {
+  const updated = String(article.updated_at || '').trim();
+  const published = parseDate(article.published_at);
+  const updatedDate = parseDate(article.updated_at);
+
+  // A large synchronized update is treated as migration/admin noise rather than
+  // evidence that every affected article's content materially changed.
+  const preferred = updated && !bulkUpdatedAt.has(updated) ? updatedDate : published;
+  const fallback = published || updatedDate || parseDate(article.published_at_gregorian);
+  const date = preferred || fallback;
+  return date ? date.toISOString().split('T')[0] : null;
 }
 
 function isPublished(article: ArticleRow): boolean {
@@ -44,7 +57,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   if (!key) return new Response('Sitemap configuration error', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 
   try {
-    const endpoint = `${supabaseUrl}/rest/v1/articles?select=slug,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`;
+    const endpoint = `${supabaseUrl}/rest/v1/articles?select=slug,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=published_at.desc`;
     const response = await fetch(endpoint, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }
     });
@@ -52,13 +65,24 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
     const rows = await response.json() as ArticleRow[];
     if (!Array.isArray(rows)) throw new Error('articles query returned a non-array response');
 
+    const updatedCounts = new Map<string, number>();
+    for (const article of rows) {
+      const updated = String(article.updated_at || '').trim();
+      if (updated) updatedCounts.set(updated, (updatedCounts.get(updated) || 0) + 1);
+    }
+    const bulkUpdatedAt = new Set(
+      Array.from(updatedCounts.entries())
+        .filter(([, count]) => count >= BULK_TIMESTAMP_THRESHOLD)
+        .map(([timestamp]) => timestamp)
+    );
+
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
     for (const article of rows) {
       if (!isPublished(article)) continue;
       const slug = String(article.slug || '').trim().replace(/^\/+|\/+$/g, '');
       if (!slug) continue;
       xml += `  <url>\n    <loc>${xmlEscape(`${BASE_URL}/article/${encodeURIComponent(slug)}`)}</loc>\n`;
-      const lastmod = lastModified(article);
+      const lastmod = lastModified(article, bulkUpdatedAt);
       if (lastmod) xml += `    <lastmod>${xmlEscape(lastmod)}</lastmod>\n`;
       xml += '  </url>\n';
     }
