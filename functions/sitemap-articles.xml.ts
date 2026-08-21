@@ -37,13 +37,13 @@ function parseDate(value: unknown): Date | null {
 function lastModified(article: ArticleRow, bulkUpdatedAt: Set<string>): string | null {
   const updated = String(article.updated_at || '').trim();
   const published = parseDate(article.published_at);
+  const publishedGregorian = parseDate(article.published_at_gregorian);
   const updatedDate = parseDate(article.updated_at);
 
-  // A large synchronized update is treated as migration/admin noise rather than
+  // Large synchronized updates are treated as migration/admin noise rather than
   // evidence that every affected article's content materially changed.
-  const preferred = updated && !bulkUpdatedAt.has(updated) ? updatedDate : published;
-  const fallback = published || updatedDate || parseDate(article.published_at_gregorian);
-  const date = preferred || fallback;
+  const preferred = updated && !bulkUpdatedAt.has(updated) ? updatedDate : null;
+  const date = preferred || published || publishedGregorian || updatedDate;
   return date ? date.toISOString().split('T')[0] : null;
 }
 
