@@ -1,5 +1,9 @@
+# SolMint.ir Official Robots.txt
 User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api/
+
 Sitemap: https://solmint.ir/sitemap.xml
+Sitemap: https://solmint.ir/sitemap-articles.xml
+Sitemap: https://solmint.ir/sitemap-taxonomy.xml
