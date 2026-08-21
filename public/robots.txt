@@ -1,27 +1,5 @@
-# SolMint.ir - Production robots.txt
-# Public site content is crawlable.
-
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-User-agent: OAI-AdsBot
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: DeepSeekBot
-Allow: /
-
 User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api/
-
 Sitemap: https://solmint.ir/sitemap.xml
