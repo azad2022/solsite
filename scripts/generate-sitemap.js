@@ -4,7 +4,7 @@ import path from "path";
 const BASE_URL = "https://solmint.ir";
 
 async function generate() {
-  console.log("⚡ Generating production robots.txt (sitemap is served dynamically by Cloudflare Pages Function)...");
+  console.log("⚡ Generating production robots.txt (sitemaps are served dynamically by Cloudflare Pages Functions)...");
 
   const robotsTxt = `# SolMint.ir Official Robots.txt
 User-agent: *
@@ -27,6 +27,8 @@ Disallow: /admin
 Disallow: /api/
 
 Sitemap: ${BASE_URL}/sitemap.xml
+Sitemap: ${BASE_URL}/sitemap-articles.xml
+Sitemap: ${BASE_URL}/sitemap-taxonomy.xml
 `;
 
   const publicDir = path.join(process.cwd(), "public");
