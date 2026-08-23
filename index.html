@@ -120,39 +120,6 @@
       ]
     }
     </script>
-
-    <!-- Article indexability guard: never allow client-side SPA SEO to turn a valid article into noindex.
-         Real 404 article responses remain protected by the server X-Robots-Tag: noindex header. -->
-    <script>
-      (() => {
-        if (!/^\/article(?:\/|$)/.test(window.location.pathname)) return;
-
-        const INDEX_ROBOTS = 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
-
-        const enforceArticleIndexability = () => {
-          let meta = document.head.querySelector('meta[name="robots"]');
-          if (!meta) {
-            meta = document.createElement('meta');
-            meta.setAttribute('name', 'robots');
-            document.head.appendChild(meta);
-          }
-
-          const content = meta.getAttribute('content') || '';
-          if (/\bnoindex\b/i.test(content) || !content.trim()) {
-            meta.setAttribute('content', INDEX_ROBOTS);
-          }
-        };
-
-        enforceArticleIndexability();
-
-        new MutationObserver(enforceArticleIndexability).observe(document.head, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ['content']
-        });
-      })();
-    </script>
   </head>
   <body class="bg-[#05050a] text-slate-100 font-['Vazirmatn',sans-serif] antialiased selection:bg-[#9945FF] selection:text-white">
     <div id="root"></div>
