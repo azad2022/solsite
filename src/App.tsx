@@ -125,7 +125,24 @@ export default function App() {
   const activeArticle = useMemo(() => activeArticleSlug ? articles.find(a => a.slug === activeArticleSlug) || null : null, [activeArticleSlug, articles]);
   const activeTaxonomy = useMemo(() => { if (!taxonomyMatch) return null; const candidates = taxonomyMatch.type === 'category' ? articles.map(article => getArticleCategoryTaxonomy(article.category)).filter(Boolean) : articles.flatMap(article => getArticleTagTaxonomy(article.tags)); return candidates.find(item => item?.slug === taxonomyMatch.slug) || null; }, [articles, taxonomyMatch]);
   const taxonomyArticleCount = useMemo(() => { if (!taxonomyMatch) return 0; return articles.filter(article => taxonomyMatch.type === 'category' ? getArticleCategoryTaxonomy(article.category)?.slug === taxonomyMatch.slug : getArticleTagTaxonomy(article.tags).some(item => item.slug === taxonomyMatch.slug)).length; }, [articles, taxonomyMatch]);
-  useEffect(() => { if (taxonomyMatch && activeTaxonomy) updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount }); else if (activeArticle) updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle); else if (currentPath !== '/solana-price') updateRouteSeo(currentPath); }, [currentPath, activeArticle, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
+  useEffect(() => {
+    if (taxonomyMatch && activeTaxonomy) {
+      updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount });
+      return;
+    }
+
+    // Article indexability is owned by the server-side article response.
+    // While the client article store is loading, do not classify the route as a 404
+    // and do not mutate its robots directive. A real missing article is already
+    // returned by functions/article/[slug].ts with HTTP 404 + X-Robots-Tag: noindex.
+    if (activeArticle) {
+      updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
+      return;
+    }
+
+    if (activeArticleSlug) return;
+    if (currentPath !== '/solana-price') updateRouteSeo(currentPath);
+  }, [currentPath, activeArticle, activeArticleSlug, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
   const handleLogout = () => { setCurrentUser(null); setIsShowcaseAdminOpen(false); setIsMemeTickerAdminOpen(false); localStorage.removeItem('solmint_current_user'); localStorage.removeItem('solmint_admin_session'); };
   useEffect(() => { async function loadDatabaseArticles() { const dbArticles = await fetchArticlesFromActiveDatabase(); if (dbArticles && dbArticles.length > 0) setArticles(dbArticles); } loadDatabaseArticles(); }, []);
   const refreshSolanaStatus = async () => { try { const res = await fetch('/api/solana/status'); if (res.ok) setSolanaStatus(await res.json()); } catch {} };
