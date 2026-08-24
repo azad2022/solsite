@@ -1,4 +1,4 @@
-import { CATEGORY_SLUGS, getCanonicalTagSlug } from '../src/config/articleTaxonomy';
+import { CATEGORY_SLUGS } from '../src/config/articleTaxonomy';
 
 type Env = {
   SUPABASE_URL?: string;
@@ -11,8 +11,6 @@ type Env = {
 
 type ArticleRow = {
   category_id?: string | null;
-  category?: string | null;
-  tags?: string[] | null;
   updated_at?: string | null;
   published_at?: string | null;
   published_at_gregorian?: string | null;
@@ -20,10 +18,11 @@ type ArticleRow = {
 };
 
 type CategoryRow = { id?: string | null; slug?: string | null; name?: string | null; is_active?: boolean | null };
-type TaxonomyItem = { type: 'category' | 'tag'; slug: string; count: number; lastmod: string | null };
+type TaxonomyItem = { slug: string; count: number; lastmod: string | null };
 
 const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
+const INDEXABLE_CATEGORY_MIN_ARTICLES = 2;
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
@@ -73,42 +72,29 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       }
     }
 
-    const articleResponse = await fetch(`${supabaseUrl}/rest/v1/articles?select=category_id,category,tags,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`, {
+    const articleResponse = await fetch(`${supabaseUrl}/rest/v1/articles?select=category_id,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }
     });
     if (!articleResponse.ok) throw new Error(`articles query failed: ${articleResponse.status}`);
     const articles = await articleResponse.json() as ArticleRow[];
     if (!Array.isArray(articles)) throw new Error('articles query returned a non-array response');
 
-    const items = new Map<string, TaxonomyItem>();
+    const categories = new Map<string, TaxonomyItem>();
     for (const article of articles) {
       if (!isPublished(article)) continue;
-      const lastmod = lastModified(article);
-
       const categorySlug = article.category_id ? categorySlugs.get(String(article.category_id)) : '';
-      if (categorySlug) {
-        const keyName = `category:${categorySlug}`;
-        const current = items.get(keyName) || { type: 'category', slug: categorySlug, count: 0, lastmod: null };
-        current.count += 1;
-        current.lastmod = newer(current.lastmod, lastmod);
-        items.set(keyName, current);
-      }
+      if (!categorySlug) continue;
 
-      for (const tag of Array.isArray(article.tags) ? article.tags : []) {
-        const tagSlug = getCanonicalTagSlug(String(tag || '').trim());
-        if (!tagSlug) continue;
-        const keyName = `tag:${tagSlug}`;
-        const current = items.get(keyName) || { type: 'tag', slug: tagSlug, count: 0, lastmod: null };
-        current.count += 1;
-        current.lastmod = newer(current.lastmod, lastmod);
-        items.set(keyName, current);
-      }
+      const current = categories.get(categorySlug) || { slug: categorySlug, count: 0, lastmod: null };
+      current.count += 1;
+      current.lastmod = newer(current.lastmod, lastModified(article));
+      categories.set(categorySlug, current);
     }
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-    for (const item of items.values()) {
-      if (item.count < 2) continue;
-      const url = `${BASE_URL}/blog/${item.type}/${encodeURIComponent(item.slug)}`;
+    for (const item of categories.values()) {
+      if (item.count < INDEXABLE_CATEGORY_MIN_ARTICLES) continue;
+      const url = `${BASE_URL}/blog/category/${encodeURIComponent(item.slug)}`;
       xml += `  <url>\n    <loc>${xmlEscape(url)}</loc>\n`;
       if (item.lastmod) xml += `    <lastmod>${xmlEscape(item.lastmod)}</lastmod>\n`;
       xml += '  </url>\n';
