@@ -6,7 +6,7 @@ let source = readFileSync(file, 'utf8');
 
 const middleware = `  const requireSuperAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     try {
-      const user = (req as any).__authenticatedAdmin || (typeof getAuthenticatedAdmin === "function" ? await getAuthenticatedAdmin(req) : null);
+      const user = (req as any).__authenticatedAdmin || (typeof (globalThis as any).getAuthenticatedAdmin === "function" ? await (globalThis as any).getAuthenticatedAdmin(req) : null);
       if (!user && typeof isAuthorizedAdmin === "function" && isAuthorizedAdmin(req)) {
         return next();
       }

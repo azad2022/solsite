@@ -18,14 +18,15 @@ const protectedRoutes = [
 
 for (const [method, path] of protectedRoutes) {
   const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const routeRegex = new RegExp(`app\\.${method}\\(\\s*[\\\"]${escapedPath}[\\\"]\\s*,\\s*([^\\n]*)`, 'm');
+  const routeRegex = new RegExp(`app\\.${method}\\(\\s*['"]${escapedPath}['"]\\s*,\\s*([^\\n]*)`, 'm');
   const match = source.match(routeRegex);
   if (!match) {
     throw new Error(`Server authentication hardening failed: route declaration not found for ${method.toUpperCase()} ${path}`);
   }
   const args = match[1];
-  if (!args.includes('requireAdminAuth')) {
-    const routePrefix = match[0].replace(new RegExp(`${escapedPath}[\\\"]\\s*,\\s*`), `${path}", requireAdminAuth, `);
+  if (!args.includes('requireAdminAuth') && !args.includes('requireSuperAdmin')) {
+    const quote = match[0].includes('"') ? '"' : "'";
+    const routePrefix = match[0].replace(new RegExp(`${escapedPath}['"]\\s*,\\s*`), `${path}${quote}, requireAdminAuth, `);
     source = source.replace(match[0], routePrefix);
   }
 }
@@ -47,10 +48,10 @@ source = source.replace(/if \(passwordHash\) \{\n\s*users\[idx\]\.passwordHash =
 // Fail closed if any high-risk legacy route exists without the authentication middleware.
 for (const [method, path] of protectedRoutes) {
   const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const routeRegex = new RegExp(`app\\.${method}\\(\\s*[\\\"]${escapedPath}[\\\"]\\s*,\\s*([^\\n]*)`, 'm');
+  const routeRegex = new RegExp(`app\\.${method}\\(\\s*['"]${escapedPath}['"]\\s*,\\s*([^\\n]*)`, 'm');
   const match = source.match(routeRegex);
-  if (!match || !match[1].includes('requireAdminAuth')) {
-    throw new Error(`Server authentication hardening failed: ${method.toUpperCase()} ${path} is not protected by requireAdminAuth`);
+  if (!match || (!match[1].includes('requireAdminAuth') && !match[1].includes('requireSuperAdmin'))) {
+    throw new Error(`Server authentication hardening failed: ${method.toUpperCase()} ${path} is not protected by requireAdminAuth or requireSuperAdmin`);
   }
 }
 

@@ -11,11 +11,20 @@ if (!source.includes("import { RelatedArticlesCarousel } from './RelatedArticles
   );
 }
 
+if (source.includes('<RelatedArticlesCarousel article={readingArticle}') && source.includes('<CommentsSection')) {
+  console.log('✓ Public related articles and comments client wiring already present; existing UI preserved.');
+  process.exit(0);
+}
+
 const start = source.indexOf('        <div className="pt-5 sm:pt-7 border-t border-slate-800 space-y-5 sm:space-y-6"><h3');
 const endMarker = '      </article></div>}';
 const end = source.indexOf(endMarker, start);
 if (start < 0 || end <= start) {
-  throw new Error('BlogHub article footer/comments marker not found; refusing to produce a partial production build.');
+  if (source.includes('<CommentsSection')) {
+    console.log('✓ Public comments UI already wired in BlogHub.');
+  } else {
+    throw new Error('BlogHub article footer/comments marker not found; refusing to produce a partial production build.');
+  }
 }
 
 const relatedMarker = '        <RelatedArticlesCarousel article={readingArticle} articles={articles} onNavigate={onNavigate} />\n';

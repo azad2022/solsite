@@ -173,7 +173,7 @@ export const onRequestGet = async ({
   const mode = url.searchParams.get('mode') === 'extensions' ? 'extensions' : 'token';
 
   if (!isValidMint(mint)) {
-    return json({ ok: false, error: 'آدرس Mint معتبر نیست.' }, 400);
+    return json({ ok: false, error: 'آدرس Mint معتبر نیست (باید یک رشته Base58 معتبر بین ۳۲ تا ۴۴ کاراکتر باشد).' }, 400);
   }
 
   const rpcUrl = env?.SOLANA_RPC_URL || DEFAULT_RPC_URL;

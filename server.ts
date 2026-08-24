@@ -279,7 +279,7 @@ async function startServer() {
 
   const requireSuperAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     try {
-      const user = (req as any).__authenticatedAdmin || (typeof getAuthenticatedAdmin === "function" ? await getAuthenticatedAdmin(req) : null);
+      const user = (req as any).__authenticatedAdmin || (typeof (globalThis as any).getAuthenticatedAdmin === "function" ? await (globalThis as any).getAuthenticatedAdmin(req) : null);
       if (!user && typeof isAuthorizedAdmin === "function" && isAuthorizedAdmin(req)) {
         return next();
       }
@@ -338,7 +338,7 @@ async function startServer() {
   });
 
   // 2. REAL USER REGISTRATION & AUTHENTICATION ENDPOINTS
-  app.get("/api/users", requireSuperAdmin, requireSuperAdmin, requireSuperAdmin, requireSuperAdmin, (req, res) => {
+  app.get("/api/users", requireSuperAdmin, (req, res) => {
     try {
       const users = getAllUsers().map(u => ({
         id: u.id,
@@ -355,20 +355,20 @@ async function startServer() {
     }
   });
 
-  app.post("/api/users/register", requireSuperAdmin, requireSuperAdmin, requireSuperAdmin, requireSuperAdmin, (req, res) => {
+  app.post("/api/users/register", requireSuperAdmin, (req, res) => {
     try {
       const { username, fullName, password, permissions, isActive } = req.body || {};
-      const role = "user";
-      if (!username || !fullName || (!passwordHash && !req.body?.password)) {
+      const userRole = (req.body?.role as string) || "user";
+      if (!username || !fullName || !password) {
         return res.status(400).json({ success: false, message: "لطفا تمامی اطلاعات الزامی را وارد کنید." });
       }
 
-      const passInput = String(req.body?.password || "").trim();
+      const passInput = String(password || "").trim();
       const finalHash = hashPasswordForStorage(passInput);
 
-      const defaultPerms = role === "admin" || role === "superadmin" 
+      const defaultPerms = userRole === "admin" || userRole === "superadmin" 
         ? ["articles", "editor", "comments", "media", "seo", "audit", "redirects", "downloads", "deepseek", "chatbot", "database", "security", "users"]
-        : role === "writer" || role === "editor"
+        : userRole === "writer" || userRole === "editor"
         ? ["articles", "editor", "comments", "media"]
         : ["articles"];
 
@@ -377,7 +377,7 @@ async function startServer() {
         username: String(username).trim(),
         fullName: String(fullName).trim(),
         passwordHash: finalHash,
-        role: role || "user",
+        role: userRole,
         permissions: Array.isArray(permissions) && permissions.length > 0 ? permissions : defaultPerms,
         isActive: typeof isActive === "boolean" ? isActive : true,
         createdAt: new Date().toLocaleDateString("fa-IR")
