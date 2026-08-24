@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080812"/>
+      <stop offset="100%" stop-color="#131128"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9945FF"/>
+      <stop offset="100%" stop-color="#14F195"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="600" cy="240" r="80" fill="#181534" stroke="url(#accent)" stroke-width="4"/>
+  <text x="600" y="255" font-family="sans-serif" font-size="48" font-weight="bold" fill="#14F195" text-anchor="middle">SOLMINT</text>
+  <text x="600" y="380" font-family="sans-serif" font-size="42" font-weight="bold" fill="#FFFFFF" text-anchor="middle">پلتفرم غیرمتمرکز و کیف پول سولانا</text>
+  <text x="600" y="440" font-family="sans-serif" font-size="24" fill="#94A3B8" text-anchor="middle">ساخت توکن SPL • ساخت میم کوین • ضرب NFT • سواپ هوشمند</text>
+  <rect x="450" y="490" width="300" height="46" rx="23" fill="url(#accent)"/>
+  <text x="600" y="521" font-family="sans-serif" font-size="20" font-weight="bold" fill="#080812" text-anchor="middle">SolMint.ir</text>
+</svg>

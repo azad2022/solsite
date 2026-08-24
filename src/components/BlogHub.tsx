@@ -4,6 +4,8 @@ import { sanitizeText, safeSetLocalStorage } from '../utils/security';
 import { addCommentApi } from '../utils/cmsApiClient';
 import { renderMarkdownToHtml } from '../utils/markdownRenderer';
 import { AuthorAvatar } from './AuthorAvatar';
+import { CommentsSection } from './CommentsSection';
+import { RelatedArticlesCarousel } from './RelatedArticlesCarousel';
 import { Search, BookOpen, Clock, MessageSquare, Send, Copy, Check, Tag, User, X, ArrowLeft, Video, Lock, UserPlus, Sparkles } from 'lucide-react';
 import { formatArticleDisplayDate, getArticleDateTime } from '../utils/articleDate';
 import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';
@@ -15,7 +17,6 @@ export const BlogHub: React.FC<BlogHubProps> = ({ articles, setArticles, current
   const [selectedCategory, setSelectedCategory] = useState<string>('همه');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
-  const [commentText, setCommentText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
@@ -51,16 +52,11 @@ export const BlogHub: React.FC<BlogHubProps> = ({ articles, setArticles, current
     });
   };
   const handleCloseArticle = () => { setReadingArticle(null); onNavigate?.('/blog'); };
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) { openAuthModal(); return; }
-    const sanitizedText = sanitizeText(commentText);
-    if (!sanitizedText || !readingArticle) return;
-    const authorName = sanitizeText(currentUser.fullName || currentUser.username);
-    const result = await addCommentApi({ articleId: readingArticle.id, userName: authorName, userId: currentUser.id, text: sanitizedText });
-    const newComment: ArticleComment = result.comment || { id: 'comment-' + Date.now(), userName: authorName, userId: currentUser.id, text: sanitizedText, createdAt: 'همین الان' };
-    const updatedArticles = articles.map(a => a.id === readingArticle.id ? { ...a, comments: [newComment, ...(a.comments || [])] } : a);
-    setArticles(updatedArticles); safeSetLocalStorage('solmint_articles', updatedArticles); setReadingArticle(prev => prev ? { ...prev, comments: [newComment, ...(prev.comments || [])] } : null); setCommentText('');
+  const handleCommentCreated = (comment: ArticleComment) => {
+    if (!comment.approved) { window.alert('دیدگاه شما ثبت شد و پس از تأیید مدیر نمایش داده می‌شود.'); return; }
+    const updatedArticles = articles.map(a => a.id === readingArticle?.id ? { ...a, comments: [comment, ...(a.comments || [])] } : a);
+    setArticles(updatedArticles);
+    setReadingArticle(prev => prev ? { ...prev, comments: [comment, ...(prev.comments || [])] } : null);
   };
   const handleCopyArticleLink = async (slug: string) => {
     const url = `https://solmint.ir/article/${slug}`;
@@ -89,9 +85,8 @@ export const BlogHub: React.FC<BlogHubProps> = ({ articles, setArticles, current
         {readingArticle.videoUrl && <div className="space-y-2 p-3 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800"><div className="flex items-center gap-2 text-xs font-bold text-emerald-400 mb-2"><Video className="w-4 h-4" /><span>ویدیو آموزشی اختصاصی مقاله</span></div><video controls playsInline className="w-full rounded-xl max-h-[55vh] sm:max-h-96 bg-black" src={readingArticle.videoUrl}>مرورگر شما از ویدیو پشتیبانی نمی‌کند.</video></div>}
         <div className="article-content max-w-3xl mx-auto w-full bg-slate-900/40 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-800/80 break-words" itemProp="articleBody" dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }} />
         {readingArticle.tags.length > 0 && <section className="max-w-3xl mx-auto w-full pt-5 border-t border-slate-800" aria-labelledby="article-tags-title"><h2 id="article-tags-title" className="text-sm font-bold text-slate-300 flex items-center gap-2"><Tag className="w-4 h-4 text-sky-400" aria-hidden="true" />برچسب‌های مقاله</h2><div className="flex flex-wrap gap-2 mt-3">{readingArticle.tags.map(tag => { const item = getArticleTagTaxonomy([tag])[0]; return item ? <a key={tag} href={buildTaxonomyUrl(item)} onClick={e => navigateTaxonomy(e, 'tag', tag)} itemProp="keywords" className="px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 border border-slate-800 text-[11px] hover:text-sky-300 hover:border-sky-500/30">#{tag}</a> : null; })}</div></section>}
-        <div className="pt-5 sm:pt-7 border-t border-slate-800 space-y-5 sm:space-y-6"><h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2"><MessageSquare className="w-5 h-5 text-sky-400" />دیدگاه‌های کاربران ({readingArticle.comments.length})</h3>
-        {currentUser ? <form onSubmit={handleAddComment} className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs"><span className="font-bold text-slate-300">ثبت دیدگاه جدید:</span><span className="text-[11px] text-[#14F195] font-semibold flex items-center gap-1"><User className="w-3.5 h-3.5" />دیدگاه از طرف: {currentUser.fullName}</span></div><textarea rows={4} required placeholder={`پاسخ یا نظر خود را بنویسید آقای/خانم ${currentUser.fullName}...`} value={commentText} onChange={e => setCommentText(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 resize-y min-h-28 focus:border-sky-500/50 focus:outline-none" /><div className="flex justify-end"><button type="submit" className="btn-gradient px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer hover:scale-105 transition-all">ارسال دیدگاه</button></div></form> : <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-amber-500/30 text-center space-y-3"><div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto"><Lock className="w-5 h-5" /></div><div className="space-y-1"><h4 className="font-bold text-white text-sm">جهت ثبت نظر باید ثبت‌نام کرده باشید</h4><p className="text-xs text-slate-400 max-w-md mx-auto leading-6">برای جلوگیری از اسپم و حفظ کیفیت گفتگوها، ثبت دیدگاه مستلزم داشتن حساب کاربری در وبسایت سولمینت است.</p></div><button type="button" onClick={() => { setReadingArticle(null); openAuthModal(); }} className="btn-gradient px-5 py-2.5 rounded-xl text-xs font-bold inline-flex items-center gap-2 cursor-pointer hover:scale-105 transition-all shadow-lg"><UserPlus className="w-4 h-4" />ورود یا ثبت‌نام حساب کاربر</button></div>}
-        <div className="space-y-3">{readingArticle.comments.map(c => <div key={c.id} className="p-3.5 sm:p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs"><span className="font-bold text-sky-400">{c.userName}</span><span className="text-[10px] text-slate-500">{c.createdAt}</span></div><p className="text-sm text-slate-300 pt-1 leading-7 break-words">{c.text}</p></div>)}</div></div>
+        <RelatedArticlesCarousel article={readingArticle} articles={articles} onNavigate={onNavigate} />
+        <CommentsSection articleId={readingArticle.id} comments={readingArticle.comments || []} currentUser={currentUser} openAuthModal={openAuthModal} onCommentCreated={handleCommentCreated} />
       </article></div>}
     </section>
   );

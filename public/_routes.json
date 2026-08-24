@@ -4,6 +4,7 @@
     "/",
     "/sitemap*.xml",
     "/blog",
+    "/blog/*",
     "/tools/*",
     "/article/*",
     "/wallet-analyzer",
@@ -21,6 +22,10 @@
     "/solana-token",
     "/solana-wallet",
     "/solana-nft",
+    "/solana-meme-coin",
+    "/security",
+    "/download",
+    "/app-guide",
     "/faq"
   ],
   "exclude": []

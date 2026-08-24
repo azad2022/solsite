@@ -24,7 +24,7 @@ export const LatestArticlesSection: React.FC<LatestArticlesSectionProps> = ({
   onGoToBlog,
   onNavigate
 }) => {
-  const latestArticles = articles.slice(0, 3);
+  const latestArticles = articles.filter(a => !a.isDraft).slice(0, 6);
 
   const navigateToArticle = (art: Article) => {
     onNavigate(`/article/${art.slug}`);

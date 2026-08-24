@@ -27,6 +27,7 @@ Disallow: /admin
 Disallow: /api/
 
 Sitemap: ${BASE_URL}/sitemap.xml
+Sitemap: ${BASE_URL}/sitemap-pages.xml
 Sitemap: ${BASE_URL}/sitemap-articles.xml
 Sitemap: ${BASE_URL}/sitemap-taxonomy.xml
 `;

@@ -250,9 +250,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
 
   // Media Storage Config State
   const [configOwner, setConfigOwner] = useState('azad2022');
-  const [configRepo, setConfigRepo] = useState('solmint-media');
+  const [configRepo, setConfigRepo] = useState('solsite');
   const [configBranch, setConfigBranch] = useState('main');
-  const [configBasePath, setConfigBasePath] = useState('articles/');
+  const [configBasePath, setConfigBasePath] = useState('public/media/articles/');
   const [configToken, setConfigToken] = useState('');
   const [showGithubToken, setShowGithubToken] = useState(false);
   const [isTestingMediaConn, setIsTestingMediaConn] = useState(false);
@@ -326,9 +326,9 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
             if (!cancelled && cfg) {
               setMediaConfigState(cfg);
               setConfigOwner(cfg.githubOwner || 'azad2022');
-              setConfigRepo(cfg.githubRepository || 'solmint-media');
+              setConfigRepo(cfg.githubRepository || 'solsite');
               setConfigBranch(cfg.branch || 'main');
-              setConfigBasePath(cfg.basePath || 'articles/');
+              setConfigBasePath(cfg.basePath || 'public/media/articles/');
             }
           });
         } else {
@@ -358,8 +358,7 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       githubOwner: configOwner.trim(),
       githubRepository: configRepo.trim(),
       branch: configBranch.trim(),
-      basePath: configBasePath.trim(),
-      githubToken: configToken.trim() || undefined
+      basePath: configBasePath.trim()
     };
     const res = await testMediaRepositoryConnection(testCfg);
     setMediaTestResult(res);
@@ -374,14 +373,22 @@ export const AdminCmsModal: React.FC<AdminCmsModalProps> = ({
       branch: configBranch.trim(),
       basePath: configBasePath.trim()
     };
-    const savePayload = {
-      ...newCfg,
-      githubToken: configToken.trim() || undefined
-    };
-    await saveMediaStorageConfig(savePayload as any);
-    setMediaConfigState(newCfg);
-    setConfigToken('');
-    setMediaTestResult({ success: true, message: 'تنظیمات مخزن رسانه با موفقیت ذخیره گردید.' });
+
+    setMediaTestResult(null);
+    const saved = await saveMediaStorageConfig(newCfg);
+    if (!saved) {
+      setMediaTestResult({ success: false, message: 'تنظیمات ذخیره نشد. ابتدا اتصال GitHub، Repository، Branch و مسیر رسانه را تست کنید.' });
+      return;
+    }
+
+    const fresh = await getMediaStorageConfig();
+    setMediaConfigState(fresh);
+    setConfigOwner(fresh.githubOwner);
+    setConfigRepo(fresh.githubRepository);
+    setConfigBranch(fresh.branch);
+    setConfigBasePath(fresh.basePath);
+    await handleRefreshMediaAssets();
+    setMediaTestResult({ success: true, message: 'تنظیمات مخزن رسانه با موفقیت روی سرور ذخیره و دوباره از production خوانده شد.' });
   };
 
   const handleUploadNewMediaAsset = async (e: React.FormEvent) => {
