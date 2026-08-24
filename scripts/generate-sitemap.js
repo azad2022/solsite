@@ -10,10 +10,13 @@ async function generate() {
 User-agent: *
 Allow: /
 Allow: /solana-wallet
+Allow: /solana-price
 Allow: /solana-token
 Allow: /solana-meme-coin
 Allow: /solana-nft
 Allow: /app-guide
+Allow: /wallet-analyzer
+Allow: /tools/
 Allow: /security
 Allow: /download
 Allow: /blog
@@ -21,7 +24,6 @@ Allow: /article/
 Allow: /blog/category/
 Allow: /blog/tag/
 Allow: /faq
-Allow: /tools/
 
 Disallow: /admin
 Disallow: /api/

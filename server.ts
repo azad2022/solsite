@@ -23,6 +23,13 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { INITIAL_ARTICLES } from "./src/data/initialBlogData";
 import { ROUTES_SEO_MAP, getRouteSeoInfo, SITE_DOMAIN } from "./src/utils/seoManager";
 import {
+  CATEGORY_SLUGS,
+  getArticleCategoryTaxonomy,
+  getArticleTagTaxonomy,
+  buildTaxonomyUrl,
+  findCategoryNameBySlug
+} from "./src/config/articleTaxonomy";
+import {
   getAllUsers,
   saveUsers,
   registerUser,
@@ -1263,22 +1270,47 @@ async function startServer() {
 
   // Helper to generate pre-rendered HTML with full route-specific metadata and 404 status detection
   const renderSeoPage = async (rawTemplate: string, reqPath: string): Promise<{ html: string; status: number; isRedirect?: boolean; redirectUrl?: string }> => {
-    let cleanPath = reqPath.split("?")[0].toLowerCase();
+    let cleanPath = reqPath.split("?")[0].replace(/\/+$/, "") || "/";
     let articleData: any = null;
+    let taxonomyData: { type: 'category' | 'tag'; slug: string; name: string; articles: any[] } | null = null;
 
     if (cleanPath.startsWith("/article/") || cleanPath.startsWith("/blog/")) {
-      const slug = cleanPath.replace(/^\/(article|blog)\//, "").trim();
-      if (slug) {
-        const allArticles = await getAllPublishedArticles();
-        const found = allArticles.find(a => a.slug === slug);
-        if (found) {
-          articleData = found;
-          // 301 Redirect legacy /blog/{slug} to canonical /article/{slug}
-          if (cleanPath.startsWith("/blog/")) {
-            return { html: "", status: 301, isRedirect: true, redirectUrl: `/article/${found.slug}` };
+      const isTaxonomy = cleanPath.startsWith("/blog/category/") || cleanPath.startsWith("/blog/tag/");
+      if (!isTaxonomy) {
+        const slug = cleanPath.replace(/^\/(article|blog)\//, "").trim();
+        if (slug) {
+          const allArticles = await getAllPublishedArticles();
+          const found = allArticles.find(a => a.slug === slug);
+          if (found) {
+            articleData = found;
+            // 301 Redirect legacy /blog/{slug} to canonical /article/{slug}
+            if (cleanPath.startsWith("/blog/")) {
+              return { html: "", status: 301, isRedirect: true, redirectUrl: `/article/${found.slug}` };
+            }
+            cleanPath = `/article/${found.slug}`;
           }
-          cleanPath = `/article/${found.slug}`;
         }
+      } else if (cleanPath.startsWith("/blog/category/")) {
+        const rawSlug = cleanPath.replace("/blog/category/", "").trim();
+        const cleanSlug = decodeURIComponent(rawSlug);
+        const allArticles = await getAllPublishedArticles();
+        const matching = allArticles.filter(a => {
+          if (a.isDraft) return false;
+          const tax = getArticleCategoryTaxonomy(a.category);
+          return tax && (tax.slug === cleanSlug || tax.name.toLowerCase() === cleanSlug.toLowerCase());
+        });
+        const categoryName = findCategoryNameBySlug(cleanSlug) || cleanSlug;
+        taxonomyData = { type: 'category', slug: cleanSlug, name: categoryName, articles: matching };
+      } else if (cleanPath.startsWith("/blog/tag/")) {
+        const rawSlug = cleanPath.replace("/blog/tag/", "").trim();
+        const cleanSlug = decodeURIComponent(rawSlug);
+        const allArticles = await getAllPublishedArticles();
+        const matching = allArticles.filter(a => {
+          if (a.isDraft) return false;
+          const tags = getArticleTagTaxonomy(a.tags || []);
+          return tags.some(t => t.slug === cleanSlug || t.name.toLowerCase() === cleanSlug.toLowerCase());
+        });
+        taxonomyData = { type: 'tag', slug: cleanSlug, name: cleanSlug, articles: matching };
       }
     }
 
@@ -1350,17 +1382,53 @@ async function startServer() {
     html = html.replace('</head>', `${ogTags}\n</head>`);
 
     // 5. Inject Article or Page Specific JSON-LD Schema
+    const pageSchemas: any[] = [
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://solmint.ir/#organization",
+        "name": "سولمینت",
+        "alternateName": "SolMint Ecosystem",
+        "url": "https://solmint.ir",
+        "logo": "https://solmint.ir/og-solmint.png",
+        "description": "پلتفرم و مرجع آموزشی اپلیکیشن غیرامانی سولانا و ساخت توکن SPL"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": "https://solmint.ir/#website",
+        "name": "سولمینت",
+        "url": "https://solmint.ir",
+        "inLanguage": "fa-IR",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://solmint.ir/blog?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": info.breadcrumbs.map((b, idx) => ({
+          "@type": "ListItem",
+          "position": idx + 1,
+          "name": b.name,
+          "item": b.url
+        }))
+      }
+    ];
+
     if (articleData) {
-      const articleJsonLd = {
+      pageSchemas.push({
         "@context": "https://schema.org",
         "@type": "Article",
         "headline": articleData.title,
         "description": articleData.summary,
-        "image": articleData.coverImage,
+        "image": articleData.coverImage || "https://solmint.ir/og-solmint.png",
         "author": {
           "@type": "Person",
-          "name": articleData.author.name,
-          "jobTitle": articleData.author.role
+          "name": articleData.author?.name || "تیم تحریریه سولمینت",
+          "jobTitle": articleData.author?.role || "تحلیل‌گر وب۳"
         },
         "publisher": {
           "@type": "Organization",
@@ -1376,12 +1444,51 @@ async function startServer() {
           "@id": info.canonical
         },
         "datePublished": articleData.publishedAtGregorian ? articleData.publishedAtGregorian.replace(/\//g, "-") : "2025-07-27",
-        "dateModified": formatLastModDate(articleData)
-      };
-
-      const schemaScript = `\n    <script type="application/ld+json">\n    ${JSON.stringify(articleJsonLd, null, 2)}\n    </script>`;
-      html = html.replace('</head>', `${schemaScript}\n</head>`);
+        "dateModified": formatLastModDate(articleData) || "2025-07-27"
+      });
     }
+
+    if (taxonomyData) {
+      pageSchemas.push({
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "@id": `${info.canonical}#collection`,
+        "url": info.canonical,
+        "name": info.title,
+        "description": info.description,
+        "mainEntity": {
+          "@type": "ItemList",
+          "itemListElement": taxonomyData.articles.map((art, idx) => ({
+            "@type": "ListItem",
+            "position": idx + 1,
+            "url": `https://solmint.ir/article/${encodeURIComponent(art.slug)}`,
+            "name": art.title
+          }))
+        }
+      });
+    }
+
+    if (info.path === '/wallet-analyzer' || info.path.startsWith('/tools/')) {
+      pageSchemas.push({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "@id": `${info.canonical}#app`,
+        "name": info.title.split('|')[0].trim(),
+        "url": info.canonical,
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires JavaScript. Requires HTML5.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": info.description
+      });
+    }
+
+    const schemaScript = `\n    <script type="application/ld+json">\n    ${JSON.stringify(pageSchemas, null, 2)}\n    </script>`;
+    html = html.replace('</head>', `${schemaScript}\n</head>`);
 
     // 6. Inject Pre-rendered SSR HTML into <div id="root"></div> for zero-JS crawlers
     let ssrHtmlContent = "";
@@ -1407,6 +1514,35 @@ async function startServer() {
               ${articleData.content}
             </div>
           </article>
+        </main>
+      `;
+    } else if (taxonomyData) {
+      ssrHtmlContent = `
+        <main style="max-width:1100px;margin:0 auto;padding:2rem 1rem;color:#f8fafc;font-family:system-ui,sans-serif;direction:rtl;text-align:right;">
+          <nav aria-label="Breadcrumb" style="font-size:0.875rem;color:#94a3b8;margin-bottom:1.5rem;">
+            ${info.breadcrumbs.map(b => `<a href="${b.url.replace(SITE_DOMAIN, '')}" style="color:#38bdf8;text-decoration:none;">${b.name}</a>`).join(' &gt; ')}
+          </nav>
+          <section>
+            <h1 style="font-size:2.25rem;font-weight:900;color:#ffffff;margin-bottom:1rem;">${info.h1}</h1>
+            <p style="font-size:1.125rem;color:#cbd5e1;line-height:1.7;margin-bottom:2rem;">${info.description}</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem;margin-top:2rem;">
+              ${taxonomyData.articles.map(art => `
+                <article style="background:#0f172a;border:1px solid #1e293b;border-radius:1rem;padding:1.5rem;display:flex;flex-direction:column;justify-content:space-between;">
+                  <div>
+                    <span style="font-size:0.75rem;color:#38bdf8;font-weight:bold;">${art.category}</span>
+                    <h2 style="font-size:1.25rem;font-weight:bold;margin:0.5rem 0;color:#f1f5f9;">
+                      <a href="/article/${encodeURIComponent(art.slug)}" style="color:#f1f5f9;text-decoration:none;">${art.title}</a>
+                    </h2>
+                    <p style="font-size:0.875rem;color:#94a3b8;line-height:1.6;">${art.summary}</p>
+                  </div>
+                  <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:0.75rem;color:#64748b;">${art.publishedAtJalali || art.publishedAt}</span>
+                    <a href="/article/${encodeURIComponent(art.slug)}" style="color:#14F195;font-weight:bold;font-size:0.875rem;text-decoration:none;">مطالعه مقاله &larr;</a>
+                  </div>
+                </article>
+              `).join('')}
+            </div>
+          </section>
         </main>
       `;
     } else {
@@ -2272,49 +2408,167 @@ async function startServer() {
     });
   });
 
-  // Dynamic Sitemap XML Endpoint fetching from REAL article data source (Supabase)
-  app.get("/sitemap.xml", async (req, res) => {
+  // Dynamic Core Pages Sitemap XML Endpoint
+  app.get(["/sitemap-pages.xml", "/sitemap-static.xml"], (req, res) => {
     const baseUrl = "https://solmint.ir";
-
-    const staticRoutes = [
-      { path: "" },
-      { path: "/solana-wallet" },
-      { path: "/solana-token" },
-      { path: "/solana-meme-coin" },
-      { path: "/solana-nft" },
-      { path: "/security" },
-      { path: "/download" },
-      { path: "/blog" },
-      { path: "/faq" }
+    const corePages = [
+      { path: "", changefreq: "daily", priority: "1.0" },
+      { path: "/solana-wallet", changefreq: "weekly", priority: "0.9" },
+      { path: "/solana-price", changefreq: "hourly", priority: "0.9" },
+      { path: "/solana-token", changefreq: "weekly", priority: "0.9" },
+      { path: "/solana-meme-coin", changefreq: "weekly", priority: "0.8" },
+      { path: "/solana-nft", changefreq: "weekly", priority: "0.8" },
+      { path: "/app-guide", changefreq: "weekly", priority: "0.8" },
+      { path: "/wallet-analyzer", changefreq: "daily", priority: "0.9" },
+      { path: "/tools/solana-token-tools", changefreq: "weekly", priority: "0.8" },
+      { path: "/tools/solana-token-scanner", changefreq: "weekly", priority: "0.8" },
+      { path: "/tools/token-2022-inspector", changefreq: "weekly", priority: "0.8" },
+      { path: "/security", changefreq: "monthly", priority: "0.7" },
+      { path: "/download", changefreq: "weekly", priority: "0.9" },
+      { path: "/blog", changefreq: "daily", priority: "0.9" },
+      { path: "/faq", changefreq: "monthly", priority: "0.7" }
     ];
 
+    const today = new Date().toISOString().split("T")[0];
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-    // Static primary pages
-    staticRoutes.forEach(r => {
+    corePages.forEach(p => {
       xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}${r.path}</loc>\n`;
+      xml += `    <loc>${baseUrl}${p.path}</loc>\n`;
+      xml += `    <lastmod>${today}</lastmod>\n`;
+      xml += `    <changefreq>${p.changefreq}</changefreq>\n`;
+      xml += `    <priority>${p.priority}</priority>\n`;
       xml += `  </url>\n`;
     });
 
-    // Dynamic Published Articles from REAL Database Data Source (Supabase)
+    xml += `</urlset>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400");
+    return res.type("xml").send(xml);
+  });
+
+  // Dynamic Published Articles Sitemap XML Endpoint
+  app.get("/sitemap-articles.xml", async (req, res) => {
+    const baseUrl = "https://solmint.ir";
     const allArticles = await getAllPublishedArticles();
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n`;
+
     allArticles.forEach(art => {
       if (art.isDraft) return;
       const cleanSlug = (art.slug || "").trim().replace(/^\/+|\/+$/g, "");
       if (!cleanSlug) return;
 
-      const artLastMod = formatLastModDate(art);
+      const artLastMod = formatLastModDate(art) || new Date().toISOString().split("T")[0];
       xml += `  <url>\n`;
       xml += `    <loc>${baseUrl}/article/${xmlEscape(cleanSlug)}</loc>\n`;
-      if (artLastMod) {
-        xml += `    <lastmod>${artLastMod}</lastmod>\n`;
-      }
+      xml += `    <lastmod>${artLastMod}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.8</priority>\n`;
       xml += `  </url>\n`;
     });
 
     xml += `</urlset>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=3600");
+    return res.type("xml").send(xml);
+  });
+
+  // Dynamic Taxonomy (Categories & Tags) Sitemap XML Endpoint
+  app.get("/sitemap-taxonomy.xml", async (req, res) => {
+    const baseUrl = "https://solmint.ir";
+    const allArticles = await getAllPublishedArticles();
+
+    const categoryMap = new Map<string, string>();
+    const tagMap = new Map<string, string>();
+
+    // Seed preset categories
+    Object.values(CATEGORY_SLUGS).forEach(catSlug => {
+      categoryMap.set(catSlug, new Date().toISOString().split("T")[0]);
+    });
+
+    allArticles.forEach(art => {
+      if (art.isDraft) return;
+      const lastMod = formatLastModDate(art) || new Date().toISOString().split("T")[0];
+
+      if (art.category) {
+        const catTax = getArticleCategoryTaxonomy(art.category);
+        if (catTax && catTax.slug) {
+          const current = categoryMap.get(catTax.slug);
+          if (!current || lastMod > current) {
+            categoryMap.set(catTax.slug, lastMod);
+          }
+        }
+      }
+
+      if (Array.isArray(art.tags)) {
+        const tagTaxes = getArticleTagTaxonomy(art.tags);
+        tagTaxes.forEach(t => {
+          if (t && t.slug) {
+            const current = tagMap.get(t.slug);
+            if (!current || lastMod > current) {
+              tagMap.set(t.slug, lastMod);
+            }
+          }
+        });
+      }
+    });
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+    categoryMap.forEach((lastMod, slug) => {
+      xml += `  <url>\n`;
+      xml += `    <loc>${baseUrl}/blog/category/${xmlEscape(slug)}</loc>\n`;
+      xml += `    <lastmod>${lastMod}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.7</priority>\n`;
+      xml += `  </url>\n`;
+    });
+
+    tagMap.forEach((lastMod, slug) => {
+      xml += `  <url>\n`;
+      xml += `    <loc>${baseUrl}/blog/tag/${xmlEscape(slug)}</loc>\n`;
+      xml += `    <lastmod>${lastMod}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.6</priority>\n`;
+      xml += `  </url>\n`;
+    });
+
+    xml += `</urlset>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=600, s-maxage=600, stale-while-revalidate=7200");
+    return res.type("xml").send(xml);
+  });
+
+  // Sitemap Index & Master Sitemap XML Endpoint
+  app.get(["/sitemap.xml", "/sitemap_index.xml"], async (req, res) => {
+    const baseUrl = "https://solmint.ir";
+    const now = new Date().toISOString();
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    xml += `  <sitemap>\n`;
+    xml += `    <loc>${baseUrl}/sitemap-pages.xml</loc>\n`;
+    xml += `    <lastmod>${now}</lastmod>\n`;
+    xml += `  </sitemap>\n`;
+    xml += `  <sitemap>\n`;
+    xml += `    <loc>${baseUrl}/sitemap-articles.xml</loc>\n`;
+    xml += `    <lastmod>${now}</lastmod>\n`;
+    xml += `  </sitemap>\n`;
+    xml += `  <sitemap>\n`;
+    xml += `    <loc>${baseUrl}/sitemap-taxonomy.xml</loc>\n`;
+    xml += `    <lastmod>${now}</lastmod>\n`;
+    xml += `  </sitemap>\n`;
+    xml += `</sitemapindex>`;
 
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -2374,12 +2628,18 @@ async function startServer() {
 User-agent: *
 Allow: /
 Allow: /solana-wallet
+Allow: /solana-price
 Allow: /solana-token
 Allow: /solana-meme-coin
 Allow: /solana-nft
+Allow: /app-guide
+Allow: /wallet-analyzer
+Allow: /tools/
 Allow: /security
 Allow: /download
 Allow: /blog
+Allow: /blog/category/
+Allow: /blog/tag/
 Allow: /article/
 Allow: /faq
 
@@ -2387,6 +2647,9 @@ Disallow: /admin
 Disallow: /api/
 
 Sitemap: https://solmint.ir/sitemap.xml
+Sitemap: https://solmint.ir/sitemap-pages.xml
+Sitemap: https://solmint.ir/sitemap-articles.xml
+Sitemap: https://solmint.ir/sitemap-taxonomy.xml
 `;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("X-Content-Type-Options", "nosniff");

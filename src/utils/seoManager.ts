@@ -83,6 +83,46 @@ export const ROUTES_SEO_MAP: Record<string, RouteSeoInfo> = {
     h1: 'آموزش کامل اپلیکیشن سولمینت',
     breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'راهنمای کامل اپلیکیشن', url: `${SITE_DOMAIN}/app-guide` }]
   },
+  '/wallet-analyzer': {
+    path: '/wallet-analyzer',
+    title: 'بررسی کیف پول ارز دیجیتال | تحلیل کیف پول سولانا | Wallet Analyzer | سولمینت',
+    description: 'بررسی و تحلیل کیف پول ارز دیجیتال با آدرس عمومی؛ موجودی، دارایی‌ها، تراکنش‌ها و فعالیت کیف پول را در یک محیط read-only بررسی کنید. بدون Seed Phrase و Private Key.',
+    canonical: `${SITE_DOMAIN}/wallet-analyzer`,
+    ogType: 'website',
+    ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+    h1: 'بررسی کیف پول ارز دیجیتال و تحلیل کیف پول سولانا',
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'تحلیل کیف پول', url: `${SITE_DOMAIN}/wallet-analyzer` }]
+  },
+  '/tools/solana-token-tools': {
+    path: '/tools/solana-token-tools',
+    title: 'ابزارهای توکن سولانا | مرکز بررسی فنی و تحلیل توکن‌های Solana - سولمینت',
+    description: 'مجموعه ابزارهای کاربردی و رایگان شبکه سولانا؛ اسکنر توکن (Solana Token Scanner) و بازرس Token-2022 برای بررسی متادیتا، اختیارات، هولدرها و امنیت توکن.',
+    canonical: `${SITE_DOMAIN}/tools/solana-token-tools`,
+    ogType: 'website',
+    ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+    h1: 'مرکز ابزارهای تحلیل و بررسی توکن سولانا',
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'ابزارها', url: `${SITE_DOMAIN}/tools/solana-token-tools` }]
+  },
+  '/tools/solana-token-scanner': {
+    path: '/tools/solana-token-scanner',
+    title: 'اسکنر توکن سولانا | بررسی متادیتا، Mint Authority و هولدرهای توکن - سولمینت',
+    description: 'ابزار آنلاین و رایگان اسکن و بررسی توکن سولانا (SPL Token Scanner). تحلیل وضعیت Mint Authority، Freeze Authority، عرضه کل، متادیتا و هولدرهای برتر.',
+    canonical: `${SITE_DOMAIN}/tools/solana-token-scanner`,
+    ogType: 'website',
+    ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+    h1: 'اسکنر و آنالیزور آنلاین توکن سولانا',
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'ابزارها', url: `${SITE_DOMAIN}/tools/solana-token-tools` }, { name: 'اسکنر توکن', url: `${SITE_DOMAIN}/tools/solana-token-scanner` }]
+  },
+  '/tools/token-2022-inspector': {
+    path: '/tools/token-2022-inspector',
+    title: 'بررسی Token-2022 سولانا | آنالیز اکستنشن‌های Token Extensions - سولمینت',
+    description: 'ابزار تخصصی بررسی اکستنشن‌های Token-2022 در شبکه سولانا. شناسایی Transfer Fee، Transfer Hook، Confidential Transfers، Default Account State و غیره.',
+    canonical: `${SITE_DOMAIN}/tools/token-2022-inspector`,
+    ogType: 'website',
+    ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+    h1: 'بررسی اکستنشن‌ها و ویژگی‌های Token-2022 سولانا',
+    breadcrumbs: [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'ابزارها', url: `${SITE_DOMAIN}/tools/solana-token-tools` }, { name: 'Token-2022 Inspector', url: `${SITE_DOMAIN}/tools/token-2022-inspector` }]
+  },
   '/security': {
     path: '/security',
     title: 'معماری امنیتی غیرامانی سولمینت | حفظ و نگهداری کلید خصوصی',
@@ -174,9 +214,10 @@ function countWords(content?: string): number | undefined {
 }
 
 export function getRouteSeoInfo(path: string, articleData?: ArticleSeoData): RouteSeoInfo {
-  let info = ROUTES_SEO_MAP[path];
+  let normalizedPath = path.split('?')[0].replace(/\/+$/, '') || '/';
+  let info = ROUTES_SEO_MAP[normalizedPath];
 
-  if (!info && (path.startsWith('/article/') || path.startsWith('/blog/')) && articleData) {
+  if (!info && (normalizedPath.startsWith('/article/') || normalizedPath.startsWith('/blog/')) && articleData) {
     info = {
       path: `/article/${articleData.slug}`,
       title: buildArticleTitle(articleData.title),
@@ -193,20 +234,59 @@ export function getRouteSeoInfo(path: string, articleData?: ArticleSeoData): Rou
     };
   }
 
+  // Handle Dynamic Taxonomy Pages (Categories and Tags)
+  if (!info && normalizedPath.startsWith('/blog/category/')) {
+    const rawSlug = normalizedPath.replace('/blog/category/', '').trim();
+    const cleanSlug = decodeURIComponent(rawSlug);
+    info = {
+      path: `/blog/category/${rawSlug}`,
+      title: `دسته‌بندی ${cleanSlug} | وبلاگ و آکادمی سولمینت`,
+      description: `مجموعه مقالات تخصصی و آموزش‌های دسته‌بندی ${cleanSlug} در آکادمی سولمینت (solmint.ir). راهنماهای کاربردی سولانا، وب۳ و کریپتو.`,
+      canonical: `${SITE_DOMAIN}/blog/category/${encodeURIComponent(cleanSlug)}`,
+      ogType: 'website',
+      ogImage: `${SITE_DOMAIN}/images/blog-og.jpg`,
+      h1: `مقالات دسته‌بندی: ${cleanSlug}`,
+      breadcrumbs: [
+        { name: 'خانه', url: `${SITE_DOMAIN}/` },
+        { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
+        { name: `دسته ${cleanSlug}`, url: `${SITE_DOMAIN}/blog/category/${encodeURIComponent(cleanSlug)}` }
+      ]
+    };
+  }
+
+  if (!info && normalizedPath.startsWith('/blog/tag/')) {
+    const rawSlug = normalizedPath.replace('/blog/tag/', '').trim();
+    const cleanSlug = decodeURIComponent(rawSlug);
+    info = {
+      path: `/blog/tag/${rawSlug}`,
+      title: `برچسب #${cleanSlug} | مقالات و مطالب سولمینت`,
+      description: `مشاهده تمام مقالات و آموزش‌های مرتبط با برچسب ${cleanSlug} در وبلاگ رسمی پلتفرم سولمینت.`,
+      canonical: `${SITE_DOMAIN}/blog/tag/${encodeURIComponent(cleanSlug)}`,
+      ogType: 'website',
+      ogImage: `${SITE_DOMAIN}/images/blog-og.jpg`,
+      h1: `مطالب مرتبط با برچسب #${cleanSlug}`,
+      breadcrumbs: [
+        { name: 'خانه', url: `${SITE_DOMAIN}/` },
+        { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` },
+        { name: `#${cleanSlug}`, url: `${SITE_DOMAIN}/blog/tag/${encodeURIComponent(cleanSlug)}` }
+      ]
+    };
+  }
+
   if (!info) {
     info = {
-      path,
+      path: normalizedPath,
       title: 'صفحه مورد نظر یافت نشد (۴۰۴) | سولمینت',
-      description: path.startsWith('/article/') || path.startsWith('/blog/')
+      description: normalizedPath.startsWith('/article/') || normalizedPath.startsWith('/blog/')
         ? 'متأسفانه مقاله مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.'
         : 'متأسفانه صفحه مورد نظر در آکادمی و وب‌سایت سولمینت یافت نشد.',
-      canonical: `${SITE_DOMAIN}${path}`,
+      canonical: `${SITE_DOMAIN}${normalizedPath}`,
       ogType: 'website',
       ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
-      h1: path.startsWith('/article/') || path.startsWith('/blog/') ? '۴۰۴ - مقاله مورد نظر یافت نشد' : '۴۰۴ - صفحه مورد نظر یافت نشد',
-      breadcrumbs: path.startsWith('/article/') || path.startsWith('/blog/')
-        ? [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` }, { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }]
-        : [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${path}` }],
+      h1: normalizedPath.startsWith('/article/') || normalizedPath.startsWith('/blog/') ? '۴۰۴ - مقاله مورد نظر یافت نشد' : '۴۰۴ - صفحه مورد نظر یافت نشد',
+      breadcrumbs: normalizedPath.startsWith('/article/') || normalizedPath.startsWith('/blog/')
+        ? [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'وبلاگ', url: `${SITE_DOMAIN}/blog` }, { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${normalizedPath}` }]
+        : [{ name: 'خانه', url: `${SITE_DOMAIN}/` }, { name: 'صفحه ۴۰۴', url: `${SITE_DOMAIN}${normalizedPath}` }],
       is404: true
     };
   }
@@ -299,9 +379,18 @@ function injectJsonLdSchema(info: RouteSeoInfo, articleData?: ArticleSeoData) {
       '@type': 'WebSite',
       '@id': `${SITE_DOMAIN}#website`,
       name: 'سولمینت',
+      alternateName: 'SolMint Ecosystem',
       url: SITE_DOMAIN,
       inLanguage: 'fa-IR',
-      publisher: { '@id': `${SITE_DOMAIN}#organization` }
+      publisher: { '@id': `${SITE_DOMAIN}#organization` },
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${SITE_DOMAIN}/blog?q={search_term_string}`
+        },
+        'query-input': 'required name=search_term_string'
+      }
     },
     {
       '@context': 'https://schema.org',
@@ -311,6 +400,42 @@ function injectJsonLdSchema(info: RouteSeoInfo, articleData?: ArticleSeoData) {
       }))
     }
   ];
+
+  if (!info.is404 && (info.path === '/wallet-analyzer' || info.path.startsWith('/tools/'))) {
+    schemas.push({
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      '@id': `${info.canonical}#app`,
+      name: info.title.split('|')[0].trim(),
+      url: info.canonical,
+      applicationCategory: 'FinanceApplication',
+      operatingSystem: 'All',
+      browserRequirements: 'Requires JavaScript. Requires HTML5.',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD'
+      },
+      description: info.description
+    });
+  }
+
+  if (!info.is404 && info.path === '/download') {
+    schemas.push({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      '@id': `${info.canonical}#android-app`,
+      name: 'SolMint Android App',
+      operatingSystem: 'Android',
+      applicationCategory: 'FinanceApplication',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD'
+      },
+      description: 'اپلیکیشن و کیف پول غیرامانی سولانا برای سیستم‌عامل اندروید. ساخت توکن، مدیریت کلیدهای خصوصی و وب۳.'
+    });
+  }
 
   if (!info.is404 && articleData && info.ogType === 'article') {
     const published = toIsoDate(articleData.publishedAt || articleData.publishedAtGregorian);
