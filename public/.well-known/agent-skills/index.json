@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    {
+      "name": "solana-token-risk",
+      "type": "skill-md",
+      "description": "Analyze a Solana token mint using Solmint's public on-chain and market-risk APIs. Use when an agent needs mint authorities, freeze authority, Token-2022 extensions, liquidity, volume, or explainable risk flags.",
+      "url": "/.well-known/agent-skills/solana-token-risk/SKILL.md",
+      "digest": "sha256:9f46909082fce3d42ffb4ddd03c5185adcb34cfbb3b07f267c27b30ae33fcaff"
+    },
+    {
+      "name": "solana-wallet-analysis",
+      "type": "skill-md",
+      "description": "Analyze a public Solana wallet address with Solmint's read-only wallet analyzer. Use for balances, token accounts, recent activity, transfers, and observable protocol interactions.",
+      "url": "/.well-known/agent-skills/solana-wallet-analysis/SKILL.md",
+      "digest": "sha256:71a7a53a727baad4eae7dc838de80791a81701af7277cbc9903797971fd711d1"
+    },
+    {
+      "name": "solmint-content-search",
+      "type": "skill-md",
+      "description": "Discover and search Solmint's public Solana articles and research content through its read-only public articles API and human-readable article pages.",
+      "url": "/.well-known/agent-skills/solmint-content-search/SKILL.md",
+      "digest": "sha256:00549af82c6528d92fb10505b21b60b2659eb10a66e6d0dfbad0f4195ec957a0"
+    }
+  ]
+}
