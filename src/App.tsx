@@ -19,12 +19,8 @@ import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 import { updateRouteSeo } from './utils/seoManager';
-import { ArticleTaxonomyPage } from './components/ArticleTaxonomyPage';
 import { getArticleCategoryTaxonomy, getArticleTagTaxonomy } from './utils/articleTaxonomy';
 import { updateTaxonomySeo } from './utils/taxonomySeo';
-import { SolanaPricePage } from './components/SolanaPricePage';
-import { SolanaPriceSeoEnhancer } from './components/SolanaPriceSeoEnhancer';
-import { SolanaMarketComments, SolanaMarketInsights } from './components/SolanaMarketInsights';
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
@@ -41,6 +37,13 @@ const SolanaTokenToolsHub = lazy(() => import('./components/tools/SolanaTokenToo
 const SolanaTokenScannerPage = lazy(() => import('./components/tools/SolanaTokenScannerPage').then(m => ({ default: m.SolanaTokenScannerPage })));
 const Token2022InspectorPage = lazy(() => import('./components/tools/Token2022InspectorPage').then(m => ({ default: m.Token2022InspectorPage })));
 const WalletAnalyzerPage = lazy(() => import('./components/wallet/WalletAnalyzerPage').then(m => ({ default: m.WalletAnalyzerPage })));
+const ArticleTaxonomyPage = lazy(() => import('./components/ArticleTaxonomyPage').then(m => ({ default: m.ArticleTaxonomyPage })));
+const SolanaPricePage = lazy(() => import('./components/SolanaPricePage').then(m => ({ default: m.SolanaPricePage })));
+const SolanaPriceSeoEnhancer = lazy(() => import('./components/SolanaPriceSeoEnhancer').then(m => ({ default: m.SolanaPriceSeoEnhancer })));
+const SolanaMarketInsights = lazy(() => import('./components/SolanaMarketInsights').then(m => ({ default: m.SolanaMarketInsights })));
+const SolanaMarketComments = lazy(() => import('./components/SolanaMarketInsights').then(m => ({ default: m.SolanaMarketComments })));
+const AppShowcaseAdminPanel = lazy(() => import('./components/AppShowcaseAdminPanel').then(m => ({ default: m.AppShowcaseAdminPanel })));
+const MemeTickerAdminPanel = lazy(() => import('./components/MemeTickerAdminPanel').then(m => ({ default: m.MemeTickerAdminPanel })));
 
 const normalizePath = (path: string) => { const withoutQuery = (path || '/').split('?')[0].split('#')[0]; const normalized = withoutQuery.replace(/\/+$/, ''); return normalized || '/'; };
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
@@ -109,15 +112,23 @@ export default function App() {
     if (normalizePath(window.location.pathname) !== normalizedPath) window.history.pushState({}, '', normalizedPath);
   };
 
-  useEffect(() => {
-    scrollToRouteTop();
-  }, [currentPath]);
-
+  useEffect(() => { scrollToRouteTop(); }, [currentPath]);
   useEffect(() => { const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname || '/')); window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState); }, []);
+
   useEffect(() => {
     let cancelled = false;
-    const syncPublicSettings = async () => { const settings = await fetchCmsSettingsFromApi(); if (cancelled || !settings) return; if (settings.chatbot) setChatbotSettings(prev => ({ ...prev, ...settings.chatbot, enabled: Boolean(settings.chatbot.enabled) })); if (settings.downloads) setDownloadLinks(prev => ({ ...prev, ...settings.downloads })); };
-    syncPublicSettings(); const interval = window.setInterval(syncPublicSettings, 10000); return () => { cancelled = true; window.clearInterval(interval); };
+    let interval: number | undefined;
+    const syncPublicSettings = async () => {
+      const settings = await fetchCmsSettingsFromApi();
+      if (cancelled || !settings) return;
+      if (settings.chatbot) setChatbotSettings(prev => ({ ...prev, ...settings.chatbot, enabled: Boolean(settings.chatbot.enabled) }));
+      if (settings.downloads) setDownloadLinks(prev => ({ ...prev, ...settings.downloads }));
+    };
+    const timer = window.setTimeout(() => {
+      void syncPublicSettings();
+      interval = window.setInterval(syncPublicSettings, 30000);
+    }, 1200);
+    return () => { cancelled = true; window.clearTimeout(timer); if (interval) window.clearInterval(interval); };
   }, []);
 
   const activeArticleSlug = useMemo(() => currentPath.startsWith('/article/') ? currentPath.slice('/article/'.length).trim() : '', [currentPath]);
@@ -125,28 +136,41 @@ export default function App() {
   const activeArticle = useMemo(() => activeArticleSlug ? articles.find(a => a.slug === activeArticleSlug) || null : null, [activeArticleSlug, articles]);
   const activeTaxonomy = useMemo(() => { if (!taxonomyMatch) return null; const candidates = taxonomyMatch.type === 'category' ? articles.map(article => getArticleCategoryTaxonomy(article.category)).filter(Boolean) : articles.flatMap(article => getArticleTagTaxonomy(article.tags)); return candidates.find(item => item?.slug === taxonomyMatch.slug) || null; }, [articles, taxonomyMatch]);
   const taxonomyArticleCount = useMemo(() => { if (!taxonomyMatch) return 0; return articles.filter(article => taxonomyMatch.type === 'category' ? getArticleCategoryTaxonomy(article.category)?.slug === taxonomyMatch.slug : getArticleTagTaxonomy(article.tags).some(item => item.slug === taxonomyMatch.slug)).length; }, [articles, taxonomyMatch]);
+
   useEffect(() => {
     if (taxonomyMatch && activeTaxonomy) {
       updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount });
       return;
     }
-
-    // Article indexability is owned by the server-side article response.
-    // While the client article store is loading, do not classify the route as a 404
-    // and do not mutate its robots directive. A real missing article is already
-    // returned by functions/article/[slug].ts with HTTP 404 + X-Robots-Tag: noindex.
     if (activeArticle) {
       updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
       return;
     }
-
     if (activeArticleSlug) return;
     if (currentPath !== '/solana-price') updateRouteSeo(currentPath);
   }, [currentPath, activeArticle, activeArticleSlug, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
+
   const handleLogout = () => { setCurrentUser(null); setIsShowcaseAdminOpen(false); setIsMemeTickerAdminOpen(false); localStorage.removeItem('solmint_current_user'); localStorage.removeItem('solmint_admin_session'); };
-  useEffect(() => { async function loadDatabaseArticles() { const dbArticles = await fetchArticlesFromActiveDatabase(); if (dbArticles && dbArticles.length > 0) setArticles(dbArticles); } loadDatabaseArticles(); }, []);
-  const refreshSolanaStatus = async () => { try { const res = await fetch('/api/solana/status'); if (res.ok) setSolanaStatus(await res.json()); } catch {} };
-  useEffect(() => { const interval = setInterval(refreshSolanaStatus, 10000); return () => clearInterval(interval); }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDatabaseArticles = async () => {
+      const dbArticles = await fetchArticlesFromActiveDatabase();
+      if (!cancelled && dbArticles && dbArticles.length > 0) setArticles(dbArticles);
+    };
+    const load = () => { void loadDatabaseArticles(); };
+    const delay = currentPath === '/' ? 1600 : 0;
+    const timer = window.setTimeout(load, delay);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [currentPath]);
+
+  const refreshSolanaStatus = async () => { try { const res = await fetch('/api/solana/status', { cache: 'no-store' }); if (res.ok) setSolanaStatus(await res.json()); } catch {} };
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void refreshSolanaStatus(); }, 1400);
+    const interval = window.setInterval(refreshSolanaStatus, 30000);
+    return () => { window.clearTimeout(timer); window.clearInterval(interval); };
+  }, []);
+
   const openAdminModal = () => setIsAdminModalOpen(true);
   const isPrivilegedAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.username === 'admin';
   const scrollToFeatures = () => { if (currentPath !== '/') { handleNavigate('/'); setTimeout(() => document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }), 150); } else document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }); };
@@ -172,7 +196,7 @@ export default function App() {
       {taxonomyMatch && activeTaxonomy && <ArticleTaxonomyPage articles={articles} type={taxonomyMatch.type} slug={taxonomyMatch.slug} onNavigate={handleNavigate} />}
       {(currentPath === '/blog' || currentPath.startsWith('/article/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
     </Suspense></main>
-    {isAdminModalOpen && <div className="relative z-[60]"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense><AdminQuickActionsPortal enabled={isPrivilegedAdmin} onOpenMarket={() => setIsMemeTickerAdminOpen(true)} onOpenShowcase={() => setIsShowcaseAdminOpen(true)} />{isPrivilegedAdmin && <><MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} /><AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} /></>}</div>}
+    {isAdminModalOpen && <div className="relative z-[60]"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense><AdminQuickActionsPortal enabled={isPrivilegedAdmin} onOpenMarket={() => setIsMemeTickerAdminOpen(true)} onOpenShowcase={() => setIsShowcaseAdminOpen(true)} />{isPrivilegedAdmin && <><Suspense fallback={null}><MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} /></Suspense><Suspense fallback={null}><AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} /></Suspense></>}</div>}
     {!isAdminModalOpen && <Suspense fallback={null}><DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} /></Suspense>}
     <Footer onNavigate={handleNavigate} openAdminModal={openAdminModal} currentPath={currentPath} articles={articles} />
   </div>;
