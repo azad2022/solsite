@@ -14,14 +14,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExploreFeatures }) =
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-12 max-w-4xl mx-auto space-y-8 text-center">
             <h1 id="hero-title" className="text-[42px] font-black text-white leading-[1.65] tracking-tight" style={{ fontSize: '42px', lineHeight: '1.65', minHeight: '138.6px', margin: 0 }}>
-              کیف پول غیر متمرکز سولانا <br className="hidden sm:block" />
+              کیف پول غیرامانی سولانا <br className="hidden sm:block" />
               <span className="bg-gradient-to-r from-[#9945FF] via-indigo-400 to-[#14F195] bg-clip-text text-transparent">
-                ساخت توکن، میم کوین و NFT
+                ساخت توکن، میم‌کوین و ابزارهای Web3
               </span>
             </h1>
 
             <p className="text-slate-300 text-[13px] sm:text-[14px] max-w-2xl mx-auto leading-[32px] font-normal">
-              <strong>سولمینت (Solmint)</strong> پلتفرم و کیف پول غیرامانی سولانا برای سیستم‌عامل اندروید است. مدیریت کامل کلیدهای خصوصی محلی، ساخت توکن SPL بدون کدنویسی، راه‌اندازی میم کوین و بازیابی کارمزد اجاره حساب.
+              <strong>سولمینت (Solmint)</strong> یک کیف پول غیرامانی سولانا برای اندروید و یک پلتفرم Web3 است. مدیریت SOL و توکن‌های سولانا، ساخت توکن SPL و میم‌کوین، NFT، Swap، بازیابی Rent و ابزارهای تخصصی Solana در یک محیط واحد ارائه می‌شود.
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-3.5 pt-2">
@@ -40,7 +40,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExploreFeatures }) =
                 onClick={onExploreFeatures}
                 className="px-6 py-3.5 rounded-full bg-white/[0.06] hover:bg-white/10 text-slate-200 border border-white/10 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
               >
-                <span>قابلیت‌های کلیدی</span>
+                <span>مشاهده قابلیت‌های Solmint</span>
                 <ArrowLeft className="w-4 h-4 text-[#14F195]" />
               </button>
             </div>
