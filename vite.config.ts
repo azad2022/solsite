@@ -8,7 +8,7 @@ function articleCategoryRegistryPlugin(): Plugin {
   const registryPath = path.resolve(__dirname, 'src/config/articleCategories.json');
   const categories = JSON.parse(fs.readFileSync(registryPath, 'utf8')) as string[];
   const allCategories = ['همه', ...categories];
-  const staticOptions = categories.map(category => `<option value="${category}">${category}</option>`).join('\n');
+  const staticOptions = categories.map(category => `<option value="${category}">${category}</option>`).join('\\n');
 
   return {
     name: 'solmint-article-category-registry',
@@ -18,15 +18,15 @@ function articleCategoryRegistryPlugin(): Plugin {
         let transformed = code;
         transformed = transformed.replace(
           "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';",
-          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';\nimport { fetchArticleCategories } from './ArticleCategoryManager';\nimport type { ArticleCategory } from './ArticleCategoryManager';"
+          "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';\\nimport { fetchArticleCategories } from './ArticleCategoryManager';\\nimport type { ArticleCategory } from './ArticleCategoryManager';"
         );
         transformed = transformed.replace(
           "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');",
-          "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');\n  const [dynamicCategoryItems, setDynamicCategoryItems] = useState<ArticleCategory[]>([]);"
+          "  const [selectedCategory, setSelectedCategory] = useState<string>('همه');\\n  const [dynamicCategoryItems, setDynamicCategoryItems] = useState<ArticleCategory[]>([]);"
         );
         transformed = transformed.replace(
           "  const categories = ['همه', 'آموزش سولانا', 'توسعه وب۳', 'امنیت', 'اخبار و تحلیل', 'ترید', 'پراپ تریدینگ'];",
-          "  useEffect(() => { fetchArticleCategories().then(items => setDynamicCategoryItems(items)).catch(() => setDynamicCategoryItems([])); }, []);\n\n  const categories = dynamicCategoryItems.length ? ['همه', ...dynamicCategoryItems.map(item => item.name)] : " + JSON.stringify(allCategories) + ";"
+          "  useEffect(() => { fetchArticleCategories().then(items => setDynamicCategoryItems(items)).catch(() => setDynamicCategoryItems([])); }, []);\\n\\n  const categories = dynamicCategoryItems.length ? ['همه', ...dynamicCategoryItems.map(item => item.name)] : " + JSON.stringify(allCategories) + ";"
         );
         transformed = transformed.replace(
           "const item = type === 'category' ? getArticleCategoryTaxonomy(value) : getArticleTagTaxonomy([value])[0];",
@@ -38,10 +38,10 @@ function articleCategoryRegistryPlugin(): Plugin {
         let transformed = code;
         transformed = transformed.replace(
           "import React, { useState, useEffect } from 'react';",
-          "import React, { useState, useEffect } from 'react';\nimport { ArticleCategoryManager, ArticleCategorySelect, fetchArticleCategories } from './ArticleCategoryManager';"
+          "import React, { useState, useEffect } from 'react';\\nimport { ArticleCategoryManager, ArticleCategorySelect, fetchArticleCategories } from './ArticleCategoryManager';"
         );
         transformed = transformed.replace(
-          /const \[formCategory, setFormCategory\] = useState<'[^']+'(?: \| '[^']+')+>\('آموزش سولانا'\);/,
+          /const \\[formCategory, setFormCategory\\] = useState<'[^']+'(?: \\| '[^']+')+>\\('آموزش سولانا'\\);/,
           "const [formCategory, setFormCategory] = useState<string>('آموزش سولانا');"
         );
         transformed = transformed.replace(
@@ -53,16 +53,16 @@ function articleCategoryRegistryPlugin(): Plugin {
           "const availableCategories = await fetchArticleCategories(); const exactCategory = availableCategories.find(item => item.name.trim() === String(aiArticle.category || '').trim()); const category = exactCategory?.name || availableCategories[0]?.name || 'آموزش سولانا';"
         );
         transformed = transformed.replace(
-          /<select\n\s+value=\{formCategory\}\n\s+onChange=\{\(e\) => setFormCategory\(e\.target\.value as any\)\}\n\s+className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2\.5 text-slate-200"\n\s*>[\s\S]*?<\/select>/,
+          /<select\\n\\s+value=\\{formCategory\\}\\n\\s+onChange=\\{\\(e\\) => setFormCategory\\(e\\.target\\.value as any\\)\\}\\n\\s+className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2\\.5 text-slate-200"\\n\\s*>[\\s\\S]*?<\\/select>/,
           '<ArticleCategorySelect value={formCategory} onChange={setFormCategory} />'
         );
         transformed = transformed.replace(
-          /\{adminTab === 'seo' && \(\n\s*<div className="space-y-6 text-xs">/,
-          "{adminTab === 'seo' && (\n              <div className=\"space-y-6 text-xs\">\n                <ArticleCategoryManager />"
+          /\\{adminTab === 'seo' && \\(\\n\\s*<div className="space-y-6 text-xs">/,
+          "{adminTab === 'seo' && (\\n              <div className=\"space-y-6 text-xs\">\\n                <ArticleCategoryManager />"
         );
         transformed = transformed.replace(
-          /(<span>افزودن مقاله دستی<\/span>\s*<\/button>)/,
-          "$1\n                    <button type=\"button\" onClick={() => setAdminTab('seo')} className=\"px-3 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 font-bold border border-cyan-500/30 flex items-center gap-1 cursor-pointer\">مدیریت دسته‌بندی‌ها</button>"
+          /(<span>افزودن مقاله دستی<\\/span>\\s*<\\/button>)/,
+          "$1\\n                    <button type=\"button\" onClick={() => setAdminTab('seo')} className=\"px-3 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 font-bold border border-cyan-500/30 flex items-center gap-1 cursor-pointer\">مدیریت دسته‌بندی‌ها</button>"
         );
         if (transformed.includes('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}')) transformed = transformed.replace('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}', staticOptions);
         return transformed;
@@ -72,8 +72,27 @@ function articleCategoryRegistryPlugin(): Plugin {
   };
 }
 
+function homepageCssPreloadPlugin(): Plugin {
+  return {
+    name: 'solmint-homepage-css-preload',
+    apply: 'build',
+    generateBundle(_, bundle) {
+      const indexAsset = bundle['index.html'];
+      if (!indexAsset || indexAsset.type !== 'asset' || typeof indexAsset.source !== 'string') return;
+      const cssFile = Object.values(bundle).find(
+        asset => asset.type === 'asset' && asset.fileName.startsWith('assets/index-') && asset.fileName.endsWith('.css')
+      )?.fileName;
+      if (!cssFile || indexAsset.source.includes(`rel=\"preload\" as=\"style\" href=\"/${cssFile}\"`)) return;
+      indexAsset.source = indexAsset.source.replace(
+        '</head>',
+        `    <link rel=\"preload\" as=\"style\" href=\"/${cssFile}\" fetchpriority=\"high\">\\n  </head>`
+      );
+    },
+  };
+}
+
 export default defineConfig(() => ({
-  plugins: [articleCategoryRegistryPlugin(), react(), tailwindcss()],
+  plugins: [articleCategoryRegistryPlugin(), react(), tailwindcss(), homepageCssPreloadPlugin()],
   resolve: { alias: { '@': path.resolve(__dirname, '.') } },
   build: {
     target: 'esnext',
@@ -85,6 +104,8 @@ export default defineConfig(() => ({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('react-dom') || id.includes('/react/')) return 'vendor-react';
+            if (id.includes('@supabase/')) return 'vendor-supabase';
             if (id.includes('lucide-react')) return 'vendor-lucide';
             if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
             if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
