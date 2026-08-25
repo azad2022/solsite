@@ -2,6 +2,7 @@ import React, { Component, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { installHomepageSeoGuard } from './utils/homeSeoGuard';
 
 interface ErrorBoundaryProps { children: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; errorMessage: string; }
@@ -42,6 +43,7 @@ function installArticleImageGuard() {
 }
 
 installArticleImageGuard();
+installHomepageSeoGuard();
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary><App /></ErrorBoundary>
