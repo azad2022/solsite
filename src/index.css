@@ -9,6 +9,11 @@
   }
 }
 
+/* Accessibility: Tailwind slate-500 (#64748b) is too dim for small text on
+   Solmint's dark surfaces. Keep the semantic utility class but raise its
+   contrast to a WCAG-friendly neutral without changing layout or typography. */
+.text-slate-500 { color: #94a3b8 !important; }
+
 /* Custom Ultra-Clean Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #05050a; }
