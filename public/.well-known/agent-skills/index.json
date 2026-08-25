@@ -21,6 +21,13 @@
       "description": "Discover and search Solmint's public Solana articles and research content through its read-only public articles API and human-readable article pages.",
       "url": "/.well-known/agent-skills/solmint-content-search/SKILL.md",
       "digest": "sha256:00549af82c6528d92fb10505b21b60b2659eb10a66e6d0dfbad0f4195ec957a0"
+    },
+    {
+      "name": "markdown-negotiation",
+      "type": "skill-md",
+      "description": "Retrieve Solmint public HTML pages as clean Markdown by sending an Accept: text/markdown request, without scraping complex presentation HTML.",
+      "url": "/.well-known/agent-skills/markdown-negotiation/SKILL.md",
+      "digest": "sha256:7ccbe4965bcfa35402c5a2293f68a9b126c7d4329ca91738c873d5275c424588"
     }
   ]
 }
