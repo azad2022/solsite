@@ -3,22 +3,23 @@ import { createPortal } from 'react-dom';
 import { SolanaStatus, Article, MediaItem, Testimonial, UserAccount, DownloadLinks, DEFAULT_DOWNLOAD_LINKS, DeepSeekAiSettings, DEFAULT_DEEPSEEK_SETTINGS, ChatbotSettings, DEFAULT_CHATBOT_SETTINGS } from './types';
 import { INITIAL_ARTICLES, INITIAL_MEDIA_ITEMS, INITIAL_TESTIMONIALS } from './data/initialBlogData';
 import { safeGetLocalStorage } from './utils/security';
-import { ParticleCanvas } from './components/ParticleCanvas';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
-import { AppFeaturesSection } from './components/AppFeaturesSection';
-import { AppShowcase } from './components/AppShowcase';
-import { MemeTicker } from './components/MemeTicker';
-import { SecuritySection } from './components/SecuritySection';
-import { RoadmapSection } from './components/RoadmapSection';
-import { FaqSection } from './components/FaqSection';
-import { LatestArticlesSection } from './components/LatestArticlesSection';
 import { Footer } from './components/Footer';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 import { updateRouteSeo } from './utils/seoManager';
 import { getArticleCategoryTaxonomy, getArticleTagTaxonomy } from './utils/articleTaxonomy';
 import { updateTaxonomySeo } from './utils/taxonomySeo';
+
+const ParticleCanvas = lazy(() => import('./components/ParticleCanvas').then(m => ({ default: m.ParticleCanvas })));
+const AppShowcase = lazy(() => import('./components/AppShowcase').then(m => ({ default: m.AppShowcase })));
+const MemeTicker = lazy(() => import('./components/MemeTicker').then(m => ({ default: m.MemeTicker })));
+const AppFeaturesSection = lazy(() => import('./components/AppFeaturesSection').then(m => ({ default: m.AppFeaturesSection })));
+const SecuritySection = lazy(() => import('./components/SecuritySection').then(m => ({ default: m.SecuritySection })));
+const RoadmapSection = lazy(() => import('./components/RoadmapSection').then(m => ({ default: m.RoadmapSection })));
+const FaqSection = lazy(() => import('./components/FaqSection').then(m => ({ default: m.FaqSection })));
+const LatestArticlesSection = lazy(() => import('./components/LatestArticlesSection').then(m => ({ default: m.LatestArticlesSection })));
 
 const BlogHub = lazy(() => import('./components/BlogHub').then(m => ({ default: m.BlogHub })));
 const AdminCmsModal = lazy(() => import('./components/AdminCmsModal').then(m => ({ default: m.AdminCmsModal })));
@@ -174,10 +175,21 @@ export default function App() {
   const scrollToFeatures = () => { if (currentPath !== '/') { handleNavigate('/'); setTimeout(() => document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }), 150); } else document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }); };
 
   return <div className="min-h-screen bg-[#08080f] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif] antialiased relative selection:bg-[#9945FF] selection:text-white">
-    <ParticleCanvas />
+    <Suspense fallback={null}><ParticleCanvas /></Suspense>
     <Header solanaStatus={solanaStatus} refreshStatus={refreshSolanaStatus} currentPath={currentPath} onNavigate={handleNavigate} openAdminModal={openAdminModal} currentUser={currentUser} onLogout={handleLogout} />
     <main className="flex-1 relative z-10"><Suspense fallback={<SuspenseFallback />}>
-      {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><AppShowcase /><MemeTicker /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></>}
+      {currentPath === '/' && <>
+        <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
+        <Suspense fallback={null}>
+          <AppShowcase />
+          <MemeTicker />
+          <AppFeaturesSection />
+          <SecuritySection />
+          <RoadmapSection />
+          <FaqSection />
+          <LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} />
+        </Suspense>
+      </>}
       {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /><SolanaMarketComments currentUser={currentUser} openAuthModal={openAdminModal} /></>}
       {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
