@@ -41,7 +41,7 @@ function articleCategoryRegistryPlugin(): Plugin {
           "import React, { useState, useEffect } from 'react';\\nimport { ArticleCategoryManager, ArticleCategorySelect, fetchArticleCategories } from './ArticleCategoryManager';"
         );
         transformed = transformed.replace(
-          /const \\[formCategory, setFormCategory\\] = useState<'[^']+'(?: \\| '[^']+')+>\\('آموزش سولانا'\\);/,
+          /const \[formCategory, setFormCategory\] = useState<'[^']+'(?: \| '[^']+')+>\('آموزش سولانا'\);/,
           "const [formCategory, setFormCategory] = useState<string>('آموزش سولانا');"
         );
         transformed = transformed.replace(
@@ -53,15 +53,15 @@ function articleCategoryRegistryPlugin(): Plugin {
           "const availableCategories = await fetchArticleCategories(); const exactCategory = availableCategories.find(item => item.name.trim() === String(aiArticle.category || '').trim()); const category = exactCategory?.name || availableCategories[0]?.name || 'آموزش سولانا';"
         );
         transformed = transformed.replace(
-          /<select\\n\\s+value=\\{formCategory\\}\\n\\s+onChange=\\{\\(e\\) => setFormCategory\\(e\\.target\\.value as any\\)\\}\\n\\s+className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2\\.5 text-slate-200"\\n\\s*>[\\s\\S]*?<\\/select>/,
+          /<select[\s\S]*?<\/select>/,
           '<ArticleCategorySelect value={formCategory} onChange={setFormCategory} />'
         );
         transformed = transformed.replace(
-          /\\{adminTab === 'seo' && \\(\\n\\s*<div className="space-y-6 text-xs">/,
+          /\{adminTab === 'seo' && \(\n\s*<div className="space-y-6 text-xs">/,
           "{adminTab === 'seo' && (\\n              <div className=\"space-y-6 text-xs\">\\n                <ArticleCategoryManager />"
         );
         transformed = transformed.replace(
-          /(<span>افزودن مقاله دستی<\\/span>\\s*<\\/button>)/,
+          /(<span>افزودن مقاله دستی<\/span>\s*<\/button>)/,
           "$1\\n                    <button type=\"button\" onClick={() => setAdminTab('seo')} className=\"px-3 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 font-bold border border-cyan-500/30 flex items-center gap-1 cursor-pointer\">مدیریت دسته‌بندی‌ها</button>"
         );
         if (transformed.includes('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}')) transformed = transformed.replace('{/* STATIC_CATEGORY_OPTIONS_FALLBACK */}', staticOptions);
