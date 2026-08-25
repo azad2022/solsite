@@ -1,6 +1,6 @@
 const WALLET_SEO = {
-  title: 'کیف پول سولانا | کیف پول غیرامانی و امن برای SOL و SPL | سولمینت',
-  description: 'راهنمای کیف پول سولانا و معرفی کیف پول غیرامانی سولمینت؛ مدیریت SOL و توکن‌های SPL، امنیت Seed Phrase، امضای تراکنش و استفاده از ابزارهای Web3 سولانا.',
+  title: 'کیف پول غیرامانی سولانا برای اندروید | مدیریت SOL و SPL | سولمینت',
+  description: 'معرفی کیف پول غیرامانی سولمینت برای اندروید؛ مدیریت SOL و توکن‌های SPL، امضای تراکنش، امنیت کلید خصوصی و دسترسی به ابزارهای Web3 سولانا.',
   canonical: 'https://solmint.ir/solana-wallet',
   ogImage: 'https://solmint.ir/images/solana-wallet-og.jpg'
 };
@@ -46,7 +46,7 @@ export function installWalletSeoGuard() {
     setProperty('og:title', WALLET_SEO.title);
     setProperty('og:description', WALLET_SEO.description);
     setProperty('og:url', WALLET_SEO.canonical);
-    setProperty('og:type', 'article');
+    setProperty('og:type', 'website');
     setProperty('og:site_name', 'سولمینت - SolMint');
     setProperty('og:locale', 'fa_IR');
     setProperty('og:image', WALLET_SEO.ogImage);
