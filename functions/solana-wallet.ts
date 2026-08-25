@@ -70,12 +70,12 @@ const schemas = `<script type="application/ld+json">${JSON.stringify({
 
 function inject(html: string) {
   return html
-    .replace(/<title>[\\s\\S]*?<\\/title>/i, `<title>${SEO.title}</title>`)
-    .replace(/<meta\\s+name=["']description["'][^>]*>/i, `<meta name="description" content="${SEO.description}">`)
-    .replace(/<link\\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${SEO.canonical}">`)
-    .replace(/<meta\\s+name=["']robots["'][^>]*>/i, `<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">`)
-    .replace(/<div id="root"><\\/div>/i, `<div id="root">${body}</div>`)
-    .replace(/<\\/head>/i, `${schemas}</head>`);
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${SEO.title}</title>`)
+    .replace(/<meta\s+name=["']description["'][^>]*>/i, `<meta name="description" content="${SEO.description}">`)
+    .replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${SEO.canonical}">`)
+    .replace(/<meta\s+name=["']robots["'][^>]*>/i, `<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">`)
+    .replace(/<div id="root"><\/div>/i, `<div id="root">${body}</div>`)
+    .replace(/<\/head>/i, `${schemas}</head>`);
 }
 
 export async function onRequest(context: PageContext): Promise<Response> {
