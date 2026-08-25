@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solmint Public API Documentation</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:920px;margin:40px auto;padding:0 20px;background:#08080f;color:#e2e8f0;line-height:1.9}a{color:#7dd3fc}code,pre{background:#111827;border-radius:10px;padding:2px 6px}pre{padding:16px;overflow:auto}section{border:1px solid #263041;border-radius:16px;padding:18px;margin:18px 0}small{color:#94a3b8}</style>
+</head>
+<body>
+<h1>Solmint Public API</h1>
+<p>مجموعه APIهای عمومی و فقط‌خواندنی سولمینت برای داده‌های سولانا، تحلیل توکن، تحلیل کیف پول و محتوای سایت.</p>
+<p><a href="/openapi.json">مشخصات OpenAPI 3.1</a> · <a href="/.well-known/api-catalog">API Catalog</a></p>
+<section id="articles"><h2>/api/articles</h2><p>فهرست مقالات منتشرشده عمومی. داده‌های مدیریت و draft از مسیر عمومی ارائه نمی‌شوند.</p><pre>GET https://solmint.ir/api/articles</pre></section>
+<section id="solana-status"><h2>/api/solana/status</h2><p>داده وضعیت و متریک‌های عمومی شبکه Solana که در سایت مصرف می‌شوند.</p><pre>GET https://solmint.ir/api/solana/status</pre></section>
+<section id="solana-token"><h2>/api/tools/solana-token</h2><p>بررسی read-only یک Mint روی شبکه Solana، شامل Token Program، supply، authorities و Token-2022 extensions.</p><pre>GET https://solmint.ir/api/tools/solana-token?mint=&lt;MINT&gt;&amp;mode=token</pre></section>
+<section id="token-risk"><h2>/api/tools/token-risk</h2><p>تحلیل explainable و rule-based ریسک توکن بر اساس داده‌های on-chain و market context.</p><pre>GET https://solmint.ir/api/tools/token-risk?mint=&lt;MINT&gt;</pre></section>
+<section id="market-context"><h2>/api/tools/market-context</h2><p>داده بازار DEXها برای یک Mint، شامل liquidity، volume، buys/sells و pairهای مشاهده‌شده.</p><pre>GET https://solmint.ir/api/tools/market-context?mint=&lt;MINT&gt;</pre></section>
+<section id="wallet-analyze"><h2>/api/wallet/analyze</h2><p>تحلیل read-only یک آدرس عمومی Solana. هرگز seed phrase، private key یا credential ارسال نکنید.</p><pre>GET https://solmint.ir/api/wallet/analyze?address=&lt;PUBLIC_ADDRESS&gt;</pre></section>
+<section><h2>Health</h2><pre>GET https://solmint.ir/api/health</pre><p><small>این APIها برای داده عمومی طراحی شده‌اند و جایگزین audit امنیتی یا توصیه سرمایه‌گذاری نیستند.</small></p></section>
+</body>
+</html>
