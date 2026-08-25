@@ -129,7 +129,7 @@ const markdownMiddleware: MiddlewareHandler = async (context) => {
   const meta = extractMeta(html);
   const body = htmlToMarkdown(html);
   const jsonLd = extractJsonLd(html);
-  const markdown = `${toFrontmatter(meta)}${body}${jsonLd.length ? `\n\n```json\n${jsonLd.join('\n')}\n```\n` : ''}`;
+  const markdown = `${toFrontmatter(meta)}${body}${jsonLd.length ? '\n\n```json\n' + jsonLd.join('\n') + '\n```\n' : ''}`;
 
   const headers = new Headers(origin.headers);
   headers.set('Content-Type', 'text/markdown; charset=utf-8');
