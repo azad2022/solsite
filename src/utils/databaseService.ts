@@ -1,5 +1,4 @@
 import { Article } from '../types';
-import { fetchArticlesFromSupabase } from './supabaseClient';
 import { extractArticleKeywords } from './seoContentUtils';
 
 export type DatabaseProvider = 'supabase' | 'cloudflare_d1' | 'local';
@@ -136,6 +135,7 @@ export async function fetchArticlesFromActiveDatabase(): Promise<Article[] | nul
   }
 
   try {
+    const { fetchArticlesFromSupabase } = await import('./supabaseClient');
     const directArticles = await fetchArticlesFromSupabase();
     if (directArticles !== null) return directArticles;
   } catch (err) { console.warn('Error fetching articles directly from Supabase:', err); }
