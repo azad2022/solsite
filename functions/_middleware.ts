@@ -3,6 +3,8 @@ type PagesContext = {
   next: () => Promise<Response>;
 };
 
+type MiddlewareHandler = (context: PagesContext) => Promise<Response>;
+
 function acceptsMarkdown(request: Request): boolean {
   const accept = request.headers.get('Accept') || '';
   return accept
@@ -104,15 +106,16 @@ function toFrontmatter(meta: ReturnType<typeof extractMeta>): string {
   if (meta.title) lines.push(`title: ${JSON.stringify(meta.title)}`);
   if (meta.description) lines.push(`description: ${JSON.stringify(meta.description)}`);
   if (meta.image) lines.push(`image: ${JSON.stringify(meta.image)}`);
+  if (lines.length === 1) return '';
   lines.push('---', '');
-  return lines.length > 2 ? lines.join('\n') : '';
+  return lines.join('\n');
 }
 
-function approximateTokens(markdown: string): number {
-  return Math.max(1, Math.ceil(markdown.length / 4));
+function approximateTokens(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 4));
 }
 
-export const onRequest: PagesFunction = async (context) => {
+const markdownMiddleware: MiddlewareHandler = async (context) => {
   if (!acceptsMarkdown(context.request)) return context.next();
 
   const origin = await context.next();
@@ -137,7 +140,9 @@ export const onRequest: PagesFunction = async (context) => {
   headers.delete('ETag');
   headers.delete('Last-Modified');
   headers.delete('Content-Encoding');
-  headers.set('Cache-Control', headers.get('Cache-Control') || 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  if (!headers.has('Cache-Control')) headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
 
   return new Response(markdown, { status: origin.status, headers });
 };
+
+export const onRequest = markdownMiddleware;
