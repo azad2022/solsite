@@ -14,6 +14,18 @@
    contrast to a WCAG-friendly neutral without changing layout or typography. */
 .text-slate-500 { color: #94a3b8 !important; }
 
+/* Defer off-screen rendering without letting below-the-fold sections collapse.
+   This reduces work during the initial viewport and prevents the footer/main
+   from jumping when lazy chunks finish loading. */
+main.flex-1.relative.z-10 > * {
+  content-visibility: auto;
+  contain-intrinsic-size: 600px;
+}
+footer {
+  content-visibility: auto;
+  contain-intrinsic-size: 420px;
+}
+
 /* Custom Ultra-Clean Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #05050a; }
