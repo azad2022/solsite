@@ -63,7 +63,7 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
   const url = buildTaxonomyUrl({ type, slug, name });
   const canonical = `${SITE_DOMAIN}${url}`;
   const label = type === 'category' ? 'دسته‌بندی' : 'برچسب';
-  const indexable = count >= 2;
+  const indexable = type === 'category' && count >= 2;
   const specialized = type === 'category' ? CATEGORY_SEO[slug] : undefined;
   const title = specialized?.title || `${name} | ${label} مقالات سولمینت`;
   const description = specialized?.description || `مقالات مرتبط با ${label} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;
