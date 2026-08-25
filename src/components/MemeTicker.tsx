@@ -39,6 +39,8 @@ function writeCachedFeed(feed: MemeTickerFeed) {
 }
 
 function normalizeFeed(feed: MemeTickerFeed): MemeTickerFeed {
+  if (feed.enabled === false) return { ...feed, enabled: false, items: [] };
+
   const liveItems = (feed.items || [])
     .map(item => ({ ...item, symbol: item.symbol.toUpperCase(), logoUrl: LOCAL_LOGOS[item.symbol.toUpperCase()] || '' }))
     .filter(item => item.enabled && LOCAL_LOGOS[item.symbol]);
@@ -111,7 +113,7 @@ export const MemeTicker: React.FC = () => {
   }, [feed.refreshSeconds]);
 
   const items = useMemo(() => feed.items.slice().sort((a, b) => a.order - b.order), [feed.items]);
-  if (!header || !items.length) return null;
+  if (!header || !feed.enabled || !items.length) return null;
 
   const midpoint = Math.ceil(items.length / 2);
   const firstRow = items.slice(0, midpoint);
