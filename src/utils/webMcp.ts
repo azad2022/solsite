@@ -3,6 +3,7 @@ type ModelContextTool = {
   title?: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
   execute: (input: Record<string, unknown>) => Promise<string> | string;
 };
 
@@ -44,6 +45,7 @@ export function installWebMcpTools(): () => void {
       title: 'Solmint Solana status',
       description: 'Read the current public Solana network status and market metrics exposed by Solmint. Read-only.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: { readOnlyHint: true },
       execute: async () => JSON.stringify(await jsonFetch('/api/solana/status')),
     },
     {
@@ -56,6 +58,7 @@ export function installWebMcpTools(): () => void {
         required: ['query'],
         additionalProperties: false,
       },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: async ({ query }) => {
         const q = String(query || '').trim().toLocaleLowerCase();
         if (!q) return JSON.stringify({ results: [] });
@@ -86,6 +89,7 @@ export function installWebMcpTools(): () => void {
         required: ['mint'],
         additionalProperties: false,
       },
+      annotations: { readOnlyHint: true },
       execute: async ({ mint }) => JSON.stringify(await jsonFetch(`/api/tools/token-risk?mint=${encodeURIComponent(String(mint || ''))}`)),
     },
     {
@@ -98,6 +102,7 @@ export function installWebMcpTools(): () => void {
         required: ['address'],
         additionalProperties: false,
       },
+      annotations: { readOnlyHint: true },
       execute: async ({ address }) => JSON.stringify(await jsonFetch(`/api/wallet/analyze?address=${encodeURIComponent(String(address || ''))}`)),
     },
   ];
