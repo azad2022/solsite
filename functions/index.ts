@@ -14,6 +14,7 @@ type ArticleRow = {
 };
 
 type PageContext = {
+  request: Request;
   next: () => Promise<Response>;
   env?: Env;
 };
@@ -58,40 +59,61 @@ function inject(html: string, articles: ArticleRow[]): string {
   return html.replace(/<div id="root"><\/div>/i, `<div id="root">${section}</div>`);
 }
 
+function getCache(): Cache | null {
+  const runtimeCaches = (globalThis as typeof globalThis & { caches?: CacheStorage }).caches;
+  return runtimeCaches?.default || null;
+}
+
 export async function onRequest(context: PageContext): Promise<Response> {
+  const cache = getCache();
+  const cacheKey = new Request(new URL(context.request.url).toString(), context.request);
+
+  if (cache) {
+    const cached = await cache.match(cacheKey);
+    if (cached) return cached;
+  }
+
   const env = context.env || {};
   const base = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
   const key = String(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
   const upstream = await context.next();
 
-  if (!key || !upstream.ok) return upstream;
+  if (!upstream.ok) return upstream;
 
   let html = await upstream.text();
   if (!html || !/<div id="root"><\/div>/i.test(html)) {
     return new Response(html, { status: upstream.status, headers: upstream.headers });
   }
 
-  try {
-    const endpoint = `${base}/rest/v1/articles?select=title,slug,summary,published_at,is_draft&is_draft=eq.false&order=published_at.desc&limit=12`;
-    const response = await fetch(endpoint, {
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        Accept: 'application/json'
+  if (key) {
+    try {
+      const endpoint = `${base}/rest/v1/articles?select=title,slug,summary,published_at,is_draft&is_draft=eq.false&order=published_at.desc&limit=12`;
+      const response = await fetch(endpoint, {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          Accept: 'application/json'
+        }
+      });
+      if (response.ok) {
+        const rows = await response.json();
+        const articles = Array.isArray(rows) ? rows.filter((row: ArticleRow) => Boolean(row.slug) && Boolean(row.title) && !row.is_draft) : [];
+        html = inject(html, articles);
       }
-    });
-    if (response.ok) {
-      const rows = await response.json();
-      const articles = Array.isArray(rows) ? rows.filter((row: ArticleRow) => Boolean(row.slug) && Boolean(row.title) && !row.is_draft) : [];
-      html = inject(html, articles);
+    } catch {
+      // Preserve the normal SPA response if the discovery query fails.
     }
-  } catch {
-    // Preserve the normal SPA response if the discovery query fails.
   }
 
   const headers = new Headers(upstream.headers);
   headers.set('Content-Type', 'text/html; charset=UTF-8');
-  headers.set('X-Solmint-SSR', 'homepage-article-discovery-v1');
-  headers.set('Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=300');
-  return new Response(html, { status: upstream.status, headers });
+  headers.set('X-Solmint-SSR', 'homepage-article-discovery-v2');
+  headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600');
+  const response = new Response(html, { status: upstream.status, headers });
+
+  if (cache) {
+    await cache.put(cacheKey, response.clone());
+  }
+
+  return response;
 }
