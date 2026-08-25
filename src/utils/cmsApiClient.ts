@@ -1,11 +1,4 @@
 import { Article, UserAccount, ArticleComment, DeepSeekAiSettings, ChatbotSettings, DownloadLinks } from '../types';
-import {
-  saveUserToSupabase,
-  deleteUserFromSupabase,
-  fetchArticlesFromSupabase,
-  saveArticleToSupabase,
-  deleteArticleFromSupabase
-} from './supabaseClient';
 
 export interface CmsSettings {
   deepseek: DeepSeekAiSettings;
