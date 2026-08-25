@@ -1,0 +1,137 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Solmint Public API",
+    "version": "1.0.0",
+    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, and wallet analysis. These APIs do not accept seed phrases, private keys, passwords, or signing credentials."
+  },
+  "servers": [{ "url": "https://solmint.ir" }],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Public API health",
+        "responses": { "200": { "description": "Service is reachable" } }
+      }
+    },
+    "/api/articles": {
+      "get": {
+        "operationId": "listPublicArticles",
+        "summary": "List published public articles",
+        "responses": {
+          "200": {
+            "description": "Published articles",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleListResponse" } } }
+          },
+          "502": { "description": "Upstream article service unavailable" },
+          "503": { "description": "Article service temporarily unavailable" }
+        }
+      }
+    },
+    "/api/solana/status": {
+      "get": {
+        "operationId": "getSolanaStatus",
+        "summary": "Read current Solana network status data",
+        "responses": {
+          "200": { "description": "Current Solana status payload" }
+        }
+      }
+    },
+    "/api/tools/solana-token": {
+      "get": {
+        "operationId": "inspectSolanaToken",
+        "summary": "Inspect a Solana token mint on-chain",
+        "parameters": [
+          { "$ref": "#/components/parameters/Mint" },
+          { "name": "mode", "in": "query", "required": false, "schema": { "type": "string", "enum": ["token", "extensions"], "default": "token" } }
+        ],
+        "responses": {
+          "200": { "description": "On-chain mint information" },
+          "400": { "description": "Invalid mint address" },
+          "404": { "description": "Mint account not found" },
+          "422": { "description": "Address is not a token mint account" },
+          "502": { "description": "Solana RPC unavailable" }
+        }
+      }
+    },
+    "/api/tools/token-risk": {
+      "get": {
+        "operationId": "analyzeTokenRisk",
+        "summary": "Return an explainable rule-based token risk profile",
+        "parameters": [{ "$ref": "#/components/parameters/Mint" }],
+        "responses": {
+          "200": { "description": "Combined on-chain and market observations" },
+          "400": { "description": "Invalid mint address" },
+          "503": { "description": "Required upstream data unavailable" }
+        }
+      }
+    },
+    "/api/tools/market-context": {
+      "get": {
+        "operationId": "getMarketContext",
+        "summary": "Get DEX market context for a Solana token mint",
+        "parameters": [{ "$ref": "#/components/parameters/Mint" }],
+        "responses": {
+          "200": { "description": "DEX pair and market observations" },
+          "400": { "description": "Invalid mint address" },
+          "502": { "description": "Market data provider error" },
+          "503": { "description": "Market data provider unavailable" }
+        }
+      }
+    },
+    "/api/wallet/analyze": {
+      "get": {
+        "operationId": "analyzePublicSolanaWallet",
+        "summary": "Read-only analysis of a public Solana wallet address",
+        "parameters": [{ "$ref": "#/components/parameters/Address" }],
+        "responses": {
+          "200": { "description": "Observed wallet balances, tokens, activity, and source availability" },
+          "400": { "description": "Invalid Solana public address" },
+          "502": { "description": "Upstream data provider error" },
+          "503": { "description": "Solana data temporarily unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Mint": {
+        "name": "mint",
+        "in": "query",
+        "required": true,
+        "description": "A Solana token Mint address (Base58, 32-44 characters).",
+        "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
+      },
+      "Address": {
+        "name": "address",
+        "in": "query",
+        "required": true,
+        "description": "A public Solana wallet address. Never send seed phrases or private keys.",
+        "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
+      }
+    },
+    "schemas": {
+      "ArticleListResponse": {
+        "type": "object",
+        "required": ["success", "articles"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "articles": { "type": "array", "items": { "$ref": "#/components/schemas/Article" } }
+        }
+      },
+      "Article": {
+        "type": "object",
+        "required": ["id", "title", "slug", "category", "summary"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "slug": { "type": "string" },
+          "category": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "summary": { "type": "string" },
+          "publishedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}
