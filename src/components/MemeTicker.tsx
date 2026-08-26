@@ -113,8 +113,8 @@ export const MemeTicker: React.FC = () => {
 
     const slot = document.createElement('div');
     slot.setAttribute('data-solmint-market-ticker-slot', 'true');
-    slot.className = 'relative w-full h-9 overflow-hidden border-b border-white/[0.06] bg-[#05050a]/95';
-    header.prepend(slot);
+    slot.className = 'relative w-full h-9 overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95';
+    header.appendChild(slot);
     setHeaderSlot(slot);
 
     return () => {
