@@ -6,3 +6,25 @@ main.flex-1.relative.z-10 > div.py-4:has(.article-content) {
   content-visibility: visible !important;
   contain: none !important;
 }
+
+/* Desktop header market ticker.
+   On lg screens the ticker must sit below the bordered header card instead of
+   occupying/overlapping the header row. Mobile layout is intentionally untouched. */
+@media (min-width: 1024px) {
+  header.relative.z-40 > div.mx-auto.max-w-7xl {
+    position: relative;
+    padding-bottom: 2.75rem !important;
+  }
+
+  header.relative.z-40 > div.mx-auto.max-w-7xl > div.rounded-2xl > section[aria-label="قیمت لحظه‌ای ارزهای دیجیتال"] {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 74px !important;
+    width: 100% !important;
+    height: 36px !important;
+    border-top: 1px solid rgba(255,255,255,.07);
+    border-bottom: 0;
+    background: transparent;
+  }
+}
