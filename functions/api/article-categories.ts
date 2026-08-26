@@ -63,7 +63,18 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
     }
     if (!id) return json({ success: false, message: 'شناسه دسته‌بندی ارسال نشده است.' }, 400);
     if (method === 'PATCH') {
-      const patch = cleanCategory({ ...(await request.json()), id }); const error = validate(patch); if (error) return json({ success: false, message: error }, 400);
+      const rawPatch = await request.json().catch(() => ({}));
+      const currentResponse = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}&select=*`);
+      const currentRows = await currentResponse.json().catch(() => []);
+      if (!currentResponse.ok || !Array.isArray(currentRows) || !currentRows[0]) return json({ success: false, message: 'دسته‌بندی موردنظر پیدا نشد.' }, 404);
+
+      const current = currentRows[0] as Category;
+      const merged = { ...current, ...rawPatch, id };
+      if (Object.prototype.hasOwnProperty.call(rawPatch, 'default_media_asset_id')) merged.default_media_asset_id = rawPatch.default_media_asset_id ? String(rawPatch.default_media_asset_id).trim() : null;
+      if (Object.prototype.hasOwnProperty.call(rawPatch, 'default_media_url')) merged.default_media_url = rawPatch.default_media_url ? String(rawPatch.default_media_url).trim() : null;
+      const patch = cleanCategory(merged);
+      const error = validate(patch); if (error) return json({ success: false, message: error }, 400);
+
       const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, default_media_asset_id: patch.default_media_asset_id || null, default_media_url: patch.default_media_url || null, updated_at: new Date().toISOString() }) }); const data = await response.json().catch(() => null);
       if (!response.ok) return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ویرایش دسته‌بندی ناموفق بود.', details: data }, response.status);
       return json({ success: true, category: Array.isArray(data) ? data[0] : data });
