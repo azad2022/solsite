@@ -21,10 +21,11 @@ main.flex-1.relative.z-10 > * {
   content-visibility: auto;
   contain-intrinsic-size: 600px;
 }
-footer {
-  content-visibility: auto;
-  contain-intrinsic-size: 420px;
-}
+
+/* Keep the footer in normal layout flow. It contains a marquee and external
+   badge assets; deferring the entire footer with content-visibility can replace
+   its real height with the intrinsic placeholder and then expand when it is
+   revealed, producing a measurable CLS. */
 
 /* Custom Ultra-Clean Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
