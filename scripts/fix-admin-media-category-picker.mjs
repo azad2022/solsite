@@ -29,10 +29,13 @@ if (!source.includes('title="انتخاب این تصویر به‌عنوان ت
 }
 
 if (!source.includes('<MediaCategoryDefaultPicker asset={asset}')) {
-  const actionMarker = `                                  {/* Actions */}\n`;
+  // Keep this patch anchored to the stable media-card structure instead of the
+  // mutable Actions section. The Actions marker changed in the current CMS,
+  // which previously caused production builds to fail after earlier transforms.
+  const stableMarker = `                                  {/* Asset Info */}\n`;
   const picker = `                                  {categoryDefaultAsset?.id === asset.id && (\n                                    <MediaCategoryDefaultPicker\n                                      asset={asset}\n                                      onClose={() => setCategoryDefaultAsset(null)}\n                                    />\n                                  )}\n\n`;
-  if (!source.includes(actionMarker)) throw new Error('[media-picker] actions marker not found');
-  source = source.replace(actionMarker, picker + actionMarker);
+  if (!source.includes(stableMarker)) throw new Error('[media-picker] stable asset-info marker not found');
+  source = source.replace(stableMarker, picker + stableMarker);
 }
 
 fs.writeFileSync(file, source, 'utf8');
