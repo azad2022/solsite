@@ -1,4 +1,4 @@
-type Env = { SUPABASE_URL?: string; VITE_SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string; VITE_SUPABASE_ANON_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; ADMIN_PASSCODE?: string };
+type Env = { SUPABASE_URL?: string; VITE_SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string; VITE_SUPABASE_ANON_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; SUPABASE_SECRET_KEY?: string; ADMIN_PASSCODE?: string };
 type PagesContext = { request: Request; env: Env; params?: Record<string, string | string[] | undefined> };
 type Category = { id: string; name: string; slug: string; description?: string; seo_title?: string; seo_description?: string; parent_id?: string | null; sort_order?: number; is_active?: boolean; default_media_asset_id?: string | null; default_media_url?: string | null; created_at?: string; updated_at?: string };
 
@@ -19,8 +19,24 @@ const FALLBACK_CATEGORIES: Category[] = [
 const envValue = (env: Env, key: keyof Env, fallback = '') => String(env[key] || fallback).trim();
 const json = (data: unknown, status = 200, extraHeaders: Record<string, string> = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=UTF-8', 'Cache-Control': 'no-store', ...extraHeaders } });
 const suppliedPasscode = (request: Request) => (request.headers.get('x-admin-passcode') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '').trim();
-const supabase = (env: Env) => { const url = envValue(env, 'SUPABASE_URL', envValue(env, 'VITE_SUPABASE_URL', fallbackUrl)).replace(/\/$/, ''); const key = envValue(env, 'SUPABASE_SERVICE_ROLE_KEY', envValue(env, 'SUPABASE_ANON_KEY', envValue(env, 'VITE_SUPABASE_ANON_KEY', fallbackAnon))); return { url, key }; };
-async function db(env: Env, path: string, init: RequestInit = {}) { const { url, key } = supabase(env); const headers = new Headers(init.headers); headers.set('apikey', key); headers.set('Authorization', `Bearer ${key}`); headers.set('Accept', 'application/json'); if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json'); const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 8000); try { return await fetch(`${url}/rest/v1/${path}`, { ...init, headers, signal: controller.signal }); } finally { clearTimeout(timeout); } }
+const supabaseUrl = (env: Env) => envValue(env, 'SUPABASE_URL', envValue(env, 'VITE_SUPABASE_URL', fallbackUrl)).replace(/\/$/, '');
+const readKey = (env: Env) => envValue(env, 'SUPABASE_ANON_KEY', envValue(env, 'VITE_SUPABASE_ANON_KEY', fallbackAnon));
+const writeKey = (env: Env) => envValue(env, 'SUPABASE_SECRET_KEY', envValue(env, 'SUPABASE_SERVICE_ROLE_KEY'));
+
+async function db(env: Env, path: string, init: RequestInit = {}, requirePrivilegedWrite = false) {
+  const key = requirePrivilegedWrite ? writeKey(env) : readKey(env);
+  if (requirePrivilegedWrite && !key) throw new Error('SUPABASE_SECRET_KEY یا SUPABASE_SERVICE_ROLE_KEY در محیط production تنظیم نشده است.');
+  const headers = new Headers(init.headers);
+  headers.set('apikey', key);
+  headers.set('Authorization', `Bearer ${key}`);
+  headers.set('Accept', 'application/json');
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try { return await fetch(`${supabaseUrl(env)}/rest/v1/${path}`, { ...init, headers, signal: controller.signal }); }
+  finally { clearTimeout(timeout); }
+}
+
 async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
   try {
     const { getAuthenticatedUser } = await import('./auth/_shared');
@@ -36,7 +52,7 @@ async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
   if (!supplied) return false;
   const configured = envValue(env, 'ADMIN_PASSCODE');
   if (configured) return supplied === configured;
-  if (!envValue(env, 'SUPABASE_SERVICE_ROLE_KEY')) return false;
+  if (!writeKey(env)) return false;
   try {
     const response = await db(env, 'cms_settings?id=eq.main_settings&select=settings_json&limit=1');
     if (!response.ok) return false;
@@ -45,6 +61,7 @@ async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
     return Boolean(expected && supplied === String(expected).trim());
   } catch { return false; }
 }
+
 function cleanCategory(input: any): Category { return { id: String(input.id || `cat-${crypto.randomUUID()}`), name: String(input.name || '').trim(), slug: String(input.slug || '').trim().toLowerCase(), description: String(input.description || '').trim(), seo_title: String(input.seo_title || '').trim(), seo_description: String(input.seo_description || '').trim(), parent_id: input.parent_id ? String(input.parent_id) : null, sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : 100, is_active: input.is_active !== false, default_media_asset_id: input.default_media_asset_id ? String(input.default_media_asset_id).trim() : null, default_media_url: input.default_media_url ? String(input.default_media_url).trim() : null }; }
 function validate(category: Category) { if (!category.name || category.name.length > 120) return 'نام دسته‌بندی باید بین ۱ تا ۱۲۰ کاراکتر باشد.'; if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(category.slug) || category.slug.length > 160) return 'Slug فقط باید شامل حروف انگلیسی کوچک، عدد و خط تیره باشد.'; if (category.parent_id === category.id) return 'دسته‌بندی نمی‌تواند والد خودش باشد.'; return null; }
 
@@ -65,14 +82,19 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
       }
     }
     if (!(await adminAuthorized(request, env))) return json({ success: false, message: 'دسترسی مدیریت دسته‌بندی‌ها غیرمجاز است.' }, 401);
+
     if (method === 'POST') {
       const newCategory = cleanCategory(await request.json()); const validationError = validate(newCategory); if (validationError) return json({ success: false, message: validationError }, 400);
-      const response = await db(env, 'article_categories', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...newCategory, default_media_asset_id: newCategory.default_media_asset_id || null, default_media_url: newCategory.default_media_url || null }) });
+      const response = await db(env, 'article_categories', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...newCategory, default_media_asset_id: newCategory.default_media_asset_id || null, default_media_url: newCategory.default_media_url || null }) }, true);
       const data = await response.json().catch(() => null);
       if (!response.ok) return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ایجاد دسته‌بندی در Supabase ناموفق بود.', details: data }, response.status);
-      return json({ success: true, category: Array.isArray(data) ? data[0] : data }, 201);
+      const createdCategory = Array.isArray(data) ? data[0] : data;
+      if (!createdCategory?.id) return json({ success: false, message: 'دسته‌بندی ثبت شد اما پاسخ ذخیره‌سازی معتبر نبود.' }, 502);
+      return json({ success: true, category: createdCategory }, 201);
     }
+
     if (!id) return json({ success: false, message: 'شناسه دسته‌بندی ارسال نشده است.' }, 400);
+
     if (method === 'PATCH') {
       const rawPatch = await request.json().catch(() => ({}));
       const currentResponse = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}&select=*`);
@@ -84,21 +106,30 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
       if (Object.prototype.hasOwnProperty.call(rawPatch, 'default_media_url')) merged.default_media_url = rawPatch.default_media_url ? String(rawPatch.default_media_url).trim() : null;
       const patch = cleanCategory(merged);
       const validationError = validate(patch); if (validationError) return json({ success: false, message: validationError }, 400);
-      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, default_media_asset_id: patch.default_media_asset_id || null, default_media_url: patch.default_media_url || null, updated_at: new Date().toISOString() }) });
+
+      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, default_media_asset_id: patch.default_media_asset_id || null, default_media_url: patch.default_media_url || null, updated_at: new Date().toISOString() }) }, true);
       const rawResponse = await response.text();
       if (!response.ok) { let details: unknown = rawResponse; try { details = JSON.parse(rawResponse); } catch {} return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ویرایش دسته‌بندی ناموفق بود.', details }, response.status); }
+
       const verifyResponse = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}&select=*`);
       const verifyRows = await verifyResponse.json().catch(() => []);
       const savedCategory = Array.isArray(verifyRows) ? verifyRows[0] : null;
       if (!verifyResponse.ok || !savedCategory) return json({ success: false, message: 'دسته‌بندی ذخیره شد اما تأیید نهایی آن از دیتابیس ناموفق بود.' }, 502);
+
+      for (const field of ['name', 'slug', 'default_media_asset_id', 'default_media_url']) {
+        if (Object.prototype.hasOwnProperty.call(rawPatch, field) && (savedCategory[field] ?? null) !== (rawPatch[field] ?? null)) {
+          return json({ success: false, message: `ذخیره ${field} در دیتابیس تأیید نشد.` }, 502);
+        }
+      }
       return json({ success: true, category: savedCategory });
     }
+
     if (method === 'DELETE') {
       const articleCheck = await db(env, `articles?category_id=eq.${encodeURIComponent(id)}&select=id&limit=1`); const linked = await articleCheck.json().catch(() => []);
       if (articleCheck.ok && Array.isArray(linked) && linked.length) return json({ success: false, message: 'این دسته‌بندی حداقل به یک مقاله متصل است. ابتدا مقالات را به دسته دیگری منتقل کنید.' }, 409);
       const childCheck = await db(env, `article_categories?parent_id=eq.${encodeURIComponent(id)}&select=id&limit=1`); const children = await childCheck.json().catch(() => []);
       if (childCheck.ok && Array.isArray(children) && children.length) return json({ success: false, message: 'این دسته‌بندی دارای زیر‌دسته است. ابتدا زیر‌دسته‌ها را منتقل یا حذف کنید.' }, 409);
-      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' }, true);
       if (!response.ok) return json({ success: false, message: 'حذف دسته‌بندی در Supabase ناموفق بود.' }, response.status);
       return json({ success: true, message: 'دسته‌بندی با موفقیت حذف شد.' });
     }
