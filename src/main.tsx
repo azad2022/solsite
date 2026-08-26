@@ -1,10 +1,12 @@
-import React, { Component, ReactNode } from 'react';
+import React, { Component, ReactNode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { installHomepageSeoGuard } from './utils/homeSeoGuard';
 import { installWalletSeoGuard } from './utils/walletSeoGuard';
 import { installWebMcpTools } from './utils/webMcp';
+
+const GlobalMemeTicker = lazy(() => import('./components/MemeTicker').then(m => ({ default: m.MemeTicker })));
 
 interface ErrorBoundaryProps { children: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; errorMessage: string; }
@@ -50,6 +52,9 @@ installWalletSeoGuard();
 installWebMcpTools();
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ErrorBoundary><App /></ErrorBoundary>
+    <>
+      <ErrorBoundary><App /></ErrorBoundary>
+      <Suspense fallback={null}><GlobalMemeTicker global /></Suspense>
+    </>
   </React.StrictMode>
 );
