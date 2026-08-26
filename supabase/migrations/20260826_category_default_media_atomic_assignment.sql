@@ -22,9 +22,9 @@ begin
          set default_media_asset_id = nullif(trim(coalesce(p_asset_id, '')), ''),
              default_media_url = trim(p_url),
              updated_at = timezone('utc', now())
-       where id = v_id;
+       where article_categories.id = v_id;
       if found then
-        select count(*) into v_count from public.articles where category_id = v_id;
+        select count(*) into v_count from public.articles a where a.category_id = v_id;
         category_id := v_id;
         articles_updated := v_count;
         action := 'assigned';
@@ -32,15 +32,14 @@ begin
       end if;
     end loop;
   end if;
-
   if coalesce(array_length(p_clear_category_ids, 1), 0) > 0 then
     for v_id in select distinct unnest(p_clear_category_ids) loop
       update public.article_categories
          set default_media_asset_id = null,
              default_media_url = null,
              updated_at = timezone('utc', now())
-       where id = v_id
-         and (p_asset_id is null or default_media_asset_id = p_asset_id);
+       where article_categories.id = v_id
+         and (p_asset_id is null or article_categories.default_media_asset_id = p_asset_id);
       if found then
         category_id := v_id;
         articles_updated := 0;
