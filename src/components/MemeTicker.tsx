@@ -66,24 +66,32 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
 
   const content = (
     <>
-      <img src={localLogo} alt="" aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full object-contain bg-white/95" width={24} height={24} loading="eager" decoding="async" />
-      <span className="text-[11px] font-black tracking-wide text-white">{symbol}</span>
-      <span className="font-mono text-[10px] font-semibold text-slate-300">{formatUsd(item.priceUsd)}</span>
-      <span className={`font-mono text-[10px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
+      <img src={localLogo} alt="" aria-hidden="true" className="h-5 w-5 shrink-0 rounded-full object-contain bg-white/95" width={20} height={20} loading="eager" decoding="async" />
+      <span className="text-[10px] font-black tracking-wide text-white sm:text-[11px]">{symbol}</span>
+      <span className="font-mono text-[9px] font-semibold text-slate-300 sm:text-[10px]">{formatUsd(item.priceUsd)}</span>
+      <span className={`font-mono text-[9px] font-bold sm:text-[10px] ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
         {change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}
       </span>
     </>
   );
 
-  if (symbol === 'SOL') return <a href="/solana-price" aria-label="قیمت لحظه‌ای سولانا SOL" className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0 no-underline" dir="ltr">{content}</a>;
-  return <div className="flex h-10 shrink-0 items-center gap-2.5 border-l border-white/[0.07] px-4 first:border-l-0" dir="ltr">{content}</div>;
+  if (symbol === 'SOL') return <a href="/solana-price" aria-label="قیمت لحظه‌ای سولانا SOL" className="flex h-9 shrink-0 items-center gap-2 border-l border-white/[0.07] px-3 first:border-l-0 no-underline sm:gap-2.5 sm:px-4" dir="ltr">{content}</a>;
+  return <div className="flex h-9 shrink-0 items-center gap-2 border-l border-white/[0.07] px-3 first:border-l-0 sm:gap-2.5 sm:px-4" dir="ltr">{content}</div>;
 };
 
-const TickerRow: React.FC<{ items: MemeTickerItem[]; reverse?: boolean; duration: number }> = ({ items, reverse = false, duration }) => {
+const TickerRow: React.FC<{ items: MemeTickerItem[]; duration: number }> = ({ items, duration }) => {
   const visible = items.filter(item => Boolean(LOCAL_LOGOS[item.symbol.toUpperCase()]));
   if (!visible.length) return null;
   const track = [...visible, ...visible];
-  return <div className="relative h-10 min-w-0 overflow-hidden" role="presentation"><div className="flex h-full w-max items-center will-change-transform" style={{ animation: `solmintMarketRail ${duration}s linear infinite`, animationDirection: reverse ? 'reverse' : 'normal' }}>{track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}</div><div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[#05050a] to-transparent" aria-hidden="true"/><div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#05050a] to-transparent" aria-hidden="true"/></div>;
+  return (
+    <div className="relative h-9 min-w-0 overflow-hidden" role="presentation">
+      <div className="flex h-full w-max items-center will-change-transform" style={{ animation: `solmintMarketRail ${duration}s linear infinite` }}>
+        {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#05050a] to-transparent sm:w-14" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#05050a] to-transparent sm:w-14" aria-hidden="true" />
+    </div>
+  );
 };
 
 export const MemeTicker: React.FC = () => {
@@ -91,9 +99,29 @@ export const MemeTicker: React.FC = () => {
     if (typeof window === 'undefined') return FALLBACK;
     return normalizeFeed(readCachedFeed() || FALLBACK);
   });
-  const [header, setHeader] = useState<HTMLElement | null>(null);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
-  useEffect(() => { setHeader(document.querySelector('header')); }, []);
+  useEffect(() => {
+    const header = document.querySelector('header');
+    if (!header) return;
+
+    const existingSlot = header.querySelector<HTMLElement>('[data-solmint-market-ticker-slot="true"]');
+    if (existingSlot) {
+      setHeaderSlot(existingSlot);
+      return;
+    }
+
+    const slot = document.createElement('div');
+    slot.setAttribute('data-solmint-market-ticker-slot', 'true');
+    slot.className = 'relative w-full h-9 overflow-hidden border-b border-white/[0.06] bg-[#05050a]/95';
+    header.prepend(slot);
+    setHeaderSlot(slot);
+
+    return () => {
+      setHeaderSlot(null);
+      if (slot.parentElement === header) slot.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,23 +141,29 @@ export const MemeTicker: React.FC = () => {
   }, [feed.refreshSeconds]);
 
   const items = useMemo(() => feed.items.slice().sort((a, b) => a.order - b.order), [feed.items]);
-  if (!header || !feed.enabled || !items.length) return null;
+  if (!headerSlot || !feed.enabled || !items.length) return null;
 
-  const midpoint = Math.ceil(items.length / 2);
-  const firstRow = items.slice(0, midpoint);
-  const secondRow = items.slice(midpoint);
-  const baseDuration = Math.max(110, feed.speedSeconds || 120);
+  const baseDuration = Math.max(90, feed.speedSeconds || 120);
 
   return createPortal(
-    <section className="relative block w-full overflow-hidden border-t border-white/[0.06] bg-[#05050a]/95" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
+    <section className="relative block h-9 w-full overflow-hidden" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
       <h2 className="sr-only">قیمت لحظه‌ای ارزهای دیجیتال</h2>
       <div className="mx-auto max-w-7xl" dir="ltr">
-        <TickerRow items={firstRow} duration={baseDuration}/>
-        <div className="h-px bg-white/[0.045]" aria-hidden="true"/>
-        <TickerRow items={secondRow} duration={baseDuration + 15} reverse/>
+        <TickerRow items={items} duration={baseDuration} />
       </div>
-      <style>{`@keyframes solmintMarketRail{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+      <style>{`
+        @keyframes solmintMarketRail {
+          from { transform: translate3d(0, 0, 0); }
+          to { transform: translate3d(-50%, 0, 0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [data-solmint-market-ticker-slot="true"] [style*="solmintMarketRail"] {
+            animation: none !important;
+            transform: none !important;
+          }
+        }
+      `}</style>
     </section>,
-    header
+    headerSlot
   );
 };
