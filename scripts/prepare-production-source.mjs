@@ -11,7 +11,6 @@ const steps = [
   ['production-comments-admin-patch.mjs', 'comments moderation wiring'],
   ['production-comments-unification.mjs', 'comments convergence'],
   ['production-comments-build-verify.mjs', 'comments verification'],
-  ['media-library-cover-assignment-patch.mjs', 'media cover assignment'],
   ['solana-projects-cluster-seo.mjs', 'Solana topical SEO wiring'],
   ['perf-split.mjs', 'performance split'],
   ['fix-auth-pbkdf2-buffers.mjs', 'PBKDF2 TypeScript normalization'],
