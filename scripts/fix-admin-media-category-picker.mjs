@@ -21,9 +21,11 @@ const newImageContainer = `                                  <button type="butto
 if (!source.includes('title="انتخاب این تصویر به‌عنوان تصویر پیش‌فرض دسته‌بندی"')) {
   if (!source.includes(oldImageContainer)) throw new Error('[media-picker] image container anchor not found');
   source = source.replace(oldImageContainer, newImageContainer);
-  const imageEnd = `                                    {isUsed && (`;
-  const beforeIsUsed = `                                  </button>\n\n                                    {isUsed && (`;
-  source = source.replace(imageEnd, beforeIsUsed);
+
+  const imageContainerClose = `                                  </div>\n\n                                  {/* Asset Info */}`;
+  const buttonContainerClose = `                                  </button>\n\n                                  {/* Asset Info */}`;
+  if (!source.includes(imageContainerClose)) throw new Error('[media-picker] image container closing marker not found');
+  source = source.replace(imageContainerClose, buttonContainerClose);
 }
 
 if (!source.includes('<MediaCategoryDefaultPicker asset={asset}')) {
@@ -34,4 +36,4 @@ if (!source.includes('<MediaCategoryDefaultPicker asset={asset}')) {
 }
 
 fs.writeFileSync(file, source, 'utf8');
-console.log('✓ [media-picker] existing media thumbnails now open the category default image picker.');
+console.log('✓ [media-picker] existing media thumbnails now open the category default picker.');
