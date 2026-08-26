@@ -8,7 +8,7 @@ const FALLBACK: MemeTickerFeed = {
   enabled: true,
   provider: 'local-first',
   refreshSeconds: 20,
-  speedSeconds: 30,
+  speedSeconds: 120,
   items: FALLBACK_SYMBOLS.map((symbol, index) => ({ id: `fallback-${symbol}`, source: 'binance', pair: `${symbol}USDT`, mint: '', symbol, name: symbol, logoUrl: '', enabled: true, order: index, priceUsd: null, change24h: null }))
 };
 
@@ -40,7 +40,6 @@ function writeCachedFeed(feed: MemeTickerFeed) {
 
 function normalizeFeed(feed: MemeTickerFeed): MemeTickerFeed {
   if (feed.enabled === false) return { ...feed, enabled: false, items: [] };
-
   const liveItems = (feed.items || [])
     .map(item => ({ ...item, symbol: item.symbol.toUpperCase(), logoUrl: LOCAL_LOGOS[item.symbol.toUpperCase()] || '' }))
     .filter(item => item.enabled && LOCAL_LOGOS[item.symbol]);
@@ -63,10 +62,9 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   const up = typeof change === 'number' && change >= 0;
   const localLogo = LOCAL_LOGOS[symbol];
   if (!localLogo) return null;
-
   const content = (
     <>
-      <img src={localLogo} alt="" aria-hidden="true" className="h-5 w-5 shrink-0 rounded-full object-contain bg-white/95" width={20} height={20} loading="eager" decoding="async" />
+      <img src={localLogo} alt="" aria-hidden="true" className="h-5 w-5 shrink-0 rounded-full object-contain bg-white/95" width={20} height={20} loading="lazy" decoding="async" />
       <span className="text-[10px] font-black tracking-wide text-white sm:text-[11px]">{symbol}</span>
       <span className="font-mono text-[9px] font-semibold text-slate-300 sm:text-[10px]">{formatUsd(item.priceUsd)}</span>
       <span className={`font-mono text-[9px] font-bold sm:text-[10px] ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
@@ -74,7 +72,6 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
       </span>
     </>
   );
-
   if (symbol === 'SOL') return <a href="/solana-price" aria-label="قیمت لحظه‌ای سولانا SOL" className="flex h-9 shrink-0 items-center gap-2 border-l border-white/[0.07] px-3 first:border-l-0 no-underline sm:gap-2.5 sm:px-4" dir="ltr">{content}</a>;
   return <div className="flex h-9 shrink-0 items-center gap-2 border-l border-white/[0.07] px-3 first:border-l-0 sm:gap-2.5 sm:px-4" dir="ltr">{content}</div>;
 };
@@ -85,7 +82,7 @@ const TickerRow: React.FC<{ items: MemeTickerItem[]; duration: number }> = ({ it
   const track = [...visible, ...visible];
   return (
     <div className="relative h-9 min-w-0 overflow-hidden" role="presentation">
-      <div className="flex h-full w-max items-center will-change-transform" style={{ animation: `solmintMarketRail ${duration}s linear infinite` }}>
+      <div className="flex h-full w-max items-center" style={{ animation: `solmintMarketRail ${duration}s linear infinite` }}>
         {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
       </div>
       <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#05050a] to-transparent sm:w-14" aria-hidden="true" />
@@ -94,7 +91,9 @@ const TickerRow: React.FC<{ items: MemeTickerItem[]; duration: number }> = ({ it
   );
 };
 
-export const MemeTicker: React.FC = () => {
+interface MemeTickerProps { global?: boolean; }
+
+export const MemeTicker: React.FC<MemeTickerProps> = ({ global = false }) => {
   const [feed, setFeed] = useState<MemeTickerFeed>(() => {
     if (typeof window === 'undefined') return FALLBACK;
     return normalizeFeed(readCachedFeed() || FALLBACK);
@@ -102,26 +101,35 @@ export const MemeTicker: React.FC = () => {
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    const header = document.querySelector('header');
-    if (!header) return;
+    if (global && window.location.pathname === '/') return;
 
-    const existingSlot = header.querySelector<HTMLElement>('[data-solmint-market-ticker-slot="true"]');
-    if (existingSlot) {
-      setHeaderSlot(existingSlot);
+    const header = document.querySelector<HTMLElement>('header');
+    const card = header?.querySelector<HTMLElement>(':scope > .max-w-7xl.mx-auto');
+    if (!header || !card) return;
+
+    const existing = card.querySelector<HTMLElement>('[data-solmint-market-ticker-slot="true"]');
+    if (existing) {
+      setHeaderSlot(existing);
       return;
     }
 
+    card.classList.add('solmint-header-market-card');
+    const topRow = card.firstElementChild as HTMLElement | null;
+    if (topRow) topRow.classList.add('solmint-header-main-row');
+
     const slot = document.createElement('div');
     slot.setAttribute('data-solmint-market-ticker-slot', 'true');
-    slot.className = 'relative w-full h-9 overflow-hidden border-t border-white/[0.06] bg-transparent';
-    header.appendChild(slot);
+    slot.className = 'relative h-9 w-full shrink-0 overflow-hidden border-t border-white/[0.06]';
+    card.appendChild(slot);
     setHeaderSlot(slot);
 
     return () => {
       setHeaderSlot(null);
-      if (slot.parentElement === header) slot.remove();
+      if (slot.parentElement === card) slot.remove();
+      card.classList.remove('solmint-header-market-card');
+      if (topRow) topRow.classList.remove('solmint-header-main-row');
     };
-  }, []);
+  }, [global]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,31 +144,29 @@ export const MemeTicker: React.FC = () => {
       }
     };
     void load();
-    const id = window.setInterval(load, Math.max(15000, (feed.refreshSeconds || 20) * 1000));
+    const id = window.setInterval(load, Math.max(30000, (feed.refreshSeconds || 30) * 1000));
     return () => { cancelled = true; window.clearInterval(id); };
   }, [feed.refreshSeconds]);
 
   const items = useMemo(() => feed.items.slice().sort((a, b) => a.order - b.order), [feed.items]);
   if (!headerSlot || !feed.enabled || !items.length) return null;
 
-  const baseDuration = Math.max(90, feed.speedSeconds || 120);
-
+  const baseDuration = Math.max(110, feed.speedSeconds || 120);
   return createPortal(
     <section className="relative block h-9 w-full overflow-hidden" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
       <h2 className="sr-only">قیمت لحظه‌ای ارزهای دیجیتال</h2>
-      <div className="mx-auto max-w-7xl" dir="ltr">
+      <div className="w-full" dir="ltr">
         <TickerRow items={items} duration={baseDuration} />
       </div>
       <style>{`
+        .solmint-header-market-card { height: 100px !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important; }
+        .solmint-header-main-row { flex: 0 0 64px !important; min-height: 64px !important; }
         @keyframes solmintMarketRail {
           from { transform: translate3d(0, 0, 0); }
           to { transform: translate3d(-50%, 0, 0); }
         }
         @media (prefers-reduced-motion: reduce) {
-          [data-solmint-market-ticker-slot="true"] [style*="solmintMarketRail"] {
-            animation: none !important;
-            transform: none !important;
-          }
+          [data-solmint-market-ticker-slot="true"] [style*="solmintMarketRail"] { animation: none !important; transform: none !important; }
         }
       `}</style>
     </section>,
