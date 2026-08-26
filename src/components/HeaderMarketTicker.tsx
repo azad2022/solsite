@@ -53,16 +53,16 @@ const MarketItem: React.FC<{ item: MemeTickerItem }> = ({ item }) => {
   const up = typeof change === 'number' && change >= 0;
   const content = (
     <>
-      <img src={logo} alt="" aria-hidden="true" width={18} height={18} loading="lazy" decoding="async" className="h-[18px] w-[18px] shrink-0 rounded-full bg-white object-contain" />
-      <span className="text-[10px] font-black tracking-wide text-white sm:text-[11px]">{symbol}</span>
-      <span className="font-mono text-[9px] font-semibold text-slate-300 sm:text-[10px]">{formatUsd(item.priceUsd)}</span>
-      <span className={`font-mono text-[9px] font-bold sm:text-[10px] ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
+      <img src={logo} alt="" aria-hidden="true" width={22} height={22} loading="lazy" decoding="async" className="h-[22px] w-[22px] shrink-0 rounded-full bg-white object-contain" />
+      <span className="text-[12px] font-black tracking-wide text-white">{symbol}</span>
+      <span className="font-mono text-[11px] font-semibold text-slate-300">{formatUsd(item.priceUsd)}</span>
+      <span className={`font-mono text-[11px] font-bold ${up ? 'text-[#14F195]' : 'text-rose-400'}`}>
         {change != null && Number.isFinite(change) ? `${up ? '+' : ''}${change.toFixed(2)}%` : '—'}
       </span>
     </>
   );
-  if (symbol === 'SOL') return <a href="/solana-price" aria-label="قیمت لحظه‌ای سولانا SOL" className="flex h-9 shrink-0 items-center gap-2 border-l border-white/[0.06] px-3 no-underline sm:gap-2.5 sm:px-4" dir="ltr">{content}</a>;
-  return <div className="flex h-9 shrink-0 items-center gap-2 border-l border-white/[0.06] px-3 sm:gap-2.5 sm:px-4" dir="ltr">{content}</div>;
+  if (symbol === 'SOL') return <a href="/solana-price" aria-label="قیمت لحظه‌ای سولانا SOL" className="flex h-10 shrink-0 items-center gap-2 border-l border-white/[0.06] px-3 no-underline" dir="ltr">{content}</a>;
+  return <div className="flex h-10 shrink-0 items-center gap-2 border-l border-white/[0.06] px-3" dir="ltr">{content}</div>;
 };
 
 export const HeaderMarketTicker: React.FC = () => {
@@ -91,14 +91,14 @@ export const HeaderMarketTicker: React.FC = () => {
   const duration = Math.max(110, feed.speedSeconds || 120);
 
   return (
-    <section className="absolute left-[68px] right-[52px] top-4 h-12 overflow-hidden lg:static lg:h-9 lg:w-full lg:border-t lg:border-white/[0.07]" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
+    <section className="absolute left-[68px] right-[52px] top-3 h-14 overflow-hidden lg:static lg:h-9 lg:w-full lg:border-t lg:border-white/[0.07]" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
       <h2 className="sr-only">قیمت لحظه‌ای ارزهای دیجیتال</h2>
       <div className="relative h-full overflow-hidden" dir="ltr">
         <div className="solmint-header-market-rail flex h-full w-max items-center" style={{ animation: `solmintHeaderMarketRail ${duration}s linear infinite` }}>
           {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
         </div>
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#05050a] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#05050a] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-9 bg-gradient-to-r from-[#05050a] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-9 bg-gradient-to-l from-[#05050a] to-transparent" />
       </div>
       <style>{`
         @keyframes solmintHeaderMarketRail {
