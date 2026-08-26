@@ -17,7 +17,7 @@ export const MediaCategoryDefaultPicker: React.FC<Props> = ({ asset, onClose }) 
     let cancelled = false;
     setLoading(true);
     setMessage(null);
-    fetchArticleCategories(true)
+    fetchArticleCategories(false)
       .then(rows => {
         if (cancelled) return;
         setCategories(rows);
