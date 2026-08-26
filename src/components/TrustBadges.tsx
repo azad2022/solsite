@@ -46,11 +46,16 @@ const BADGES: TrustBadge[] = [
 
 const BadgeSet: React.FC<{ duplicate?: boolean }> = ({ duplicate = false }) => (
   <div className="flex shrink-0 items-center gap-3 pr-3 sm:gap-4 sm:pr-4" aria-hidden={duplicate ? true : undefined}>
-    {BADGES.map(badge => (
-      <a key={`${duplicate ? 'duplicate-' : ''}${badge.id}`} href={badge.href} target="_blank" rel="noopener noreferrer" aria-label={badge.label} className={BADGE_TILE_CLASS}>
-        {badge.content}
-      </a>
-    ))}
+    {BADGES.map(badge => {
+      const tile = <div className={BADGE_TILE_CLASS}>{badge.content}</div>;
+      return duplicate ? (
+        <div key={`duplicate-${badge.id}`}>{tile}</div>
+      ) : (
+        <a key={badge.id} href={badge.href} target="_blank" rel="noopener noreferrer" aria-label={badge.label} className={BADGE_TILE_CLASS}>
+          {badge.content}
+        </a>
+      );
+    })}
   </div>
 );
 
