@@ -94,7 +94,7 @@ export const HeaderMarketTicker: React.FC = () => {
     <section className="relative h-9 w-full overflow-hidden border-t border-white/[0.07]" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
       <h2 className="sr-only">قیمت لحظه‌ای ارزهای دیجیتال</h2>
       <div className="relative h-full overflow-hidden" dir="ltr">
-        <div className="flex h-full w-max items-center motion-reduce:!transform-none" style={{ animation: `solmintHeaderMarketRail ${duration}s linear infinite` }}>
+        <div className="solmint-header-market-rail flex h-full w-max items-center" style={{ animation: `solmintHeaderMarketRail ${duration}s linear infinite` }}>
           {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
         </div>
         <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#05050a] to-transparent sm:w-12" />
