@@ -3,12 +3,11 @@ import fs from 'node:fs';
 const file = 'src/components/AppFeaturesSection.tsx';
 let source = fs.readFileSync(file, 'utf8');
 
+if (source.includes('data-app-features-modal-fixed="true"')) process.exit(0);
+
 const startMarker = '<AnimatePresence>{selectedFeature&&<motion.div';
 const start = source.indexOf(startMarker);
-if (start < 0) {
-  if (source.includes('data-app-features-modal-fixed="true"')) process.exit(0);
-  throw new Error('[app-features-modal] modal start marker not found');
-}
+if (start < 0) throw new Error('[app-features-modal] modal start marker not found');
 
 const endMarker = '</AnimatePresence>';
 const end = source.indexOf(endMarker, start);
@@ -16,6 +15,10 @@ if (end < 0) throw new Error('[app-features-modal] modal end marker not found');
 
 const modal = source.slice(start, end + endMarker.length);
 source = source.slice(0, start) + source.slice(end + endMarker.length);
+
+const returnMarker = '  return <section id="app-features"';
+if (!source.includes(returnMarker)) throw new Error('[app-features-modal] return marker not found');
+source = source.replace(returnMarker, '  return <><section id="app-features"');
 
 const sectionEnd = '</div></section>;';
 const sectionEndIndex = source.lastIndexOf(sectionEnd);
