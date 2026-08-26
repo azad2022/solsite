@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Lock, Github, Wallet } from 'lucide-react';
+import { Lock, Wallet } from 'lucide-react';
 import type { Article } from '../types';
+import { TrustBadges } from './TrustBadges';
 
 interface FooterProps { onNavigate?: (path: string) => void; openAdminModal: () => void; currentPath?: string; articles?: Article[]; }
 const TOOL_KEYWORDS: Record<string, string[]> = {
@@ -61,7 +62,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, openAdminModal, curr
       <li><a href="/tools/solana-token-tools" onClick={e => { e.preventDefault(); handleNav('/tools/solana-token-tools'); }} className="hover:text-[#14F195] transition-colors cursor-pointer text-inherit decoration-none font-bold">مرکز ابزارهای Solmint</a></li>
       <li><button onClick={openAdminModal} className="hover:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-emerald-400" /><span>ورود / ثبت‌نام</span></button></li>
     </ul></div></div>
-    <div className="pt-2 flex flex-col items-center gap-4"><div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6"><a href="https://www.producthunt.com/products/solmint-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-solmint-2" target="_blank" rel="noopener noreferrer" aria-label="Solmint on Product Hunt" className="inline-block transition-opacity hover:opacity-90"><img alt="solmint - solana web3 wallet | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1218856&theme=light&t=1786302074692" /></a><a href="https://github.com" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub" className="flex items-center justify-center text-slate-300 hover:text-white transition-colors mt-1"><Github className="w-[54px] h-[54px]" aria-hidden="true" /></a></div><div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6"><a href="https://chkweb.com/report/solmint.ir" target="_blank" rel="noopener noreferrer" aria-label="Solmint website security report by CheckWeb" className="inline-block transition-opacity hover:opacity-90"><img src="https://chkweb.com/badge/solmint.ir.svg" alt="Website security checked by CheckWeb" width="200" height="95" loading="lazy" decoding="async" /></a><img src="https://app.greenweb.org/api/v3/greencheckimage/solmint.ir?nocache=true" alt="This website runs on green hosting - verified by thegreenwebfoundation.org" width="200" height="95" loading="lazy" decoding="async" /></div></div>
+    <div className="pt-2"><TrustBadges /></div>
     <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-300 text-xs"><span className="w-full text-center sm:text-right leading-6 break-words [overflow-wrap:anywhere]">تمامی حقوق برای برند و پلتفرم سولمینت (solmint.ir) محفوظ است</span><div className="w-full sm:w-auto flex items-center justify-center sm:justify-end gap-4 min-w-0"><span className="flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 font-mono text-slate-200 text-center leading-5 whitespace-nowrap"><span className="flex items-center justify-center gap-1.5"><span>Solmint Wallet —</span><Wallet className="w-3.5 h-3.5 shrink-0 text-purple-400 animate-pulse" aria-hidden="true" /></span><span>Official Android Web3 Platform</span></span></div></div>
   </div></footer>;
 };
