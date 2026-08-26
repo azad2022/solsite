@@ -1,5 +1,3 @@
-import React from 'react';
-
 export type MarketTickerSource = 'binance' | 'jupiter';
 
 export interface MemeTickerItem {
