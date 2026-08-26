@@ -91,14 +91,14 @@ export const HeaderMarketTicker: React.FC = () => {
   const duration = Math.max(110, feed.speedSeconds || 120);
 
   return (
-    <section className="relative h-9 w-full overflow-hidden border-t border-white/[0.07]" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
+    <section className="absolute left-[68px] right-[52px] top-4 h-12 overflow-hidden lg:static lg:h-9 lg:w-full lg:border-t lg:border-white/[0.07]" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
       <h2 className="sr-only">قیمت لحظه‌ای ارزهای دیجیتال</h2>
       <div className="relative h-full overflow-hidden" dir="ltr">
         <div className="solmint-header-market-rail flex h-full w-max items-center" style={{ animation: `solmintHeaderMarketRail ${duration}s linear infinite` }}>
           {track.map((item, index) => <MarketItem key={`${item.id}-${index}`} item={item} />)}
         </div>
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#05050a] to-transparent sm:w-12" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#05050a] to-transparent sm:w-12" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#05050a] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#05050a] to-transparent" />
       </div>
       <style>{`
         @keyframes solmintHeaderMarketRail {
