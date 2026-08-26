@@ -59,7 +59,9 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
       const category = cleanCategory(await request.json()); const error = validate(category); if (error) return json({ success: false, message: error }, 400);
       const response = await db(env, 'article_categories', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...category, default_media_asset_id: category.default_media_asset_id || null, default_media_url: category.default_media_url || null }) }); const data = await response.json().catch(() => null);
       if (!response.ok) return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ایجاد دسته‌بندی در Supabase ناموفق بود.', details: data }, response.status);
-      return json({ success: true, category: Array.isArray(data) ? data[0] : data }, 201);
+      const category = Array.isArray(data) ? data[0] : data;
+      if (!category) return json({ success: false, message: 'Supabase دسته‌بندی ایجادشده را در پاسخ برنگرداند.' }, 502);
+      return json({ success: true, category }, 201);
     }
     if (!id) return json({ success: false, message: 'شناسه دسته‌بندی ارسال نشده است.' }, 400);
     if (method === 'PATCH') {
@@ -75,9 +77,19 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
       const patch = cleanCategory(merged);
       const error = validate(patch); if (error) return json({ success: false, message: error }, 400);
 
-      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, default_media_asset_id: patch.default_media_asset_id || null, default_media_url: patch.default_media_url || null, updated_at: new Date().toISOString() }) }); const data = await response.json().catch(() => null);
-      if (!response.ok) return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ویرایش دسته‌بندی ناموفق بود.', details: data }, response.status);
-      return json({ success: true, category: Array.isArray(data) ? data[0] : data });
+      const response = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ name: patch.name, slug: patch.slug, description: patch.description, seo_title: patch.seo_title, seo_description: patch.seo_description, parent_id: patch.parent_id, sort_order: patch.sort_order, is_active: patch.is_active, default_media_asset_id: patch.default_media_asset_id || null, default_media_url: patch.default_media_url || null, updated_at: new Date().toISOString() }) });
+      const rawResponse = await response.text();
+      if (!response.ok) {
+        let details: unknown = rawResponse;
+        try { details = JSON.parse(rawResponse); } catch {}
+        return json({ success: false, message: response.status === 409 ? 'این Slug قبلاً استفاده شده است.' : 'ویرایش دسته‌بندی ناموفق بود.', details }, response.status);
+      }
+
+      const verifyResponse = await db(env, `article_categories?id=eq.${encodeURIComponent(id)}&select=*`);
+      const verifyRows = await verifyResponse.json().catch(() => []);
+      const saved = Array.isArray(verifyRows) ? verifyRows[0] : null;
+      if (!verifyResponse.ok || !saved) return json({ success: false, message: 'دسته‌بندی ذخیره شد اما تأیید نهایی آن از دیتابیس ناموفق بود.' }, 502);
+      return json({ success: true, category: saved });
     }
     if (method === 'DELETE') {
       const articleCheck = await db(env, `articles?category_id=eq.${encodeURIComponent(id)}&select=id&limit=1`); const linked = await articleCheck.json().catch(() => []);
