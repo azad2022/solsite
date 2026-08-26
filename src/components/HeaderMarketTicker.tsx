@@ -91,7 +91,7 @@ export const HeaderMarketTicker: React.FC = () => {
   const duration = Math.max(110, feed.speedSeconds || 120);
 
   return (
-    <section className="absolute left-[68px] right-[52px] top-1 h-14 overflow-hidden lg:static lg:h-9 lg:w-full lg:border-t lg:border-white/[0.07]" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
+    <section className="absolute left-[68px] right-[52px] top-1 h-14 overflow-hidden lg:absolute lg:left-0 lg:right-0 lg:top-[74px] lg:h-9 lg:w-full lg:border-t lg:border-white/[0.07]" aria-label="قیمت لحظه‌ای ارزهای دیجیتال">
       <h2 className="sr-only">قیمت لحظه‌ای ارزهای دیجیتال</h2>
       <div className="relative h-full overflow-hidden" dir="ltr">
         <div className="solmint-header-market-rail flex h-full w-max items-center" style={{ animation: `solmintHeaderMarketRail ${duration}s linear infinite` }}>
