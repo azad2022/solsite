@@ -6,7 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "node scripts/category-default-media-auth-patch.mjs && node scripts/fix-admin-media-category-picker.mjs && node scripts/production-comments-client-wiring.mjs && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/fix-app-features-modal.mjs && node scripts/category-default-media-auth-patch.mjs && node scripts/fix-admin-media-category-picker.mjs && node scripts/production-comments-client-wiring.mjs && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "prepare:source": "node scripts/prepare-production-source.mjs",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
