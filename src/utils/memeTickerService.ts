@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabaseClient';
+import React from 'react';
 
 export type MarketTickerSource = 'binance' | 'jupiter';
 
@@ -44,6 +44,9 @@ export interface MemeTickerFeed {
 const FUNCTION_NAME = 'meme-price-ticker';
 
 async function invoke(body: Record<string, unknown>) {
+  // Keep Supabase completely out of the synchronous dependency graph. The
+  // ticker is non-critical and loads the client only when a request is made.
+  const { getSupabaseClient } = await import('./supabaseClient');
   const client = getSupabaseClient();
   if (!client) throw new Error('Supabase client is not configured.');
   const { data, error } = await client.functions.invoke(FUNCTION_NAME, { body });
