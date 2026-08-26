@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, RefreshCw, Save, X } from 'lucide-react';
 import { MediaAsset } from '../types';
-import { ArticleCategory, fetchArticleCategories } from './ArticleCategoryManager';
+import { ArticleCategory, fetchArticleCategories, updateArticleCategory } from './ArticleCategoryManager';
 
 type Props = { asset: MediaAsset | null; onClose: () => void };
 
@@ -36,28 +36,32 @@ export const MediaCategoryDefaultPicker: React.FC<Props> = ({ asset, onClose }) 
     setMessage(null);
     try {
       const selected = new Set(selectedIds);
-      const assignments = categories
-        .filter(category => selected.has(category.id) !== (category.default_media_asset_id === asset.id))
-        .map(category => ({ id: category.id, use: selected.has(category.id) }));
-
-      if (!assignments.length) {
+      const changed = categories.filter(category => selected.has(category.id) !== (category.default_media_asset_id === asset.id));
+      if (!changed.length) {
         setMessage({ success: true, text: 'تغییری برای ذخیره وجود نداشت.' });
         return;
       }
 
-      const response = await fetch('/api/category-default-media', {
-        method: 'POST', credentials: 'include', cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: asset.id, publicUrl: asset.publicUrl, assignments })
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.success) throw new Error(data?.message || `ذخیره تصویر پیش‌فرض ناموفق بود (${response.status}).`);
+      const results = await Promise.all(changed.map(category => {
+        const useAsset = selected.has(category.id);
+        return updateArticleCategory(category.id, {
+          default_media_asset_id: useAsset ? asset.id : null,
+          default_media_url: useAsset ? asset.publicUrl : null,
+        });
+      }));
 
+      const updatedById = new Map(results.map(category => [category.id, category]));
+      setCategories(current => current.map(category => updatedById.get(category.id) || category));
+
+      const assignedCount = changed.filter(category => selected.has(category.id)).length;
+      const clearedCount = changed.length - assignedCount;
+      const parts = [`${assignedCount} دسته‌بندی با این تصویر تنظیم شد`];
+      if (clearedCount > 0) parts.push(`${clearedCount} دسته‌بندی از این تصویر جدا شد`);
       setMessage({
         success: true,
-        text: `تصویر ذخیره شد؛ ${data.categoriesUpdated || 0} دسته‌بندی تنظیم و ${data.articlesUpdated || 0} مقاله به‌روزرسانی شد. مقالات جدید این دسته‌ها نیز همین تصویر را می‌گیرند.`
+        text: `${parts.join('؛ ')}. تصویر پیش‌فرض هر دسته در سطح دیتابیس برای مقالات آن دسته اعمال می‌شود.`
       });
-      window.setTimeout(onClose, 1200);
+      window.setTimeout(onClose, 1400);
     } catch (error: any) {
       setMessage({ success: false, text: error?.message || 'ذخیره تصویر پیش‌فرض ناموفق بود.' });
     } finally { setSaving(false); }
