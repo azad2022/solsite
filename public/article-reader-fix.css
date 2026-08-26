@@ -1,0 +1,8 @@
+/* Article reader containment fix.
+   The main route wrappers use content-visibility:auto for performance. A fixed
+   reader inside that subtree can become paint-contained/clipped on desktop.
+   Disable containment only while the reader is present. */
+main.flex-1.relative.z-10 > div.py-4:has(.article-content) {
+  content-visibility: visible !important;
+  contain: none !important;
+}
