@@ -3,29 +3,17 @@ import fs from 'node:fs';
 const file = 'src/components/AppFeaturesSection.tsx';
 let source = fs.readFileSync(file, 'utf8');
 
-if (source.includes('data-app-features-modal-fixed="true"')) process.exit(0);
+// Keep the modal in the component tree, but prevent the section from becoming
+// a content-visibility containing block for its viewport-fixed dialog.
+const fixedMarker = "style={{contentVisibility:'visible'}}";
+if (source.includes(fixedMarker)) {
+  console.log('✓ [app-features-modal] viewport-safe section already configured.');
+  process.exit(0);
+}
 
-const startMarker = '<AnimatePresence>{selectedFeature&&<motion.div';
-const start = source.indexOf(startMarker);
-if (start < 0) throw new Error('[app-features-modal] modal start marker not found');
-
-const endMarker = '</AnimatePresence>';
-const end = source.indexOf(endMarker, start);
-if (end < 0) throw new Error('[app-features-modal] modal end marker not found');
-
-const modal = source.slice(start, end + endMarker.length);
-source = source.slice(0, start) + source.slice(end + endMarker.length);
-
-const returnMarker = '  return <section id="app-features"';
-if (!source.includes(returnMarker)) throw new Error('[app-features-modal] return marker not found');
-source = source.replace(returnMarker, '  return <><section id="app-features"');
-
-const sectionEnd = '</div></section>;';
-const sectionEndIndex = source.lastIndexOf(sectionEnd);
-if (sectionEndIndex < 0) throw new Error('[app-features-modal] section end marker not found');
-
-const replacement = `</div></section><div data-app-features-modal-fixed="true">${modal}</div></>;`;
-source = source.slice(0, sectionEndIndex) + replacement + source.slice(sectionEndIndex + sectionEnd.length);
+const marker = 'return <section id="app-features"';
+if (!source.includes(marker)) throw new Error('[app-features-modal] section marker not found');
+source = source.replace(marker, 'return <section id="app-features" style={{contentVisibility:\'visible\'}}');
 
 fs.writeFileSync(file, source, 'utf8');
-console.log('✓ [app-features-modal] moved the feature modal outside the section containment subtree.');
+console.log('✓ [app-features-modal] disabled content-visibility on the feature section so fixed details stay in the viewport.');
