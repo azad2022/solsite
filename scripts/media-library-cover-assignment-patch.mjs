@@ -3,8 +3,7 @@ import fs from 'node:fs';
 const file = 'src/components/AdminCmsModal.tsx';
 let s = fs.readFileSync(file, 'utf8');
 
-// Normalize older generated revisions before the idempotent exit so existing
-// deployments can be repaired without reinserting the UI.
+// Keep the generated component source normalized across production builds.
 const componentFile = 'src/components/MediaLibraryCoverAssignment.tsx';
 let component = fs.readFileSync(componentFile, 'utf8');
 component = component.replace('/^image\\\\//i', '/^image\\//i');
@@ -28,8 +27,8 @@ const open = s.indexOf(openMarker, start);
 if (start < 0 || open < 0) throw new Error('MEDIA_TAB_NOT_FOUND');
 
 const insertAt = open + openMarker.length;
-const componentMarkup = `\n                <MediaLibraryCoverAssignment articles={articles} />`;
+const componentMarkup = `\n                <MediaLibraryCoverAssignment />`;
 s = s.slice(0, insertAt) + componentMarkup + s.slice(insertAt);
 
 fs.writeFileSync(file, s, 'utf8');
-console.log('media-library-cover-assignment: cover assignment UI wired into the canonical GitHub media management tab.');
+console.log('media-library-cover-assignment: image grid + category default assignment UI wired into the canonical media management tab.');
