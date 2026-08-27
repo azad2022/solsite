@@ -14,6 +14,7 @@ type ArticleRow = {
   updated_at?: string | null;
   published_at?: string | null;
   published_at_gregorian?: string | null;
+  tags?: unknown;
   is_draft?: boolean | number | string | null;
 };
 
@@ -23,27 +24,24 @@ type TaxonomyItem = { slug: string; count: number; lastmod: string | null };
 const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const INDEXABLE_CATEGORY_MIN_ARTICLES = 2;
+const INDEXABLE_TAG_MIN_ARTICLES = 2;
+const INDEXABLE_TAG_SLUG = 'mym-kvyn-jdyd';
+const INDEXABLE_TAG_NAME = 'میم کوین جدید';
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;').replace(/'/g, '&apos;');
 }
-
 function isPublished(article: ArticleRow): boolean {
   return !(article.is_draft === true || article.is_draft === 1 || article.is_draft === 'true');
 }
-
 function lastModified(article: ArticleRow): string | null {
   const raw = article.updated_at || article.published_at || article.published_at_gregorian;
   if (!raw) return null;
   const date = new Date(String(raw).replace(/\//g, '-'));
   return Number.isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
 }
-
 function newer(a: string | null, b: string | null): string | null {
   if (!a) return b;
   if (!b) return a;
@@ -56,9 +54,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   if (!key) return new Response('Sitemap configuration error', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 
   try {
-    const categoryResponse = await fetch(`${supabaseUrl}/rest/v1/article_categories?select=id,slug,name,is_active`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }
-    });
+    const categoryResponse = await fetch(`${supabaseUrl}/rest/v1/article_categories?select=id,slug,name,is_active`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } });
     if (!categoryResponse.ok) throw new Error(`categories query failed: ${categoryResponse.status}`);
     const categoryRows = await categoryResponse.json() as CategoryRow[];
     const categorySlugs = new Map<string, string>();
@@ -72,23 +68,29 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       }
     }
 
-    const articleResponse = await fetch(`${supabaseUrl}/rest/v1/articles?select=category_id,updated_at,published_at,published_at_gregorian,is_draft&is_draft=eq.false&order=updated_at.desc`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }
-    });
+    const articleResponse = await fetch(`${supabaseUrl}/rest/v1/articles?select=category_id,updated_at,published_at,published_at_gregorian,tags,is_draft&is_draft=eq.false&order=updated_at.desc`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } });
     if (!articleResponse.ok) throw new Error(`articles query failed: ${articleResponse.status}`);
     const articles = await articleResponse.json() as ArticleRow[];
     if (!Array.isArray(articles)) throw new Error('articles query returned a non-array response');
 
     const categories = new Map<string, TaxonomyItem>();
+    let tagCount = 0;
+    let tagLastmod: string | null = null;
     for (const article of articles) {
       if (!isPublished(article)) continue;
       const categorySlug = article.category_id ? categorySlugs.get(String(article.category_id)) : '';
-      if (!categorySlug) continue;
+      if (categorySlug) {
+        const current = categories.get(categorySlug) || { slug: categorySlug, count: 0, lastmod: null };
+        current.count += 1;
+        current.lastmod = newer(current.lastmod, lastModified(article));
+        categories.set(categorySlug, current);
+      }
 
-      const current = categories.get(categorySlug) || { slug: categorySlug, count: 0, lastmod: null };
-      current.count += 1;
-      current.lastmod = newer(current.lastmod, lastModified(article));
-      categories.set(categorySlug, current);
+      const tags = Array.isArray(article.tags) ? article.tags.map(String).map(tag => tag.trim()) : [];
+      if (tags.includes(INDEXABLE_TAG_NAME)) {
+        tagCount += 1;
+        tagLastmod = newer(tagLastmod, lastModified(article));
+      }
     }
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
@@ -99,16 +101,15 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       if (item.lastmod) xml += `    <lastmod>${xmlEscape(item.lastmod)}</lastmod>\n`;
       xml += '  </url>\n';
     }
+    if (tagCount >= INDEXABLE_TAG_MIN_ARTICLES) {
+      const url = `${BASE_URL}/blog/tag/${INDEXABLE_TAG_SLUG}`;
+      xml += `  <url>\n    <loc>${xmlEscape(url)}</loc>\n`;
+      if (tagLastmod) xml += `    <lastmod>${xmlEscape(tagLastmod)}</lastmod>\n`;
+      xml += '  </url>\n';
+    }
     xml += '</urlset>\n';
 
-    return new Response(xml, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/xml; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300'
-      }
-    });
+    return new Response(xml, { status: 200, headers: { 'Content-Type': 'application/xml; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } });
   } catch (error) {
     console.error('Taxonomy sitemap generation failed:', error);
     return new Response('Taxonomy sitemap temporarily unavailable', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
