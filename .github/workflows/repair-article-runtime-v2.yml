@@ -16,11 +16,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Repair App bootstrap and error boundary
-        shell: python
+      - name: Repair article runtime
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
+          # App.tsx: hydrate the current article from the server-provided bootstrap payload.
           app = Path('src/App.tsx')
           s = app.read_text()
           old = "  const [articles, setArticles] = useState<Article[]>(() => safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES));"
@@ -40,16 +42,29 @@ jobs:
           });'''
           if old in s:
               s = s.replace(old, new, 1)
-              app.write_text(s)
 
+          # Merge fetched public articles instead of replacing the bootstrapped article.
+          old_fetch = "      if (!cancelled && dbArticles && dbArticles.length > 0) setArticles(dbArticles);"
+          new_fetch = '''      if (!cancelled && dbArticles && dbArticles.length > 0) {
+        setArticles(prev => {
+          const bySlug = new Map(prev.map(article => [article.slug, article]));
+          for (const article of dbArticles) bySlug.set(article.slug, article);
+          return Array.from(bySlug.values());
+        });
+      }'''
+          if old_fetch in s:
+              s = s.replace(old_fetch, new_fetch, 1)
+          app.write_text(s)
+
+          # main.tsx: never replace an SSR article with a generic error screen after hydration.
           main = Path('src/main.tsx')
           s = main.read_text()
           if "window.location.pathname.startsWith('/article/')" not in s:
               start = s.find('  render() {')
-              end_marker = '\n  }\n}\n\nfunction installArticleImageGuard'
-              end = s.find(end_marker, start)
+              marker = '\n  }\n}\n\nfunction installArticleImageGuard'
+              end = s.find(marker, start)
               if start < 0 or end < 0:
-                  raise SystemExit('Expected ErrorBoundary block boundary not found')
+                  raise SystemExit('ErrorBoundary boundaries not found')
               replacement = '''  render() {
     if (!this.state.hasError) return this.childContent;
 
@@ -87,20 +102,23 @@ jobs:
   }
 }'''
               s = s[:start] + replacement + s[end + len('\n  }\n}') :]
-              main.write_text(s)
+          main.write_text(s)
 
+          # Fix the existing strict TypeScript error in the Express fallback code.
           server = Path('server.ts')
           s = server.read_text()
           s = s.replace('deleteArticleFromDisk(articleId);', 'deleteArticleFromDisk(String(articleId));')
           server.write_text(s)
-          print('source repair applied')
+          PY
 
-      - name: Assert repaired source
+      - name: Validate source invariants
         run: |
+          test -f 'functions/article/[slug].ts'
+          grep -q 'setArticleBootstrap' 'functions/article/[slug].ts'
+          grep -q 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -q 'solmint-article-bootstrap' src/App.tsx
           grep -q "window.location.pathname.startsWith('/article/')" src/main.tsx
           grep -q 'deleteArticleFromDisk(String(articleId))' server.ts
-          grep -q 'X-Solmint-SSR.*article-seo-v4' 'functions/article/[slug].ts'
           ! grep -q 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -q 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
           git diff --check
@@ -110,18 +128,19 @@ jobs:
         with:
           bun-version: 1.2.15
 
-      - name: Install and validate
+      - name: Verify build
         run: |
           bun install --frozen-lockfile
           bun run lint
           bun test
           bun run build
 
-      - name: Persist repair and remove temporary workflow
+      - name: Commit repaired source and remove this workflow
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/repair-article-runtime-v2.yml
           git add 'functions/article/[slug].ts' src/App.tsx src/main.tsx server.ts
+          git diff --cached --quiet && exit 0
           git commit -m "fix: stabilize article SEO SSR and client hydration"
           git push
