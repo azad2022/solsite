@@ -36,6 +36,17 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;800&family=JetBrains+Mono:wght@400;700&display=optional" />
     <link rel="stylesheet" href="/article-reader-fix.css" />
 
+    <style id="solmint-hydration-guard">
+      html.solmint-hydrating #root {
+        visibility: hidden;
+      }
+    </style>
+    <script>
+      (function () {
+        document.documentElement.classList.add('solmint-hydrating');
+      })();
+    </script>
+
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
