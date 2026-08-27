@@ -44,7 +44,11 @@ jobs:
           grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
           grep -Fq 'function readArticleBootstrap(): Article[]' src/App.tsx
           grep -Fq 'const bootstrap = readArticleBootstrap();' src/App.tsx
-          ! grep -Fq 'const isDirectArticleRoute' src/main.tsx
+          grep -Fq 'function preloadInitialRoute()' src/main.tsx
+          grep -Fq 'function revealAppAfterMount()' src/main.tsx
+          grep -Fq 'solmint-hydrating' src/main.tsx
+          grep -Fq 'solmint-hydration-guard' index.html
+          grep -Fq 'visibility: hidden' index.html
           grep -Fq 'createRoot(document.getElementById('\''root'\'')!).render(' src/main.tsx
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
