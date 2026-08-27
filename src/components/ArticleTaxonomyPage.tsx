@@ -38,9 +38,9 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
     <section className="py-16 bg-[#0f1117] border-b border-slate-800/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav aria-label="مسیر صفحه" className="mb-8 text-xs text-slate-500 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => onNavigate('/')} className="hover:text-sky-400">خانه</button>
+          <a href="/" onClick={event => { event.preventDefault(); onNavigate('/'); }} className="hover:text-sky-400">خانه</a>
           <ArrowRight className="w-3.5 h-3.5 rotate-180" aria-hidden="true" />
-          <button type="button" onClick={() => onNavigate('/blog')} className="hover:text-sky-400">وبلاگ</button>
+          <a href="/blog" onClick={event => { event.preventDefault(); onNavigate('/blog'); }} className="hover:text-sky-400">وبلاگ</a>
           <ArrowRight className="w-3.5 h-3.5 rotate-180" aria-hidden="true" />
           <span className="text-slate-300">{name}</span>
         </nav>
