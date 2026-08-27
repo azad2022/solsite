@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, BookOpen, Clock, Tag } from 'lucide-react';
+import { ArrowRight, BookOpen, Clock, ExternalLink, Tag } from 'lucide-react';
 import { Article } from '../types';
 import { CATEGORY_SEO } from '../config/articleTaxonomy';
 import { TAG_SEO } from '../config/tagSeo';
@@ -32,6 +32,7 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
   const specialized = type === 'category' ? CATEGORY_SEO[slug] : TAG_SEO[slug];
   const h1 = specialized?.h1 || name;
   const intro = specialized?.intro || `مقالات مرتبط با ${typeLabel} «${name}» در آکادمی سولمینت.`;
+  const relatedPage = type === 'tag' ? specialized?.relatedPage : undefined;
 
   return (
     <section className="py-16 bg-[#0f1117] border-b border-slate-800/60">
@@ -51,12 +52,15 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
           </div>
           <h1 className="mt-4 text-3xl sm:text-5xl font-black text-white leading-tight">{h1}</h1>
           <p className="mt-4 text-slate-400 leading-8 max-w-3xl">{intro}</p>
-          {specialized?.relatedPage && (
-            <div className="mt-5 rounded-2xl border border-[#14F195]/20 bg-[#14F195]/5 p-4">
-              <p className="text-sm leading-7 text-slate-300">
-                برای مشاهده داده‌های زنده بازار SOL و نمودار، <a href={specialized.relatedPage.href} onClick={event => { event.preventDefault(); onNavigate(specialized.relatedPage!.href); }} className="font-bold text-[#14F195] hover:underline">{specialized.relatedPage.anchor}</a> در دسترس است.
-              </p>
-            </div>
+          {relatedPage && (
+            <a
+              href={relatedPage.href}
+              onClick={event => { event.preventDefault(); onNavigate(relatedPage.href); }}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[#14F195]/20 bg-[#14F195]/5 px-4 py-2.5 text-sm font-bold text-[#14F195] hover:bg-[#14F195]/10 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" aria-hidden="true" />
+              <span>{relatedPage.anchor}</span>
+            </a>
           )}
         </header>
 
