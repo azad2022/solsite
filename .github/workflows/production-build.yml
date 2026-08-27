@@ -36,13 +36,12 @@ jobs:
           ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
       - name: Verify article SEO SSR contract
         run: |
-          grep -q 'solmint-article-bootstrap' 'functions/article/[slug].ts'
-          grep -q 'setArticleBootstrap' 'functions/article/[slug].ts'
-          grep -q "window.location.pathname.startsWith('/article/')" src/main.tsx
-          ! grep -q 'if (!key) return context.next()' 'functions/article/[slug].ts'
-          ! grep -q 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
-          grep -q '"/article/*"' public/_routes.json
-          git diff --check
+          grep -Fq 'solmint-article-bootstrap' 'functions/article/[slug].ts'
+          grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
+          grep -Fq "window.location.pathname.startsWith('/article/')" src/main.tsx
+          ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
+          ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
+          grep -Fq '"/article/*"' public/_routes.json
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
