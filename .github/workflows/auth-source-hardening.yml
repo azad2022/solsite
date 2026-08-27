@@ -32,10 +32,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet; then
+          if git diff --quiet -- server.ts src/components/AdminCmsModal.tsx src/App.tsx; then
             echo "Authentication source already hardened."
             exit 0
           fi
-          git add server.ts src/components/AdminCmsModal.tsx
+          git add server.ts src/components/AdminCmsModal.tsx src/App.tsx
           git commit -m "security: harden authentication source [auth-hardening]"
           git push
