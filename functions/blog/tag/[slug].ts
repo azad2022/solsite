@@ -1,5 +1,3 @@
-import { TAG_SEO, findTagNameBySlug } from '../../../src/config/articleTaxonomy';
-
 type Env = {
   SUPABASE_URL?: string;
   SUPABASE_SECRET_KEY?: string;
@@ -30,10 +28,26 @@ type TagContext = {
   env?: Env;
 };
 
+type TagSeoConfig = {
+  title: string;
+  description: string;
+  h1: string;
+  intro: string;
+};
+
 const SITE = 'https://solmint.ir';
 const TARGET_SLUG = 'mym-kvyn-jdyd';
 const TARGET_TAG = 'میم کوین جدید';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
+
+// Keep the one intentionally indexable editorial tag self-contained at the route boundary.
+// This avoids importing build-time taxonomy exports that may not exist in a fresh Functions bundle.
+const TARGET_TAG_SEO: TagSeoConfig = {
+  title: 'میم کوین جدید | جدیدترین میم کوین‌های سولانا و بازار کریپتو | سولمینت',
+  description: 'جدیدترین میم کوین‌های سولانا و بازار کریپتو را در سولمینت دنبال کنید؛ پوشش پروژه‌های تازه، میم‌کوین‌های ترند، داده‌های بازار، ریسک‌ها و بررسی‌های به‌روز.',
+  h1: 'میم کوین جدید؛ جدیدترین میم‌کوین‌های سولانا و بازار کریپتو',
+  intro: 'این صفحه مرجع پوشش «میم کوین جدید» در سولمینت است؛ مقاله‌های مرتبط با میم‌کوین‌های تازه‌وارد، پروژه‌های تازه‌فعال‌شده و موج‌های جدید بازار را یکجا دنبال کنید. تمرکز مطالب بر اطلاعات قابل بررسی، وضعیت بازار، نقدینگی، حجم، سابقه پروژه و ریسک‌های مهم است و محتوای این صفحه توصیه خرید یا فروش نیست.'
+};
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -94,8 +108,8 @@ async function readJson(response: Response): Promise<unknown> {
 
 export async function onRequest(context: TagContext): Promise<Response> {
   const slug = String(context.params?.slug || '').trim().toLowerCase();
-  const tagConfig = TAG_SEO[slug];
-  if (slug !== TARGET_SLUG || !tagConfig) {
+  const tagConfig = slug === TARGET_SLUG ? TARGET_TAG_SEO : null;
+  if (!tagConfig) {
     const response = await context.next();
     const headers = new Headers(response.headers);
     headers.set('X-Robots-Tag', 'noindex, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
@@ -105,7 +119,14 @@ export async function onRequest(context: TagContext): Promise<Response> {
 
   const supabaseUrl = (context.env?.SUPABASE_URL || context.env?.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
   const key = context.env?.SUPABASE_SECRET_KEY || context.env?.SUPABASE_SERVICE_ROLE_KEY || context.env?.SUPABASE_ANON_KEY || context.env?.VITE_SUPABASE_ANON_KEY;
-  if (!key) return new Response('Tag SEO configuration error', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  if (!key) {
+    console.error('Tag SEO configuration error: Supabase key is missing');
+    const fallback = await context.next();
+    const headers = new Headers(fallback.headers);
+    headers.set('X-Robots-Tag', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+    headers.set('X-Solmint-SEO', 'tag-archive-indexable-v3-fallback');
+    return new Response(fallback.body, { status: fallback.status, statusText: fallback.statusText, headers });
+  }
   const authHeaders = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
   const canonical = `${SITE}/blog/tag/${TARGET_SLUG}`;
 
@@ -120,7 +141,7 @@ export async function onRequest(context: TagContext): Promise<Response> {
     const headers = new Headers(baseResponse.headers);
     headers.set('Content-Type', 'text/html; charset=UTF-8');
     headers.set('X-Robots-Tag', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
-    headers.set('X-Solmint-SEO', `tag-archive-indexable-v2 count=${articles.length}`);
+    headers.set('X-Solmint-SEO', `tag-archive-indexable-v3 count=${articles.length}`);
     headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800');
     if (!baseResponse.ok) return new Response(baseResponse.body, { status: baseResponse.status, headers });
 
@@ -171,6 +192,15 @@ export async function onRequest(context: TagContext): Promise<Response> {
     return new Response(html, { status: baseResponse.status, headers });
   } catch (error) {
     console.error('New meme coin tag SSR failed:', error);
-    return new Response('Tag temporarily unavailable', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex' } });
+    try {
+      const fallback = await context.next();
+      const headers = new Headers(fallback.headers);
+      headers.set('X-Robots-Tag', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+      headers.set('X-Solmint-SEO', 'tag-archive-indexable-v3-fallback');
+      return new Response(fallback.body, { status: fallback.status, statusText: fallback.statusText, headers });
+    } catch (fallbackError) {
+      console.error('Tag fallback failed:', fallbackError);
+      return new Response('<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>میم کوین جدید | سولمینت</title><meta name="robots" content="index, follow"></head><body><main><h1>میم کوین جدید؛ جدیدترین میم‌کوین‌های سولانا و بازار کریپتو</h1><p>این صفحه موقتاً با نسخه پایه نمایش داده می‌شود.</p></main></body></html>', { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'X-Robots-Tag': 'index, follow', 'X-Solmint-SEO': 'tag-archive-hard-fallback-v3' } });
+    }
   }
 }
