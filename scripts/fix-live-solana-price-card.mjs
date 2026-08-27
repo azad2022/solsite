@@ -4,17 +4,67 @@ import path from 'node:path';
 const file = path.join(process.cwd(), 'src/components/SolanaPricePage.tsx');
 let source = fs.readFileSync(file, 'utf8');
 
-source = source.replace("const PRICE_CARD_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/solana-price-card';\n", '');
+const legacyUrl = "const PRICE_CARD_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/solana-price-card';\n";
+source = source.replace(legacyUrl, '');
 
-const oldBlock = `const LivePriceCard: React.FC = () => { const [nonce, setNonce] = useState(() => Date.now()); const [updated, setUpdated] = useState<number | null>(null); useEffect(() => { const timer = window.setInterval(() => { const now = Date.now(); setNonce(now); setUpdated(now); }, REFRESH_MS); return () => window.clearInterval(timer); }, []); return <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden"><div className="flex items-center justify-between mb-2"><span className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div><img key={nonce} src={\`${PRICE_CARD_URL}?style=hero&v=\${nonce}\`} alt="قیمت لحظه‌ای سولانا SOL به دلار" className="w-full h-auto block rounded-xl" loading="eager" referrerPolicy="no-referrer" /><p className="mt-2 text-[11px] text-slate-500">قیمت بدون رفرش صفحه، به‌صورت خودکار به‌روزرسانی می‌شود.{updated ? \` آخرین دریافت: \${new Date(updated).toLocaleTimeString('fa-IR')}\` : ''}</p></div>; };`;
-
-const newBlock = `const LivePriceCard: React.FC = () => {\n  const [price, setPrice] = useState<number | null>(null);\n  const [change24h, setChange24h] = useState<number | null>(null);\n  const [updated, setUpdated] = useState<number | null>(null);\n  const [loading, setLoading] = useState(true);\n  const [error, setError] = useState('');\n\n  const load = useCallback(async (signal?: AbortSignal) => {\n    try {\n      const response = await fetch(\`/api/market/solana-ticker?_=${Date.now()}\`, { cache: 'no-store', signal });\n      if (!response.ok) throw new Error('Market request failed');\n      const json = await response.json() as { price?: number; change24h?: number | null; fetchedAt?: string };\n      const nextPrice = Number(json.price);\n      if (!Number.isFinite(nextPrice) || nextPrice <= 0) throw new Error('Invalid market price');\n      setPrice(nextPrice);\n      setChange24h(Number.isFinite(Number(json.change24h)) ? Number(json.change24h) : null);\n      setUpdated(json.fetchedAt ? Date.parse(json.fetchedAt) || Date.now() : Date.now());\n      setError('');\n    } catch (err) {\n      if ((err as Error)?.name !== 'AbortError') setError('دریافت قیمت موقتاً ناموفق بود');\n    } finally {\n      if (!signal?.aborted) setLoading(false);\n    }\n  }, []);\n\n  useEffect(() => {\n    const controller = new AbortController();\n    const refresh = () => void load(controller.signal);\n    void load(controller.signal);\n    const timer = window.setInterval(refresh, REFRESH_MS);\n    return () => { controller.abort(); window.clearInterval(timer); };\n  }, [load]);\n\n  const priceLabel = price === null ? '—' : `$${formatPrice(price)}`;\n  const changeLabel = change24h === null ? '—' : `${change24h >= 0 ? '+' : ''}${change24h.toFixed(2)}%`;\n  return <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden">\n    <div className="flex items-center justify-between mb-3"><span className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div>\n    <div className="flex items-end justify-between gap-4">\n      <div><div className="text-3xl font-black text-white tracking-tight" aria-live="polite">{priceLabel}</div><div className="mt-1 text-xs text-slate-500">SOL / USD · Kraken</div></div>\n      <div className={\`rounded-xl px-3 py-2 text-sm font-black ${change24h === null ? 'bg-slate-800 text-slate-400' : change24h >= 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}\`}>{changeLabel}<div className="text-[10px] font-medium text-slate-500 mt-0.5">۲۴ ساعت</div></div>\n    </div>\n    <p className="mt-3 text-[11px] text-slate-500">{loading && price === null ? 'در حال دریافت داده بازار...' : error && price === null ? error : `قیمت بدون رفرش صفحه به‌صورت خودکار به‌روزرسانی می‌شود.${updated ? ` آخرین دریافت: ${new Date(updated).toLocaleTimeString('fa-IR')}` : ''}`}</p>\n  </div>;\n};`;
-
-if (source.includes(oldBlock)) {
-  source = source.replace(oldBlock, newBlock);
-} else if (!source.includes('const LivePriceCard: React.FC = () => {\n  const [price, setPrice]')) {
-  throw new Error('LivePriceCard source pattern not found');
+// Keep this build-time patch idempotent. If the card is already migrated, do nothing.
+if (source.includes("fetch(`/api/market/solana-ticker?_=${Date.now()}`")) {
+  fs.writeFileSync(file, source, 'utf8');
+  console.log('✓ Solana price card already uses the internal ticker API.');
+  process.exit(0);
 }
 
+const newBlock = [
+  'const LivePriceCard: React.FC = () => {',
+  '  const [price, setPrice] = useState<number | null>(null);',
+  '  const [change24h, setChange24h] = useState<number | null>(null);',
+  '  const [updated, setUpdated] = useState<number | null>(null);',
+  '  const [loading, setLoading] = useState(true);',
+  '',
+  '  const load = useCallback(async (signal?: AbortSignal) => {',
+  '    try {',
+  "      const response = await fetch(`/api/market/solana-ticker?_=${Date.now()}`, { cache: 'no-store', signal });",
+  "      if (!response.ok) throw new Error('Market request failed');",
+  "      const json = await response.json() as { price?: number; change24h?: number | null; fetchedAt?: string };",
+  '      const nextPrice = Number(json.price);',
+  "      if (!Number.isFinite(nextPrice) || nextPrice <= 0) throw new Error('Invalid market price');",
+  '      setPrice(nextPrice);',
+  '      setChange24h(Number.isFinite(Number(json.change24h)) ? Number(json.change24h) : null);',
+  '      setUpdated(json.fetchedAt ? Date.parse(json.fetchedAt) || Date.now() : Date.now());',
+  "    } catch (error) {",
+  "      if ((error as Error)?.name !== 'AbortError') console.warn('Solana ticker refresh failed');",
+  '    } finally {',
+  '      if (!signal?.aborted) setLoading(false);',
+  '    }',
+  '  }, []);',
+  '',
+  '  useEffect(() => {',
+  '    const controller = new AbortController();',
+  '    void load(controller.signal);',
+  '    const timer = window.setInterval(() => void load(controller.signal), REFRESH_MS);',
+  '    return () => { controller.abort(); window.clearInterval(timer); };',
+  '  }, [load]);',
+  '',
+  '  const priceLabel = price === null ? \'—\' : `$${formatPrice(price)}`;',
+  '  const changeLabel = change24h === null ? \'—\' : `${change24h >= 0 ? \'+\' : \'\'}${change24h.toFixed(2)}%`;',
+  '  return <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden">',
+  '    <div className="flex items-center justify-between mb-3"><span className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div>',
+  '    <div className="flex items-end justify-between gap-4">',
+  '      <div><div className="text-3xl font-black text-white tracking-tight" aria-live="polite">{priceLabel}</div><div className="mt-1 text-xs text-slate-500">SOL / USD · Kraken</div></div>',
+  '      <div className="rounded-xl px-3 py-2 text-sm font-black bg-slate-800 text-slate-300">{changeLabel}<div className="text-[10px] font-medium text-slate-500 mt-0.5">۲۴ ساعت</div></div>',
+  '    </div>',
+  '    <p className="mt-3 text-[11px] text-slate-500">{loading && price === null ? \'در حال دریافت داده بازار...\' : `قیمت بدون رفرش صفحه به‌صورت خودکار به‌روزرسانی می‌شود.${updated ? ` آخرین دریافت: ${new Date(updated).toLocaleTimeString(\'fa-IR\')}` : \'\'}`}</p>',
+  '  </div>;',
+  '};'
+].join('\n');
+
+const cardStart = source.indexOf('const LivePriceCard: React.FC = () => {');
+if (cardStart === -1) throw new Error('LivePriceCard source pattern not found');
+
+const cardEndMarker = '\n\nconst LiveSolanaChart';
+const cardEnd = source.indexOf(cardEndMarker, cardStart);
+if (cardEnd === -1) throw new Error('LivePriceCard end marker not found');
+
+source = source.slice(0, cardStart) + newBlock + source.slice(cardEnd);
 fs.writeFileSync(file, source, 'utf8');
-console.log('✓ Live Solana price card now uses the internal ticker API and real HTML data.');
+console.log('✓ Solana price card migrated to the internal ticker API.');
