@@ -51,6 +51,13 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
           </div>
           <h1 className="mt-4 text-3xl sm:text-5xl font-black text-white leading-tight">{h1}</h1>
           <p className="mt-4 text-slate-400 leading-8 max-w-3xl">{intro}</p>
+          {specialized?.relatedPage && (
+            <div className="mt-5 rounded-2xl border border-[#14F195]/20 bg-[#14F195]/5 p-4">
+              <p className="text-sm leading-7 text-slate-300">
+                برای مشاهده داده‌های زنده بازار SOL و نمودار، <a href={specialized.relatedPage.href} onClick={event => { event.preventDefault(); onNavigate(specialized.relatedPage!.href); }} className="font-bold text-[#14F195] hover:underline">{specialized.relatedPage.anchor}</a> در دسترس است.
+              </p>
+            </div>
+          )}
         </header>
 
         {matchingArticles.length === 0 ? (
