@@ -33,6 +33,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "10.4.21",
+    "esbuild": "0.25.12",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   }
