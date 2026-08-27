@@ -7,7 +7,8 @@ let source = fs.readFileSync(file, 'utf8');
 const legacyUrl = "const PRICE_CARD_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/solana-price-card';\n";
 source = source.replace(legacyUrl, '');
 
-// Keep this build-time patch idempotent. If the card is already migrated, do nothing.
+// The production source is already migrated when the internal ticker fetch is present.
+// Keep this patch idempotent and independent of surrounding component formatting.
 if (source.includes("fetch(`/api/market/solana-ticker?_=${Date.now()}`")) {
   fs.writeFileSync(file, source, 'utf8');
   console.log('✓ Solana price card already uses the internal ticker API.');
@@ -45,26 +46,28 @@ const newBlock = [
   '    return () => { controller.abort(); window.clearInterval(timer); };',
   '  }, [load]);',
   '',
-  '  const priceLabel = price === null ? \'—\' : `$${formatPrice(price)}`;',
-  '  const changeLabel = change24h === null ? \'—\' : `${change24h >= 0 ? \'+\' : \'\'}${change24h.toFixed(2)}%`;',
+  "  const priceLabel = price === null ? '—' : `$${formatPrice(price)}`;",
+  "  const changeLabel = change24h === null ? '—' : `${change24h >= 0 ? '+' : ''}${change24h.toFixed(2)}%`;",
   '  return <div className="rounded-2xl border border-[#9945FF]/30 bg-gradient-to-br from-[#171124] to-[#0c1119] p-4 shadow-xl overflow-hidden">',
   '    <div className="flex items-center justify-between mb-3"><span className="text-xs text-slate-400 font-bold">قیمت لحظه‌ای SOL</span><Activity className="w-4 h-4 text-[#14F195]" aria-hidden="true" /></div>',
   '    <div className="flex items-end justify-between gap-4">',
   '      <div><div className="text-3xl font-black text-white tracking-tight" aria-live="polite">{priceLabel}</div><div className="mt-1 text-xs text-slate-500">SOL / USD · Kraken</div></div>',
   '      <div className="rounded-xl px-3 py-2 text-sm font-black bg-slate-800 text-slate-300">{changeLabel}<div className="text-[10px] font-medium text-slate-500 mt-0.5">۲۴ ساعت</div></div>',
-  '    </div>',
+  "    </div>",
   '    <p className="mt-3 text-[11px] text-slate-500">{loading && price === null ? \'در حال دریافت داده بازار...\' : `قیمت بدون رفرش صفحه به‌صورت خودکار به‌روزرسانی می‌شود.${updated ? ` آخرین دریافت: ${new Date(updated).toLocaleTimeString(\'fa-IR\')}` : \'\'}`}</p>',
   '  </div>;',
   '};'
 ].join('\n');
 
+// Locate the component by its declaration and the next stable component declaration.
 const cardStart = source.indexOf('const LivePriceCard: React.FC = () => {');
 if (cardStart === -1) throw new Error('LivePriceCard source pattern not found');
 
-const cardEndMarker = '\n\nconst LiveSolanaChart';
-const cardEnd = source.indexOf(cardEndMarker, cardStart);
-if (cardEnd === -1) throw new Error('LivePriceCard end marker not found');
+const nextComponentPattern = /\nconst LiveSolanaChart\s*:/g;
+nextComponentPattern.lastIndex = cardStart;
+const match = nextComponentPattern.exec(source);
+if (!match) throw new Error('LiveSolanaChart component marker not found');
 
-source = source.slice(0, cardStart) + newBlock + source.slice(cardEnd);
+source = source.slice(0, cardStart) + newBlock + source.slice(match.index);
 fs.writeFileSync(file, source, 'utf8');
 console.log('✓ Solana price card migrated to the internal ticker API.');
