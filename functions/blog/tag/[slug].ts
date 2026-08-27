@@ -1,4 +1,5 @@
 import { getCanonicalTagSlug } from '../../../src/config/articleTaxonomy';
+import { TAG_SEO } from '../../../src/config/tagSeo';
 
 type Env = {
   SUPABASE_URL?: string;
@@ -145,14 +146,15 @@ export async function onRequest(context: TagContext): Promise<Response> {
     const allPublished = rows.filter(isPublished).filter(article => article.title && article.slug);
     const matching = allPublished.filter(article => tagNames(article).some(tag => getCanonicalTagSlug(tag) === slug));
     const tagName = matching.flatMap(tagNames).find(tag => getCanonicalTagSlug(tag) === slug) || (slug === SPECIAL_TAG_SLUG ? SPECIAL_TAG_NAME : slug);
-    const tagSeo = slug === SPECIAL_TAG_SLUG ? SPECIAL_TAG_SEO : genericSeo(tagName);
+    const configured = TAG_SEO[slug];
+    const tagSeo = configured || (slug === SPECIAL_TAG_SLUG ? SPECIAL_TAG_SEO : genericSeo(tagName));
     const indexable = matching.length > 0;
     const canonical = `${SITE}/blog/tag/${encodeURIComponent(slug)}`;
 
     const headers = new Headers(baseResponse.headers);
     headers.set('Content-Type', 'text/html; charset=UTF-8');
     headers.set('X-Robots-Tag', indexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow');
-    headers.set('X-Solmint-SEO', `tag-archive-${indexable ? 'indexable' : 'empty'}-v4 count=${matching.length}`);
+    headers.set('X-Solmint-SEO', `tag-archive-${indexable ? 'indexable' : 'empty'}-v5 count=${matching.length}`);
     headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800');
 
     let html = await baseResponse.text();
@@ -197,7 +199,6 @@ export async function onRequest(context: TagContext): Promise<Response> {
 
     return new Response(html, { status: baseResponse.status, statusText: baseResponse.statusText, headers });
   } catch (error) {
-    // Never turn a database/HTML enrichment failure into a Cloudflare 1101. Return the base tag page instead.
     console.error('Tag SEO enrichment failed:', error);
     return new Response(baseResponse.body, { status: baseResponse.status, statusText: baseResponse.statusText, headers: baseHeaders });
   }
