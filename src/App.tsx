@@ -76,7 +76,20 @@ export default function App() {
   const [deepseekSettings, setDeepseekSettings] = useState<DeepSeekAiSettings>(() => safeGetLocalStorage<DeepSeekAiSettings>('solmint_deepseek_settings', DEFAULT_DEEPSEEK_SETTINGS));
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(() => safeGetLocalStorage<ChatbotSettings>('solmint_chatbot_settings', DEFAULT_CHATBOT_SETTINGS));
   const [solanaStatus, setSolanaStatus] = useState<SolanaStatus>({ price: 184.25, change24h: 4.38, tps: 2890, avgFeeUsd: 0.00025, avgFeeSol: 0.000005, status: 'Mainnet Beta Online', slot: 284910283 });
-  const [articles, setArticles] = useState<Article[]>(() => safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES));
+  const [articles, setArticles] = useState<Article[]>(() => {
+    const stored = safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES);
+    if (typeof document === 'undefined') return stored;
+    try {
+      const node = document.getElementById('solmint-article-bootstrap');
+      const raw = node?.textContent?.trim();
+      if (!raw) return stored;
+      const article = JSON.parse(raw) as Article;
+      if (!article?.slug || !article?.title) return stored;
+      return [article, ...stored.filter(item => item.slug !== article.slug)];
+    } catch {
+      return stored;
+    }
+  });
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => safeGetLocalStorage<MediaItem[]>('solmint_media', INITIAL_MEDIA_ITEMS));
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() => safeGetLocalStorage<Testimonial[]>('solmint_testimonials', INITIAL_TESTIMONIALS));
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -90,18 +103,8 @@ export default function App() {
   }, []);
 
   const scrollToRouteTop = () => {
-    const reset = () => {
-      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    };
-    window.requestAnimationFrame(() => {
-      reset();
-      window.requestAnimationFrame(() => {
-        reset();
-        window.setTimeout(reset, 0);
-      });
-    });
+    const reset = () => { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; };
+    window.requestAnimationFrame(() => { reset(); window.requestAnimationFrame(() => { reset(); window.setTimeout(reset, 0); }); });
   };
 
   const handleNavigate = (path: string) => {
@@ -116,16 +119,8 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let interval: number | undefined;
-    const syncPublicSettings = async () => {
-      const settings = await fetchCmsSettingsFromApi();
-      if (cancelled || !settings) return;
-      if (settings.chatbot) setChatbotSettings(prev => ({ ...prev, ...settings.chatbot, enabled: Boolean(settings.chatbot.enabled) }));
-      if (settings.downloads) setDownloadLinks(prev => ({ ...prev, ...settings.downloads }));
-    };
-    const timer = window.setTimeout(() => {
-      void syncPublicSettings();
-      interval = window.setInterval(syncPublicSettings, 30000);
-    }, 1200);
+    const syncPublicSettings = async () => { const settings = await fetchCmsSettingsFromApi(); if (cancelled || !settings) return; if (settings.chatbot) setChatbotSettings(prev => ({ ...prev, ...settings.chatbot, enabled: Boolean(settings.chatbot.enabled) })); if (settings.downloads) setDownloadLinks(prev => ({ ...prev, ...settings.downloads })); };
+    const timer = window.setTimeout(() => { void syncPublicSettings(); interval = window.setInterval(syncPublicSettings, 30000); }, 1200);
     return () => { cancelled = true; window.clearTimeout(timer); if (interval) window.clearInterval(interval); };
   }, []);
 
@@ -136,14 +131,8 @@ export default function App() {
   const taxonomyArticleCount = useMemo(() => { if (!taxonomyMatch) return 0; return articles.filter(article => taxonomyMatch.type === 'category' ? getArticleCategoryTaxonomy(article.category)?.slug === taxonomyMatch.slug : getArticleTagTaxonomy(article.tags).some(item => item.slug === taxonomyMatch.slug)).length; }, [articles, taxonomyMatch]);
 
   useEffect(() => {
-    if (taxonomyMatch && activeTaxonomy) {
-      updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount });
-      return;
-    }
-    if (activeArticle) {
-      updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle);
-      return;
-    }
+    if (taxonomyMatch && activeTaxonomy) { updateTaxonomySeo({ type: taxonomyMatch.type, slug: taxonomyMatch.slug, name: activeTaxonomy.name, count: taxonomyArticleCount }); return; }
+    if (activeArticle) { updateRouteSeo(`/article/${activeArticle.slug}`, activeArticle); return; }
     if (activeArticleSlug) return;
     if (currentPath !== '/solana-price') updateRouteSeo(currentPath);
   }, [currentPath, activeArticle, activeArticleSlug, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
@@ -154,7 +143,13 @@ export default function App() {
     let cancelled = false;
     const loadDatabaseArticles = async () => {
       const dbArticles = await fetchArticlesFromActiveDatabase();
-      if (!cancelled && dbArticles && dbArticles.length > 0) setArticles(dbArticles);
+      if (!cancelled && dbArticles && dbArticles.length > 0) {
+        setArticles(prev => {
+          const bySlug = new Map(prev.map(article => [article.slug, article]));
+          for (const article of dbArticles) bySlug.set(article.slug, article);
+          return Array.from(bySlug.values());
+        });
+      }
     };
     const load = () => { void loadDatabaseArticles(); };
     const delay = currentPath === '/' ? 1600 : 0;
@@ -163,11 +158,7 @@ export default function App() {
   }, [currentPath]);
 
   const refreshSolanaStatus = async () => { try { const res = await fetch('/api/solana/status', { cache: 'no-store' }); if (res.ok) setSolanaStatus(await res.json()); } catch {} };
-  useEffect(() => {
-    const timer = window.setTimeout(() => { void refreshSolanaStatus(); }, 1400);
-    const interval = window.setInterval(refreshSolanaStatus, 30000);
-    return () => { window.clearTimeout(timer); window.clearInterval(interval); };
-  }, []);
+  useEffect(() => { const timer = window.setTimeout(() => { void refreshSolanaStatus(); }, 1400); const interval = window.setInterval(refreshSolanaStatus, 30000); return () => { window.clearTimeout(timer); window.clearInterval(interval); }; }, []);
 
   const openAdminModal = () => setIsAdminModalOpen(true);
   const isPrivilegedAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.username === 'admin';
@@ -177,18 +168,7 @@ export default function App() {
     <Suspense fallback={null}><ParticleCanvas /></Suspense>
     <Header solanaStatus={solanaStatus} refreshStatus={refreshSolanaStatus} currentPath={currentPath} onNavigate={handleNavigate} openAdminModal={openAdminModal} currentUser={currentUser} onLogout={handleLogout} />
     <main className="flex-1 relative z-10"><Suspense fallback={<SuspenseFallback />}>
-      {currentPath === '/' && <>
-        <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
-        <Suspense fallback={null}>
-          <AppShowcase />
-          <MemeTicker />
-          <AppFeaturesSection />
-          <SecuritySection />
-          <RoadmapSection />
-          <FaqSection />
-          <LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} />
-        </Suspense>
-      </>}
+      {currentPath === '/' && <><HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} /><Suspense fallback={null}><AppShowcase /><MemeTicker /><AppFeaturesSection /><SecuritySection /><RoadmapSection /><FaqSection /><LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} /></Suspense></>}
       {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /></>}
       {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
