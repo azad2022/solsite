@@ -2,53 +2,89 @@ import React, { Component, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { installHomepageSeoGuard } from './utils/homeSeoGuard';
-import { installWalletSeoGuard } from './utils/walletSeoGuard';
-import { installWebMcpTools } from './utils/webMcp';
 
-interface ErrorBoundaryProps { children: ReactNode; }
-interface ErrorBoundaryState { hasError: boolean; errorMessage: string; }
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  private readonly childContent: ReactNode;
-  state: ErrorBoundaryState = { hasError: false, errorMessage: '' };
-  constructor(props: ErrorBoundaryProps) { super(props); this.childContent = props.children; }
-  static getDerivedStateFromError(error: unknown): ErrorBoundaryState { return { hasError: true, errorMessage: error instanceof Error ? error.message : 'خطای ناشناخته در اجرای صفحه' }; }
-  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) { console.error('Solmint React render error:', error, errorInfo); }
-  handleReload = () => window.location.reload();
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: unknown) {
+    console.error('React render error:', error);
+  }
   render() {
-    if (!this.state.hasError) return this.childContent;
-    return (
-      <div dir="rtl" style={{ minHeight: '100vh', background: '#08080f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'Vazirmatn, sans-serif', textAlign: 'center' }}>
-        <section style={{ width: '100%', maxWidth: 560, padding: 32, borderRadius: 24, background: '#11111f', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
-          <h1 style={{ color: '#14F195', fontSize: 22, margin: '0 0 12px', fontWeight: 800 }}>خطا در بارگذاری صفحه</h1>
-          <p style={{ color: '#94a3b8', lineHeight: 1.9, margin: '0 0 20px' }}>اجرای رابط کاربری با خطا متوقف شد. این خطا ثبت شده و صفحه می‌تواند دوباره بارگذاری شود.</p>
-          <button type="button" onClick={this.handleReload} style={{ border: 0, borderRadius: 12, padding: '11px 22px', background: '#9945FF', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>بارگذاری مجدد</button>
-          {import.meta.env.DEV && this.state.errorMessage && <pre style={{ marginTop: 20, color: '#fca5a5', whiteSpace: 'pre-wrap', direction: 'ltr', textAlign: 'left' }}>{this.state.errorMessage}</pre>}
-        </section>
-      </div>
-    );
+    if (this.state.hasError) {
+      return <div className="min-h-screen flex items-center justify-center bg-[#08080f] text-slate-200 p-6"><div className="max-w-md text-center"><h1 className="text-xl font-black mb-2">خطا در بارگذاری صفحه</h1><p className="text-sm text-slate-400">اجرای رابط کاربری با خطا متوقف شد. این خطا ثبت شده و صفحه می‌تواند دوباره بارگذاری شود.</p><button type="button" onClick={() => window.location.reload()} className="mt-5 px-4 py-2 rounded-xl bg-[#14F195] text-black font-bold text-sm">بارگذاری مجدد</button></div></div>;
+    }
+    return this.props.children;
   }
 }
 
-function installArticleImageGuard() {
-  const handleImageError = (event: Event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLImageElement)) return;
-    const image = target;
-    image.dataset.solmintImageError = 'true';
-    image.style.visibility = 'hidden';
-  };
-  document.addEventListener('error', handleImageError, true);
+/**
+ * Start loading the component that owns the current public route before
+ * createRoot begins evaluating the React tree. The SSR layer intentionally
+ * puts indexable HTML inside #root; createRoot will replace it, so getting the
+ * route-critical chunk onto the network queue early shortens that visual handoff.
+ *
+ * This preserves code-splitting: only the module required by the current direct
+ * entry is warmed. Internal SPA navigation continues to use the existing lazy
+ * components and therefore keeps the normal bundle boundaries.
+ */
+function preloadInitialRoute() {
+  if (typeof window === 'undefined') return;
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+
+  if (path.startsWith('/article/')) {
+    void import('./components/BlogHub');
+    return;
+  }
+
+  if (path === '/blog' || /^\/blog\/(category|tag)\//.test(path)) {
+    void import('./components/BlogHub');
+    if (path !== '/blog') void import('./components/ArticleTaxonomyPage');
+    return;
+  }
+
+  if (path === '/solana-price') {
+    void import('./components/SolanaPricePage');
+    void import('./components/SolanaPriceSeoEnhancer');
+    void import('./components/SolanaMarketInsights');
+    return;
+  }
+
+  if (path === '/solana-wallet' || path === '/solana-token' || path === '/solana-meme-coin' || path === '/solana-nft' || path === '/security' || path === '/download' || path === '/faq') {
+    void import('./components/landing/LandingPages');
+    return;
+  }
+
+  if (path === '/app-guide') {
+    void import('./components/AppUserGuidePage');
+    return;
+  }
+
+  if (path === '/wallet-analyzer') {
+    void import('./components/wallet/WalletAnalyzerPage');
+    return;
+  }
+
+  if (path === '/tools/solana-token-tools') {
+    void import('./components/tools/SolanaTokenToolsHub');
+    return;
+  }
+
+  if (path === '/tools/solana-token-scanner') {
+    void import('./components/tools/SolanaTokenScannerPage');
+    return;
+  }
+
+  if (path === '/tools/token-2022-inspector') {
+    void import('./components/tools/Token2022InspectorPage');
+  }
 }
 
-installArticleImageGuard();
-installHomepageSeoGuard();
-installWalletSeoGuard();
-installWebMcpTools();
+preloadInitialRoute();
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ErrorBoundary><App /></ErrorBoundary>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
