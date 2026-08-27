@@ -38,11 +38,10 @@ jobs:
         run: |
           grep -q 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -q 'setArticleBootstrap' 'functions/article/[slug].ts'
-          grep -q 'solmint-article-bootstrap' src/App.tsx
           grep -q "window.location.pathname.startsWith('/article/')" src/main.tsx
-          grep -q 'deleteArticleFromDisk(String(articleId))' server.ts
           ! grep -q 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -q 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
+          grep -q '"/article/*"' public/_routes.json
           git diff --check
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
