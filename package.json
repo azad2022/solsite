@@ -1,0 +1,40 @@
+{
+  "name": "solmint-web-platform",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/harden-category-seo.mjs && node scripts/category-default-media-auth-patch.mjs && node scripts/fix-admin-media-category-picker.mjs && node scripts/patch-media-picker-clicked-asset.mjs && node scripts/patch-media-picker-natural-preview.mjs && node scripts/patch-bloghub-category-media.mjs && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "prepare:source": "node scripts/prepare-production-source.mjs",
+    "start": "node scripts/start-server.mjs",
+    "preview": "vite preview",
+    "clean": "rm -rf dist server.js",
+    "lint": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/harden-category-seo.mjs && tsc --noEmit",
+    "test": "tsx --test tests/**/*.test.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@supabase/supabase-js": "^2.111.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "compression": "^1.8.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.8.0",
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^5.2.0",
+    "autoprefixer": "10.4.21",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3"
+  }
+}
