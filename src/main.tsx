@@ -47,12 +47,8 @@ installHomepageSeoGuard();
 installWalletSeoGuard();
 installWebMcpTools();
 
-const isDirectArticleRoute = typeof window !== 'undefined' && /^\/article\/[^/]+\/?$/.test(window.location.pathname);
-
-if (!isDirectArticleRoute) {
-  createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-      <ErrorBoundary><App /></ErrorBoundary>
-    </React.StrictMode>
-  );
-}
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <ErrorBoundary><App /></ErrorBoundary>
+  </React.StrictMode>
+);
