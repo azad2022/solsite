@@ -3,25 +3,6 @@ import { useEffect, type ReactNode } from 'react';
 const SITE_URL = 'https://solmint.ir';
 const PAGE_URL = `${SITE_URL}/solana-price`;
 
-const FAQ = [
-  {
-    question: 'قیمت لحظه‌ای سولانا از کجا می‌آید؟',
-    answer: 'کارت قیمت و نمودار این صفحه به زیرساخت داده بازار سولمینت متصل‌اند و برای SOL/USD از داده بازار Kraken استفاده می‌کنند.'
-  },
-  {
-    question: 'آیا نمودار قیمت سولانا واقعی است؟',
-    answer: 'بله. کندل‌ها و حجم از داده OHLC بازار ساخته می‌شوند و نمودار از داده از پیش‌ساخته یا مقادیر نمایشی استفاده نمی‌کند.'
-  },
-  {
-    question: 'آیا قیمت سولانا ثابت می‌ماند؟',
-    answer: 'خیر. قیمت بازار تغییر می‌کند و ابزار زنده با دریافت داده جدید، اطلاعات خود را به‌روزرسانی می‌کند.'
-  },
-  {
-    question: 'آیا این صفحه توصیه خرید یا فروش است؟',
-    answer: 'خیر. این صفحه برای نمایش و بررسی داده‌های بازار طراحی شده و توصیه سرمایه‌گذاری ارائه نمی‌کند.'
-  }
-];
-
 function upsertMeta(name: string, content: string) {
   let node = document.head.querySelector(`meta[name="${name}"]`);
   if (!node) {
