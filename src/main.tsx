@@ -79,6 +79,17 @@ function preloadInitialRoute() {
   }
 }
 
+function revealAppAfterMount() {
+  if (typeof document === 'undefined') return;
+  const reveal = () => document.documentElement.classList.remove('solmint-hydrating');
+  // Let React commit its DOM replacement before the first visible paint.
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => requestAnimationFrame(reveal));
+  } else {
+    reveal();
+  }
+}
+
 preloadInitialRoute();
 
 createRoot(document.getElementById('root')!).render(
@@ -88,3 +99,5 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+revealAppAfterMount();
