@@ -1,4 +1,4 @@
-import { CATEGORY_SLUGS } from '../src/config/articleTaxonomy';
+import { CATEGORY_SLUGS, getCanonicalTagSlug } from '../src/config/articleTaxonomy';
 
 type Env = {
   SUPABASE_URL?: string;
@@ -17,16 +17,13 @@ type ArticleRow = {
   tags?: unknown;
   is_draft?: boolean | number | string | null;
 };
-
 type CategoryRow = { id?: string | null; slug?: string | null; name?: string | null; is_active?: boolean | null };
 type TaxonomyItem = { slug: string; count: number; lastmod: string | null };
 
 const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const INDEXABLE_CATEGORY_MIN_ARTICLES = 2;
-const INDEXABLE_TAG_MIN_ARTICLES = 2;
-const INDEXABLE_TAG_SLUG = 'mym-kvyn-jdyd';
-const INDEXABLE_TAG_NAME = 'میم کوین جدید';
+const INDEXABLE_TAG_MIN_ARTICLES = 1;
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
@@ -54,7 +51,8 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
   if (!key) return new Response('Sitemap configuration error', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 
   try {
-    const categoryResponse = await fetch(`${supabaseUrl}/rest/v1/article_categories?select=id,slug,name,is_active`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } });
+    const headers = { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' };
+    const categoryResponse = await fetch(`${supabaseUrl}/rest/v1/article_categories?select=id,slug,name,is_active`, { headers });
     if (!categoryResponse.ok) throw new Error(`categories query failed: ${categoryResponse.status}`);
     const categoryRows = await categoryResponse.json() as CategoryRow[];
     const categorySlugs = new Map<string, string>();
@@ -68,14 +66,13 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       }
     }
 
-    const articleResponse = await fetch(`${supabaseUrl}/rest/v1/articles?select=category_id,updated_at,published_at,published_at_gregorian,tags,is_draft&is_draft=eq.false&order=updated_at.desc`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } });
+    const articleResponse = await fetch(`${supabaseUrl}/rest/v1/articles?select=category_id,updated_at,published_at,published_at_gregorian,tags,is_draft&is_draft=eq.false&order=updated_at.desc`, { headers });
     if (!articleResponse.ok) throw new Error(`articles query failed: ${articleResponse.status}`);
     const articles = await articleResponse.json() as ArticleRow[];
     if (!Array.isArray(articles)) throw new Error('articles query returned a non-array response');
 
     const categories = new Map<string, TaxonomyItem>();
-    let tagCount = 0;
-    let tagLastmod: string | null = null;
+    const tags = new Map<string, TaxonomyItem>();
     for (const article of articles) {
       if (!isPublished(article)) continue;
       const categorySlug = article.category_id ? categorySlugs.get(String(article.category_id)) : '';
@@ -86,10 +83,13 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
         categories.set(categorySlug, current);
       }
 
-      const tags = Array.isArray(article.tags) ? article.tags.map(String).map(tag => tag.trim()) : [];
-      if (tags.includes(INDEXABLE_TAG_NAME)) {
-        tagCount += 1;
-        tagLastmod = newer(tagLastmod, lastModified(article));
+      for (const tag of Array.isArray(article.tags) ? article.tags.map(value => String(value || '').trim()).filter(Boolean) : []) {
+        const slug = getCanonicalTagSlug(tag);
+        if (!slug) continue;
+        const current = tags.get(slug) || { slug, count: 0, lastmod: null };
+        current.count += 1;
+        current.lastmod = newer(current.lastmod, lastModified(article));
+        tags.set(slug, current);
       }
     }
 
@@ -101,10 +101,11 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       if (item.lastmod) xml += `    <lastmod>${xmlEscape(item.lastmod)}</lastmod>\n`;
       xml += '  </url>\n';
     }
-    if (tagCount >= INDEXABLE_TAG_MIN_ARTICLES) {
-      const url = `${BASE_URL}/blog/tag/${INDEXABLE_TAG_SLUG}`;
+    for (const item of tags.values()) {
+      if (item.count < INDEXABLE_TAG_MIN_ARTICLES) continue;
+      const url = `${BASE_URL}/blog/tag/${encodeURIComponent(item.slug)}`;
       xml += `  <url>\n    <loc>${xmlEscape(url)}</loc>\n`;
-      if (tagLastmod) xml += `    <lastmod>${xmlEscape(tagLastmod)}</lastmod>\n`;
+      if (item.lastmod) xml += `    <lastmod>${xmlEscape(item.lastmod)}</lastmod>\n`;
       xml += '  </url>\n';
     }
     xml += '</urlset>\n';
