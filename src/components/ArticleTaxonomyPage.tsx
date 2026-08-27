@@ -32,7 +32,7 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
   const specialized = type === 'category' ? CATEGORY_SEO[slug] : TAG_SEO[slug];
   const h1 = specialized?.h1 || name;
   const intro = specialized?.intro || `مقالات مرتبط با ${typeLabel} «${name}» در آکادمی سولمینت.`;
-  const relatedPage = type === 'tag' ? specialized?.relatedPage : undefined;
+  const relatedPage = type === 'tag' ? TAG_SEO[slug]?.relatedPage : undefined;
 
   return (
     <section className="py-16 bg-[#0f1117] border-b border-slate-800/60">
