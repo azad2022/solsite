@@ -31,7 +31,6 @@ function replaceOnce(source, oldValue, newValue, label) {
   return source.replace(oldValue, newValue);
 }
 
-// 1) Add a first-class tag SEO config next to category SEO.
 let config = fs.readFileSync(configFile, 'utf8');
 if (!config.includes('export interface TagSeoConfig')) {
   config = config.replace(
@@ -58,14 +57,17 @@ if (!config.includes("export const TAG_SEO: Record<string, TagSeoConfig>")) {
 }
 fs.writeFileSync(configFile, config, 'utf8');
 
-// 2) Allow only this strategic tag to be indexable in client SEO.
 let taxonomySeo = fs.readFileSync(taxonomySeoFile, 'utf8');
-if (!taxonomySeo.includes("import { TAG_SEO }")) {
-  taxonomySeo = taxonomySeo.replace(
-    "import { CATEGORY_SEO } from '../config/articleTaxonomy';",
-    "import { CATEGORY_SEO, TAG_SEO } from '../config/articleTaxonomy';"
-  );
+// Normalize TAG_SEO imports so repeated production builds cannot create duplicate bindings.
+taxonomySeo = taxonomySeo
+  .replace(/\n?import \{\s*CATEGORY_SEO\s*,\s*TAG_SEO\s*\} from ['"]\.\.\/config\/articleTaxonomy['"];\n?/g, '\n')
+  .replace(/\n?import \{\s*TAG_SEO\s*\} from ['"]\.\.\/config\/tagSeo['"];\n?/g, '\n');
+const categoryImport = "import { CATEGORY_SEO } from '../config/articleTaxonomy';";
+taxonomySeo = taxonomySeo.replace(categoryImport, categoryImport + "\nimport { TAG_SEO } from '../config/tagSeo';");
+if (!taxonomySeo.includes("import { TAG_SEO } from '../config/tagSeo';")) {
+  taxonomySeo = "import { CATEGORY_SEO } from '../config/articleTaxonomy';\nimport { TAG_SEO } from '../config/tagSeo';\n\n" + taxonomySeo;
 }
+
 taxonomySeo = taxonomySeo.replace(
   "const specialized = type === 'category' ? CATEGORY_SEO[slug] : undefined;",
   "const specialized = type === 'category' ? CATEGORY_SEO[slug] : TAG_SEO[slug];"
@@ -75,44 +77,31 @@ taxonomySeo = taxonomySeo.replace(
   "const isIndexableCategory = type === 'category' && Boolean(CATEGORY_SEO[slug]) && count >= 2;\n  const isIndexableTag = type === 'tag' && Boolean(TAG_SEO[slug]) && count >= 2;\n  const indexable = isIndexableCategory || isIndexableTag;"
 );
 taxonomySeo = taxonomySeo.replace(
-  "const title = specialized?.title || `${name} | ${type === 'category' ? 'دسته‌بندی' : 'برچسب'} مقالات سولمینت`;",
-  "const title = specialized?.title || `${name} | ${type === 'category' ? 'دسته‌بندی' : 'برچسب'} مقالات سولمینت`;"
-);
-taxonomySeo = taxonomySeo.replace(
-  "const description = specialized?.description || `مقالات مرتبط با ${type === 'category' ? 'دسته‌بندی' : 'برچسب'} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;",
-  "const description = specialized?.description || `مقالات مرتبط با ${type === 'category' ? 'دسته‌بندی' : 'برچسب'} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;"
-);
-taxonomySeo = taxonomySeo.replace(
   "setMeta('robots', isIndexableCategory ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow');",
   "setMeta('robots', indexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow');"
 );
-taxonomySeo = taxonomySeo.replace(
-  "if (!isIndexableCategory) {",
-  "if (!indexable) {"
-);
+taxonomySeo = taxonomySeo.replace("if (!isIndexableCategory) {", "if (!indexable) {");
 fs.writeFileSync(taxonomySeoFile, taxonomySeo, 'utf8');
 
-// 3) The HTTP tag route must not blanket-noindex this strategic tag.
 let tagFunction = fs.readFileSync(tagFunctionFile, 'utf8');
-if (!tagFunction.includes('TAG_SEO')) {
+if (!tagFunction.includes("import { TAG_SEO }")) {
   tagFunction = tagFunction.replace(
-    "type PageContext = {",
-    "import { TAG_SEO } from '../../../src/config/articleTaxonomy';\n\nconst INDEXABLE_TAG = 'mym-kvyn-jdyd';\n\ntype PageContext = {"
+    "import { getCanonicalTagSlug } from '../../../src/config/articleTaxonomy';",
+    "import { getCanonicalTagSlug } from '../../../src/config/articleTaxonomy';\nimport { TAG_SEO } from '../../../src/config/tagSeo';\n\nconst INDEXABLE_TAG = 'mym-kvyn-jdyd';"
   );
 }
-tagFunction = tagFunction.replace(
+ tagFunction = tagFunction.replace(
   "headers.set('X-Robots-Tag', 'noindex, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');",
-  "const slug = String(context.params?.slug || '').trim().toLowerCase();\n  const indexable = slug === INDEXABLE_TAG && Boolean(TAG_SEO[slug]);\n  headers.set('X-Robots-Tag', indexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');"
+  "const indexable = slug === INDEXABLE_TAG && Boolean(TAG_SEO[slug]);\n    headers.set('X-Robots-Tag', indexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');"
 );
 tagFunction = tagFunction.replace("headers.set('X-Solmint-SEO', 'tag-archive-noindex-v1');", "headers.set('X-Solmint-SEO', indexable ? 'tag-archive-indexable-v1' : 'tag-archive-noindex-v1');");
 fs.writeFileSync(tagFunctionFile, tagFunction, 'utf8');
 
-// 4) Make taxonomy sitemap include the strategic tag alongside categories.
 let sitemap = fs.readFileSync(taxonomySitemapFile, 'utf8');
 if (!sitemap.includes('TAG_SLUG')) {
   sitemap = sitemap.replace(
     "import { CATEGORY_SLUGS } from '../src/config/articleTaxonomy';",
-    "import { CATEGORY_SLUGS, TAG_SEO } from '../src/config/articleTaxonomy';"
+    "import { CATEGORY_SLUGS } from '../src/config/articleTaxonomy';\nimport { TAG_SEO } from '../src/config/tagSeo';"
   );
   sitemap = sitemap.replace(
     "const INDEXABLE_CATEGORY_MIN_ARTICLES = 2;",
@@ -148,7 +137,7 @@ if (!sitemap.includes('TAG_SLUG')) {
     '      const url = `${BASE_URL}/blog/tag/${encodeURIComponent(slug)}`;',
     "      xml += `  <url>\\n    <loc>${xmlEscape(url)}</loc>\\n`;",
     '      const lastmod = tagLastmods.get(slug);',
-    "      if (lastmod) xml += `    <lastmod>${xmlEscape(lastmod)}</lastmod>\\n`;",
+    '      if (lastmod) xml += `    <lastmod>${xmlEscape(lastmod)}</lastmod>\\n`;',
     "      xml += '  </url>\\n';",
     '    }'
   ].join('\n');
@@ -156,7 +145,6 @@ if (!sitemap.includes('TAG_SLUG')) {
 }
 fs.writeFileSync(taxonomySitemapFile, sitemap, 'utf8');
 
-// 5) Keep the route in Functions routing.
 const routes = JSON.parse(fs.readFileSync(routesFile, 'utf8'));
 if (!routes.include.includes('/blog/*')) routes.include.push('/blog/*');
 fs.writeFileSync(routesFile, JSON.stringify(routes, null, 2) + '\n', 'utf8');
