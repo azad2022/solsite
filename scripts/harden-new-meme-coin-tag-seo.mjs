@@ -90,7 +90,7 @@ if (!tagFunction.includes("import { TAG_SEO }")) {
     "import { getCanonicalTagSlug } from '../../../src/config/articleTaxonomy';\nimport { TAG_SEO } from '../../../src/config/tagSeo';\n\nconst INDEXABLE_TAG = 'mym-kvyn-jdyd';"
   );
 }
- tagFunction = tagFunction.replace(
+tagFunction = tagFunction.replace(
   "headers.set('X-Robots-Tag', 'noindex, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');",
   "const indexable = slug === INDEXABLE_TAG && Boolean(TAG_SEO[slug]);\n    headers.set('X-Robots-Tag', indexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');"
 );
@@ -145,8 +145,10 @@ if (!sitemap.includes('TAG_SLUG')) {
 }
 fs.writeFileSync(taxonomySitemapFile, sitemap, 'utf8');
 
+// Preserve Cloudflare Functions routing invariants for both taxonomy and article SSR.
 const routes = JSON.parse(fs.readFileSync(routesFile, 'utf8'));
 if (!routes.include.includes('/blog/*')) routes.include.push('/blog/*');
+if (!routes.include.includes('/article/*')) routes.include.push('/article/*');
 fs.writeFileSync(routesFile, JSON.stringify(routes, null, 2) + '\n', 'utf8');
 
 console.log('✓ Strategic SEO hardening applied to tag: میم کوین جدید');
