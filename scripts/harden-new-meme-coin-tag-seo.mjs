@@ -41,7 +41,19 @@ if (!config.includes('export interface TagSeoConfig')) {
 }
 if (!config.includes("export const TAG_SEO: Record<string, TagSeoConfig>")) {
   const marker = 'export const CATEGORY_SEO: Record<string, CategorySeoConfig> = {';
-  const tagBlock = `export const TAG_SEO: Record<string, TagSeoConfig> = {\n  '${TAG_SLUG}': {\n    title: '${SEO.title}',\n    description: '${SEO.description}',\n    h1: '${SEO.h1}',\n    intro: '${SEO.intro}',\n    primaryKeyword: '${SEO.primaryKeyword}',\n    secondaryKeywords: ${JSON.stringify(SEO.secondaryKeywords)}\n  }\n};\n\n`;
+  const tagBlock = [
+    'export const TAG_SEO: Record<string, TagSeoConfig> = {',
+    `  '${TAG_SLUG}': {`,
+    `    title: '${SEO.title}',`,
+    `    description: '${SEO.description}',`,
+    `    h1: '${SEO.h1}',`,
+    `    intro: '${SEO.intro}',`,
+    `    primaryKeyword: '${SEO.primaryKeyword}',`,
+    `    secondaryKeywords: ${JSON.stringify(SEO.secondaryKeywords)}`,
+    '  }',
+    '};',
+    ''
+  ].join('\n');
   config = replaceOnce(config, marker, tagBlock + marker, 'TAG_SEO marker');
 }
 fs.writeFileSync(configFile, config, 'utf8');
@@ -106,8 +118,40 @@ if (!sitemap.includes('TAG_SLUG')) {
     "const INDEXABLE_CATEGORY_MIN_ARTICLES = 2;",
     "const INDEXABLE_CATEGORY_MIN_ARTICLES = 2;\nconst INDEXABLE_TAG_MIN_ARTICLES = 2;\nconst INDEXABLE_TAG_SLUGS = new Set(Object.keys(TAG_SEO));"
   );
-  const marker = "    for (const item of categories.values()) {\n      if (item.count < INDEXABLE_CATEGORY_MIN_ARTICLES) continue;\n      const url = `${BASE_URL}/blog/category/${encodeURIComponent(item.slug)}`;\n      xml += `  <url>\\n    <loc>${xmlEscape(url)}</loc>\\n`;\n      if (item.lastmod) xml += `    <lastmod>${xmlEscape(item.lastmod)}</lastmod>\\n`;\n      xml += '  </url>\\n';\n    }";
-  const replacement = marker + `\n\n    // Indexable editorial tags are opt-in; currently only the strategic new-meme-coin tag is eligible.\n    const tagCounts = new Map<string, number>();\n    const tagLastmods = new Map<string, string | null>();\n    const targetTag = 'میم کوین جدید';\n    for (const article of articles) {\n      const tags = Array.isArray((article as any).tags) ? (article as any).tags : [];\n      if (!tags.some((tag: unknown) => String(tag).trim() === targetTag)) continue;\n      const slug = 'mym-kvyn-jdyd';\n      if (!INDEXABLE_TAG_SLUGS.has(slug)) continue;\n      tagCounts.set(slug, (tagCounts.get(slug) || 0) + 1);\n      const next = lastModified(article);\n      tagLastmods.set(slug, newer(tagLastmods.get(slug) || null, next));\n    }\n    for (const [slug, count] of tagCounts) {\n      if (count < INDEXABLE_TAG_MIN_ARTICLES) continue;\n      const url = `${BASE_URL}/blog/tag/${encodeURIComponent(slug)}`;\n      xml += `  <url>\\n    <loc>${xmlEscape(url)}</loc>\\n`;\n      const lastmod = tagLastmods.get(slug);\n      if (lastmod) xml += `    <lastmod>${xmlEscape(lastmod)}</lastmod>\\n`;\n      xml += '  </url>\\n';\n    }`;
+  const marker = [
+    "    for (const item of categories.values()) {",
+    "      if (item.count < INDEXABLE_CATEGORY_MIN_ARTICLES) continue;",
+    "      const url = `${BASE_URL}/blog/category/${encodeURIComponent(item.slug)}`;",
+    "      xml += `  <url>\\n    <loc>${xmlEscape(url)}</loc>\\n`;",
+    "      if (item.lastmod) xml += `    <lastmod>${xmlEscape(item.lastmod)}</lastmod>\\n`;",
+    "      xml += '  </url>\\n';",
+    '    }'
+  ].join('\n');
+  const replacement = [
+    marker,
+    '',
+    "    // Indexable editorial tags are opt-in; currently only the strategic new-meme-coin tag is eligible.",
+    '    const tagCounts = new Map<string, number>();',
+    '    const tagLastmods = new Map<string, string | null>();',
+    `    const targetTag = '${TAG_NAME}';`,
+    '    for (const article of articles) {',
+    "      const tags = Array.isArray((article as any).tags) ? (article as any).tags : [];",
+    '      if (!tags.some((tag: unknown) => String(tag).trim() === targetTag)) continue;',
+    `      const slug = '${TAG_SLUG}';`,
+    '      if (!INDEXABLE_TAG_SLUGS.has(slug)) continue;',
+    '      tagCounts.set(slug, (tagCounts.get(slug) || 0) + 1);',
+    '      const next = lastModified(article);',
+    '      tagLastmods.set(slug, newer(tagLastmods.get(slug) || null, next));',
+    '    }',
+    '    for (const [slug, count] of tagCounts) {',
+    '      if (count < INDEXABLE_TAG_MIN_ARTICLES) continue;',
+    '      const url = `${BASE_URL}/blog/tag/${encodeURIComponent(slug)}`;',
+    "      xml += `  <url>\\n    <loc>${xmlEscape(url)}</loc>\\n`;",
+    '      const lastmod = tagLastmods.get(slug);',
+    "      if (lastmod) xml += `    <lastmod>${xmlEscape(lastmod)}</lastmod>\\n`;",
+    "      xml += '  </url>\\n';",
+    '    }'
+  ].join('\n');
   if (sitemap.includes(marker)) sitemap = sitemap.replace(marker, replacement);
 }
 fs.writeFileSync(taxonomySitemapFile, sitemap, 'utf8');
