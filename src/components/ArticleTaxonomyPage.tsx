@@ -12,6 +12,13 @@ interface ArticleTaxonomyPageProps {
   onNavigate: (path: string) => void;
 }
 
+const TAG_SEO: Record<string, { h1: string; intro: string }> = {
+  'sakht-mym-kvyn': {
+    h1: 'ساخت میم کوین؛ آموزش ساخت میم‌کوین روی سولانا',
+    intro: 'در این آرشیو مطالب سولمینت درباره ساخت میم کوین، به‌ویژه روی شبکه سولانا، گردآوری می‌شود؛ از ایجاد توکن و تنظیم اطلاعات آن تا عرضه، نقدینگی، ابزارهای موردنیاز و نکات فنی و امنیتی. هدف این صفحه ارائه مسیرهای کاربردی برای تحقیق و اجرای بهتر فرایند ساخت است، نه وعده سود یا توصیه سرمایه‌گذاری.'
+  }
+};
+
 export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articles, type, slug, onNavigate }) => {
   const taxonomy = articles.flatMap(article => {
     if (type === 'category') {
@@ -28,7 +35,7 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
 
   const name = taxonomy?.name || 'موضوع مورد نظر';
   const typeLabel = type === 'category' ? 'دسته‌بندی' : 'برچسب';
-  const specialized = type === 'category' ? CATEGORY_SEO[slug] : undefined;
+  const specialized = type === 'category' ? CATEGORY_SEO[slug] : TAG_SEO[slug];
   const h1 = specialized?.h1 || name;
   const intro = specialized?.intro || `مقالات مرتبط با ${typeLabel} «${name}» در آکادمی سولمینت.`;
 
