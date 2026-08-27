@@ -31,25 +31,32 @@ jobs:
         run: node scripts/harden-admin-frontend-auth.mjs
       - name: Repair production TypeScript mismatches
         run: node scripts/repair-production-types.mjs
+      - name: Apply article UI and SSR hardening
+        run: |
+          node scripts/ensure-article-ui-mount.mjs
+          node scripts/harden-article-ssr-content-v2.mjs
       - name: Verify hardened source
         run: |
           ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
-      - name: Verify article SEO SSR contract
+      - name: Verify article SEO and UI contract
         run: |
           grep -Fq 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
-          grep -Eq "isDirectArticleRoute.*\\^/article/|\\^/article/.*isDirectArticleRoute" src/main.tsx
+          grep -Fq 'function readArticleBootstrap(): Article[]' src/App.tsx
+          grep -Fq 'const bootstrap = readArticleBootstrap();' src/App.tsx
+          ! grep -Fq 'const isDirectArticleRoute' src/main.tsx
+          grep -Fq 'createRoot(document.getElementById('\''root'\'')!).render(' src/main.tsx
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
           node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('public/_routes.json','utf8'));if(!Array.isArray(r.include)||!r.include.includes('/article/*'))process.exit(1)"
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          if ! git diff --quiet -- src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts functions/article/'[slug].ts' server.ts; then
+          if ! git diff --quiet -- src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts functions/article/'[slug].ts' server.ts src/App.tsx src/main.tsx; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts functions/article/'[slug].ts' server.ts
-            git commit -m "fix: persist production source repairs"
+            git add src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts functions/article/'[slug].ts' server.ts src/App.tsx src/main.tsx
+            git commit -m "fix: persist article UI and SSR repairs"
             git push
           fi
       - name: Production build
