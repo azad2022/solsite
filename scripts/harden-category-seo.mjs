@@ -7,8 +7,15 @@ const taxonomyPageFile = path.join(root, 'src/components/ArticleTaxonomyPage.tsx
 const typesFile = path.join(root, 'src/types.ts');
 
 let taxonomySeo = fs.readFileSync(taxonomySeoFile, 'utf8');
-taxonomySeo = taxonomySeo.replace("import { buildTaxonomyUrl } from './articleTaxonomy';", "import { buildTaxonomyUrl } from './articleTaxonomy';\nimport { CATEGORY_SEO } from '../config/articleTaxonomy';");
-const oldCategoryBlock = /const CATEGORY_SEO:[\\s\\S]*?\n};\n\nexport function updateTaxonomySeo/;
+
+// Keep the category SEO import idempotent. This script runs on every production
+// build, so it must never append a duplicate import to the source tree.
+const categoryImport = "import { CATEGORY_SEO } from '../config/articleTaxonomy';";
+const categoryImportRx = /\n?import\s+\{\s*CATEGORY_SEO\s*\}\s+from\s+['\"]\.\.\/config\/articleTaxonomy['\"];\n?/g;
+taxonomySeo = taxonomySeo.replace(categoryImportRx, '\n');
+taxonomySeo = categoryImport + '\n' + taxonomySeo.replace(/^\s+/, '');
+
+const oldCategoryBlock = /const CATEGORY_SEO:[\s\S]*?\n};\n\nexport function updateTaxonomySeo/;
 if (oldCategoryBlock.test(taxonomySeo)) taxonomySeo = taxonomySeo.replace(oldCategoryBlock, 'export function updateTaxonomySeo');
 taxonomySeo = taxonomySeo.replace("const specialized = type === 'category' ? CATEGORY_SEO[slug] : undefined;", "const specialized = type === 'category' ? CATEGORY_SEO[slug] : undefined;");
 taxonomySeo = taxonomySeo.replace("const indexable = type === 'category' && count >= 2;", "const indexable = type === 'category' && Boolean(specialized) && count >= 2;");
