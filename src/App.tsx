@@ -70,6 +70,33 @@ function readArticleBootstrap(): Article[] {
   } catch { return []; }
 }
 
+function readTaxonomyBootstrap(): Article[] {
+  if (typeof document === 'undefined') return [];
+  const node = document.getElementById('solmint-taxonomy-bootstrap');
+  if (!node?.textContent) return [];
+  try {
+    const source = JSON.parse(node.textContent) as { articles?: unknown };
+    if (!Array.isArray(source.articles)) return [];
+    return source.articles.flatMap((item: unknown) => {
+      if (!item || typeof item !== 'object') return [];
+      const raw = item as Record<string, unknown>;
+      const article = {
+        id: String(raw.id || ''), title: String(raw.title || ''), slug: String(raw.slug || ''),
+        category: (String(raw.category || 'اخبار و تحلیل')) as Article['category'],
+        tags: Array.isArray(raw.tags) ? raw.tags.map(String) : [],
+        summary: String(raw.summary || ''), content: String(raw.content || ''),
+        coverImage: String(raw.coverImage || ''), coverImageAssetId: raw.coverImageAssetId ? String(raw.coverImageAssetId) : undefined,
+        videoUrl: raw.videoUrl ? String(raw.videoUrl) : undefined,
+        author: { name: String((raw.author as Record<string, unknown> | undefined)?.name || 'تیم تحریریه سولمینت'), role: String((raw.author as Record<string, unknown> | undefined)?.role || ''), avatar: String((raw.author as Record<string, unknown> | undefined)?.avatar || '') },
+        publishedAt: String(raw.publishedAt || ''), publishedAtJalali: raw.publishedAtJalali ? String(raw.publishedAtJalali) : undefined, publishedAtGregorian: raw.publishedAtGregorian ? String(raw.publishedAtGregorian) : undefined,
+        readTimeMinutes: Number(raw.readTimeMinutes || 5), viewsCount: Number(raw.viewsCount || 0), comments: [],
+        isDraft: Boolean(raw.isDraft)
+      } as Article;
+      return article.id && article.slug && article.title ? [article] : [];
+    });
+  } catch { return []; }
+}
+
 const AdminQuickActionsPortal: React.FC<{ enabled: boolean; onOpenMarket: () => void; onOpenShowcase: () => void; }> = ({ enabled, onOpenMarket, onOpenShowcase }) => {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -102,10 +129,9 @@ export default function App() {
   const [solanaStatus, setSolanaStatus] = useState<SolanaStatus>({ price: 184.25, change24h: 4.38, tps: 2890, avgFeeUsd: 0.00025, avgFeeSol: 0.000005, status: 'Mainnet Beta Online', slot: 284910283 });
   const [articles, setArticles] = useState<Article[]>(() => {
     const cached = safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES);
-    const bootstrap = readArticleBootstrap();
-    if (bootstrap.length === 0) return cached;
-    const boot = bootstrap[0];
-    return [boot, ...cached.filter(article => article.slug !== boot.slug)];
+    const seeds = [...readTaxonomyBootstrap(), ...readArticleBootstrap()];
+    if (seeds.length === 0) return cached;
+    return seeds.reduce((acc, seed) => [seed, ...acc.filter(article => article.slug !== seed.slug)], cached);
   });
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => safeGetLocalStorage<MediaItem[]>('solmint_media', INITIAL_MEDIA_ITEMS));
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() => safeGetLocalStorage<Testimonial[]>('solmint_testimonials', INITIAL_TESTIMONIALS));
