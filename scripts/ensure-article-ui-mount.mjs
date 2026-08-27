@@ -51,7 +51,10 @@ const newState = [
   '  });',
 ].join('\n');
 if (app.includes(oldState)) app = app.replace(oldState, newState);
-if (!app.includes('function readArticleBootstrap(): Article[]') || !app.includes('const bootstrap = readArticleBootstrap();')) throw new Error('Article bootstrap patch incomplete');
+
+const hasArticleBootstrapReader = app.includes('function readArticleBootstrap(): Article[]');
+const hasArticleBootstrapInitialization = app.includes('const bootstrap = readArticleBootstrap();') || app.includes('const seeds = [...readTaxonomyBootstrap(), ...readArticleBootstrap()];');
+if (!hasArticleBootstrapReader || !hasArticleBootstrapInitialization) throw new Error('Article bootstrap patch incomplete');
 fs.writeFileSync(appFile, app, 'utf8');
 
 let main = fs.readFileSync(mainFile, 'utf8');
