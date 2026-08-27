@@ -2,7 +2,6 @@ import { useEffect, type ReactNode } from 'react';
 
 const SITE_URL = 'https://solmint.ir';
 const PAGE_URL = `${SITE_URL}/solana-price`;
-const MARKET_DATA_LICENSE_URL = 'https://www.kraken.com/legal';
 
 const FAQ = [
   {
@@ -57,13 +56,17 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (window.location.pathname.replace(/\/+$/, '') !== '/solana-price') return;
 
-    const title = 'قیمت سولانا امروز | قیمت لحظه‌ای SOL و نمودار زنده | سولمینت';
-    const description = 'قیمت لحظه‌ای سولانا (SOL) به دلار، نمودار کندلی زنده، حجم معاملات، EMA و تایم‌فریم‌های مختلف را با داده به‌روز بازار در سولمینت بررسی کنید.';
+    const title = 'قیمت سولانا امروز؛ نرخ لحظه‌ای سولانا و تحلیل بازار solana';
+    const description = 'قیمت لحظه‌ای سولانا (SOL) به دلار، نمودار کندلی زنده، حجم معاملات، تحلیل تکنیکال و تایم‌فریم‌های مختلف را با داده به‌روز بازار در سولمینت بررسی کنید.';
 
     document.title = title;
     upsertMeta('description', description);
     upsertMeta('robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
     upsertMeta('author', 'سولمینت');
+    upsertMeta('twitter:card', 'summary_large_image');
+    upsertMeta('twitter:title', title);
+    upsertMeta('twitter:description', description);
+    upsertMeta('twitter:image', `${SITE_URL}/images/solmint-banner.jpg`);
     upsertProperty('og:title', title);
     upsertProperty('og:description', description);
     upsertProperty('og:url', PAGE_URL);
@@ -72,13 +75,10 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
     upsertProperty('og:locale', 'fa_IR');
     upsertProperty('og:image', `${SITE_URL}/images/solmint-banner.jpg`);
     upsertProperty('og:image:alt', 'قیمت لحظه‌ای سولانا و نمودار زنده SOL/USD');
-    upsertMeta('twitter:card', 'summary_large_image');
-    upsertMeta('twitter:title', title);
-    upsertMeta('twitter:description', description);
-    upsertMeta('twitter:image', `${SITE_URL}/images/solmint-banner.jpg`);
     upsertCanonical(PAGE_URL);
 
-    document.getElementById('solmint-solana-price-jsonld')?.remove();
+    const existing = document.getElementById('solmint-solana-price-jsonld');
+    if (existing) existing.remove();
 
     const jsonLd = {
       '@context': 'https://schema.org',
@@ -96,8 +96,7 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
             name: 'Solana (SOL)',
             sameAs: 'https://solana.com/'
           },
-          breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` },
-          mainEntity: { '@id': `${PAGE_URL}#market-data` }
+          breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` }
         },
         {
           '@type': 'BreadcrumbList',
@@ -106,32 +105,6 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
             { '@type': 'ListItem', position: 1, name: 'خانه', item: `${SITE_URL}/` },
             { '@type': 'ListItem', position: 2, name: 'قیمت لحظه‌ای سولانا', item: PAGE_URL }
           ]
-        },
-        {
-          '@type': 'Dataset',
-          '@id': `${PAGE_URL}#market-data`,
-          name: 'داده زنده قیمت و بازار سولانا (SOL/USD)',
-          description: 'داده‌های OHLC و حجم معاملات SOL/USD که برای نمایش نمودار زنده قیمت سولانا استفاده می‌شوند.',
-          url: PAGE_URL,
-          license: MARKET_DATA_LICENSE_URL,
-          inLanguage: 'fa-IR',
-          temporalCoverage: 'ongoing',
-          isAccessibleForFree: true,
-          creator: { '@type': 'Organization', name: 'سولمینت', url: SITE_URL },
-          distribution: {
-            '@type': 'DataDownload',
-            encodingFormat: 'application/json',
-            contentUrl: 'https://api.kraken.com/0/public/OHLC?pair=SOLUSD'
-          }
-        },
-        {
-          '@type': 'FAQPage',
-          '@id': `${PAGE_URL}#faq`,
-          mainEntity: FAQ.map(({ question, answer }) => ({
-            '@type': 'Question',
-            name: question,
-            acceptedAnswer: { '@type': 'Answer', text: answer }
-          }))
         }
       ]
     };
