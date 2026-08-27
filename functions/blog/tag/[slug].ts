@@ -11,6 +11,7 @@ type Env = {
 };
 
 type ArticleRow = {
+  id?: string | null;
   title?: string | null;
   slug?: string | null;
   summary?: string | null;
@@ -110,6 +111,12 @@ function setJsonLd(html: string, value: unknown): string {
   const rx = /<script[^>]*id=["']solmint-tag-jsonld["'][^>]*>[\s\S]*?<\/script>/i;
   return rx.test(html) ? html.replace(rx, tag) : html.replace('</head>', `  ${tag}\n</head>`);
 }
+function setBootstrap(html: string, value: unknown): string {
+  const serialized = JSON.stringify(value).replace(/</g, '\\u003c');
+  const tag = `<script id="solmint-taxonomy-bootstrap" type="application/json">${serialized}</script>`;
+  const rx = /<script[^>]*id=["']solmint-taxonomy-bootstrap["'][^>]*>[\s\S]*?<\/script>/i;
+  return rx.test(html) ? html.replace(rx, tag) : html.replace('</body>', `${tag}\n</body>`);
+}
 function injectShell(html: string, shell: string): string {
   if (/<div id="solmint-tag-ssr"[\s\S]*?<\/div>/i.test(html)) return html;
   if (/<div id="root"><\/div>/i.test(html)) return html.replace(/<div id="root"><\/div>/i, `<div id="root">${shell}</div>`);
@@ -134,7 +141,7 @@ export async function onRequest(context: TagContext): Promise<Response> {
   if (!key) return new Response(baseResponse.body, { status: baseResponse.status, statusText: baseResponse.statusText, headers: baseHeaders });
 
   try {
-    const select = 'title,slug,summary,cover_image,published_at,published_at_gregorian,published_at_jalali,read_time_minutes,tags,is_draft';
+    const select = 'id,title,slug,summary,cover_image,published_at,published_at_gregorian,published_at_jalali,read_time_minutes,tags,is_draft';
     const response = await fetch(`${supabaseUrl}/rest/v1/articles?select=${select}&is_draft=eq.false&order=published_at.desc`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
       cache: 'no-store'
@@ -173,6 +180,32 @@ export async function onRequest(context: TagContext): Promise<Response> {
     if (indexable) {
       const shell = `<div id="solmint-tag-ssr" dir="rtl" lang="fa"><nav aria-label="مسیر صفحه"><a href="/">خانه</a> / <a href="/blog">وبلاگ</a> / <span>${escapeHtml(tagName)}</span></nav><main><header><p>آرشیو موضوعی سولمینت</p><h1>${escapeHtml(tagSeo.h1)}</h1><p>${escapeHtml(tagSeo.intro)}</p></header><section aria-labelledby="tag-articles"><h2 id="tag-articles">مقالات مرتبط با «${escapeHtml(tagName)}»</h2><p>${matching.length} مقاله منتشرشده مرتبط با این تگ در آرشیو سولمینت قرار دارد.</p><div class="solmint-tag-grid">${renderCards(matching)}</div></section></main></div>`;
       html = injectShell(html, shell);
+    }
+
+    if (indexable) {
+      html = setBootstrap(html, {
+        type: 'tag',
+        slug,
+        name: tagName,
+        articles: matching.map(article => ({
+          id: String(article.id || ''),
+          title: String(article.title || ''),
+          slug: String(article.slug || ''),
+          category: 'اخبار و تحلیل',
+          tags: tagNames(article),
+          summary: String(article.summary || ''),
+          content: '',
+          coverImage: String(article.cover_image || ''),
+          author: { name: 'تیم تحریریه سولمینت', role: '', avatar: '' },
+          publishedAt: String(article.published_at || ''),
+          publishedAtJalali: article.published_at_jalali ? String(article.published_at_jalali) : undefined,
+          publishedAtGregorian: article.published_at_gregorian ? String(article.published_at_gregorian) : undefined,
+          readTimeMinutes: Number(article.read_time_minutes || 5),
+          viewsCount: 0,
+          comments: [],
+          isDraft: false
+        }))
+      });
     }
 
     html = setJsonLd(html, indexable ? {
