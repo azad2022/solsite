@@ -37,12 +37,14 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
   const url = buildTaxonomyUrl({ type, slug, name });
   const canonical = `${SITE_DOMAIN}${url}`;
   const specialized = type === 'category' ? CATEGORY_SEO[slug] : undefined;
-  const isIndexableCategory = type === 'category' && Boolean(specialized) && count >= 2;
-  const title = specialized?.title || `${name} | ${type === 'category' ? 'دسته‌بندی' : 'برچسب'} مقالات سولمینت`;
+  const isIndexable = type === 'category'
+    ? Boolean(specialized) && count >= 2
+    : count >= 1;
+  const title = specialized?.title || `${name} | ${type === 'category' ? 'دسته‌بندی' : 'مقالات مرتبط'} در سولمینت`;
   const description = specialized?.description || `مقالات مرتبط با ${type === 'category' ? 'دسته‌بندی' : 'برچسب'} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;
   document.title = title;
   setMeta('description', description);
-  setMeta('robots', isIndexableCategory ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow');
+  setMeta('robots', isIndexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow');
   setMeta('twitter:card', 'summary_large_image');
   setMeta('twitter:title', title);
   setMeta('twitter:description', description);
@@ -57,7 +59,7 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
   setProperty('og:image', `${SITE_DOMAIN}/images/blog-og.jpg`);
   setProperty('og:image:alt', title);
   setCanonical(canonical);
-  if (!isIndexableCategory) { document.getElementById('solmint-taxonomy-jsonld')?.remove(); return; }
+  if (!isIndexable) { document.getElementById('solmint-taxonomy-jsonld')?.remove(); return; }
   setJsonLd('solmint-taxonomy-jsonld', {
     '@context': 'https://schema.org', '@type': 'CollectionPage', '@id': `${canonical}#collection`, url: canonical,
     name: title, headline: specialized?.h1 || name, description, inLanguage: 'fa-IR',
