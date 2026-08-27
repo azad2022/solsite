@@ -59,20 +59,63 @@ function descriptionFor(article: ArticleRecord) {
 }
 
 function renderBody(value: string) {
-  const lines = String(value || '').replace(/\r\n?/g, '\n').split('\n');
-  const out: string[] = [];
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-    const heading = line.match(/^#{1,6}\s+(.+?)\s*#*$/);
-    if (heading) {
-      const level = Math.min(6, Math.max(2, line.match(/^#+/)?.[0].length || 2));
-      out.push(`<h${level}>${escapeHtml(heading[1])}</h${level}>`);
-      continue;
+  const input = String(value || '').trim();
+  if (!input) return '';
+
+  if (!/<\/?[a-z][\s\S]*>/i.test(input)) {
+    const lines = input.replace(/\r\n?/g, '\n').split('\n');
+    const out: string[] = [];
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      const heading = line.match(/^#{1,6}\s+(.+?)\s*#*$/);
+      if (heading) {
+        const level = Math.min(6, Math.max(2, line.match(/^#+/)?.[0].length || 2));
+        out.push('<h' + level + '>' + escapeHtml(heading[1]) + '</h' + level + '>');
+      } else {
+        out.push('<p>' + escapeHtml(line) + '</p>');
+      }
     }
-    out.push(`<p>${escapeHtml(line)}</p>`);
+    return out.join('\n');
   }
-  return out.join('\n');
+
+  const allowedTags = new Set([
+    'p', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'b', 'em', 'i', 'u', 'mark',
+    'del', 's', 'blockquote', 'ul', 'ol', 'li', 'a', 'img', 'figure', 'figcaption',
+    'pre', 'code', 'br', 'hr', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+    'sup', 'sub', 'span', 'div'
+  ]);
+  const voidTags = new Set(['img', 'br', 'hr']);
+  const dangerousBlock = /<\s*(script|style|iframe|object|embed|form|meta|link|base|svg|math)\b[^>]*>[\s\S]*?<\/\s*\1\s*>/gi;
+  const dangerousSelfClosing = /<\s*(script|style|iframe|object|embed|form|meta|link|base|svg|math)\b[^>]*\/?\s*>/gi;
+  const comments = /<!--[\s\S]*?-->/g;
+
+  const stripped = input.replace(comments, '').replace(dangerousBlock, '').replace(dangerousSelfClosing, '');
+  return stripped.replace(/<\/?([a-z][a-z0-9-]*)(\s[^>]*)?>/gi, (full, rawTag, rawAttrs = '') => {
+    const tag = String(rawTag).toLowerCase();
+    if (!allowedTags.has(tag)) return "";
+    if (full.startsWith('</')) return voidTags.has(tag) ? '' : '</' + tag + '>';
+
+    const attrs: string[] = [];
+    const allowed = tag === 'a'
+      ? new Set(['href', 'title', 'target', 'rel', 'aria-label', 'class', 'id'])
+      : tag === 'img'
+        ? new Set(['src', 'alt', 'title', 'loading', 'decoding', 'width', 'height', 'class', 'id'])
+        : new Set(['title', 'aria-label', 'datetime', 'colspan', 'rowspan', 'scope', 'class', 'id']);
+    const attrPattern = /([a-zA-Z_:][a-zA-Z0-9:._-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+    let match;
+    while ((match = attrPattern.exec(String(rawAttrs || ''))) !== null) {
+      const name = match[1].toLowerCase();
+      const rawValue = match[2] ?? match[3] ?? match[4] ?? '';
+      if (name.startsWith('on') || name === 'style' || name === 'srcset' || !allowed.has(name)) continue;
+      if (name === 'href' || name === 'src') {
+        if (!/^(https?:\/\/|\/|#|mailto:)/i.test(rawValue) || /^(javascript|data|vbscript):/i.test(rawValue)) continue;
+      }
+      attrs.push(' ' + name + '="' + escapeHtml(rawValue) + '"');
+    }
+    if (tag === 'a' && attrs.some((item) => / target="_blank"$/i.test(item)) && !attrs.some((item) => /^ rel=/i.test(item))) attrs.push(' rel="noopener noreferrer"');
+    return '<' + tag + attrs.join('') + (voidTags.has(tag) ? ' />' : '>');
+  });
 }
 
 function setMeta(html: string, name: string, value: string, property = false) {
@@ -179,7 +222,7 @@ function inject(html: string, article: ArticleRecord, related: RelatedArticle[])
     ? `<footer><h2>${locale.lang === 'en' ? 'Tags' : 'برچسب‌ها'}</h2><ul>${article.tags.map(tag => `<li><a href="${escapeHtml(tagUrl(String(tag)))}">${escapeHtml(tag)}</a></li>`).join('')}</ul></footer>`
     : '';
 
-  const shell = `<main id="article-ssr" dir="${escapeHtml(locale.dir)}" lang="${escapeHtml(locale.lang)}"><article><header><nav aria-label="مسیر صفحه"><a href="/">سولمینت</a> / <a href="/blog">وبلاگ</a> / ${category} / <span aria-current="page">${escapeHtml(article.title)}</span></nav><h1>${escapeHtml(article.title)}</h1><p>${escapeHtml(description)}</p><p><time datetime="${escapeHtml(published)}">${escapeHtml(article.published_at_jalali || article.published_at_gregorian || published)}</time> · ${escapeHtml(article.read_time_minutes || 5)} ${locale.lang === 'en' ? 'minutes' : 'دقیقه مطالعه'}</p></header>${image !== '#' ? `<figure><img src="${escapeHtml(image)}" alt="${escapeHtml(article.title)}" fetchpriority="high"><figcaption>${escapeHtml(article.title)}</figcaption></figure>` : ''}<section aria-label="${locale.lang === 'en' ? 'Article body' : 'متن مقاله'}">${renderBody(article.content || '')}</section>${tags}${relatedHtml(related)}</article></main>`;
+  const shell = `<main id="article-ssr" dir="${escapeHtml(locale.dir)}" lang="${escapeHtml(locale.lang)}"><article><header><nav aria-label="مسیر صفحه"><a href="/">سولمینت</a> / <a href="/blog">وبلاگ</a> / ${category} / <span aria-current="page">${escapeHtml(article.title)}</span></nav><h1>${escapeHtml(article.title)}</h1><p>${escapeHtml(description)}</p><p><time datetime="${escapeHtml(published)}">${escapeHtml(article.published_at_jalali || article.published_at_gregorian || published)}</time> · ${escapeHtml(article.read_time_minutes || 5)} ${locale.lang === 'en' ? 'minutes' : 'دقیقه مطالعه'}</p></header>${image !== '#' ? `<figure><img src="${escapeHtml(image)}" alt="${escapeHtml(article.title)}" fetchpriority="high"></figure>` : ''}<section aria-label="${locale.lang === 'en' ? 'Article body' : 'متن مقاله'}">${renderBody(article.content || '')}</section>${tags}${relatedHtml(related)}</article></main>`;
 
   let result = html;
   result = setDocumentLanguage(result, locale.lang, locale.dir);

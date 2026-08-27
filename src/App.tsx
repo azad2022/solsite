@@ -46,6 +46,30 @@ const MemeTickerAdminPanel = lazy(() => import('./components/MemeTickerAdminPane
 const normalizePath = (path: string) => { const withoutQuery = (path || '/').split('?')[0].split('#')[0]; const normalized = withoutQuery.replace(/\/+$/, ''); return normalized || '/'; };
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
 
+function readArticleBootstrap(): Article[] {
+  if (typeof document === 'undefined') return [];
+  const node = document.getElementById('solmint-article-bootstrap');
+  if (!node?.textContent) return [];
+  try {
+    const source = JSON.parse(node.textContent) as Record<string, unknown>;
+    const rawAuthor = source.author;
+    const authorObject = typeof rawAuthor === 'object' && rawAuthor !== null ? rawAuthor as Record<string, unknown> : null;
+    const article = {
+      id: String(source.id || ''), title: String(source.title || ''), slug: String(source.slug || ''),
+      category: (String(source.category || 'اخبار و تحلیل')) as Article['category'],
+      tags: Array.isArray(source.tags) ? source.tags.map(String) : [],
+      summary: String(source.summary || ''), content: String(source.content || ''),
+      coverImage: String(source.cover_image || ''), coverImageAssetId: source.cover_image_asset_id ? String(source.cover_image_asset_id) : undefined,
+      videoUrl: source.video_url ? String(source.video_url) : undefined,
+      author: { name: String(authorObject?.name || rawAuthor || 'تیم تحریریه سولمینت'), role: String(authorObject?.role || ''), avatar: String(authorObject?.avatar || '') },
+      publishedAt: String(source.published_at || ''), publishedAtJalali: source.published_at_jalali ? String(source.published_at_jalali) : undefined, publishedAtGregorian: source.published_at_gregorian ? String(source.published_at_gregorian) : undefined,
+      readTimeMinutes: Number(source.read_time_minutes || 5), viewsCount: Number(source.views_count || 0), comments: Array.isArray(source.comments) ? source.comments : [],
+      seoScore: source.seo_score ? Number(source.seo_score) : undefined, isDraft: Boolean(source.is_draft),
+    } as Article;
+    return article.id && article.slug && article.title ? [article] : [];
+  } catch { return []; }
+}
+
 const AdminQuickActionsPortal: React.FC<{ enabled: boolean; onOpenMarket: () => void; onOpenShowcase: () => void; }> = ({ enabled, onOpenMarket, onOpenShowcase }) => {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -76,7 +100,13 @@ export default function App() {
   const [deepseekSettings, setDeepseekSettings] = useState<DeepSeekAiSettings>(() => safeGetLocalStorage<DeepSeekAiSettings>('solmint_deepseek_settings', DEFAULT_DEEPSEEK_SETTINGS));
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(() => safeGetLocalStorage<ChatbotSettings>('solmint_chatbot_settings', DEFAULT_CHATBOT_SETTINGS));
   const [solanaStatus, setSolanaStatus] = useState<SolanaStatus>({ price: 184.25, change24h: 4.38, tps: 2890, avgFeeUsd: 0.00025, avgFeeSol: 0.000005, status: 'Mainnet Beta Online', slot: 284910283 });
-  const [articles, setArticles] = useState<Article[]>(() => safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES));
+  const [articles, setArticles] = useState<Article[]>(() => {
+    const cached = safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES);
+    const bootstrap = readArticleBootstrap();
+    if (bootstrap.length === 0) return cached;
+    const boot = bootstrap[0];
+    return [boot, ...cached.filter(article => article.slug !== boot.slug)];
+  });
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => safeGetLocalStorage<MediaItem[]>('solmint_media', INITIAL_MEDIA_ITEMS));
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() => safeGetLocalStorage<Testimonial[]>('solmint_testimonials', INITIAL_TESTIMONIALS));
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);

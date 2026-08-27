@@ -765,7 +765,7 @@ async function startServer() {
         }
       }
 
-      deleteArticleFromDisk(articleId);
+      if (typeof articleId === 'string') deleteArticleFromDisk(articleId);
 
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.json({ success: true, message: "مقاله با موفقیت از دیتابیس حذف شد." });
