@@ -1,1 +1,1 @@
-x
+import { Article, MediaItem, Testimonial } from '../types';
