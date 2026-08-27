@@ -1,0 +1,33 @@
+name: Remove user comments
+
+on:
+  push:
+    branches: [remove-user-comments-2026-08-27]
+
+permissions:
+  contents: write
+
+jobs:
+  remove-comments:
+    if: github.event.head_commit.message != 'chore: apply user comments removal patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remove-user-comments-2026-08-27
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply controlled removal
+        run: node scripts/remove-user-comments.mjs
+      - name: Commit source changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/SolanaMarketInsights.tsx src/components/AdminCmsModal.tsx server.ts
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'chore: apply user comments removal patch'
+          git push origin HEAD:remove-user-comments-2026-08-27
