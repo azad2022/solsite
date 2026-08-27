@@ -38,7 +38,7 @@ jobs:
         run: |
           grep -Fq 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
-          grep -Fq "window.location.pathname.startsWith('/article/')" src/main.tsx
+          grep -Eq "isDirectArticleRoute.*\\^/article/|\\^/article/.*isDirectArticleRoute" src/main.tsx
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
           node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('public/_routes.json','utf8'));if(!Array.isArray(r.include)||!r.include.includes('/article/*'))process.exit(1)"
