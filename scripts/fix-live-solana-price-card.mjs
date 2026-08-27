@@ -4,8 +4,11 @@ import path from 'node:path';
 const file = path.join(process.cwd(), 'src/components/SolanaPricePage.tsx');
 let source = fs.readFileSync(file, 'utf8');
 
-const legacyUrl = "const PRICE_CARD_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/solana-price-card';\n";
-source = source.replace(legacyUrl, '');
+// Remove the legacy direct Supabase image endpoint when it is still present.
+source = source.replace(
+  /const PRICE_CARD_URL\s*=\s*['"][^'"]+['"];\s*/,
+  ''
+);
 
 // The production source may already be migrated. In that case this build patch is a no-op.
 if (source.includes("fetch(`/api/market/solana-ticker?_=${Date.now()}`")) {
@@ -40,8 +43,9 @@ const newBlock = [
   '',
   '  useEffect(() => {',
   '    const controller = new AbortController();',
+  '    const refresh = () => void load(controller.signal);',
   '    void load(controller.signal);',
-  '    const timer = window.setInterval(() => void load(controller.signal), REFRESH_MS);',
+  '    const timer = window.setInterval(refresh, REFRESH_MS);',
   '    return () => { controller.abort(); window.clearInterval(timer); };',
   '  }, [load]);',
   '',
@@ -61,12 +65,17 @@ const newBlock = [
 const cardStart = source.indexOf('const LivePriceCard: React.FC = () => {');
 if (cardStart === -1) throw new Error('LivePriceCard source pattern not found');
 
-// Use the next component declaration as the boundary. Do not depend on exact blank-line formatting.
-const nextComponentPattern = /\n\s*const LiveSolanaChart\s*:/g;
-nextComponentPattern.lastIndex = cardStart + 1;
-const match = nextComponentPattern.exec(source);
-if (!match) throw new Error('LiveSolanaChart component boundary not found');
+// LiveSolanaChart is declared before LivePriceCard in the source. Use the stable page export as the
+// boundary instead of depending on component ordering or whitespace between declarations.
+const pageStart = source.indexOf('export const SolanaPricePage', cardStart + 1);
+if (pageStart === -1) throw new Error('SolanaPricePage component boundary not found');
 
-source = source.slice(0, cardStart) + newBlock + source.slice(match.index);
+const prefix = source.slice(0, cardStart);
+const suffix = source.slice(pageStart);
+if (!suffix.trimStart().startsWith('export const SolanaPricePage')) {
+  throw new Error('Unexpected SolanaPricePage boundary');
+}
+
+source = prefix + newBlock + '\n\n' + suffix;
 fs.writeFileSync(file, source, 'utf8');
 console.log('✓ Solana price card migrated to the internal ticker API.');
