@@ -24,6 +24,7 @@ const BASE_URL = 'https://solmint.ir';
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const INDEXABLE_CATEGORY_MIN_ARTICLES = 2;
 const INDEXABLE_TAG_MIN_ARTICLES = 1;
+const TAG_SLUG = 'mym-kvyn-jdyd';
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')
