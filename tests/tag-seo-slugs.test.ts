@@ -13,12 +13,17 @@ test('curated tag SEO keys use canonical generated slugs', () => {
     'پراپ تریدینگ',
     'قیمت سولانا',
     'استیکینگ سولانا',
+    'میم کوین سولانا',
+    'ساخت توکن سولانا',
   ];
 
   for (const name of canonicalTagNames) {
     const slug = generateSlugFromTitle(name);
     assert.ok(TAG_SEO[slug], `${name} must have curated SEO config at slug ${slug}`);
   }
+
+  assert.equal(generateSlugFromTitle('میم کوین سولانا'), 'mym-kvyn-svlana');
+  assert.equal(generateSlugFromTitle('ساخت توکن سولانا'), 'sakht-tvkn-svlana');
 
   for (const slug of Object.keys(TAG_SEO)) {
     assert.match(slug, /^[a-z0-9]+(?:-[a-z0-9]+)*$/, `Invalid tag SEO slug: ${slug}`);
