@@ -38,7 +38,7 @@ const replacement = [
   "    'p', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'b', 'em', 'i', 'u', 'mark',",
   "    'del', 's', 'blockquote', 'ul', 'ol', 'li', 'a', 'img', 'figure', 'figcaption',",
   "    'pre', 'code', 'br', 'hr', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',",
-  "    'sup', 'sub', 'span', 'div'", 
+  "    'sup', 'sub', 'span', 'div'",
   '  ]);',
   "  const voidTags = new Set(['img', 'br', 'hr']);",
   '  const dangerousBlock = /<\\s*(script|style|iframe|object|embed|form|meta|link|base|svg|math)\\b[^>]*>[\\s\\S]*?<\\/\\s*\\1\\s*>/gi;',
@@ -48,11 +48,11 @@ const replacement = [
   "  const stripped = input.replace(comments, '').replace(dangerousBlock, '').replace(dangerousSelfClosing, '');",
   "  return stripped.replace(/<\\/?([a-z][a-z0-9-]*)(\\s[^>]*)?>/gi, (full, rawTag, rawAttrs = '') => {",
   '    const tag = String(rawTag).toLowerCase();',
-  '    if (!allowedTags.has(tag)) return \"\";',
+  '    if (!allowedTags.has(tag)) return "";',
   "    if (full.startsWith('</')) return voidTags.has(tag) ? '' : '</' + tag + '>';",
   '',
   '    const attrs: string[] = [];',
-  '    const allowed = tag === \'a\'',
+  "    const allowed = tag === 'a'",
   "      ? new Set(['href', 'title', 'target', 'rel', 'aria-label', 'class', 'id'])",
   "      : tag === 'img'",
   "        ? new Set(['src', 'alt', 'title', 'loading', 'decoding', 'width', 'height', 'class', 'id'])",
@@ -63,7 +63,7 @@ const replacement = [
   '      const name = match[1].toLowerCase();',
   "      const rawValue = match[2] ?? match[3] ?? match[4] ?? '';",
   "      if (name.startsWith('on') || name === 'style' || name === 'srcset' || !allowed.has(name)) continue;",
-  '      if (name === \'href\' || name === \'src\') {',
+  "      if (name === 'href' || name === 'src') {",
   "        if (!/^(https?:\\/\\/|\\/|#|mailto:)/i.test(rawValue) || /^(javascript|data|vbscript):/i.test(rawValue)) continue;",
   '      }',
   "      attrs.push(' ' + name + '=\"' + escapeHtml(rawValue) + '\"');",
@@ -83,6 +83,21 @@ let changed = [];
   if (after !== before) {
     fs.writeFileSync(articleFile, after, 'utf8');
     changed.push('functions/article/[slug].ts');
+  }
+}
+
+// The cover image already carries an accessible alt text. The identical figcaption
+// creates duplicate article-title text in text extraction, accessibility trees and
+// reader-mode views. Remove only the redundant caption while keeping the image.
+{
+  const before = fs.readFileSync(articleFile, 'utf8');
+  const after = before.replace(
+    '<figcaption>${escapeHtml(article.title)}</figcaption>',
+    ''
+  );
+  if (after !== before) {
+    fs.writeFileSync(articleFile, after, 'utf8');
+    changed.push('functions/article/[slug].ts:cover-caption');
   }
 }
 
