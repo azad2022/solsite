@@ -18,28 +18,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   handleReload = () => window.location.reload();
   render() {
     if (!this.state.hasError) return this.childContent;
-
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/article/')) {
-      try {
-        const raw = document.getElementById('solmint-article-bootstrap')?.textContent?.trim();
-        const article = raw ? JSON.parse(raw) : null;
-        if (article?.title && article?.content) {
-          return (
-            <main dir="rtl" style={{ minHeight: '100vh', background: '#08080f', color: '#e2e8f0', padding: '32px 20px', fontFamily: 'Vazirmatn, sans-serif' }}>
-              <article style={{ width: '100%', maxWidth: 900, margin: '0 auto' }}>
-                <nav aria-label="مسیر صفحه" style={{ color: '#94a3b8', marginBottom: 24 }}>
-                  <a href="/" style={{ color: '#38bdf8' }}>سولمینت</a> / <a href="/blog" style={{ color: '#38bdf8' }}>وبلاگ</a> / {article.title}
-                </nav>
-                <h1 style={{ fontSize: 32, lineHeight: 1.4, color: '#fff', marginBottom: 16 }}>{article.title}</h1>
-                {article.summary && <p style={{ color: '#cbd5e1', lineHeight: 1.9 }}>{article.summary}</p>}
-                <section aria-label="متن مقاله" style={{ marginTop: 28, whiteSpace: 'pre-wrap', lineHeight: 2 }}>{article.content}</section>
-              </article>
-            </main>
-          );
-        }
-      } catch {}
-    }
-
     return (
       <div dir="rtl" style={{ minHeight: '100vh', background: '#08080f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'Vazirmatn, sans-serif', textAlign: 'center' }}>
         <section style={{ width: '100%', maxWidth: 560, padding: 32, borderRadius: 24, background: '#11111f', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
@@ -68,8 +46,13 @@ installArticleImageGuard();
 installHomepageSeoGuard();
 installWalletSeoGuard();
 installWebMcpTools();
-createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ErrorBoundary><App /></ErrorBoundary>
-  </React.StrictMode>
-);
+
+const isDirectArticleRoute = typeof window !== 'undefined' && /^\/article\/[^/]+\/?$/.test(window.location.pathname);
+
+if (!isDirectArticleRoute) {
+  createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <ErrorBoundary><App /></ErrorBoundary>
+    </React.StrictMode>
+  );
+}
