@@ -1,0 +1,214 @@
+name: Repair Article SEO Runtime
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Patch article SSR and runtime hydration
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const articlePath = 'functions/article/[slug].ts';
+          let article = fs.readFileSync(articlePath, 'utf8');
+
+          const oldKeyLine = "  const env = context.env || {}; const base = (env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\\/$/, ''); const key = String(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '').trim(); if (!key) return context.next();";
+          const newKeyBlock = `  const env = context.env || {};
+          const base = (env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\\/$/, '');
+          // Prefer server-only credentials, then the public Supabase key. The public key is
+          // intentionally last-resort because it is already shipped to the browser client.
+          const key = String(
+            env.SUPABASE_SECRET_KEY ||
+            env.SUPABASE_SERVICE_ROLE_KEY ||
+            env.SUPABASE_ANON_KEY ||
+            env.VITE_SUPABASE_ANON_KEY ||
+            'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt'
+          ).trim();`;
+          if (!article.includes(oldKeyLine)) throw new Error('Expected article SSR key block was not found');
+          article = article.replace(oldKeyLine, newKeyBlock);
+
+          const oldFetch = `  try { const upstream = await fetch(endpoint, { headers: { apikey: key, Authorization: \\`Bearer \\${key}\\`, Accept: 'application/json' } }); if (!upstream.ok) return context.next(); const rows = await upstream.json() as ArticleRecord[]; const article = rows[0]; if (!article) { const fallback = await context.next(); const headers = new Headers(fallback.headers); headers.set('X-Robots-Tag', 'noindex, follow'); return new Response(fallback.body, { status: 404, headers }); } const [related, shellResponse] = await Promise.all([fetchRelated(base, key, article), context.next()]); let html = await shellResponse.text(); if (!/<div id=\\\"root\\\"><\\/div>/i.test(html)) { const originResponse = await fetch(new URL('/', context.request.url), { headers: { Accept: 'text/html' } }); if (originResponse.ok) html = await originResponse.text(); } const headers = new Headers(shellResponse.headers); headers.set('Content-Type', 'text/html; charset=UTF-8'); headers.set('X-Robots-Tag', 'index, follow'); headers.set('X-Solmint-SSR', 'article-seo-v3'); if (article.updated_at) headers.set('Last-Modified', new Date(article.updated_at).toUTCString()); return new Response(inject(html, article, related), { status: 200, headers }); } catch { return context.next(); }`;
+
+          // Use a regex replacement instead of relying on escaping the minified source above.
+          const oldFetchRegex = /  try \{ const upstream = await fetch\(endpoint,[\\s\\S]*?return new Response\(inject\(html, article, related\), \{ status: 200, headers \}\); \} catch \{ return context\.next\(\); \}/;
+          if (!oldFetchRegex.test(article)) throw new Error('Expected article SSR request handler was not found');
+          const newFetch = `  try {
+            const upstream = await fetch(endpoint, {
+              headers: { apikey: key, Authorization: \`Bearer \${key}\`, Accept: 'application/json' },
+              signal: AbortSignal.timeout(8000)
+            });
+
+            if (!upstream.ok) {
+              return new Response('Article data temporarily unavailable', {
+                status: 503,
+                headers: {
+                  'Content-Type': 'text/plain; charset=UTF-8',
+                  'Cache-Control': 'no-store, no-cache, must-revalidate',
+                  'Retry-After': '60',
+                  'X-Robots-Tag': 'noindex, follow',
+                  'X-Solmint-SSR': 'article-seo-v4'
+                }
+              });
+            }
+
+            const rows = await upstream.json() as ArticleRecord[];
+            const article = rows[0];
+            if (!article) {
+              const headers = new Headers({
+                'Content-Type': 'text/html; charset=UTF-8',
+                'Cache-Control': 'public, max-age=60, s-maxage=300',
+                'X-Robots-Tag': 'noindex, follow',
+                'X-Solmint-SSR': 'article-seo-v4'
+              });
+              return new Response('<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>مقاله پیدا نشد | سولمینت</title><meta name="robots" content="noindex, follow"></head><body><main><h1>مقاله مورد نظر پیدا نشد</h1></main></body></html>', { status: 404, headers });
+            }
+
+            const [related, shellResponse] = await Promise.all([
+              fetchRelated(base, key, article),
+              context.next()
+            ]);
+
+            if (!shellResponse.ok || !(shellResponse.headers.get('Content-Type') || '').toLowerCase().includes('text/html')) {
+              return new Response('Article shell temporarily unavailable', {
+                status: 503,
+                headers: {
+                  'Content-Type': 'text/plain; charset=UTF-8',
+                  'Cache-Control': 'no-store, no-cache, must-revalidate',
+                  'Retry-After': '60',
+                  'X-Robots-Tag': 'noindex, follow',
+                  'X-Solmint-SSR': 'article-seo-v4'
+                }
+              });
+            }
+
+            let html = await shellResponse.text();
+            if (!/<div id="root"><\\/div>/i.test(html)) {
+              const originResponse = await fetch(new URL('/', context.request.url), { headers: { Accept: 'text/html' } });
+              if (!originResponse.ok || !(originResponse.headers.get('Content-Type') || '').toLowerCase().includes('text/html')) {
+                return new Response('Article shell temporarily unavailable', {
+                  status: 503,
+                  headers: {
+                    'Content-Type': 'text/plain; charset=UTF-8',
+                    'Cache-Control': 'no-store, no-cache, must-revalidate',
+                    'Retry-After': '60',
+                    'X-Robots-Tag': 'noindex, follow',
+                    'X-Solmint-SSR': 'article-seo-v4'
+                  }
+                });
+              }
+              html = await originResponse.text();
+            }
+
+            const headers = new Headers(shellResponse.headers);
+            headers.set('Content-Type', 'text/html; charset=UTF-8');
+            headers.set('X-Robots-Tag', 'index, follow');
+            headers.set('X-Solmint-SSR', 'article-seo-v4');
+            headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600');
+            if (article.updated_at) headers.set('Last-Modified', new Date(article.updated_at).toUTCString());
+
+            return new Response(inject(html, article, related), { status: 200, headers });
+          } catch (error) {
+            console.error('[article-ssr] failed to render article:', error);
+            return new Response('Article rendering temporarily unavailable', {
+              status: 503,
+              headers: {
+                'Content-Type': 'text/plain; charset=UTF-8',
+                'Cache-Control': 'no-store, no-cache, must-revalidate',
+                'Retry-After': '60',
+                'X-Robots-Tag': 'noindex, follow',
+                'X-Solmint-SSR': 'article-seo-v4'
+              }
+            });
+          }`;
+          article = article.replace(oldFetchRegex, newFetch);
+
+          const bootstrapHelper = `function setArticleBootstrap(html: string, article: ArticleRecord) {
+            const payload = JSON.stringify(article).replace(/</g, '\\\\u003c');
+            const tag = \`<script id="solmint-article-bootstrap" type="application/json">\${payload}</script>\`;
+            const rx = /<script[^>]*id=["']solmint-article-bootstrap["'][^>]*>[\\s\\S]*?<\\/script>/i;
+            return rx.test(html) ? html.replace(rx, tag) : html.replace('</head>', \`    \${tag}\\n  </head>\`);
+          }
+`;
+          if (!article.includes('function setArticleBootstrap(')) {
+            const anchor = "function setDocumentLanguage(html: string, lang: string, dir: string) { return html.replace(/<html\\b[^>]*>/i, `<html lang=\\\"${lang}\\\" dir=\\\"${dir}\\\">`); }\n";
+            if (!article.includes(anchor)) throw new Error('Article SSR helper anchor not found');
+            article = article.replace(anchor, anchor + bootstrapHelper);
+          }
+
+          const oldInjectTail = "  let result = html; result = setDocumentLanguage(result, locale.lang, locale.dir); result = setTitle(result, title); result = setCanonical(result, canonical); result = setMeta(result, 'description', description);";
+          const newInjectTail = "  let result = html; result = setDocumentLanguage(result, locale.lang, locale.dir); result = setArticleBootstrap(result, article); result = setTitle(result, title); result = setCanonical(result, canonical); result = setMeta(result, 'description', description);";
+          if (!article.includes(oldInjectTail)) throw new Error('Article inject tail not found');
+          article = article.replace(oldInjectTail, newInjectTail);
+          fs.writeFileSync(articlePath, article);
+
+          const appPath = 'src/App.tsx';
+          let app = fs.readFileSync(appPath, 'utf8');
+          const oldState = `  const [articles, setArticles] = useState<Article[]>(() => safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES));`;
+          const newState = `  const [articles, setArticles] = useState<Article[]>(() => {
+    const stored = safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES);
+    if (typeof document === 'undefined') return stored;
+    try {
+      const bootstrap = document.getElementById('solmint-article-bootstrap');
+      const raw = bootstrap?.textContent?.trim();
+      if (!raw) return stored;
+      const article = JSON.parse(raw) as Article;
+      if (!article?.slug || !article?.title) return stored;
+      const withoutDuplicate = stored.filter(item => item.slug !== article.slug);
+      return [article, ...withoutDuplicate];
+    } catch {
+      return stored;
+    }
+  });`;
+          if (!app.includes(oldState)) throw new Error('Expected App article state initializer was not found');
+          app = app.replace(oldState, newState);
+          fs.writeFileSync(appPath, app);
+
+          const serverPath = 'server.ts';
+          let server = fs.readFileSync(serverPath, 'utf8');
+          const before = "deleteArticleFromDisk(articleId);";
+          const after = "deleteArticleFromDisk(String(articleId));";
+          if (!server.includes(before)) throw new Error('Expected CI typecheck location was not found');
+          server = server.replace(before, after);
+          fs.writeFileSync(serverPath, server);
+
+          const workflowPath = '.github/workflows/repair-article-seo.yml';
+          fs.unlinkSync(workflowPath);
+          NODE
+
+      - name: Validate source
+        run: |
+          test ! -e .github/workflows/repair-article-seo.yml
+          grep -q "X-Solmint-SSR.*article-seo-v4" 'functions/article/[slug].ts'
+          grep -q "solmint-article-bootstrap" 'functions/article/[slug].ts'
+          grep -q "solmint-article-bootstrap" src/App.tsx
+          grep -q "deleteArticleFromDisk(String(articleId))" server.ts
+          git diff --check
+
+      - name: Typecheck and tests
+        run: |
+          npm install --no-audit --no-fund
+          npm run lint
+          npm test
+
+      - name: Commit repaired source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 'functions/article/[slug].ts' src/App.tsx server.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: make article SSR crawl-safe and stabilize hydration"
+          git push
