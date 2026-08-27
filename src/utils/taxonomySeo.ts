@@ -1,18 +1,11 @@
 import { buildTaxonomyUrl } from './articleTaxonomy';
 import { CATEGORY_SEO } from '../config/articleTaxonomy';
+import { TAG_SEO } from '../config/tagSeo';
 
 const SITE_DOMAIN = 'https://solmint.ir';
 
 type TaxonomySeoInput = { type: 'category' | 'tag'; slug: string; name: string; count: number };
-type TaxonomySpecializedSeo = { title: string; description: string; h1: string };
-
-const TAG_SEO: Record<string, TaxonomySpecializedSeo> = {
-  'sakht-mym-kvyn': {
-    title: 'ساخت میم کوین؛ آموزش ساخت میم‌کوین روی سولانا | سولمینت',
-    description: 'مقالات و راهنماهای ساخت میم کوین روی سولانا؛ از ساخت توکن و اطلاعات متادیتا تا عرضه، نقدینگی، ابزارها، نکات فنی و ملاحظات امنیتی.',
-    h1: 'ساخت میم کوین؛ آموزش ساخت میم‌کوین روی سولانا'
-  }
-};
+type TaxonomySpecializedSeo = { title: string; description: string; h1: string; intro?: string };
 
 function setMeta(name: string, content: string) {
   let meta = document.querySelector(`meta[name="${name}"]`);
@@ -50,7 +43,7 @@ export function updateTaxonomySeo({ type, slug, name, count }: TaxonomySeoInput)
     ? Boolean(CATEGORY_SEO[slug]) && count >= 2
     : count >= 1;
   const title = specialized?.title || `${name} | ${type === 'category' ? 'دسته‌بندی' : 'مقالات مرتبط'} در سولمینت`;
-  const description = specialized?.description || `${specialized?.h1 || name}؛ مقالات، آموزش‌ها، تحلیل‌ها و مطالب مرتبط در آکادمی سولمینت.`;
+  const description = specialized?.description || `مقالات مرتبط با ${type === 'category' ? 'دسته‌بندی' : 'برچسب'} «${name}» در آکادمی سولمینت؛ آموزش‌ها، تحلیل‌ها و مطالب تخصصی مرتبط با سولانا و وب۳.`;
   document.title = title;
   setMeta('description', description);
   setMeta('robots', isIndexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow');
