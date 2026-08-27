@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, BarChart3, Gauge, RefreshCw, ShieldCheck, TrendingDown, TrendingUp, Waves } from 'lucide-react';
 
-const KRAKEN_OHLC_URL = 'https://api.kraken.com/0/public/OHLC';
+const KRAKEN_OHLC_URL = '/api/market/solana-ohlc';
 const INTERVALS = [
   { value: 1, label: '1m', name: '۱ دقیقه' },
   { value: 5, label: '5m', name: '۵ دقیقه' },
@@ -110,8 +110,8 @@ export const SolanaMarketInsights: React.FC = () => {
   const [interval, setIntervalValue] = useState(60); const [data, setData] = useState<Candle[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [updated, setUpdated] = useState('');
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true); try {
-      const res = await fetch(`${KRAKEN_OHLC_URL}?pair=SOLUSD&interval=${interval}&_=${Date.now()}`, { cache: 'no-store', signal }); if (!res.ok) throw new Error('request'); const json = await res.json();
-      if (json?.error?.length) throw new Error('kraken'); const key = Object.keys(json?.result ?? {}).find(k => k !== 'last'); const rows = key ? json.result[key] : [];
+      const res = await fetch(`${KRAKEN_OHLC_URL}?interval=${interval}&_=${Date.now()}`, { cache: 'no-store', signal }); if (!res.ok) throw new Error('request'); const json = await res.json();
+      if (json?.error?.length) throw new Error('market'); const key = Object.keys(json?.result ?? {}).find(k => k !== 'last'); const rows = key ? json.result[key] : [];
       const candles: Candle[] = rows.slice(-240).map((row: unknown[]) => ({ time: Number(row[0]), open: Number(row[1]), high: Number(row[2]), low: Number(row[3]), close: Number(row[4]), volume: Number(row[6]) || 0 })).filter((c: Candle) => [c.time,c.open,c.high,c.low,c.close,c.volume].every(Number.isFinite));
       if (candles.length < 60) throw new Error('insufficient'); setData(candles); setError(''); setUpdated(new Date().toLocaleTimeString('fa-IR'));
     } catch (e) { if ((e as Error)?.name !== 'AbortError') setError('داده کافی برای تحلیل این تایم‌فریم دریافت نشد.'); } finally { if (!signal?.aborted) setLoading(false); }
