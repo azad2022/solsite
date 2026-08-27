@@ -40,7 +40,6 @@ const ArticleTaxonomyPage = lazy(() => import('./components/ArticleTaxonomyPage'
 const SolanaPricePage = lazy(() => import('./components/SolanaPricePage').then(m => ({ default: m.SolanaPricePage })));
 const SolanaPriceSeoEnhancer = lazy(() => import('./components/SolanaPriceSeoEnhancer').then(m => ({ default: m.SolanaPriceSeoEnhancer })));
 const SolanaMarketInsights = lazy(() => import('./components/SolanaMarketInsights').then(m => ({ default: m.SolanaMarketInsights })));
-const SolanaMarketComments = lazy(() => import('./components/SolanaMarketInsights').then(m => ({ default: m.SolanaMarketComments })));
 const AppShowcaseAdminPanel = lazy(() => import('./components/AppShowcaseAdminPanel').then(m => ({ default: m.AppShowcaseAdminPanel })));
 const MemeTickerAdminPanel = lazy(() => import('./components/MemeTickerAdminPanel').then(m => ({ default: m.MemeTickerAdminPanel })));
 
@@ -190,7 +189,7 @@ export default function App() {
           <LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} />
         </Suspense>
       </>}
-      {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /><SolanaMarketComments currentUser={currentUser} openAuthModal={openAdminModal} /></>}
+      {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /></>}
       {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/solana-token' && <SolanaTokenPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
       {currentPath === '/solana-meme-coin' && <MemeCoinPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
@@ -204,7 +203,7 @@ export default function App() {
       {currentPath === '/tools/solana-token-scanner' && <SolanaTokenScannerPage onNavigate={handleNavigate} />}
       {currentPath === '/tools/token-2022-inspector' && <Token2022InspectorPage onNavigate={handleNavigate} />}
       {taxonomyMatch && activeTaxonomy && <ArticleTaxonomyPage articles={articles} type={taxonomyMatch.type} slug={taxonomyMatch.slug} onNavigate={handleNavigate} />}
-      {(currentPath === '/blog' || currentPath.startsWith('/article/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} currentUser={currentUser} openAuthModal={openAdminModal} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
+      {(currentPath === '/blog' || currentPath.startsWith('/article/')) && <div className="py-4"><BlogHub articles={articles} setArticles={setArticles} initialArticleSlug={activeArticleSlug} onNavigate={handleNavigate} /></div>}
     </Suspense></main>
     {isAdminModalOpen && <div className="relative z-[60]"><Suspense fallback={null}><AdminCmsModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} articles={articles} setArticles={setArticles} mediaItems={mediaItems} setMediaItems={setMediaItems} testimonials={testimonials} setTestimonials={setTestimonials} currentUser={currentUser} setCurrentUser={setCurrentUser} downloadLinks={downloadLinks} setDownloadLinks={setDownloadLinks} deepseekSettings={deepseekSettings} setDeepseekSettings={setDeepseekSettings} chatbotSettings={chatbotSettings} setChatbotSettings={setChatbotSettings} onGoToBlog={() => handleNavigate('/blog')} /></Suspense><AdminQuickActionsPortal enabled={isPrivilegedAdmin} onOpenMarket={() => setIsMemeTickerAdminOpen(true)} onOpenShowcase={() => setIsShowcaseAdminOpen(true)} />{isPrivilegedAdmin && <><Suspense fallback={null}><MemeTickerAdminPanel isOpen={isMemeTickerAdminOpen} onClose={() => setIsMemeTickerAdminOpen(false)} /></Suspense><Suspense fallback={null}><AppShowcaseAdminPanel isOpen={isShowcaseAdminOpen} onClose={() => setIsShowcaseAdminOpen(false)} /></Suspense></>}</div>}
     {!isAdminModalOpen && <Suspense fallback={null}><DeepSeekChatbot chatbotSettings={chatbotSettings} deepseekSettings={deepseekSettings} openAdminModal={openAdminModal} /></Suspense>}
