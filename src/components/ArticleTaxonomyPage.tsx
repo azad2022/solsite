@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, BookOpen, Clock, Tag } from 'lucide-react';
 import { Article } from '../types';
 import { CATEGORY_SEO } from '../config/articleTaxonomy';
+import { TAG_SEO } from '../config/tagSeo';
 import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';
 import { formatArticleDisplayDate, getArticleDateTime } from '../utils/articleDate';
 
@@ -11,13 +12,6 @@ interface ArticleTaxonomyPageProps {
   slug: string;
   onNavigate: (path: string) => void;
 }
-
-const TAG_SEO: Record<string, { h1: string; intro: string }> = {
-  'sakht-mym-kvyn': {
-    h1: 'ساخت میم کوین؛ آموزش ساخت میم‌کوین روی سولانا',
-    intro: 'در این آرشیو مطالب سولمینت درباره ساخت میم کوین، به‌ویژه روی شبکه سولانا، گردآوری می‌شود؛ از ایجاد توکن و تنظیم اطلاعات آن تا عرضه، نقدینگی، ابزارهای موردنیاز و نکات فنی و امنیتی. هدف این صفحه ارائه مسیرهای کاربردی برای تحقیق و اجرای بهتر فرایند ساخت است، نه وعده سود یا توصیه سرمایه‌گذاری.'
-  }
-};
 
 export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articles, type, slug, onNavigate }) => {
   const taxonomy = articles.flatMap(article => {
