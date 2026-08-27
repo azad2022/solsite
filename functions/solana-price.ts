@@ -16,8 +16,8 @@ type KrakenTicker = {
 
 const SITE_URL = 'https://solmint.ir';
 const PAGE_URL = `${SITE_URL}/solana-price`;
-const TITLE = 'قیمت سولانا امروز؛ نرخ لحظه‌ای SOL و تحلیل بازار | سولمینت';
-const DESCRIPTION = 'قیمت سولانا امروز و نرخ لحظه‌ای SOL/USD، نمودار زنده، تغییرات ۲۴ ساعت، حجم بازار و تحلیل تکنیکال سولانا را با داده به‌روز بازار در سولمینت بررسی کنید.';
+const TITLE = 'قیمت سولانا امروز؛ نرخ لحظه‌ای سولانا و تحلیل بازار solana';
+const DESCRIPTION = 'قیمت سولانا امروز و نرخ لحظه‌ای سولانا (SOL/USD)، نمودار زنده، تغییرات ۲۴ ساعت، حجم معاملات و تحلیل تکنیکال سولانا را با داده به‌روز بازار در سولمینت بررسی کنید.';
 const KRAKEN_TICKER_URL = 'https://api.kraken.com/0/public/Ticker?pair=SOLUSD';
 
 function escapeHtml(value: unknown): string {
@@ -128,7 +128,6 @@ function buildJsonLd() {
         isPartOf: { '@type': 'WebSite', '@id': `${SITE_URL}#website`, url: SITE_URL, name: 'سولمینت' },
         about: { '@type': 'Thing', name: 'Solana (SOL)', sameAs: 'https://solana.com/' },
         breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` },
-        mainEntity: { '@id': `${PAGE_URL}#market-data` },
       },
       {
         '@type': 'BreadcrumbList',
@@ -137,18 +136,6 @@ function buildJsonLd() {
           { '@type': 'ListItem', position: 1, name: 'خانه', item: SITE_URL },
           { '@type': 'ListItem', position: 2, name: 'قیمت سولانا', item: PAGE_URL },
         ],
-      },
-      {
-        '@type': 'Dataset',
-        '@id': `${PAGE_URL}#market-data`,
-        name: 'داده زنده قیمت و بازار سولانا (SOL/USD)',
-        description: 'داده‌های بازار SOL/USD برای نمایش قیمت لحظه‌ای، نمودار و تحلیل بازار سولانا.',
-        url: PAGE_URL,
-        license: 'https://www.kraken.com/legal',
-        inLanguage: 'fa-IR',
-        temporalCoverage: 'ongoing',
-        isAccessibleForFree: true,
-        creator: { '@type': 'Organization', name: 'سولمینت', url: SITE_URL },
       },
     ],
   };
@@ -159,7 +146,7 @@ export const onRequest = async (context: PageContext): Promise<Response> => {
   const headers = new Headers(response.headers);
   headers.set('Content-Type', 'text/html; charset=UTF-8');
   headers.set('X-Robots-Tag', 'index, follow');
-  headers.set('X-Solmint-SEO', 'solana-price-ssr-v2');
+  headers.set('X-Solmint-SEO', 'solana-price-ssr-v3');
   headers.set('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=120');
 
   if (!response.ok) return new Response(response.body, { status: response.status, headers });
@@ -169,6 +156,11 @@ export const onRequest = async (context: PageContext): Promise<Response> => {
   html = setTitle(html, TITLE);
   html = setMeta(html, 'description', DESCRIPTION);
   html = setMeta(html, 'robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+  html = setMeta(html, 'author', 'سولمینت');
+  html = setMeta(html, 'twitter:card', 'summary_large_image');
+  html = setMeta(html, 'twitter:title', TITLE);
+  html = setMeta(html, 'twitter:description', DESCRIPTION);
+  html = setMeta(html, 'twitter:image', `${SITE_URL}/images/solmint-banner.jpg`);
   html = setProperty(html, 'og:title', TITLE);
   html = setProperty(html, 'og:description', DESCRIPTION);
   html = setProperty(html, 'og:url', PAGE_URL);
@@ -176,6 +168,7 @@ export const onRequest = async (context: PageContext): Promise<Response> => {
   html = setProperty(html, 'og:site_name', 'سولمینت');
   html = setProperty(html, 'og:locale', 'fa_IR');
   html = setProperty(html, 'og:image', `${SITE_URL}/images/solmint-banner.jpg`);
+  html = setProperty(html, 'og:image:alt', 'قیمت لحظه‌ای سولانا و نمودار زنده SOL/USD');
   html = setCanonical(html);
   html = setJsonLd(html, buildJsonLd());
 
