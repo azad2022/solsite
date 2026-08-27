@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, BarChart3, Gauge, MessageCircle, RefreshCw, ShieldCheck, TrendingDown, TrendingUp, Waves } from 'lucide-react';
-import { CommentsSection } from './CommentsSection';
+import { Activity, BarChart3, Gauge, RefreshCw, ShieldCheck, TrendingDown, TrendingUp, Waves } from 'lucide-react';
 
 const KRAKEN_OHLC_URL = 'https://api.kraken.com/0/public/OHLC';
 const INTERVALS = [
@@ -143,9 +142,4 @@ export const SolanaMarketInsights: React.FC = () => {
       <div className="px-5 pb-6 sm:px-7 sm:pb-7"><div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4 flex gap-3"><ShieldCheck className="w-5 h-5 text-slate-500 shrink-0"/><p className="text-[11px] text-slate-500 leading-6">این خروجی یک سیستم محاسباتی بر پایه اندیکاتورهاست و توصیه خرید یا فروش نیست. تغییر تایم‌فریم، داده و نتیجه تحلیل را تغییر می‌دهد.</p></div></div>
     </>}
   </section>;
-};
-
-export const SolanaMarketComments: React.FC<{ currentUser: any; openAuthModal: () => void }> = ({ currentUser, openAuthModal }) => {
-  const [comments, setComments] = useState<any[]>([]);
-  return <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10"><div className="rounded-3xl border border-slate-800 bg-[#0b1018] p-5 sm:p-8"><div className="flex items-center gap-3 mb-5"><MessageCircle className="w-5 h-5 text-sky-400"/><div><h2 className="text-xl font-black">دیدگاه و تحلیل کاربران</h2><p className="text-xs text-slate-500 mt-1">تجربه و تحلیل خود را درباره وضعیت فعلی SOL با دیگر کاربران به اشتراک بگذارید.</p></div></div><CommentsSection articleId="solana-price" comments={comments} currentUser={currentUser} openAuthModal={openAuthModal} onCommentCreated={(comment) => setComments(prev => [...prev, comment])} /></div></section>;
 };
