@@ -31,95 +31,6 @@ jobs:
         run: node scripts/harden-admin-frontend-auth.mjs
       - name: Repair production TypeScript mismatches
         run: node scripts/repair-production-types.mjs
-      - name: Enforce article SEO runtime contract
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          app = Path('src/App.tsx')
-          s = app.read_text()
-          old = "  const [articles, setArticles] = useState<Article[]>(() => safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES));"
-          new = '''  const [articles, setArticles] = useState<Article[]>(() => {
-            const stored = safeGetLocalStorage<Article[]>('solmint_articles', INITIAL_ARTICLES);
-            if (typeof document === 'undefined') return stored;
-            try {
-              const node = document.getElementById('solmint-article-bootstrap');
-              const raw = node?.textContent?.trim();
-              if (!raw) return stored;
-              const article = JSON.parse(raw) as Article;
-              if (!article?.slug || !article?.title) return stored;
-              return [article, ...stored.filter(item => item.slug !== article.slug)];
-            } catch {
-              return stored;
-            }
-          });'''
-          if old in s:
-              s = s.replace(old, new, 1)
-
-          old_fetch = "      if (!cancelled && dbArticles && dbArticles.length > 0) setArticles(dbArticles);"
-          new_fetch = '''      if (!cancelled && dbArticles && dbArticles.length > 0) {
-        setArticles(prev => {
-          const bySlug = new Map(prev.map(article => [article.slug, article]));
-          for (const article of dbArticles) bySlug.set(article.slug, article);
-          return Array.from(bySlug.values());
-        });
-      }'''
-          if old_fetch in s:
-              s = s.replace(old_fetch, new_fetch, 1)
-          app.write_text(s)
-
-          main = Path('src/main.tsx')
-          s = main.read_text()
-          if "window.location.pathname.startsWith('/article/')" not in s:
-              start = s.find('  render() {')
-              marker = '\n  }\n}\n\nfunction installArticleImageGuard'
-              end = s.find(marker, start)
-              if start < 0 or end < 0:
-                  raise SystemExit('ErrorBoundary boundaries not found')
-              replacement = '''  render() {
-    if (!this.state.hasError) return this.childContent;
-
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/article/')) {
-      try {
-        const raw = document.getElementById('solmint-article-bootstrap')?.textContent?.trim();
-        const article = raw ? JSON.parse(raw) : null;
-        if (article?.title && article?.content) {
-          return (
-            <main dir="rtl" style={{ minHeight: '100vh', background: '#08080f', color: '#e2e8f0', padding: '32px 20px', fontFamily: 'Vazirmatn, sans-serif' }}>
-              <article style={{ width: '100%', maxWidth: 900, margin: '0 auto' }}>
-                <nav aria-label="مسیر صفحه" style={{ color: '#94a3b8', marginBottom: 24 }}>
-                  <a href="/" style={{ color: '#38bdf8' }}>سولمینت</a> / <a href="/blog" style={{ color: '#38bdf8' }}>وبلاگ</a> / {article.title}
-                </nav>
-                <h1 style={{ fontSize: 32, lineHeight: 1.4, color: '#fff', marginBottom: 16 }}>{article.title}</h1>
-                {article.summary && <p style={{ color: '#cbd5e1', lineHeight: 1.9 }}>{article.summary}</p>}
-                <section aria-label="متن مقاله" style={{ marginTop: 28, whiteSpace: 'pre-wrap', lineHeight: 2 }}>{article.content}</section>
-              </article>
-            </main>
-          );
-        }
-      } catch {}
-    }
-
-    return (
-      <div dir="rtl" style={{ minHeight: '100vh', background: '#08080f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'Vazirmatn, sans-serif', textAlign: 'center' }}>
-        <section style={{ width: '100%', maxWidth: 560, padding: 32, borderRadius: 24, background: '#11111f', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
-          <h1 style={{ color: '#14F195', fontSize: 22, margin: '0 0 12px', fontWeight: 800 }}>خطا در بارگذاری صفحه</h1>
-          <p style={{ color: '#94a3b8', lineHeight: 1.9, margin: '0 0 20px' }}>اجرای رابط کاربری با خطا متوقف شد. این خطا ثبت شده و صفحه می‌تواند دوباره بارگذاری شود.</p>
-          <button type="button" onClick={this.handleReload} style={{ border: 0, borderRadius: 12, padding: '11px 22px', background: '#9945FF', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>بارگذاری مجدد</button>
-          {import.meta.env.DEV && this.state.errorMessage && <pre style={{ marginTop: 20, color: '#fca5a5', whiteSpace: 'pre-wrap', direction: 'ltr', textAlign: 'left' }}>{this.state.errorMessage}</pre>}
-        </section>
-      </div>
-    );
-  }
-}'''
-              s = s[:start] + replacement + s[end + len('\n  }\n}') :]
-          main.write_text(s)
-
-          server = Path('server.ts')
-          s = server.read_text().replace('deleteArticleFromDisk(articleId);', 'deleteArticleFromDisk(String(articleId));')
-          server.write_text(s)
-          PY
       - name: Verify hardened source
         run: |
           ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
@@ -136,11 +47,11 @@ jobs:
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          if ! git diff --quiet -- src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts src/App.tsx src/main.tsx server.ts; then
+          if ! git diff --quiet -- src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts src/App.tsx src/main.tsx server.ts
-            git commit -m "fix: persist article SEO runtime repair"
+            git add src/components/AdminCmsModal.tsx src/components/CommentsModerationPanel.tsx src/components/landing/LandingPages.tsx src/utils/cmsApiClient.ts functions/api/wallet/analyze.ts
+            git commit -m "fix: repair production TypeScript mismatches"
             git push
           fi
       - name: Production build
