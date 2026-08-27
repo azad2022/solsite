@@ -44,9 +44,7 @@ function safeUrl(value: unknown): string {
   try {
     const url = new URL(raw, SITE);
     return url.protocol === 'https:' && url.hostname === new URL(SITE).hostname ? url.toString() : '';
-  } catch {
-    return '';
-  }
+  } catch { return ''; }
 }
 
 function isPublished(article: ArticleRow): boolean {
@@ -84,6 +82,12 @@ function setJsonLd(html: string, value: unknown): string {
   const tag = `<script id="solmint-taxonomy-ssr-jsonld" type="application/ld+json">${JSON.stringify(value).replace(/</g, '\\u003c')}</script>`;
   const rx = /<script[^>]*id=["']solmint-taxonomy-ssr-jsonld["'][^>]*>[\s\S]*?<\/script>/i;
   return rx.test(html) ? html.replace(rx, tag) : html.replace('</head>', `  ${tag}\n</head>`);
+}
+
+function setBootstrap(html: string, value: unknown): string {
+  const tag = `<script id="solmint-taxonomy-bootstrap" type="application/json">${JSON.stringify(value).replace(/</g, '\\u003c')}</script>`;
+  const rx = /<script[^>]*id=["']solmint-taxonomy-bootstrap["'][^>]*>[\s\S]*?<\/script>/i;
+  return rx.test(html) ? html.replace(rx, tag) : html.replace('</body>', `${tag}\n</body>`);
 }
 
 function renderCards(articles: ArticleRow[]): string {
@@ -147,7 +151,7 @@ export const onRequest = async (context: { request: Request; env?: Env; next: ()
     headers.set('Content-Type', 'text/html; charset=UTF-8');
     const indexable = articles.length >= 2;
     headers.set('X-Robots-Tag', indexable ? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' : 'noindex, follow');
-    headers.set('X-Solmint-SEO', `taxonomy-ssr-v2 category=${rawSlug} count=${articles.length}`);
+    headers.set('X-Solmint-SEO', `taxonomy-ssr-v3 category=${rawSlug} count=${articles.length}`);
     headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800');
 
     if (!baseResponse.ok) return new Response(baseResponse.body, { status: baseResponse.status, headers });
@@ -173,6 +177,29 @@ export const onRequest = async (context: { request: Request; env?: Env; next: ()
       } else if (!html.includes('id="solmint-taxonomy-ssr"')) {
         html = html.replace(/<body([^>]*)>/i, `<body$1>${shell}`);
       }
+      html = setBootstrap(html, {
+        type: 'category',
+        slug: rawSlug,
+        name: categoryName,
+        articles: articles.map(article => ({
+          id: String(article.id || ''),
+          title: String(article.title || ''),
+          slug: String(article.slug || ''),
+          category: categoryName,
+          tags: Array.isArray(article.tags) ? article.tags.map(String) : [],
+          summary: String(article.summary || ''),
+          content: '',
+          coverImage: String(article.cover_image || ''),
+          author: { name: 'تیم تحریریه سولمینت', role: '', avatar: '' },
+          publishedAt: String(article.published_at || ''),
+          publishedAtJalali: article.published_at_jalali ? String(article.published_at_jalali) : undefined,
+          publishedAtGregorian: article.published_at_gregorian ? String(article.published_at_gregorian) : undefined,
+          readTimeMinutes: Number(article.read_time_minutes || 5),
+          viewsCount: 0,
+          comments: [],
+          isDraft: false
+        }))
+      });
     }
 
     html = setJsonLd(html, indexable ? {
@@ -202,7 +229,6 @@ export const onRequest = async (context: { request: Request; env?: Env; next: ()
 
     return new Response(html, { status: baseResponse.status, headers });
   } catch (error) {
-    // Preserve the already-valid application response during transient enrichment failures.
     console.error('Taxonomy SSR failed:', error);
     return new Response(baseResponse.body, { status: baseResponse.status, statusText: baseResponse.statusText, headers: baseHeaders });
   }
