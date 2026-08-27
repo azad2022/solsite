@@ -37,7 +37,7 @@ https://solmint.ir/
 For future authenticated APIs, Solmint will publish the applicable OAuth Protected Resource Metadata and authorization-server metadata before requiring agent credentials.
 `;
 
-export const onRequest: PagesFunction = async () => {
+export const onRequest = async () => {
   return new Response(AUTH_MD, {
     status: 200,
     headers: {
