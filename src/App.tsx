@@ -71,7 +71,7 @@ const AdminQuickActionsPortal: React.FC<{ enabled: boolean; onOpenMarket: () => 
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePath(window.location.pathname || '/'));
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => safeGetLocalStorage<UserAccount | null>('solmint_current_user', null));
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [downloadLinks, setDownloadLinks] = useState<DownloadLinks>(() => safeGetLocalStorage<DownloadLinks>('solmint_download_links', DEFAULT_DOWNLOAD_LINKS));
   const [deepseekSettings, setDeepseekSettings] = useState<DeepSeekAiSettings>(() => safeGetLocalStorage<DeepSeekAiSettings>('solmint_deepseek_settings', DEFAULT_DEEPSEEK_SETTINGS));
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(() => safeGetLocalStorage<ChatbotSettings>('solmint_chatbot_settings', DEFAULT_CHATBOT_SETTINGS));
@@ -82,6 +82,18 @@ export default function App() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isShowcaseAdminOpen, setIsShowcaseAdminOpen] = useState(false);
   const [isMemeTickerAdminOpen, setIsMemeTickerAdminOpen] = useState(false);
+
+  // Authentication is server-owned. Restore the current account from the HttpOnly cookie on refresh.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/users/me', { credentials: 'include', cache: 'no-store' })
+      .then(async res => {
+        const data = await res.json().catch(() => null);
+        if (!cancelled && res.ok && data?.success && data.user) setCurrentUser(data.user);
+      })
+      .catch(() => { /* Anonymous browsing is the valid fallback state. */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
