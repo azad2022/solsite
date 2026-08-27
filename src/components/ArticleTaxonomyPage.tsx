@@ -57,17 +57,20 @@ export const ArticleTaxonomyPage: React.FC<ArticleTaxonomyPageProps> = ({ articl
           <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 text-center text-slate-400">مقاله‌ای در این {typeLabel} پیدا نشد.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {matchingArticles.map(article => (
-              <article key={article.id} className="glass-card rounded-2xl border border-slate-800 overflow-hidden flex flex-col">
-                {article.coverImage && <a href={`/article/${article.slug}`} onClick={event => { event.preventDefault(); onNavigate(`/article/${article.slug}`); }} className="block h-48 overflow-hidden bg-slate-900"><img src={article.coverImage} alt={article.title} loading="lazy" className="w-full h-full object-cover" /></a>}
-                <div className="p-5 flex-1 flex flex-col">
-                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 mb-3"><time dateTime={getArticleDateTime(article) || undefined}>{formatArticleDisplayDate(article)}</time><span aria-hidden="true">•</span><span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" aria-hidden="true" />{article.readTimeMinutes} دقیقه مطالعه</span></div>
-                  <h2 className="text-lg font-bold text-white leading-8"><a href={`/article/${article.slug}`} onClick={event => { event.preventDefault(); onNavigate(`/article/${article.slug}`); }} className="hover:text-sky-300 transition-colors">{article.title}</a></h2>
-                  <p className="mt-2 text-sm text-slate-400 leading-7 line-clamp-3">{article.summary}</p>
-                  <div className="mt-auto pt-4 flex flex-wrap gap-1.5">{article.tags.slice(0, 6).map(tag => { const item = getArticleTagTaxonomy([tag])[0]; if (!item) return null; return <a key={tag} href={buildTaxonomyUrl(item)} onClick={event => { event.preventDefault(); onNavigate(buildTaxonomyUrl(item)); }} className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-400 hover:text-sky-300">#{tag}</a>; })}</div>
-                </div>
-              </article>
-            ))}
+            {matchingArticles.map(article => {
+              const articleTags = Array.isArray(article.tags) ? article.tags : [];
+              return (
+                <article key={article.id} className="glass-card rounded-2xl border border-slate-800 overflow-hidden flex flex-col">
+                  {article.coverImage && <a href={`/article/${article.slug}`} onClick={event => { event.preventDefault(); onNavigate(`/article/${article.slug}`); }} className="block h-48 overflow-hidden bg-slate-900"><img src={article.coverImage} alt={article.title} loading="lazy" className="w-full h-full object-cover" /></a>}
+                  <div className="p-5 flex-1 flex flex-col">
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 mb-3"><time dateTime={getArticleDateTime(article) || undefined}>{formatArticleDisplayDate(article)}</time><span aria-hidden="true">•</span><span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" aria-hidden="true" />{article.readTimeMinutes} دقیقه مطالعه</span></div>
+                    <h2 className="text-lg font-bold text-white leading-8"><a href={`/article/${article.slug}`} onClick={event => { event.preventDefault(); onNavigate(`/article/${article.slug}`); }} className="hover:text-sky-300 transition-colors">{article.title}</a></h2>
+                    <p className="mt-2 text-sm text-slate-400 leading-7 line-clamp-3">{article.summary}</p>
+                    <div className="mt-auto pt-4 flex flex-wrap gap-1.5">{articleTags.slice(0, 6).map(tag => { const item = getArticleTagTaxonomy([tag])[0]; if (!item) return null; return <a key={tag} href={buildTaxonomyUrl(item)} onClick={event => { event.preventDefault(); onNavigate(buildTaxonomyUrl(item)); }} className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-400 hover:text-sky-300">#{tag}</a>; })}</div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
