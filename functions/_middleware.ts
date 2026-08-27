@@ -5,6 +5,30 @@ type PagesContext = {
 
 type MiddlewareHandler = (context: PagesContext) => Promise<Response>;
 
+const BLOCKED_SENSITIVE_PATHS = new Set([
+  '/.env',
+  '/.env.local',
+  '/.env.production',
+  '/.git/config',
+  '/backup.tar',
+  '/backup.tar.gz',
+  '/backup.zip',
+  '/database.sql',
+  '/db.sql',
+  '/dump.sql',
+]);
+
+function isSensitivePath(request: Request): boolean {
+  const pathname = new URL(request.url).pathname.toLowerCase();
+  if (BLOCKED_SENSITIVE_PATHS.has(pathname)) return true;
+
+  // Never allow common archive/database backup extensions to fall through
+  // to the SPA HTML response, even when no static file exists.
+  if (/\.(?:tar|tar\.gz|tgz|zip|sql|sqlite|sqlite3)$/i.test(pathname)) return true;
+
+  return false;
+}
+
 function acceptsMarkdown(request: Request): boolean {
   const accept = request.headers.get('Accept') || '';
   return accept
@@ -116,6 +140,17 @@ function approximateTokens(text: string): number {
 }
 
 const markdownMiddleware: MiddlewareHandler = async (context) => {
+  if (isSensitivePath(context.request)) {
+    return new Response('Not Found', {
+      status: 404,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=60, s-maxage=300',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+  }
+
   if (!acceptsMarkdown(context.request)) return context.next();
 
   const origin = await context.next();
