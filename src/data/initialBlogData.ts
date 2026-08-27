@@ -39,7 +39,20 @@ export const INITIAL_TESTIMONIALS: Testimonial[] = [
   }
 ];
 
-export const INITIAL_ARTICLES: Article[] = [];
+function readArticleBootstrap(): Article[] {
+  if (typeof document === 'undefined') return [];
+  try {
+    const node = document.getElementById('solmint-article-bootstrap');
+    const raw = node?.textContent?.trim();
+    if (!raw) return [];
+    const article = JSON.parse(raw) as Article;
+    return article?.slug && article?.title ? [article] : [];
+  } catch {
+    return [];
+  }
+}
+
+export const INITIAL_ARTICLES: Article[] = readArticleBootstrap();
 
 export const INITIAL_MEDIA_ITEMS: MediaItem[] = [
   {
