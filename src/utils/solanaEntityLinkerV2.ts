@@ -1,4 +1,5 @@
 export interface SolanaEntityDefinition { id: string; slug: string; aliases: string[]; priority: number; }
+export interface InternalArticleLinkCandidate { title: string; slug: string; priority?: number; }
 
 const BASE = '/article/';
 
@@ -30,9 +31,21 @@ function hasBoundary(text: string, start: number, end: number, alias: string) {
 }
 
 function protectedRegions(markdown: string) {
-  const patterns = [/```[\s\S]*?```/g, /`[^`\n]+`/g, /!\[[^\]]*\]\([^\n)]*\)/g, /\[[^\]]+\]\([^\n)]*\)/g, /<a\b[^>]*>[\s\S]*?<\/a>/gi, /https?:\/\/[^\s)]+/gi];
+  const patterns = [
+    /```[\s\S]*?```/g,
+    /`[^`\n]+`/g,
+    /!\[[^\]]*\]\([^\n)]*\)/g,
+    /\[[^\]]+\]\([^\n)]*\)/g,
+    /<a\b[^>]*>[\s\S]*?<\/a>/gi,
+    /https?:\/\/[^\s)]+/gi,
+    /^#{1,6}\s+.*$/gm
+  ];
   const blocks: Array<{ start: number; end: number }> = [];
-  for (const pattern of patterns) for (const match of markdown.matchAll(pattern)) if (match.index !== undefined) blocks.push({ start: match.index, end: match.index + match[0].length });
+  for (const pattern of patterns) {
+    for (const match of markdown.matchAll(pattern)) {
+      if (match.index !== undefined) blocks.push({ start: match.index, end: match.index + match[0].length });
+    }
+  }
   blocks.sort((a, b) => a.start - b.start || a.end - b.end);
   return blocks.filter((block, index) => index === 0 || block.start >= blocks[index - 1].end);
 }
@@ -55,7 +68,27 @@ function insertOne(markdown: string, alias: string, href: string, currentSlug: s
   return { content: markdown, changed: false };
 }
 
-export function linkSolanaEntities(markdown: string, options: { currentSlug?: string; maxLinks?: number; maxPerEntity?: number } = {}) {
+function articleCandidates(articles: InternalArticleLinkCandidate[] = []) {
+  return articles
+    .filter(article => article && article.title && article.slug)
+    .map(article => ({
+      title: String(article.title).trim(),
+      slug: String(article.slug).trim(),
+      priority: Number(article.priority || 0)
+    }))
+    .filter(article => article.title.length >= 8 && article.slug)
+    .sort((a, b) => b.title.length - a.title.length || b.priority - a.priority);
+}
+
+export function linkSolanaEntities(
+  markdown: string,
+  options: {
+    currentSlug?: string;
+    maxLinks?: number;
+    maxPerEntity?: number;
+    articles?: InternalArticleLinkCandidate[];
+  } = {}
+) {
   let result = String(markdown || '');
   const currentSlug = options.currentSlug || '';
   const maxLinks = Math.max(0, options.maxLinks ?? 5);
@@ -75,5 +108,17 @@ export function linkSolanaEntities(markdown: string, options: { currentSlug?: st
       added += 1;
     }
   }
+
+  if (added >= maxLinks) return result;
+
+  for (const article of articleCandidates(options.articles)) {
+    if (added >= maxLinks) break;
+    if (article.slug === currentSlug) continue;
+    const outcome = insertOne(result, article.title, `${BASE}${article.slug}`, currentSlug);
+    if (!outcome.changed) continue;
+    result = outcome.content;
+    added += 1;
+  }
+
   return result;
 }
