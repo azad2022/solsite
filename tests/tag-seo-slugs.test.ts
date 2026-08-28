@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORY_SLUGS } from '../src/config/articleTaxonomy';
-import { TAG_SEO } from '../src/config/tagSeo';
-import { generateSlugFromTitle } from '../src/utils/slugUtils';
+import { CATEGORY_SLUGS } from '../src/config/articleTaxonomy.ts';
+import { TAG_SEO } from '../src/config/tagSeo.ts';
+import { generateSlugFromTitle } from '../src/utils/slugUtils.ts';
 
 test('curated tag SEO keys use canonical generated slugs', () => {
   const canonicalTagNames = [
