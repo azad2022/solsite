@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/apply-contextual-internal-linking.mjs && node scripts/harden-category-seo.mjs && node scripts/harden-new-meme-coin-tag-seo.mjs && tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
