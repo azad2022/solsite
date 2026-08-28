@@ -19,14 +19,14 @@ if (!next.includes(entityImport)) {
 }
 
 const renderMarker = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }}';
-const renderReplacement = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(linkSolanaEntities(readingArticle.content, { currentSlug: readingArticle.slug, maxLinks: 5, maxPerEntity: 1 })) }}';
+const renderReplacement = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(linkSolanaEntities(readingArticle.content, { currentSlug: readingArticle.slug, maxLinks: 5, maxPerEntity: 1, articles: articles.map(article => ({ title: article.title, slug: article.slug })) })) }}';
 
-if (next.includes(renderMarker) && !next.includes('linkSolanaEntities(readingArticle.content')) {
+if (next.includes(renderMarker) && !next.includes('articles: articles.map(article => ({ title: article.title, slug: article.slug }))')) {
   next = next.replace(renderMarker, renderReplacement);
 }
 
-if (!next.includes('linkSolanaEntities(readingArticle.content')) {
-  throw new Error('Internal linking failed: article renderer was not patched.');
+if (!next.includes('articles: articles.map(article => ({ title: article.title, slug: article.slug }))')) {
+  throw new Error('Internal linking failed: article renderer was not patched with the article catalog.');
 }
 
 if (next !== source) {
