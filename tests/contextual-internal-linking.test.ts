@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linkContextualInternalReferences } from '../src/utils/contextualInternalLinking';
+import { linkContextualInternalReferences } from '../src/utils/contextualInternalLinking.ts';
 
 test('links a relevant phrase to the highest-priority target', () => {
   const input = 'برای شروع، بهتر است راهنمای کیف پول سولانا و نکات امنیتی آن را بخوانید.';
