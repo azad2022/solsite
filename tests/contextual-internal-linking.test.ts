@@ -40,3 +40,21 @@ test('does not invent anchors that are absent from the source text', () => {
 
   assert.equal(output, input);
 });
+
+test('does not use dynamic article tags as automatic anchors', () => {
+  const input = 'این مقاله درباره سولانا و کیف پول است.';
+  const output = linkContextualInternalReferences(input, [
+    { slug: 'article-a', title: 'راهنمای کامل اکوسیستم', aliases: [], priority: 80 },
+  ], { currentSlug: 'source', maxLinks: 5 });
+
+  assert.equal(output, input);
+});
+
+test('allows curated single-word aliases only when explicitly supplied', () => {
+  const input = 'Jupiter یکی از ابزارهای مهم اکوسیستم سولانا است.';
+  const output = linkContextualInternalReferences(input, [
+    { slug: 'jupiter', title: 'راهنمای کامل ژوپیتر سولانا', aliases: ['Jupiter'], priority: 90 },
+  ], { currentSlug: 'source', maxLinks: 1 });
+
+  assert.match(output, /\[Jupiter\]\(\/article\/jupiter\)/);
+});
