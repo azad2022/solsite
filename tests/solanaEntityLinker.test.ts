@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { linkSolanaEntities } from '../src/utils/solanaEntityLinker';
+import { linkSolanaEntities } from '../src/utils/solanaEntityLinker.ts';
 
 test('adds contextual entity links with a hard article cap', () => {
   const input = 'Jupiter و Raydium و Kamino و Jito در دیفای سولانا مهم هستند.';
