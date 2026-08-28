@@ -33,6 +33,12 @@ const normalize = (value: string) => String(value || '')
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const isLatinLike = (value: string) => /[A-Za-z0-9]/.test(value);
+const escapeHtml = (value: string) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
 
 function phraseUseful(value: string, allowSingleWord = false): boolean {
   const text = normalize(value);
@@ -54,7 +60,7 @@ function uniqueAliases(target: InternalLinkTarget): string[] {
   );
 }
 
-function protectedRanges(markdown: string) {
+function protectedRanges(markup: string) {
   const patterns = [
     /```[\s\S]*?```/g,
     /`[^`\n]+`/g,
@@ -65,7 +71,7 @@ function protectedRanges(markdown: string) {
   ];
   const ranges: Array<{ start: number; end: number }> = [];
   for (const pattern of patterns) {
-    for (const match of markdown.matchAll(pattern)) {
+    for (const match of markup.matchAll(pattern)) {
       if (match.index !== undefined) ranges.push({ start: match.index, end: match.index + match[0].length });
     }
   }
@@ -93,18 +99,18 @@ function languageCompatible(target: InternalLinkTarget, language?: 'fa' | 'en') 
   return target.language === language;
 }
 
-function findCandidate(markdown: string, aliases: string[], ranges: Array<{ start: number; end: number }>) {
+function findCandidate(markup: string, aliases: string[], ranges: Array<{ start: number; end: number }>) {
   for (const alias of aliases) {
     const expression = new RegExp(escapeRegex(alias), isLatinLike(alias) ? 'gi' : 'gu');
     let match: RegExpExecArray | null;
-    while ((match = expression.exec(markdown))) {
+    while ((match = expression.exec(markup))) {
       const start = match.index;
       const end = start + match[0].length;
       if (inProtected(start, ranges)) continue;
-      if (!boundarySafe(markdown, start, end, alias)) continue;
-      const lineStart = markdown.lastIndexOf('\n', start - 1) + 1;
-      const lineEnd = markdown.indexOf('\n', start) === -1 ? markdown.length : markdown.indexOf('\n', start);
-      const line = markdown.slice(lineStart, lineEnd);
+      if (!boundarySafe(markup, start, end, alias)) continue;
+      const lineStart = markup.lastIndexOf('\n', start - 1) + 1;
+      const lineEnd = markup.indexOf('\n', start) === -1 ? markup.length : markup.indexOf('\n', start);
+      const line = markup.slice(lineStart, lineEnd);
       if (/^\s{0,3}#{1,6}\s/.test(line)) continue;
       return { start, end, alias };
     }
@@ -126,6 +132,7 @@ export function linkContextualInternalReferences(
   if (!maxLinks) return result;
 
   const currentSlug = normalize(options.currentSlug || '');
+  const htmlMode = /<\/?[a-z][\s\S]*>/i.test(result);
   const candidates = targets
     .filter(target => target.slug && normalize(target.slug) !== currentSlug)
     .filter(target => languageCompatible(target, language))
@@ -156,7 +163,10 @@ export function linkContextualInternalReferences(
     if (!match) continue;
 
     const href = candidate.target.href || `/article/${encodeURIComponent(candidate.target.slug)}`;
-    const replacement = `[${result.slice(match.start, match.end)}](${href})`;
+    const sourceLabel = result.slice(match.start, match.end);
+    const replacement = htmlMode
+      ? `<a href="${escapeHtml(href)}">${escapeHtml(sourceLabel)}</a>`
+      : `[${sourceLabel}](${href})`;
     result = `${result.slice(0, match.start)}${replacement}${result.slice(match.end)}`;
     used.add(key);
     targetCounts.set(key, count + 1);
