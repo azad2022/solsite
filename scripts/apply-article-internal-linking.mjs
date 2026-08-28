@@ -4,34 +4,27 @@ const filePath = 'src/components/BlogHub.tsx';
 const source = fs.readFileSync(filePath, 'utf8');
 let next = source;
 
-const entityImport = "import { linkSolanaEntities } from '../utils/solanaEntityLinkerV2';";
-if (!next.includes(entityImport)) {
-  const oldEntityImport = "import { linkSolanaEntities } from '../utils/solanaEntityLinker';";
-  if (next.includes(oldEntityImport)) {
-    next = next.replace(oldEntityImport, entityImport);
-  } else {
-    const taxonomyImport = "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';";
-    if (!next.includes(taxonomyImport)) {
-      throw new Error('Internal linking failed: taxonomy import anchor not found.');
-    }
-    next = next.replace(taxonomyImport, `${taxonomyImport}\n${entityImport}`);
-  }
+const htmlImport = "import { linkContextualHtml } from '../utils/contextualHtmlLinking';";
+if (!next.includes(htmlImport)) {
+  const taxonomyImport = "import { buildTaxonomyUrl, getArticleCategoryTaxonomy, getArticleTagTaxonomy } from '../utils/articleTaxonomy';";
+  if (!next.includes(taxonomyImport)) throw new Error('Internal linking failed: taxonomy import anchor not found.');
+  next = next.replace(taxonomyImport, `${taxonomyImport}\n${htmlImport}`);
 }
 
 const renderMarker = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(readingArticle.content) }}';
-const renderReplacement = 'dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(linkSolanaEntities(readingArticle.content, { currentSlug: readingArticle.slug, maxLinks: 5, maxPerEntity: 1 })) }}';
+const renderReplacement = "dangerouslySetInnerHTML={{ __html: linkContextualHtml(renderMarkdownToHtml(readingArticle.content), articles.map(article => ({ title: article.title, slug: article.slug })), { currentSlug: readingArticle.slug, maxLinks: 5 }) }}";
 
-if (next.includes(renderMarker) && !next.includes('linkSolanaEntities(readingArticle.content')) {
+if (next.includes(renderMarker) && !next.includes('linkContextualHtml(renderMarkdownToHtml(readingArticle.content)')) {
   next = next.replace(renderMarker, renderReplacement);
 }
 
-if (!next.includes('linkSolanaEntities(readingArticle.content')) {
-  throw new Error('Internal linking failed: article renderer was not patched.');
+if (!next.includes('linkContextualHtml(renderMarkdownToHtml(readingArticle.content)')) {
+  throw new Error('Internal linking failed: HTML-aware article renderer was not patched.');
 }
 
 if (next !== source) {
   fs.writeFileSync(filePath, next, 'utf8');
-  console.log('✓ Contextual internal article linking wired into production article rendering.');
+  console.log('✓ HTML-aware contextual internal article linking wired into production reader.');
 } else {
-  console.log('✓ Contextual internal article linking already wired; no changes required.');
+  console.log('✓ HTML-aware contextual internal article linking already wired; no changes required.');
 }
