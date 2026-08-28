@@ -69,6 +69,18 @@ if (next.includes(oldCallBlock) && !next.includes("const contextualLinkData = aw
 const oldReturn = "return new Response(inject(html, article, related), { status: 200, headers });";
 if (next.includes(oldReturn)) next = next.replace(oldReturn, "return new Response(inject(html, article, related, contextualContent), { status: 200, headers });");
 
-if (next === source) throw new Error('No contextual-linking SSR changes applied');
+if (next === source) {
+  const alreadyApplied = next.includes(importLine)
+    && next.includes(cacheMarker)
+    && next.includes('function inject(html: string, article: ArticleRecord, related: RelatedArticle[], contextualContent: string)')
+    && next.includes('const [related, internalLinkTargets] = await Promise.all([')
+    && next.includes('return new Response(inject(html, article, related, contextualContent), { status: 200, headers });');
+  if (alreadyApplied) {
+    console.log('✓ Contextual internal linking SSR wiring already applied.');
+    process.exit(0);
+  }
+  throw new Error('No contextual-linking SSR changes applied');
+}
+
 fs.writeFileSync(file, next);
 console.log('✓ Contextual internal linking SSR wiring applied.');
