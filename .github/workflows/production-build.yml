@@ -56,7 +56,7 @@ jobs:
           grep -Fq 'const [related, internalLinkTargets] = await Promise.all' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
-          grep -Fq '"/article/*"' 'public/_routes.json'
+          grep -Fq '/article/*' 'public/_routes.json'
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
