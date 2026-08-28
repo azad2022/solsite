@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { generateSeoFilename } from '../src/utils/mediaService';
+import { generateSeoFilename } from '../src/utils/mediaService.ts';
 
 test('generates a stable SEO-friendly filename from Persian text', () => {
   assert.equal(
