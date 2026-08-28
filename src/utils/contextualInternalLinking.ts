@@ -2,7 +2,6 @@ export type InternalLinkTarget = {
   slug: string;
   title: string;
   aliases?: string[];
-  tags?: string[];
   category?: string;
   language?: string;
   priority?: number;
@@ -16,7 +15,10 @@ export type ContextualLinkOptions = {
   language?: 'fa' | 'en';
 };
 
-const STOPWORDS = new Set(['این','آن','یک','برای','از','به','در','با','و','یا','که','را','است','هست','the','a','an','and','or','for','to','of','in','on','with','is','are']);
+const STOPWORDS = new Set([
+  'این','آن','یک','برای','از','به','در','با','و','یا','که','را','است','هست',
+  'the','a','an','and','or','for','to','of','in','on','with','is','are'
+]);
 
 const normalize = (value: string) => String(value || '')
   .normalize('NFKC')
@@ -32,20 +34,19 @@ const normalize = (value: string) => String(value || '')
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const isLatinLike = (value: string) => /[A-Za-z0-9]/.test(value);
 
-function phraseUseful(value: string): boolean {
+function phraseUseful(value: string, allowSingleWord = false): boolean {
   const text = normalize(value);
   const words = text.split(/\s+/).filter(Boolean);
   if (!text || words.length === 0) return false;
-  if (words.length === 1) return text.length >= 5 && !STOPWORDS.has(text);
+  if (words.length === 1) return allowSingleWord && text.length >= 4 && !STOPWORDS.has(text);
   return words.every(word => word.length >= 3 && !STOPWORDS.has(word));
 }
 
 function uniqueAliases(target: InternalLinkTarget): string[] {
-  const values = [target.title, ...(target.aliases || []), ...(target.tags || [])]
+  const values = [target.title, ...(target.aliases || [])]
     .map(normalize)
-    .filter(phraseUseful);
-  return [...new Set(values)]
-    .sort((a, b) => b.length - a.length || b.split(' ').length - a.split(' ').length);
+    .filter(value => phraseUseful(value, Boolean(target.aliases?.includes(value)) && isLatinLike(value)));
+  return [...new Set(values)].sort((a, b) => b.length - a.length || b.split(' ').length - a.split(' ').length);
 }
 
 function protectedRanges(markdown: string) {
