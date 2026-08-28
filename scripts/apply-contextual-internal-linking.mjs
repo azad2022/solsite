@@ -52,6 +52,38 @@ async function fetchInternalLinkTargets(base: string, key: string) {
   next = next.replace("const SITE_ORIGIN = 'https://solmint.ir';", "const SITE_ORIGIN = 'https://solmint.ir';" + cacheBlock);
 }
 
+const markdownRendererMarker = 'function renderPlainMarkdownParagraph(line: string) {';
+if (!next.includes(markdownRendererMarker)) {
+  const rendererBlock = `
+function renderPlainMarkdownParagraph(line: string) {
+  const source = String(line || '');
+  const parts: string[] = [];
+  let cursor = 0;
+  const tokenPattern = /\\[([^\\]]+)\\]\\(([^\\s)]+)(?:\\s+['\"][^'\"]*['\"])?\\)|\\*\\*([^*]+)\\*\\*/g;
+  let match: RegExpExecArray | null;
+  while ((match = tokenPattern.exec(source))) {
+    if (match.index > cursor) parts.push(escapeHtml(source.slice(cursor, match.index)));
+    if (match[3] !== undefined) {
+      parts.push('<strong>' + escapeHtml(match[3]) + '</strong>');
+    } else {
+      const href = safeUrl(match[2]);
+      const label = escapeHtml(match[1]);
+      parts.push(href === '#' ? label : '<a href="' + escapeHtml(href) + '">' + label + '</a>');
+    }
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < source.length) parts.push(escapeHtml(source.slice(cursor)));
+  return parts.join('');
+}
+`;
+  const rendererAnchor = "function renderBody(value: string) {";
+  if (!next.includes(rendererAnchor)) throw new Error('renderBody anchor not found');
+  next = next.replace(rendererAnchor, rendererBlock + `\n${rendererAnchor}`);
+  const oldParagraph = "out.push('<p>' + escapeHtml(line) + '</p>');";
+  if (!next.includes(oldParagraph)) throw new Error('plain paragraph renderer marker not found');
+  next = next.replace(oldParagraph, "out.push('<p>' + renderPlainMarkdownParagraph(line) + '</p>');");
+}
+
 const oldRender = "function inject(html: string, article: ArticleRecord, related: RelatedArticle[]) {";
 if (next.includes(oldRender) && !next.includes("contextualContent: string")) {
   next = next.replace(oldRender, "function inject(html: string, article: ArticleRecord, related: RelatedArticle[], contextualContent: string) {");
@@ -61,7 +93,7 @@ if (next.includes(oldRender) && !next.includes("contextualContent: string")) {
 }
 
 const oldCallBlock = "const related = await fetchRelated(base, key, article);";
-if (next.includes(oldCallBlock) && !next.includes("const contextualLinkData = await Promise.all")) {
+if (next.includes(oldCallBlock) && !next.includes("const [related, internalLinkTargets] = await Promise.all([")) {
   const newBlock = `const [related, internalLinkTargets] = await Promise.all([\n      fetchRelated(base, key, article),\n      fetchInternalLinkTargets(base, key)\n    ]);\n    const locale = detectArticleLocale(article);\n    const contextualContent = linkContextualInternalReferences(article.content || '', internalLinkTargets, { currentSlug: article.slug, language: locale.lang, maxLinks: 5, maxPerTarget: 1 });`;
   next = next.replace(oldCallBlock, newBlock);
 }
@@ -72,6 +104,7 @@ if (next.includes(oldReturn)) next = next.replace(oldReturn, "return new Respons
 if (next === source) {
   const alreadyApplied = next.includes(importLine)
     && next.includes(cacheMarker)
+    && next.includes(markdownRendererMarker)
     && next.includes('function inject(html: string, article: ArticleRecord, related: RelatedArticle[], contextualContent: string)')
     && next.includes('const [related, internalLinkTargets] = await Promise.all([')
     && next.includes('return new Response(inject(html, article, related, contextualContent), { status: 200, headers });');
