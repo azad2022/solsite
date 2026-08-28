@@ -43,10 +43,15 @@ function phraseUseful(value: string, allowSingleWord = false): boolean {
 }
 
 function uniqueAliases(target: InternalLinkTarget): string[] {
-  const values = [target.title, ...(target.aliases || [])]
-    .map(normalize)
-    .filter(value => phraseUseful(value, Boolean(target.aliases?.includes(value)) && isLatinLike(value)));
-  return [...new Set(values)].sort((a, b) => b.length - a.length || b.split(' ').length - a.split(' ').length);
+  const title = normalize(target.title);
+  const aliases = (target.aliases || []).map(normalize);
+  const values = [
+    ...(phraseUseful(title) ? [title] : []),
+    ...aliases.filter(value => phraseUseful(value, true))
+  ];
+  return [...new Set(values)].sort(
+    (a, b) => b.length - a.length || b.split(' ').length - a.split(' ').length
+  );
 }
 
 function protectedRanges(markdown: string) {
@@ -127,7 +132,10 @@ export function linkContextualInternalReferences(
     .map(target => {
       const aliases = uniqueAliases(target);
       const matches = aliases.some(alias => normalize(result).includes(alias));
-      const specificity = aliases.reduce((best, item) => Math.max(best, item.length + item.split(' ').length * 4), 0);
+      const specificity = aliases.reduce(
+        (best, item) => Math.max(best, item.length + item.split(' ').length * 4),
+        0
+      );
       return { target, aliases, matches, score: specificity + Number(target.priority || 0) };
     })
     .filter(item => item.matches && item.aliases.length)
