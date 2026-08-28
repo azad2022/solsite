@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/apply-contextual-internal-linking.mjs && node scripts/harden-category-seo.mjs && node scripts/harden-new-meme-coin-tag-seo.mjs && tsc --noEmit",
-    "test": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/**/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -21,14 +21,14 @@
     "compression": "^1.8.1",
     "dotenv": "^17.2.3",
     "esbuild": "0.28.2",
-    "express": "^4.22.2",
+    "express": "^4.21.2",
     "lucide-react": "^0.546.0",
-    "motion": "^12.43.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1"
   },
   "devDependencies": {
-    "@types/compression": "^1.8.1",
+    "@types/compression": "^1.8.0",
     "@types/node": "^22.20.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
