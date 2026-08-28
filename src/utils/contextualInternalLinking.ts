@@ -97,9 +97,10 @@ function findCandidate(markdown: string, aliases: string[], ranges: Array<{ star
       if (inProtected(start, ranges)) continue;
       if (!boundarySafe(markdown, start, end, alias)) continue;
       const lineStart = markdown.lastIndexOf('\n', start - 1) + 1;
-      const line = markdown.slice(lineStart, markdown.indexOf('\n', start) === -1 ? markdown.length : markdown.indexOf('\n', start));
+      const lineEnd = markdown.indexOf('\n', start) === -1 ? markdown.length : markdown.indexOf('\n', start);
+      const line = markdown.slice(lineStart, lineEnd);
       if (/^\s{0,3}#{1,6}\s/.test(line)) continue;
-      return { start, end, alias, length: alias.length };
+      return { start, end, alias };
     }
   }
   return null;
@@ -124,8 +125,7 @@ export function linkContextualInternalReferences(
     .filter(target => languageCompatible(target, language))
     .map(target => {
       const aliases = uniqueAliases(target);
-      const alias = aliases[0] || '';
-      const matches = alias ? normalize(result).includes(alias) : false;
+      const matches = aliases.some(alias => normalize(result).includes(alias));
       const specificity = aliases.reduce((best, item) => Math.max(best, item.length + item.split(' ').length * 4), 0);
       return { target, aliases, matches, score: specificity + Number(target.priority || 0) };
     })
@@ -134,11 +134,13 @@ export function linkContextualInternalReferences(
 
   const used = new Set<string>();
   let added = 0;
+  const targetCounts = new Map<string, number>();
 
   for (const candidate of candidates) {
     if (added >= maxLinks) break;
     const key = normalize(candidate.target.href || `/article/${candidate.target.slug}`);
-    if (used.has(key)) continue;
+    const count = targetCounts.get(key) || 0;
+    if (used.has(key) || count >= maxPerTarget) continue;
 
     const ranges = protectedRanges(result);
     const match = findCandidate(result, candidate.aliases, ranges);
@@ -148,8 +150,8 @@ export function linkContextualInternalReferences(
     const replacement = `[${result.slice(match.start, match.end)}](${href})`;
     result = `${result.slice(0, match.start)}${replacement}${result.slice(match.end)}`;
     used.add(key);
+    targetCounts.set(key, count + 1);
     added += 1;
-    if (maxPerTarget <= 1) continue;
   }
 
   return result;
