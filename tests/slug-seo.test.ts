@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { generateSlugFromTitle } from '../src/utils/slugUtils';
+import { generateSlugFromTitle } from '../src/utils/slugUtils.ts';
 
 test('generates an ASCII slug for Persian article titles', () => {
   const slug = generateSlugFromTitle('چرا کیف پول‌های غیرامانی سولانا با الگوریتم Ed25519 امن‌ترین گزینه هستند؟');
