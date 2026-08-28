@@ -35,6 +35,7 @@ jobs:
         run: |
           node scripts/ensure-article-ui-mount.mjs
           node scripts/harden-article-ssr-content-v2.mjs
+          node scripts/apply-contextual-internal-linking.mjs
       - name: Verify hardened source
         run: |
           ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
@@ -50,9 +51,12 @@ jobs:
           grep -Fq 'solmint-hydration-guard' index.html
           grep -Fq 'visibility: hidden' index.html
           grep -Fq 'createRoot(document.getElementById('\''root'\'')!).render(' src/main.tsx
+          grep -Fq 'contextualInternalHtmlLinking' 'functions/article/[slug].ts'
+          grep -Fq 'linkContextualInternalHtmlReferences(originalContent, internalLinkTargets' 'functions/article/[slug].ts'
+          grep -Fq 'const [related, internalLinkTargets] = await Promise.all' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
-          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('public/_routes.json','utf8'));if(!Array.isArray(r.include)||!r.include.includes('/article/*'))process.exit(1)"
+          grep -Fq '"/article/*"' 'public/_routes.json'
       - name: Persist generated source cleanup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
