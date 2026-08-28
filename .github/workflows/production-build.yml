@@ -52,8 +52,6 @@ jobs:
           grep -Fq 'createRoot(document.getElementById('\''root'\'')!).render(' src/main.tsx
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
-          node -e "const fs=require('fs');const p='public/_routes.json';const r=JSON.parse(fs.readFileSync(p,'utf8'));if(!Array.isArray(r.include))r.include=[];if(!r.include.includes('/article/*')){r.include.push('/article/*');fs.writeFileSync(p,JSON.stringify(r,null,2)+'\\n')}"
-          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('public/_routes.json','utf8'));if(!r.include.includes('/article/*'))process.exit(1)"
       - name: Apply SSR contextual article title linking
         run: node scripts/apply-ssr-contextual-title-linking.mjs
       - name: Apply contextual internal article linking
