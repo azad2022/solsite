@@ -11,6 +11,22 @@ export type ContextualLinkOptions = {
   maxLinks?: number;
 };
 
+export const CONTEXTUAL_PAGE_TARGETS: ContextualLinkTarget[] = [
+  { slug: 'solana-wallet-page', title: 'کیف پول سولانا', aliases: ['کیف پول سولانا'], priority: 100, href: '/solana-wallet' },
+  { slug: 'solana-token-page', title: 'ساخت توکن سولانا', aliases: ['ساخت توکن سولانا'], priority: 98, href: '/solana-token' },
+  { slug: 'solana-meme-coin-page', title: 'ساخت میم کوین سولانا', aliases: ['ساخت میم کوین سولانا'], priority: 94, href: '/solana-meme-coin' },
+  { slug: 'solana-price-page', title: 'قیمت سولانا', aliases: ['قیمت سولانا'], priority: 86, href: '/solana-price' },
+  { slug: 'wallet-analyzer-page', title: 'بررسی کیف پول', aliases: ['بررسی کیف پول', 'تحلیل کیف پول'], priority: 82, href: '/wallet-analyzer' },
+  { slug: 'security-page', title: 'امنیت سولانا', aliases: ['امنیت سولانا'], priority: 78, href: '/security' }
+];
+
+export function buildContextualLinkTargets(articles: Array<Pick<ContextualLinkTarget, 'slug' | 'title'>> = []) {
+  const articleTargets = Array.isArray(articles)
+    ? articles.filter(article => article?.slug && article?.title).map(article => ({ slug: String(article.slug), title: String(article.title), priority: 25 }))
+    : [];
+  return [...CONTEXTUAL_PAGE_TARGETS, ...articleTargets];
+}
+
 const normalize = (value: string) => String(value || '')
   .normalize('NFKC')
   .replace(/[يى]/g, 'ی')
@@ -29,6 +45,12 @@ const escapeAttribute = (value: string) => String(value || '')
   .replace(/>/g, '&gt;');
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const PERSIAN_SPACE = '[\\s\\u200c\\u200e\\u200f]+';
+const candidatePattern = (alias: string) => {
+  const normalizedAlias = normalize(alias);
+  if (!normalizedAlias) return null;
+  return new RegExp(normalizedAlias.split(' ').map(part => escapeRegex(part)).join(PERSIAN_SPACE), 'giu');
+};
 const SKIP_TAGS = new Set(['a', 'code', 'pre', 'script', 'style', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
 function protectHtmlSegments(html: string) {
@@ -51,7 +73,7 @@ function currentSkipDepth(html: string, position: number, tags: Array<{ start: n
     if (token.closing) {
       const index = stack.lastIndexOf(token.tag);
       if (index >= 0) stack.splice(index, 1);
-    } else if (!/\/\s*>$/.test(html.slice(token.start, token.end)) && !['img', 'br', 'hr', 'input', 'meta', 'link'].includes(token.tag)) {
+    } else if (!/\/\s*>$/.test(html.slice(token.start, token.end))) {
       stack.push(token.tag);
     }
   }
@@ -63,11 +85,8 @@ function titleCandidates(targets: ContextualLinkTarget[], currentSlug: string) {
   const output: Array<{ target: ContextualLinkTarget; alias: string; score: number }> = [];
   for (const target of targets) {
     if (!target?.slug || !target.title || normalize(target.slug) === current) continue;
-    const aliases = [target.title, ...(target.aliases || [])]
-      .map(normalize)
-      .filter(value => value.length >= 8);
-    const unique = [...new Set(aliases)];
-    for (const alias of unique) output.push({ target, alias, score: alias.length + Number(target.priority || 0) });
+    const aliases = [target.title, ...(target.aliases || [])].map(normalize).filter(value => value.length >= 6);
+    for (const alias of [...new Set(aliases)]) output.push({ target, alias, score: alias.length + Number(target.priority || 0) });
   }
   return output.sort((a, b) => b.score - a.score || b.alias.length - a.alias.length);
 }
@@ -76,35 +95,28 @@ export function linkContextualHtml(html: string, targets: ContextualLinkTarget[]
   let result = String(html || '');
   const maxLinks = Math.max(0, options.maxLinks ?? 5);
   if (!result || !targets.length || maxLinks === 0) return result;
-
-  const candidates = titleCandidates(targets, options.currentSlug || '');
   const used = new Set<string>();
   let added = 0;
-
-  for (const candidate of candidates) {
+  for (const candidate of titleCandidates(targets, options.currentSlug || '')) {
     if (added >= maxLinks) break;
     const key = normalize(candidate.target.href || `/article/${candidate.target.slug}`);
     if (used.has(key)) continue;
-
-    const expression = new RegExp(escapeRegex(candidate.alias), 'giu');
-    let match: RegExpExecArray | null;
+    const expression = candidatePattern(candidate.alias);
+    if (!expression) continue;
     const tokens = protectHtmlSegments(result);
+    let match: RegExpExecArray | null;
     while ((match = expression.exec(result))) {
       const start = match.index;
       const end = start + match[0].length;
-      const touchingTag = tokens.some(token => start < token.end && end > token.start);
-      if (touchingTag || currentSkipDepth(result, start, tokens)) continue;
-
+      if (tokens.some(token => start < token.end && end > token.start) || currentSkipDepth(result, start, tokens)) continue;
       const href = escapeAttribute(candidate.target.href || `/article/${encodeURIComponent(candidate.target.slug)}`);
       const visibleText = result.slice(start, end);
-      const replacement = `<a href="${href}" class="contextual-internal-link">${visibleText}</a>`;
-      result = result.slice(0, start) + replacement + result.slice(end);
+      result = result.slice(0, start) + `<a href="${href}" class="contextual-internal-link">${visibleText}</a>` + result.slice(end);
       used.add(key);
       added += 1;
       break;
     }
   }
-
   return result;
 }
 
@@ -112,14 +124,14 @@ export function linkContextualMarkdown(markdown: string, targets: ContextualLink
   let result = String(markdown || '');
   const maxLinks = Math.max(0, options.maxLinks ?? 5);
   if (!result || !targets.length || maxLinks === 0) return result;
-  const candidates = titleCandidates(targets, options.currentSlug || '');
   const used = new Set<string>();
   let added = 0;
-  for (const candidate of candidates) {
+  for (const candidate of titleCandidates(targets, options.currentSlug || '')) {
     if (added >= maxLinks) break;
     const key = normalize(candidate.target.href || `/article/${candidate.target.slug}`);
     if (used.has(key)) continue;
-    const expression = new RegExp(escapeRegex(candidate.alias), 'giu');
+    const expression = candidatePattern(candidate.alias);
+    if (!expression) continue;
     const match = expression.exec(result);
     if (!match) continue;
     const start = match.index;
