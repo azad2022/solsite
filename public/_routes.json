@@ -9,6 +9,7 @@
     "/article/*",
     "/wallet-analyzer",
     "/api/article-categories*",
+    "/api/category-default-media-gallery",
     "/api/comments",
     "/api/comments/*",
     "/api/media/*",
