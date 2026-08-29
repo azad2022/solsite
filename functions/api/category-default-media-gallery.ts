@@ -1,4 +1,4 @@
-import { getAuthenticatedUser, type Env } from './auth/_shared';
+import { getAuthenticatedUser, getSessionToken, type Env } from './auth/_shared';
 
 type GalleryEnv = Env & { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string };
 const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
@@ -23,6 +23,8 @@ const admin = async (request: Request, env: GalleryEnv) => {
   } catch { return false; }
 };
 
+const getSupabaseUrl = (env: GalleryEnv) => (env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
+
 const sha256 = async (value: string) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
@@ -31,18 +33,6 @@ const sha256 = async (value: string) => {
 const normalizeGithubAssetId = (value: string) => {
   const id = value.trim();
   return /^github_[0-9a-f]{40}$/i.test(id) ? id.slice('github_'.length).toLowerCase() : null;
-};
-
-const getMediaConfig = async (env: GalleryEnv) => {
-  const response = await db(env, 'media_config?id=eq.active_config&select=github_owner,github_repository,branch,base_path&limit=1');
-  const data = await response.json().catch(() => []);
-  const row = Array.isArray(data) ? data[0] : null;
-  return {
-    owner: String(row?.github_owner || 'azad2022').trim(),
-    repository: String(row?.github_repository || 'solsite').trim(),
-    branch: String(row?.branch || 'main').trim(),
-    basePath: String(row?.base_path || 'public/media/articles/').replace(/^\/+/, '').replace(/\/+$/, '') + '/',
-  };
 };
 
 const ensureMediaAsset = async (env: GalleryEnv, asset: { publicUrl: string; path: string; sha?: string | null; filename: string; owner: string; repository: string; branch: string }) => {
@@ -83,14 +73,41 @@ const ensureMediaAsset = async (env: GalleryEnv, asset: { publicUrl: string; pat
   throw new Error('MEDIA_ASSET_REGISTRATION_FAILED');
 };
 
-const resolveMediaAssetIds = async (env: GalleryEnv, mediaAssetIds: string[]) => {
+const resolveFromAuthenticatedMediaService = async (env: GalleryEnv, request: Request, githubSha: string) => {
+  const sessionToken = getSessionToken(request);
+  if (!sessionToken) throw new Error('MEDIA_ADMIN_SESSION_MISSING');
+  const response = await fetch(`${getSupabaseUrl(env)}/functions/v1/github-media`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-solmint-session': sessionToken,
+      'x-media-gateway-version': '4',
+    },
+    body: JSON.stringify({ action: 'list' }),
+  });
+  const data = await response.json().catch(() => null) as any;
+  if (!response.ok || !data?.success) {
+    const status = response.status || 502;
+    throw new Error(status === 403 ? 'GITHUB_MEDIA_SERVICE_FORBIDDEN' : `GITHUB_MEDIA_SERVICE_${status}`);
+  }
+  const asset = Array.isArray(data.assets)
+    ? data.assets.find((item: any) => String(item?.sha || '').toLowerCase() === githubSha)
+    : null;
+  if (!asset?.path || !asset?.publicUrl) throw new Error('MEDIA_ASSET_NOT_FOUND');
+  return ensureMediaAsset(env, {
+    publicUrl: String(asset.publicUrl),
+    path: String(asset.path),
+    sha: String(asset.sha || githubSha),
+    filename: String(asset.filename || String(asset.path).split('/').pop() || asset.path),
+    owner: String(asset.githubOwner || data?.config?.githubOwner || 'azad2022'),
+    repository: String(asset.githubRepository || data?.config?.githubRepository || 'solsite'),
+    branch: String(asset.branch || data?.config?.branch || 'main'),
+  });
+};
+
+const resolveMediaAssetIds = async (env: GalleryEnv, request: Request, mediaAssetIds: string[]) => {
   if (!mediaAssetIds.length) return [];
-
   const resolved: string[] = [];
-  const githubIds = mediaAssetIds.map(normalizeGithubAssetId).filter(Boolean) as string[];
-  const githubBySha = new Set(githubIds);
-  const unknownGithub = githubIds.length > 0;
-
   for (const id of mediaAssetIds) {
     const exactResponse = await db(env, `media_assets?id=eq.${encodeURIComponent(id)}&select=id&limit=1`);
     const exact = await exactResponse.json().catch(() => []);
@@ -98,26 +115,10 @@ const resolveMediaAssetIds = async (env: GalleryEnv, mediaAssetIds: string[]) =>
       resolved.push(String(exact[0].id));
       continue;
     }
-
     const githubSha = normalizeGithubAssetId(id);
     if (!githubSha) throw new Error('MEDIA_ASSET_NOT_FOUND');
-    if (!unknownGithub || !githubBySha.has(githubSha)) throw new Error('MEDIA_ASSET_NOT_FOUND');
-
-    const config = await getMediaConfig(env);
-    const treeResponse = await fetch(`https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}/git/trees/${encodeURIComponent(config.branch)}?recursive=1`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Solmint-Category-Media', 'X-GitHub-Api-Version': '2022-11-28' },
-    });
-    if (!treeResponse.ok) throw new Error(`GITHUB_TREE_LOOKUP_${treeResponse.status}`);
-    const tree = await treeResponse.json().catch(() => null) as any;
-    const node = Array.isArray(tree?.tree) ? tree.tree.find((entry: any) => entry?.type === 'blob' && String(entry?.sha || '').toLowerCase() === githubSha && String(entry?.path || '').startsWith(config.basePath)) : null;
-    if (!node?.path) throw new Error('MEDIA_ASSET_NOT_FOUND');
-
-    const path = String(node.path);
-    const filename = path.split('/').pop() || path;
-    const publicUrl = `https://raw.githubusercontent.com/${config.owner}/${config.repository}/${encodeURIComponent(config.branch)}/${path.split('/').map(encodeURIComponent).join('/')}`;
-    resolved.push(await ensureMediaAsset(env, { publicUrl, path, sha: githubSha, filename, owner: config.owner, repository: config.repository, branch: config.branch }));
+    resolved.push(await resolveFromAuthenticatedMediaService(env, request, githubSha));
   }
-
   return Array.from(new Set(resolved));
 };
 
@@ -148,7 +149,7 @@ export const onRequest = async ({ request, env }: { request: Request; env: Galle
     if (mediaAssetIds.length > 20) return json({ success: false, message: 'حداکثر ۲۰ تصویر برای هر دسته‌بندی مجاز است.' }, 400);
     if (!Number.isInteger(intervalMs) || intervalMs < 1500 || intervalMs > 20000) return json({ success: false, message: 'فاصله اسلاید باید بین ۱.۵ تا ۲۰ ثانیه باشد.' }, 400);
 
-    const resolvedMediaAssetIds = await resolveMediaAssetIds(env, mediaAssetIds);
+    const resolvedMediaAssetIds = await resolveMediaAssetIds(env, request, mediaAssetIds);
     const response = await db(env, 'rpc/set_category_default_media_gallery', {
       method: 'POST',
       body: JSON.stringify({ p_category_id: categoryId, p_media_asset_ids: resolvedMediaAssetIds, p_mode: mode, p_interval_ms: intervalMs })
@@ -159,7 +160,17 @@ export const onRequest = async ({ request, env }: { request: Request; env: Galle
     return json({ success: true, ...payload });
   } catch (error: any) {
     const internal = error?.message || 'UNKNOWN_ERROR';
-    const message = internal === 'SUPABASE_SECRET_KEY_NOT_CONFIGURED' ? 'کلید امن دیتابیس در محیط production تنظیم نشده است.' : internal === 'MEDIA_ASSET_NOT_FOUND' ? 'تصویر انتخاب‌شده در مخزن رسانه شناسایی نشد. کتابخانه تصاویر را تازه‌سازی کنید.' : internal === 'MEDIA_ASSET_REGISTRATION_FAILED' ? 'ثبت تصویر در کتابخانه رسانه ناموفق بود.' : (internal || 'خطای غیرمنتظره در سرویس تصاویر دسته‌بندی.');
+    const message = internal === 'SUPABASE_SECRET_KEY_NOT_CONFIGURED'
+      ? 'کلید امن دیتابیس در محیط production تنظیم نشده است.'
+      : internal === 'MEDIA_ADMIN_SESSION_MISSING'
+        ? 'نشست مدیر در درخواست رسانه ارسال نشده است. لطفاً دوباره وارد پنل شوید.'
+        : internal === 'MEDIA_ASSET_NOT_FOUND'
+          ? 'تصویر انتخاب‌شده در مخزن رسانه شناسایی نشد. کتابخانه تصاویر را تازه‌سازی کنید.'
+          : internal === 'MEDIA_ASSET_REGISTRATION_FAILED'
+            ? 'ثبت تصویر در کتابخانه رسانه ناموفق بود.'
+            : internal === 'GITHUB_MEDIA_SERVICE_FORBIDDEN'
+              ? 'سرویس امن کتابخانه تصاویر اجازه دسترسی به مخزن GitHub را ندارد.'
+              : 'سرویس تصاویر دسته‌بندی در پردازش درخواست با خطا مواجه شد.';
     return json({ success: false, message, errorCode: internal }, 500);
   }
 };
