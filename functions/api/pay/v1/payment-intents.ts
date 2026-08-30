@@ -10,6 +10,7 @@ import {
   payJson,
   readJsonBody,
 } from '../_shared/runtime';
+import { randomReferenceAddress } from '../../../../src/pay/services/walletSignature';
 
 interface PayEnv {
   SUPABASE_URL?: string;
@@ -99,7 +100,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     if (externalOrderId && externalOrderId.length > 255) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId is too long.');
     if (!env.PAY_FEE_RECIPIENT) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay fee recipient is not configured.');
 
-    const merchantResponse = await dbRequest(env, `/rest/v1/pay_merchants?select=id,status& id=eq.${encodeURIComponent(principal.merchantId)}&limit=1`.replace('status& id', 'status&id'));
+    const merchantResponse = await dbRequest(env, `/rest/v1/pay_merchants?select=id,status&id=eq.${encodeURIComponent(principal.merchantId)}&limit=1`);
     if (!merchantResponse.ok) throw new PayRuntimeError('MERCHANT_LOOKUP_FAILED', 503, 'Unable to load merchant configuration.');
     const merchants = await merchantResponse.json() as Array<{ id: string; status: string }>;
     if (merchants[0]?.status !== 'active') throw new PayRuntimeError('MERCHANT_NOT_ACTIVE', 403, 'Merchant is not active.');
@@ -113,6 +114,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const calculated = calculateSnapshot(amountAtomic, feePayer, 100);
     if (BigInt(calculated.merchantNetAtomic) <= 0n) throw new PayRuntimeError('AMOUNT_TOO_SMALL', 400, 'Payment amount is too small after gateway fee.');
 
+    const reference = randomReferenceAddress();
     const rpcResponse = await dbRequest(env, '/rest/v1/rpc/pay_create_payment_intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -123,7 +125,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         p_asset: asset,
         p_token_mint: tokenMint,
         p_recipient: recipient,
-        p_reference: `pay_${crypto.randomUUID().replace(/-/g, '')}`,
+        p_reference: reference,
         p_fee_bps: 100,
         p_fee_payer: feePayer,
         p_fee_atomic: calculated.gatewayFeeAtomic,
@@ -149,14 +151,12 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const result = await rpcResponse.json() as {
       state: 'created' | 'replay' | 'conflict' | 'in_progress';
       response_status?: number;
-      response_body?: { data?: unknown };
+      response_body?: unknown;
     };
 
     if (result.state === 'conflict') return payJson({ code: 'IDEMPOTENCY_CONFLICT', message: 'The Idempotency-Key was reused with different request data.' }, 409, requestId);
     if (result.state === 'in_progress') return payJson({ code: 'REQUEST_IN_PROGRESS', message: 'An identical request is already being processed.' }, 409, requestId);
-    if (result.state === 'replay' || result.state === 'created') {
-      return payJson(result.response_body || {}, result.response_status || 201, requestId);
-    }
+    if (result.state === 'replay' || result.state === 'created') return payJson(result.response_body || {}, result.response_status || 201, requestId);
 
     throw new PayRuntimeError('PAYMENT_CREATION_FAILED', 503, 'Payment intent creation returned an invalid state.');
   } catch (error) {
