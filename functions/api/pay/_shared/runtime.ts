@@ -148,7 +148,7 @@ export async function enforcePayRateLimit(env: PayRuntimeEnv, scope: string, sub
   if (allowed !== true) throw new PayRuntimeError('RATE_LIMITED', 429, 'Too many Pay API requests.');
 }
 
-export async function assertSafeMetadata(value: unknown): Promise<Record<string, unknown>> {
+export function assertSafeMetadata(value: unknown): Record<string, unknown> {
   if (value === undefined) return {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new PayRuntimeError('INVALID_METADATA', 400, 'Metadata must be a JSON object.');
   if (!validatePublicMetadata(value)) throw new PayRuntimeError('INVALID_METADATA', 400, 'Metadata is too large or has an invalid structure.');
