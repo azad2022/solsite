@@ -6,6 +6,8 @@ const SYSTEM_PROGRAM = '11111111111111111111111111111111';
 const TOKEN_PROGRAM_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM_ADDRESS = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxEb';
 const RPC_TIMEOUT_MS = 8_000;
+const MAX_DISCOVERY_PAGES = 24;
+const DISCOVERY_PAGE_SIZE = 1_000;
 
 type TokenAccountInfo = { exists: boolean; program: TokenProgram | null; mint: string | null; owner: string | null; accountType: string | null };
 interface RpcEnv { SOLANA_RPC_URL?: string; }
@@ -132,17 +134,39 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     return this.normalize(result, signature, commitment);
   }
 
-  async findTransactionsByReference(reference: string, commitment: SolanaCommitment): Promise<readonly ObservedPaymentTransaction[]> {
-    const signatures = await rpc<any[]>(this.rpcUrl, 'getSignaturesForAddress', [reference, { commitment: commitmentValue(commitment), limit: 20 }]);
+  async findTransactionsByReference(reference: string, commitment: SolanaCommitment, window?: { createdAt: string; expiresAt: string }): Promise<readonly ObservedPaymentTransaction[]> {
+    if (!reference) return [];
+    const windowStart = window ? Date.parse(window.createdAt) : Number.NEGATIVE_INFINITY;
+    const windowEnd = window ? Date.parse(window.expiresAt) : Number.POSITIVE_INFINITY;
+    if (window && (!Number.isFinite(windowStart) || !Number.isFinite(windowEnd) || windowEnd < windowStart)) throw new Error('Invalid payment discovery window.');
+
     const results: ObservedPaymentTransaction[] = [];
-    for (const item of signatures) {
-      if (!item?.signature) continue;
-      const raw = await this.fetchTransaction(item.signature, commitment);
-      if (!raw) continue;
-      const observation = await this.normalize(raw, item.signature, commitment);
-      results.push({ ...observation, referenceMatched: transactionContainsReference(raw, reference) });
+    let before: string | undefined;
+
+    for (let page = 0; page < MAX_DISCOVERY_PAGES; page += 1) {
+      const options: Record<string, unknown> = { commitment: commitmentValue(commitment), limit: DISCOVERY_PAGE_SIZE };
+      if (before) options.before = before;
+      const signatures = await rpc<Array<{ signature?: string; blockTime?: number | null }>>(this.rpcUrl, 'getSignaturesForAddress', [reference, options]);
+      if (!Array.isArray(signatures) || signatures.length === 0) return results;
+
+      let reachedStart = false;
+      for (const item of signatures) {
+        if (!item?.signature) continue;
+        const timestamp = typeof item.blockTime === 'number' ? item.blockTime * 1000 : null;
+        if (timestamp !== null && timestamp < windowStart) { reachedStart = true; break; }
+        if (timestamp !== null && timestamp > windowEnd) continue;
+        const raw = await this.fetchTransaction(item.signature, commitment);
+        if (!raw) continue;
+        const observation = await this.normalize(raw, item.signature, commitment);
+        if (transactionContainsReference(raw, reference)) results.push({ ...observation, referenceMatched: true });
+      }
+
+      if (reachedStart || signatures.length < DISCOVERY_PAGE_SIZE) return results;
+      before = signatures[signatures.length - 1]?.signature;
+      if (!before) return results;
     }
-    return results;
+
+    throw new Error('REFERENCE_DISCOVERY_INCOMPLETE');
   }
 
   async getHealth(): Promise<{ ok: boolean; slot: number | null; provider: string }> {
