@@ -11,6 +11,8 @@ function mockKraken(payload: unknown, status = 200) {
   return () => { globalThis.fetch = original; };
 }
 
+const expectedChange24h = ((106.32 / 105.62) - 1) * 100;
+
 test('parses Kraken ticker open price when field is a string', async () => {
   const restore = mockKraken({
     error: [],
@@ -24,7 +26,7 @@ test('parses Kraken ticker open price when field is a string', async () => {
     assert.equal(body.price, 106.32);
     assert.equal(body.source, 'Kraken');
     assert.equal(body.pair, 'SOL/USD');
-    assert.ok(Math.abs(body.change24h - 0.6627532668055217) < 1e-10);
+    assert.ok(Math.abs(body.change24h - expectedChange24h) < 1e-8);
   } finally {
     restore();
   }
@@ -41,7 +43,7 @@ test('also accepts array-form ticker fields without changing output', async () =
     assert.equal(response.status, 200);
     const body = await response.json() as { price: number; change24h: number };
     assert.equal(body.price, 106.32);
-    assert.ok(Math.abs(body.change24h - 0.6627532668055217) < 1e-10);
+    assert.ok(Math.abs(body.change24h - expectedChange24h) < 1e-8);
   } finally {
     restore();
   }

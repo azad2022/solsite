@@ -14,10 +14,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExploreFeatures }) =
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-12 max-w-4xl mx-auto space-y-8 text-center">
             <h1 id="hero-title" className="text-[42px] font-black text-white leading-[1.65] tracking-tight" style={{ fontSize: '42px', lineHeight: '1.65', minHeight: '138.6px', margin: 0 }}>
-              کیف پول غیرامانی سولانا <br className="hidden sm:block" />
-              <span className="bg-gradient-to-r from-[#9945FF] via-indigo-400 to-[#14F195] bg-clip-text text-transparent">
-                ساخت توکن، میم‌کوین و ابزارهای Web3
-              </span>
+              کیف پول غیرامانی سولانا و ابزارهای Web3
             </h1>
 
             <p className="text-slate-300 text-[13px] sm:text-[14px] max-w-2xl mx-auto leading-[32px] font-normal">
