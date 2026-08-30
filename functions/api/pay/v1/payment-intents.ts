@@ -1,4 +1,5 @@
 import {
+  PayRuntimeError,
   assertSafeMetadata,
   assertIdempotencyKey,
   authenticateMerchantApi,
@@ -9,7 +10,6 @@ import {
   payJson,
   readJsonBody,
 } from '../_shared/runtime';
-import { reserveIdempotencyAtomically, failIdempotency } from '../_shared/idempotency';
 
 interface PayEnv {
   SUPABASE_URL?: string;
@@ -36,7 +36,7 @@ function getSecret(env: PayEnv): string {
 
 async function dbRequest(env: PayEnv, path: string, init: RequestInit = {}): Promise<Response> {
   const secret = getSecret(env);
-  if (!secret) throw new Error('Pay backend is not configured.');
+  if (!secret) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay backend is not configured.');
   const headers = new Headers(init.headers);
   headers.set('apikey', secret);
   if (!env.SUPABASE_SECRET_KEY && env.SUPABASE_SERVICE_ROLE_KEY) headers.set('Authorization', `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`);
@@ -44,35 +44,34 @@ async function dbRequest(env: PayEnv, path: string, init: RequestInit = {}): Pro
 }
 
 function parsePositiveAtomic(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !/^\d{1,78}$/.test(value)) throw new Error(`${field} must be a positive integer string in atomic units.`);
-  if (BigInt(value) <= 0n) throw new Error(`${field} must be greater than zero.`);
+  if (typeof value !== 'string' || !/^\d{1,78}$/.test(value) || BigInt(value) <= 0n) throw new PayRuntimeError('INVALID_AMOUNT', 400, `${field} must be a positive integer string in atomic units.`);
   return value;
 }
 
 function parseAsset(value: unknown): Asset {
-  if (value !== 'SOL' && value !== 'USDC' && value !== 'USDT') throw new Error('asset must be SOL, USDC, or USDT.');
+  if (value !== 'SOL' && value !== 'USDC' && value !== 'USDT') throw new PayRuntimeError('INVALID_ASSET', 400, 'asset must be SOL, USDC, or USDT.');
   return value;
 }
 
 function parseFeePayer(value: unknown): FeePayer {
-  if (value !== 'merchant' && value !== 'customer') throw new Error('feePayer must be merchant or customer.');
+  if (value !== 'merchant' && value !== 'customer') throw new PayRuntimeError('INVALID_FEE_PAYER', 400, 'feePayer must be merchant or customer.');
   return value;
 }
 
 function resolveTokenMint(env: PayEnv, asset: Asset, requested: unknown): string | null {
   if (asset === 'SOL') {
-    if (requested != null) throw new Error('SOL payments must not specify tokenMint.');
+    if (requested != null) throw new PayRuntimeError('INVALID_TOKEN_MINT', 400, 'SOL payments must not specify tokenMint.');
     return null;
   }
   const expected = asset === 'USDC' ? env.PAY_USDC_MINT : env.PAY_USDT_MINT;
-  if (!expected) throw new Error(`${asset} is not configured for Pay.`);
-  if (requested !== undefined && requested !== expected) throw new Error(`tokenMint does not match the configured ${asset} mint.`);
+  if (!expected) throw new PayRuntimeError('ASSET_NOT_CONFIGURED', 503, `${asset} is not configured for Pay.`);
+  if (requested !== undefined && requested !== expected) throw new PayRuntimeError('INVALID_TOKEN_MINT', 400, `tokenMint does not match the configured ${asset} mint.`);
   return expected;
 }
 
 function parseExpiry(env: PayEnv, value: unknown): string {
   const raw = value === undefined ? Number(env.PAY_DEFAULT_EXPIRY_SECONDS || DEFAULT_EXPIRY_SECONDS) : Number(value);
-  if (!Number.isInteger(raw) || raw < 60 || raw > MAX_EXPIRY_SECONDS) throw new Error('expiresInSeconds must be an integer between 60 and 86400.');
+  if (!Number.isInteger(raw) || raw < 60 || raw > MAX_EXPIRY_SECONDS) throw new PayRuntimeError('INVALID_EXPIRY', 400, 'expiresInSeconds must be an integer between 60 and 86400.');
   return new Date(Date.now() + raw * 1000).toISOString();
 }
 
@@ -80,136 +79,92 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
   const requestId = makePayRequestId();
 
   if (!payFeatureEnabled(env)) {
-    return payJson({ success: false, code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
+    return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
   }
 
-  let idempotencyKey = '';
   try {
     const principal = await authenticateMerchantApi(env, request, 'payment.create');
-    idempotencyKey = await assertIdempotencyKey(request);
+    const idempotencyKey = await assertIdempotencyKey(request);
     const body = await readJsonBody(request);
     const requestHash = await hashCanonicalRequest(body);
 
-    const reservation = await reserveIdempotencyAtomically(env, principal.merchantId, SCOPE, idempotencyKey, requestHash);
-    if (reservation.state === 'conflict') {
-      return payJson({ code: 'IDEMPOTENCY_CONFLICT', message: 'The Idempotency-Key was reused with different request data.' }, 409, requestId);
+    const amountAtomic = parsePositiveAtomic(body.amountAtomic, 'amountAtomic');
+    const asset = parseAsset(body.asset);
+    const feePayer = parseFeePayer(body.feePayer ?? 'merchant');
+    const tokenMint = resolveTokenMint(env, asset, body.tokenMint);
+    const expiresAt = parseExpiry(env, body.expiresInSeconds);
+    const metadata = assertSafeMetadata(body.metadata);
+    const externalOrderId = body.externalOrderId == null ? null : String(body.externalOrderId).trim();
+    if (externalOrderId !== null && !externalOrderId) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId cannot be empty.');
+    if (externalOrderId && externalOrderId.length > 255) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId is too long.');
+    if (!env.PAY_FEE_RECIPIENT) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay fee recipient is not configured.');
+
+    const merchantResponse = await dbRequest(env, `/rest/v1/pay_merchants?select=id,status& id=eq.${encodeURIComponent(principal.merchantId)}&limit=1`.replace('status& id', 'status&id'));
+    if (!merchantResponse.ok) throw new PayRuntimeError('MERCHANT_LOOKUP_FAILED', 503, 'Unable to load merchant configuration.');
+    const merchants = await merchantResponse.json() as Array<{ id: string; status: string }>;
+    if (merchants[0]?.status !== 'active') throw new PayRuntimeError('MERCHANT_NOT_ACTIVE', 403, 'Merchant is not active.');
+
+    const walletResponse = await dbRequest(env, `/rest/v1/pay_merchant_wallets?select=id,address&merchant_id=eq.${encodeURIComponent(principal.merchantId)}&wallet_role=eq.receiving&is_active=eq.true&verification_status=eq.verified&limit=2`);
+    if (!walletResponse.ok) throw new PayRuntimeError('WALLET_LOOKUP_FAILED', 503, 'Unable to load merchant receiving wallet.');
+    const wallets = await walletResponse.json() as Array<{ id: string; address: string }>;
+    if (wallets.length !== 1) throw new PayRuntimeError('MERCHANT_WALLET_NOT_READY', 409, 'Merchant must have exactly one active verified receiving wallet.');
+    const recipient = wallets[0].address;
+
+    const calculated = calculateSnapshot(amountAtomic, feePayer, 100);
+    if (BigInt(calculated.merchantNetAtomic) <= 0n) throw new PayRuntimeError('AMOUNT_TOO_SMALL', 400, 'Payment amount is too small after gateway fee.');
+
+    const rpcResponse = await dbRequest(env, '/rest/v1/rpc/pay_create_payment_intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        p_merchant_id: principal.merchantId,
+        p_external_order_id: externalOrderId,
+        p_amount_atomic: amountAtomic,
+        p_asset: asset,
+        p_token_mint: tokenMint,
+        p_recipient: recipient,
+        p_reference: `pay_${crypto.randomUUID().replace(/-/g, '')}`,
+        p_fee_bps: 100,
+        p_fee_payer: feePayer,
+        p_fee_atomic: calculated.gatewayFeeAtomic,
+        p_customer_total_atomic: calculated.customerTotalAtomic,
+        p_merchant_net_atomic: calculated.merchantNetAtomic,
+        p_fee_recipient: env.PAY_FEE_RECIPIENT,
+        p_network: 'solana',
+        p_expires_at: expiresAt,
+        p_metadata: metadata,
+        p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_scope: SCOPE,
+      }),
+    });
+
+    if (!rpcResponse.ok) {
+      const text = (await rpcResponse.text()).slice(0, 500);
+      console.error(JSON.stringify({ scope: 'pay:payment-intent-rpc', requestId, status: rpcResponse.status, error: text }));
+      if (rpcResponse.status === 409) return payJson({ code: 'PAYMENT_CONFLICT', message: 'Payment intent conflicts with an existing merchant order.' }, 409, requestId);
+      throw new PayRuntimeError('PAYMENT_CREATION_FAILED', 503, 'Payment intent could not be created safely.');
     }
-    if (reservation.state === 'in_progress') {
-      return payJson({ code: 'REQUEST_IN_PROGRESS', message: 'An identical request is already being processed.' }, 409, requestId);
+
+    const result = await rpcResponse.json() as {
+      state: 'created' | 'replay' | 'conflict' | 'in_progress';
+      response_status?: number;
+      response_body?: { data?: unknown };
+    };
+
+    if (result.state === 'conflict') return payJson({ code: 'IDEMPOTENCY_CONFLICT', message: 'The Idempotency-Key was reused with different request data.' }, 409, requestId);
+    if (result.state === 'in_progress') return payJson({ code: 'REQUEST_IN_PROGRESS', message: 'An identical request is already being processed.' }, 409, requestId);
+    if (result.state === 'replay' || result.state === 'created') {
+      return payJson(result.response_body || {}, result.response_status || 201, requestId);
     }
-    if (reservation.state === 'replay') {
-      return payJson(reservation.responseBody, reservation.responseStatus || 200, requestId);
-    }
 
-    try {
-      const amountAtomic = parsePositiveAtomic(body.amountAtomic, 'amountAtomic');
-      const asset = parseAsset(body.asset);
-      const feePayer = parseFeePayer(body.feePayer ?? 'merchant');
-      const tokenMint = resolveTokenMint(env, asset, body.tokenMint);
-      const expiration = parseExpiry(env, body.expiresInSeconds);
-      const metadata = assertSafeMetadata(body.metadata);
-      const externalOrderId = body.externalOrderId == null ? null : String(body.externalOrderId);
-      if (externalOrderId && externalOrderId.length > 255) throw new Error('externalOrderId is too long.');
-      if (!env.PAY_FEE_RECIPIENT) throw new Error('Pay fee recipient is not configured.');
-
-      const merchantResponse = await dbRequest(env, `/rest/v1/pay_merchants?select=id,status& id=eq.${encodeURIComponent(principal.merchantId)}&limit=1`.replace('status& id', 'status&id'));
-      if (!merchantResponse.ok) throw new Error('Merchant lookup failed.');
-      const merchants = await merchantResponse.json() as Array<{ id: string; status: string }>;
-      const merchant = merchants[0];
-      if (!merchant || merchant.status !== 'active') throw new Error('Merchant is not active.');
-
-      const walletResponse = await dbRequest(env, `/rest/v1/pay_merchant_wallets?select=id,address&merchant_id=eq.${encodeURIComponent(principal.merchantId)}&wallet_role=eq.receiving&is_active=eq.true&verification_status=eq.verified&limit=2`);
-      if (!walletResponse.ok) throw new Error('Merchant wallet lookup failed.');
-      const wallets = await walletResponse.json() as Array<{ id: string; address: string }>;
-      if (wallets.length !== 1) throw new Error('Merchant must have exactly one active verified receiving wallet.');
-      const recipient = wallets[0].address;
-
-      const calculated = calculateSnapshot(amountAtomic, feePayer, 100);
-      if (BigInt(calculated.merchantNetAtomic) <= 0n) throw new Error('Payment amount is too small after gateway fee.');
-
-      const reference = `pay_${crypto.randomUUID().replace(/-/g, '')}`;
-      const insertBody = {
-        merchant_id: principal.merchantId,
-        external_order_id: externalOrderId,
-        amount_atomic: amountAtomic,
-        asset,
-        token_mint: tokenMint,
-        recipient,
-        reference,
-        fee_bps: 100,
-        fee_payer: feePayer,
-        fee_atomic: calculated.gatewayFeeAtomic,
-        customer_total_atomic: calculated.customerTotalAtomic,
-        merchant_net_atomic: calculated.merchantNetAtomic,
-        fee_recipient: env.PAY_FEE_RECIPIENT,
-        network: 'solana',
-        gas_sponsored: false,
-        status: 'created',
-        expires_at: expiration,
-        metadata,
-      };
-
-      const createdResponse = await dbRequest(env, '/rest/v1/pay_payment_intents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
-        body: JSON.stringify(insertBody),
-      });
-      if (!createdResponse.ok) {
-        const errorText = (await createdResponse.text()).slice(0, 500);
-        console.error(JSON.stringify({ scope: 'pay:payment-intent', requestId, status: createdResponse.status, error: errorText }));
-        throw new Error('Payment intent could not be created.');
-      }
-      const created = (await createdResponse.json()) as Array<{ id: string; reference: string; status: string; expires_at: string }>;
-      const payment = created[0];
-      if (!payment) throw new Error('Payment intent creation returned no resource.');
-
-      const data = {
-        id: payment.id,
-        status: payment.status,
-        amountAtomic,
-        asset,
-        feePayer,
-        gatewayFeeAtomic: calculated.gatewayFeeAtomic,
-        customerTotalAtomic: calculated.customerTotalAtomic,
-        merchantNetAtomic: calculated.merchantNetAtomic,
-        reference: payment.reference,
-        checkoutUrl: `https://solmint.ir/pay/checkout/${payment.id}`,
-        expiresAt: payment.expires_at,
-      };
-      const responseBody = { data };
-      // The idempotency record is completed only after the financial resource is
-      // durably created. A failed completion leaves the request replay-safe via
-      // the payment's external order/reference constraints and must be alerted.
-      await completeIdempotencySafe(env, principal.merchantId, SCOPE, idempotencyKey, 201, responseBody, payment.id);
-      return payJson(responseBody, 201, requestId);
-    } catch (error) {
-      await failIdempotency(env, principal.merchantId, SCOPE, idempotencyKey).catch(() => {});
-      throw error;
-    }
+    throw new PayRuntimeError('PAYMENT_CREATION_FAILED', 503, 'Payment intent creation returned an invalid state.');
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to create payment intent.';
-    const known = /Idempotency|idempotency|must be|not configured|not active|too small|already being processed/.test(message);
-    const status = known && /already being processed/i.test(message) ? 409 : 400;
-    console.error(JSON.stringify({ scope: 'pay:payment-intent', requestId, error: message.slice(0, 300) }));
-    return payJson({ code: status === 409 ? 'REQUEST_IN_PROGRESS' : 'INVALID_REQUEST', message: status === 409 ? message : 'Payment intent request is invalid.' }, status, requestId);
+    if (error instanceof PayRuntimeError) {
+      console.error(JSON.stringify({ scope: 'pay:payment-intent', requestId, code: error.code, status: error.status }));
+      return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId);
+    }
+    console.error(JSON.stringify({ scope: 'pay:payment-intent', requestId, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
+    return payJson({ code: 'INTERNAL_ERROR', message: 'Pay service is temporarily unavailable.' }, 503, requestId);
   }
 };
-
-async function completeIdempotencySafe(
-  env: PayEnv,
-  merchantId: string,
-  scope: string,
-  key: string,
-  status: number,
-  body: unknown,
-  resourceId: string,
-) {
-  const secret = getSecret(env);
-  if (!secret) throw new Error('Pay backend is not configured.');
-  const headers = new Headers({ 'Content-Type': 'application/json', Prefer: 'return=minimal', apikey: secret });
-  if (!env.SUPABASE_SECRET_KEY && env.SUPABASE_SERVICE_ROLE_KEY) headers.set('Authorization', `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`);
-  const response = await fetch(`${(env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '')}/rest/v1/pay_idempotency_keys?merchant_id=eq.${encodeURIComponent(merchantId)}&scope=eq.${encodeURIComponent(scope)}&idempotency_key=eq.${encodeURIComponent(key)}`, {
-    method: 'PATCH', headers, body: JSON.stringify({ status: 'completed', response_status: status, response_body: body, resource_type: 'payment_intent', resource_id: resourceId, completed_at: new Date().toISOString() }),
-  });
-  if (!response.ok) throw new Error('Idempotency completion failed.');
-}
