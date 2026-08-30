@@ -77,12 +77,7 @@ begin
       return jsonb_build_object('state', 'conflict');
     end if;
     if v_existing.status = 'completed' and v_existing.response_body is not null then
-      return jsonb_build_object(
-        'state', 'replay',
-        'response_status', coalesce(v_existing.response_status, 200),
-        'response_body', v_existing.response_body,
-        'resource_id', v_existing.resource_id
-      );
+      return jsonb_build_object('state', 'replay', 'response_status', coalesce(v_existing.response_status, 200), 'response_body', v_existing.response_body, 'resource_id', v_existing.resource_id);
     end if;
     if v_existing.status = 'processing' then
       return jsonb_build_object('state', 'in_progress');
@@ -93,11 +88,8 @@ begin
            resource_type = null, resource_id = null, completed_at = null
      where id = v_existing.id;
   else
-    insert into public.pay_idempotency_keys (
-      merchant_id, scope, idempotency_key, request_hash, status
-    ) values (
-      p_merchant_id, p_scope, p_idempotency_key, p_request_hash, 'processing'
-    );
+    insert into public.pay_idempotency_keys (merchant_id, scope, idempotency_key, request_hash, status)
+    values (p_merchant_id, p_scope, p_idempotency_key, p_request_hash, 'processing');
   end if;
 
   insert into public.pay_payment_intents (
@@ -116,21 +108,19 @@ begin
 
   update public.pay_idempotency_keys
      set status = 'completed', response_status = 201,
-         response_body = jsonb_build_object(
-           'data', jsonb_build_object(
-             'id', v_payment.id,
-             'status', v_payment.status,
-             'amountAtomic', v_payment.amount_atomic::text,
-             'asset', v_payment.asset,
-             'feePayer', v_payment.fee_payer,
-             'gatewayFeeAtomic', v_payment.fee_atomic::text,
-             'customerTotalAtomic', v_payment.customer_total_atomic::text,
-             'merchantNetAtomic', v_payment.merchant_net_atomic::text,
-             'reference', v_payment.reference,
-             'checkoutUrl', 'https://solmint.ir/pay/checkout/' || v_payment.id::text,
-             'expiresAt', v_payment.expires_at
-           )
-         ),
+         response_body = jsonb_build_object('data', jsonb_build_object(
+           'id', v_payment.id,
+           'status', v_payment.status,
+           'amountAtomic', v_payment.amount_atomic::text,
+           'asset', v_payment.asset,
+           'feePayer', v_payment.fee_payer,
+           'gatewayFeeAtomic', v_payment.fee_atomic::text,
+           'customerTotalAtomic', v_payment.customer_total_atomic::text,
+           'merchantNetAtomic', v_payment.merchant_net_atomic::text,
+           'reference', v_payment.reference,
+           'checkoutUrl', 'https://solmint.ir/pay/checkout/' || v_payment.id::text,
+           'expiresAt', v_payment.expires_at
+         )),
          resource_type = 'payment_intent', resource_id = v_payment.id,
          completed_at = now()
    where merchant_id = p_merchant_id
@@ -140,21 +130,19 @@ begin
   return jsonb_build_object(
     'state', 'created',
     'response_status', 201,
-    'response_body', jsonb_build_object(
-      'data', jsonb_build_object(
-        'id', v_payment.id,
-        'status', v_payment.status,
-        'amountAtomic', v_payment.amount_atomic::text,
-        'asset', v_payment.asset,
-        'feePayer', v_payment.fee_payer,
-        'gatewayFeeAtomic', v_payment.fee_atomic::text,
-        'customerTotalAtomic', v_payment.customer_total_atomic::text,
-        'merchantNetAtomic', v_payment.merchant_net_atomic::text,
-        'reference', v_payment.reference,
-        'checkoutUrl', 'https://solmint.ir/pay/checkout/' || v_payment.id::text,
-        'expiresAt', v_payment.expires_at
-      )
-    ),
+    'response_body', jsonb_build_object('data', jsonb_build_object(
+      'id', v_payment.id,
+      'status', v_payment.status,
+      'amountAtomic', v_payment.amount_atomic::text,
+      'asset', v_payment.asset,
+      'feePayer', v_payment.fee_payer,
+      'gatewayFeeAtomic', v_payment.fee_atomic::text,
+      'customerTotalAtomic', v_payment.customer_total_atomic::text,
+      'merchantNetAtomic', v_payment.merchant_net_atomic::text,
+      'reference', v_payment.reference,
+      'checkoutUrl', 'https://solmint.ir/pay/checkout/' || v_payment.id::text,
+      'expiresAt', v_payment.expires_at
+    )),
     'resource_id', v_payment.id
   );
 exception
@@ -163,5 +151,5 @@ exception
 end;
 $$;
 
-revoke all on function public.pay_create_payment_intent(uuid,text,numeric,text,text,text,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text) from public, anon, authenticated;
-grant execute on function public.pay_create_payment_intent(uuid,text,numeric,text,text,text,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text) to service_role;
+revoke all on function public.pay_create_payment_intent(uuid,text,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text) from public, anon, authenticated;
+grant execute on function public.pay_create_payment_intent(uuid,text,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text) to service_role;
