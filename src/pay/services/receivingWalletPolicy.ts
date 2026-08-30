@@ -1,17 +1,18 @@
+import { decodeBase58 } from './base58';
+
 /**
  * Merchant receiving-wallet policy.
  *
- * SolMint Pay does not need custody of merchant settlement funds. A merchant
- * registers a Solana wallet address, proves control by signing a challenge,
- * and receives customer funds directly. The merchant can be offline when a
- * customer pays; only the payer (and, when enabled, the fee sponsor) signs the
- * payment transaction.
+ * SolMint Pay never needs the merchant private key. The merchant proves wallet
+ * control with a short-lived signed challenge and then receives settlement
+ * directly at the registered address.
  */
-
-const BASE58_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
 export function validateSolanaAddress(address: string): boolean {
-  return BASE58_ADDRESS.test(address.trim());
+  try {
+    return decodeBase58(address.trim()).length === 32;
+  } catch {
+    return false;
+  }
 }
 
 export interface WalletOwnershipChallenge {
@@ -24,9 +25,9 @@ export interface WalletOwnershipChallenge {
 }
 
 /**
- * The exact signed message must be persisted server-side and verified against
- * the same merchant, wallet and expiration window. Never accept a generic
- * "I own this wallet" message because it is reusable across contexts.
+ * Legacy policy helper retained for domain documentation. Runtime signing must
+ * use walletSignature.buildWalletOwnershipMessage so one canonical message is
+ * used everywhere.
  */
 export function buildWalletOwnershipMessage(input: {
   challengeId: string;
