@@ -63,6 +63,25 @@ function expectedFromPayment(payment: ReconciliationPayment): ExpectedPayment {
   };
 }
 
+function labelVerifiedTransfers(expected: ExpectedPayment, transfers: readonly ObservedTransfer[]): readonly ObservedTransfer[] {
+  const merchant = transfers.find((transfer) =>
+    transfer.destination === expected.merchantDestination
+      && transfer.asset === expected.asset
+      && transfer.amountAtomic === expected.merchantSettlementAtomic,
+  );
+  const fee = transfers.find((transfer) =>
+    transfer.destination === expected.feeDestination
+      && transfer.asset === expected.asset
+      && transfer.amountAtomic === expected.gatewayFeeAtomic,
+  );
+
+  return transfers.map((transfer) => {
+    if (transfer === merchant) return { ...transfer, role: 'merchant_settlement' };
+    if (transfer === fee) return { ...transfer, role: 'gateway_fee' };
+    return { ...transfer, role: 'other' };
+  });
+}
+
 export async function reconcilePayment(
   provider: SolanaPaymentProvider,
   repository: ReconciliationRepository,
@@ -93,13 +112,9 @@ export async function reconcilePayment(
       return { paymentId: payment.id, outcome: 'provider_unavailable', checkedSignatures: verification.checkedSignatures, verification };
     }
     try {
-      const outcome = await repository.applyVerifiedObservation({ payment, observation, transfers: observation.transfers });
-      return {
-        paymentId: payment.id,
-        outcome,
-        checkedSignatures: verification.checkedSignatures,
-        verification,
-      };
+      const transfers = labelVerifiedTransfers(expectedFromPayment(payment), observation.transfers);
+      const outcome = await repository.applyVerifiedObservation({ payment, observation, transfers });
+      return { paymentId: payment.id, outcome, checkedSignatures: verification.checkedSignatures, verification };
     } catch {
       return { paymentId: payment.id, outcome: 'stale', checkedSignatures: verification.checkedSignatures, verification };
     }
@@ -108,19 +123,13 @@ export async function reconcilePayment(
   for (const signature of verification.checkedSignatures) {
     const observation = await provider.getTransaction(signature, payment.verificationCommitment);
     if (!observation) continue;
-    const reason = verification.result.reason;
     try {
-      await repository.recordRejectedObservation(payment.id, observation, reason);
+      await repository.recordRejectedObservation(payment.id, observation, verification.result.reason);
     } catch {
-      // Reconciliation remains fail-closed. A rejected observation is not
-      // converted into a success merely because persistence failed.
+      // Fail closed: persistence failure never turns a rejected observation
+      // into a financial success.
     }
   }
 
-  return {
-    paymentId: payment.id,
-    outcome: verification.checkedSignatures.length ? 'no_match' : 'no_match',
-    checkedSignatures: verification.checkedSignatures,
-    verification,
-  };
+  return { paymentId: payment.id, outcome: 'no_match', checkedSignatures: verification.checkedSignatures, verification };
 }
