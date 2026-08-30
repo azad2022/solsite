@@ -6,12 +6,12 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/apply-html-aware-ssr-linking.mjs && node scripts/harden-category-seo.mjs && node scripts/harden-new-meme-coin-tag-seo.mjs && node scripts/category-default-media-auth-patch.mjs && node scripts/fix-admin-media-category-picker.mjs && node scripts/patch-media-picker-clicked-asset.mjs && node scripts/patch-media-picker-natural-preview.mjs && node scripts/patch-bloghub-category-media.mjs && node scripts/apply-article-internal-linking.mjs && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/normalize-homepage-seo.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/apply-html-aware-ssr-linking.mjs && node scripts/harden-category-seo.mjs && node scripts/harden-new-meme-coin-tag-seo.mjs && node scripts/category-default-media-auth-patch.mjs && node scripts/fix-admin-media-category-picker.mjs && node scripts/patch-media-picker-clicked-asset.mjs && node scripts/patch-media-picker-natural-preview.mjs && node scripts/patch-bloghub-category-media.mjs && node scripts/apply-article-internal-linking.mjs && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "prepare:source": "node scripts/prepare-production-source.mjs",
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && tsc --noEmit",
+    "lint": "node scripts/normalize-homepage-seo.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && tsc --noEmit",
     "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
@@ -19,7 +19,6 @@
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.1.14",
     "compression": "^1.8.1",
-    "dotenv": "^17.2.3",
     "esbuild": "0.28.2",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
