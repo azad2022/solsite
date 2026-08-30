@@ -55,25 +55,11 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     if (!walletAddress) return payJson({ code: 'INVALID_WALLET_ADDRESS', message: 'walletAddress is required.' }, 400, id);
 
     const classification = await classifyMerchantReceivingAddress(walletAddress, env.SOLANA_RPC_URL);
-    if (!classification.valid || classification.kind !== 'wallet') {
-      return payJson({ code: 'INVALID_RECEIVING_WALLET', message: 'The address is not a valid Solana receiving wallet.' }, 400, id);
-    }
+    if (!classification.valid || classification.kind !== 'wallet') return payJson({ code: 'INVALID_RECEIVING_WALLET', message: 'The address is not a valid Solana receiving wallet.' }, 400, id);
 
     const existingResponse = await supabaseRequest(env, `/rest/v1/pay_merchant_wallets?select=id,verification_status,is_active&merchant_id=eq.${encodeURIComponent(merchantId)}&wallet_role=eq.receiving&address=eq.${encodeURIComponent(walletAddress)}&limit=1`, { headers: { Accept: 'application/json' } });
     const existing = await existingResponse.json() as Array<{ id: string; verification_status: string; is_active: boolean }>;
-    if (existing[0]?.verification_status === 'verified' && existing[0].is_active) {
-      return payJson({ code: 'WALLET_ALREADY_VERIFIED', message: 'This receiving wallet is already verified.' }, 409, id);
-    }
-
-    if (!existing[0]) {
-      const walletResponse = await supabaseRequest(env, '/rest/v1/pay_merchant_wallets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json', Prefer: 'return=representation' },
-        body: JSON.stringify({ merchant_id: merchantId, address: walletAddress, network: 'solana', wallet_role: 'receiving', verification_status: 'unverified', is_active: true }),
-      });
-      const wallets = await walletResponse.json() as Array<{ id: string }>;
-      if (!wallets[0]?.id) throw new PayRuntimeError('WALLET_CREATION_FAILED', 503, 'Receiving wallet could not be registered safely.');
-    }
+    if (existing[0]?.verification_status === 'verified' && existing[0].is_active) return payJson({ code: 'WALLET_ALREADY_VERIFIED', message: 'This receiving wallet is already verified.' }, 409, id);
 
     const issuedAt = new Date();
     const expiresAt = new Date(issuedAt.getTime() + CHALLENGE_TTL_MS);
@@ -82,21 +68,15 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     if (!validateChallengeWindow(issuedAt.toISOString(), expiresAt.toISOString(), issuedAt.getTime() + 1)) throw new PayRuntimeError('CHALLENGE_INVALID', 500, 'Challenge window could not be created.');
     const nonceHash = await sha256Hex(message);
 
-    await supabaseRequest(env, `/rest/v1/pay_wallet_challenges?merchant_id=eq.${encodeURIComponent(merchantId)}&wallet_address=eq.${encodeURIComponent(walletAddress)}&consumed_at=is.null`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ consumed_at: issuedAt.toISOString(), status: 'expired' }),
-    });
-
-    const challengeResponse = await supabaseRequest(env, '/rest/v1/pay_wallet_challenges', {
+    const challengeResponse = await supabaseRequest(env, '/rest/v1/rpc/pay_issue_wallet_challenge', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ id: challengeId, merchant_id: merchantId, wallet_address: walletAddress, message, nonce_hash: nonceHash, issued_at: issuedAt.toISOString(), expires_at: expiresAt.toISOString(), status: 'issued' }),
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ p_merchant_id: merchantId, p_user_id: user.id, p_wallet_address: walletAddress, p_message: message, p_nonce_hash: nonceHash, p_issued_at: issuedAt.toISOString(), p_expires_at: expiresAt.toISOString() }),
     });
-    const created = await challengeResponse.json() as Array<{ id: string }>;
-    if (!created[0]) throw new PayRuntimeError('CHALLENGE_CREATION_FAILED', 503, 'Wallet challenge could not be created safely.');
+    const challenge = await challengeResponse.json() as { id?: string; message?: string; wallet_address?: string; issued_at?: string; expires_at?: string };
+    if (!challenge.id) throw new PayRuntimeError('CHALLENGE_CREATION_FAILED', 503, 'Wallet challenge could not be created safely.');
 
-    return payJson({ challenge: { id: challengeId, message, walletAddress, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString() } }, 201, id);
+    return payJson({ challenge: { id: challenge.id, message: challenge.message, walletAddress: challenge.wallet_address, issuedAt: challenge.issued_at, expiresAt: challenge.expires_at } }, 201, id);
   } catch (error) {
     if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, id);
     console.error(JSON.stringify({ scope: 'pay:wallet-challenge', requestId: id, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
