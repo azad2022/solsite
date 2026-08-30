@@ -4,6 +4,12 @@ const MAX_CHALLENGE_AGE_MS = 10 * 60 * 1000;
 const PUBLIC_KEY_BYTES = 32;
 const SIGNATURE_BYTES = 64;
 
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
+}
+
 export function buildWalletOwnershipMessage(input: { origin: string; challengeId: string; merchantId: string; walletAddress: string; issuedAt: string; expiresAt: string }): string {
   return [
     'SolMint Pay wallet ownership verification',
@@ -39,8 +45,9 @@ export async function verifySolanaWalletSignature(input: { walletAddress: string
   if (publicKey.length !== PUBLIC_KEY_BYTES || signature.length !== SIGNATURE_BYTES) return false;
 
   try {
-    const key = await crypto.subtle.importKey('raw', publicKey, { name: 'Ed25519' }, false, ['verify']);
-    return await crypto.subtle.verify({ name: 'Ed25519' }, key, signature, new TextEncoder().encode(input.message));
+    const key = await crypto.subtle.importKey('raw', toArrayBuffer(publicKey), { name: 'Ed25519' }, false, ['verify']);
+    const messageBytes = new TextEncoder().encode(input.message);
+    return await crypto.subtle.verify({ name: 'Ed25519' }, key, toArrayBuffer(signature), toArrayBuffer(messageBytes));
   } catch {
     return false;
   }
