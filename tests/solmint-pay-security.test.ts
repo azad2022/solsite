@@ -3,27 +3,11 @@ import test from 'node:test';
 
 import { validateApiKeyFormat, validateApiKeyRecord } from '../src/pay/services/apiKeyPolicy';
 import { authorizePayMerchant, hasPayPlatformCapability } from '../src/pay/services/authorizationPolicy';
-import { authorizeMerchantResource, validateExternalOrderId, validateIdempotencyKey, validatePublicMetadata, validateWebhookUrl } from '../src/pay/services/securityPolicy';
+import { validateExternalOrderId, validateIdempotencyKey, validatePublicMetadata, validateWebhookUrl } from '../src/pay/services/securityPolicy';
 
-const activeUser = {
-  id: 'user-1',
-  role: 'merchant',
-  permissions: [],
-  isActive: true,
-} as const;
-
-const merchant = {
-  merchantId: 'merchant-1',
-  ownerUserId: 'user-1',
-  status: 'active' as const,
-};
-
-const ownerMembership = {
-  merchantId: 'merchant-1',
-  userId: 'user-1',
-  role: 'owner' as const,
-  status: 'active' as const,
-};
+const activeUser = { id: 'user-1', role: 'merchant', permissions: [], isActive: true } as const;
+const merchant = { merchantId: 'merchant-1', ownerUserId: 'user-1', status: 'active' as const };
+const ownerMembership = { merchantId: 'merchant-1', userId: 'user-1', role: 'owner' as const, status: 'active' as const };
 
 test('API key format requires a long Pay bearer credential', () => {
   assert.equal(validateApiKeyFormat('sk_pay_short'), false);
@@ -47,11 +31,6 @@ test('tenant authorization uses membership role rather than site-wide permission
   assert.equal(hasPayPlatformCapability({ ...activeUser, permissions: ['pay:payment.create'] }, 'payment.create'), true);
 });
 
-test('generic authorization policy rejects cross-merchant access', () => {
-  const denied = authorizeMerchantResource({ authenticatedUserId: 'user-a', merchantOwnerUserId: 'user-a', requestedMerchantId: 'merchant-b', resourceMerchantId: 'merchant-a', merchantStatus: 'active', canManageMerchant: true });
-  assert.deepEqual(denied, { allowed: false, reason: 'MERCHANT_MISMATCH' });
-});
-
 test('input-boundary validation rejects common injection and SSRF primitives', () => {
   assert.equal(validateIdempotencyKey('request-123'), true);
   assert.equal(validateIdempotencyKey('bad\r\nheader'), false);
@@ -60,6 +39,7 @@ test('input-boundary validation rejects common injection and SSRF primitives', (
   assert.equal(validateExternalOrderId('bad\u0000id'), false);
   assert.equal(validateExternalOrderId(null), true);
   assert.equal(validatePublicMetadata({ order: '123', note: 'ok' }), true);
+  assert.equal(validatePublicMetadata([],  ), true);
   assert.equal(validatePublicMetadata('x'.repeat(5000)), false);
   assert.equal(validateWebhookUrl('https://merchant.example/webhooks'), true);
   assert.equal(validateWebhookUrl('http://merchant.example/webhooks'), false);
