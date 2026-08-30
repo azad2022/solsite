@@ -4,6 +4,7 @@ import {
   assertIdempotencyKey,
   authenticateMerchantApi,
   calculateSnapshot,
+  enforcePayRateLimit,
   hashCanonicalRequest,
   makePayRequestId,
   payFeatureEnabled,
@@ -66,6 +67,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
 
   try {
     const principal = await authenticateMerchantApi(env, request, 'payment.create');
+    const keySubjectBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(principal.keyId));
+    const merchantSubjectBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(principal.merchantId));
+    const keySubject = Array.from(new Uint8Array(keySubjectBytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    const merchantSubject = Array.from(new Uint8Array(merchantSubjectBytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    await enforcePayRateLimit(env, 'payment-intents:create:key', keySubject, 60, 60);
+    await enforcePayRateLimit(env, 'payment-intents:create:merchant', merchantSubject, 60, 300);
+
     const idempotencyKey = await assertIdempotencyKey(request);
     const body = await readJsonBody(request);
     const requestHash = await hashCanonicalRequest(body);
