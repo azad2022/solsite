@@ -11,12 +11,14 @@ export type Direction = 'rtl' | 'ltr';
 export type FeePayer = 'merchant' | 'customer';
 export type PaymentStatus = 'created'|'pending'|'detected'|'verifying'|'confirmed'|'completed'|'expired'|'underpaid'|'overpaid'|'wrong_token'|'wrong_recipient'|'duplicate'|'failed'|'refunded';
 export type PaymentAsset = 'SOL' | 'USDC' | 'USDT';
+export type TokenProgram = 'spl-token' | 'token-2022';
 export interface PaymentFeePolicy { rateBps:number; payer:FeePayer; feeAtomic:string; }
 export interface GasPolicySnapshot { sponsored:boolean; fundingModel:'merchant_funded'|'solmint_funded'; sponsorAddress:string|null; perPaymentLimitAtomic:string|null; }
 export interface PaymentIntent {
   id:string; merchantId:string; orderId:string|null; amountAtomic:string;
   customerTotalAtomic:string; merchantAmountAtomic:string; asset:PaymentAsset;
-  tokenMint:string|null; network:'solana'; recipient:string; feeRecipient:string;
+  tokenMint:string|null; tokenProgram:TokenProgram|null; tokenDecimals:number|null;
+  network:'solana'; recipient:string; feeRecipient:string;
   reference:string; feePolicy:PaymentFeePolicy; gasPolicy:GasPolicySnapshot;
   status:PaymentStatus; expiresAt:string; createdAt:string;
 }
@@ -24,6 +26,7 @@ export interface PaymentTransaction {
   id:string; paymentId:string; signature:string; slot:number|null; blockTime:string|null;
   observedAmountAtomic:string; asset:PaymentAsset; recipient:string;
   feeRecipient:string|null; referenceMatched:boolean; confirmed:boolean;
+  tokenProgram:TokenProgram|null; tokenDecimals:number|null;
 }
 export interface MerchantLocalePreferences { dashboardLocale:PayLocale; checkoutLocale:PayLocale|'auto'; }
 export interface ReferralAttribution { referralId:string; affiliateId:string; merchantId:string; attributedAt:string; }
