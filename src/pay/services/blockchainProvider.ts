@@ -18,10 +18,18 @@ export interface SolanaPaymentProvider {
   getTransaction(signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction | null>;
 
   /**
-   * Discover candidate transactions for a payment reference. Implementations
-   * must return candidates only; the verification policy decides eligibility.
+   * Discover candidate transactions for a payment reference.
+   *
+   * `createdAt` and `expiresAt` define the authoritative search window. The
+   * provider must paginate through that window instead of trusting only the
+   * latest N signatures, because a known reference can be spammed after it is
+   * exposed in checkout UI.
    */
-  findTransactionsByReference(reference: string, commitment: SolanaCommitment): Promise<readonly ObservedPaymentTransaction[]>;
+  findTransactionsByReference(
+    reference: string,
+    commitment: SolanaCommitment,
+    window?: { createdAt: string; expiresAt: string },
+  ): Promise<readonly ObservedPaymentTransaction[]>;
 
   /** Return the current network health/slot snapshot used by workers. */
   getHealth(): Promise<{ ok: boolean; slot: number | null; provider: string }>;
