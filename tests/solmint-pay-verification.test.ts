@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTransaction } from '../src/pay/services/verificationPolicy';
 import { buildWalletOwnershipMessage, verifySolanaWalletSignature, randomReferenceAddress } from '../src/pay/services/walletSignature';
 import { encodeBase58 } from '../src/pay/services/base58';
@@ -49,6 +50,19 @@ test('verification rejects duplicate matching merchant settlement legs', () => {
 test('verification rejects duplicate matching gateway fee legs', () => {
   const duplicateFee = observed({ transfers: [observed().transfers[0], observed().transfers[1], { ...observed().transfers[1], instructionIndex: 2 }] });
   assert.equal(verifyPaymentTransaction(expected, duplicateFee).reason, 'AMBIGUOUS_TRANSFER');
+});
+
+test('verification rejects multiple independently valid candidate transactions for one payment reference', async () => {
+  const first = observed({ signature: 'sig-1' });
+  const second = observed({ signature: 'sig-2', slot: 11 });
+  const provider = {
+    async findTransactionsByReference() { return [first, second]; },
+    async getTransaction() { return first; },
+  };
+  const decision = await verifyPayment(provider, expected);
+  assert.equal(decision.candidate, null);
+  assert.equal(decision.result.reason, 'AMBIGUOUS_CANDIDATE');
+  assert.deepEqual(decision.checkedSignatures, ['sig-1', 'sig-2']);
 });
 
 test('verification rejects a previously recognized signature', () => {
