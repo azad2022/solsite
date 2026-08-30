@@ -1,6 +1,6 @@
 import { createSolanaRpcProvider } from '../../../../src/pay/services/solanaRpcProvider';
 import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../../../../src/pay/services/reconciliationEngine';
-import type { ObservedPaymentTransaction } from '../../../../src/pay/services/verificationPolicy';
+import type { ObservedPaymentTransaction, ObservedTransfer } from '../../../../src/pay/services/verificationPolicy';
 import { payJson, PayRuntimeError, readJsonBody, supabaseRequest, makePayRequestId } from '../../../pay/_shared/runtime';
 
 type Env = {
@@ -14,23 +14,17 @@ type Env = {
   PAY_RECONCILE_BATCH_SIZE?: string;
 };
 
-type PaymentRow = {
-  id: string;
+type PaymentRow = ReconciliationPayment & {
   merchant_id: string;
   amount_atomic: string;
   customer_total_atomic: string;
   merchant_settlement_atomic: string;
   fee_atomic: string;
-  asset: 'SOL' | 'USDC' | 'USDT';
   token_mint: string | null;
   token_program: 'spl-token' | 'token-2022' | null;
   token_decimals: number | null;
-  recipient: string;
-  fee_recipient: string;
-  reference: string;
   verification_commitment: 'confirmed' | 'finalized';
   expires_at: string;
-  status: ReconciliationPayment['status'];
 };
 
 function constantTimeEqual(a: string, b: string): boolean {
@@ -50,16 +44,41 @@ function authorized(request: Request, env: Env): boolean {
   return constantTimeEqual(header.replace(/^Bearer\s+/i, '').trim(), configured);
 }
 
-async function loadPayments(env: Env, limit: number): Promise<PaymentRow[]> {
+function toPayment(row: PaymentRow): ReconciliationPayment {
+  return {
+    id: row.id,
+    merchantId: row.merchant_id,
+    amountAtomic: row.amount_atomic,
+    customerTotalAtomic: row.customer_total_atomic,
+    merchantSettlementAtomic: row.merchant_settlement_atomic,
+    gatewayFeeAtomic: row.fee_atomic,
+    asset: row.asset,
+    tokenMint: row.token_mint,
+    tokenProgram: row.token_program,
+    tokenDecimals: row.token_decimals,
+    recipient: row.recipient,
+    feeRecipient: row.fee_recipient,
+    reference: row.reference,
+    verificationCommitment: row.verification_commitment,
+    expiresAt: row.expires_at,
+    status: row.status,
+  };
+}
+
+async function loadPayments(env: Env, limit: number): Promise<ReconciliationPayment[]> {
+  const fields = ['id','merchant_id','amount_atomic','customer_total_atomic','merchant_settlement_atomic','fee_atomic','asset','token_mint','token_program','token_decimals','recipient','fee_recipient','reference','verification_commitment','expires_at','status'].join(',');
   const now = new Date().toISOString();
-  const fields = [
-    'id','merchant_id','amount_atomic','customer_total_atomic','merchant_settlement_atomic',
-    'fee_atomic','asset','token_mint','token_program','token_decimals','recipient',
-    'fee_recipient','reference','verification_commitment','expires_at','status',
-  ].join(',');
   const active = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid)&expires_at=gt.${encodeURIComponent(now)}&order=created_at.asc&limit=${limit}`, { headers: { Accept: 'application/json' } });
   if (!active.ok) throw new PayRuntimeError('PAYMENT_SCAN_FAILED', 503, 'Unable to scan payment intents.');
-  return await active.json() as PaymentRow[];
+  const activeRows = await active.json() as PaymentRow[];
+
+  if (activeRows.length >= limit) return activeRows.map(toPayment);
+
+  const remaining = limit - activeRows.length;
+  const expired = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid)&expires_at=lte.${encodeURIComponent(now)}&order=expires_at.asc&limit=${remaining}`, { headers: { Accept: 'application/json' } });
+  if (!expired.ok) throw new PayRuntimeError('PAYMENT_EXPIRY_SCAN_FAILED', 503, 'Unable to scan expired payment intents.');
+  const expiredRows = await expired.json() as PaymentRow[];
+  return [...activeRows, ...expiredRows].map(toPayment);
 }
 
 class SupabaseReconciliationRepository implements ReconciliationRepository {
@@ -73,20 +92,21 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
   }
 
   async recordRejectedObservation(paymentId: string, observation: ObservedPaymentTransaction, reason: string): Promise<void> {
+    const primary = observation.transfers[0];
     const response = await supabaseRequest(this.env, '/rest/v1/rpc/pay_record_rejected_observation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         p_payment_id: paymentId,
         p_signature: observation.signature,
-        p_slot: null,
-        p_block_time: null,
+        p_slot: observation.slot,
+        p_block_time: observation.blockTime,
         p_success: observation.success,
         p_commitment: observation.commitment,
         p_fee_payer: observation.feePayer,
-        p_observed_amount_atomic: observation.transfers.find((transfer) => transfer.asset === observation.transfers[0]?.asset)?.amountAtomic || '0',
-        p_asset: observation.transfers[0]?.asset || 'SOL',
-        p_recipient: observation.transfers.find((transfer) => transfer.asset === observation.transfers[0]?.asset)?.destination || '',
+        p_observed_amount_atomic: primary?.amountAtomic || '1',
+        p_asset: primary?.asset || 'SOL',
+        p_recipient: primary?.destination || '',
         p_reference_matched: observation.referenceMatched,
         p_reason: reason,
         p_raw_observation: { provider: 'solana-rpc', requestId: this.requestId, signature: observation.signature },
@@ -95,34 +115,31 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
     if (!response.ok) throw new PayRuntimeError('OBSERVATION_PERSIST_FAILED', 503, 'Rejected observation could not be stored.');
   }
 
-  async applyVerifiedObservation(input: { payment: ReconciliationPayment; observation: ObservedPaymentTransaction; transfers: readonly import('../../../../src/pay/services/verificationPolicy').ObservedTransfer[] }): Promise<'confirmed' | 'duplicate' | 'stale'> {
-    const merchantTransfer = input.transfers.find((transfer) => transfer.destination === input.payment.recipient && transfer.asset === input.payment.asset && transfer.amountAtomic === input.payment.merchantSettlementAtomic);
-    if (!merchantTransfer) return 'stale';
-
-    const rpc = await supabaseRequest(this.env, '/rest/v1/rpc/pay_apply_verified_observation', {
+  async applyVerifiedObservation(input: { payment: ReconciliationPayment; observation: ObservedPaymentTransaction; transfers: readonly ObservedTransfer[] }): Promise<'confirmed' | 'duplicate' | 'stale'> {
+    const response = await supabaseRequest(this.env, '/rest/v1/rpc/pay_apply_verified_observation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         p_payment_id: input.payment.id,
         p_signature: input.observation.signature,
-        p_slot: null,
-        p_block_time: null,
-        p_observed_amount_atomic: merchantTransfer.amountAtomic,
+        p_slot: input.observation.slot,
+        p_block_time: input.observation.blockTime,
+        p_observed_amount_atomic: input.transfers.find((transfer) => transfer.role === 'merchant_settlement')?.amountAtomic || input.payment.merchantSettlementAtomic,
         p_asset: input.payment.asset,
         p_recipient: input.payment.recipient,
         p_reference_matched: input.observation.referenceMatched,
         p_success: input.observation.success,
         p_commitment: input.observation.commitment,
         p_fee_payer: input.observation.feePayer,
-        p_network_fee_lamports: null,
+        p_network_fee_lamports: input.observation.networkFeeLamports,
         p_transfers: input.transfers,
         p_raw_observation: { provider: 'solana-rpc', requestId: this.requestId, signature: input.observation.signature },
         p_verified_at: new Date().toISOString(),
         p_request_id: this.requestId,
       }),
     });
-    if (!rpc.ok) throw new PayRuntimeError('RECONCILIATION_COMMIT_FAILED', 503, 'Verified payment could not be committed safely.');
-    const result = await rpc.json() as { ok?: boolean; status?: string; reason?: string };
+    if (!response.ok) throw new PayRuntimeError('RECONCILIATION_COMMIT_FAILED', 503, 'Verified payment could not be committed safely.');
+    const result = await response.json() as { ok?: boolean; status?: string; reason?: string };
     if (result.ok && result.status === 'confirmed') return 'confirmed';
     if (result.reason === 'ALREADY_CONFIRMED' || result.reason === 'SIGNATURE_ALREADY_BOUND') return 'duplicate';
     return 'stale';
@@ -135,7 +152,7 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
       body: JSON.stringify({ p_payment_id: paymentId, p_to_status: 'expired', p_reason: 'payment_expiry_reconciliation', p_request_id: this.requestId }),
     });
     if (!response.ok) return 'stale';
-    const result = await response.json() as { ok?: boolean; reason?: string };
+    const result = await response.json() as { ok?: boolean };
     return result.ok ? 'expired' : 'stale';
   }
 }
@@ -157,10 +174,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     const payments = await loadPayments(env, limit);
     const repository = new SupabaseReconciliationRepository(env, requestId);
     const results = [];
-    for (const payment of payments) {
-      const result = await reconcilePayment(provider, repository, payment);
-      results.push(result);
-    }
+    for (const payment of payments) results.push(await reconcilePayment(provider, repository, payment));
 
     return payJson({ data: { provider: health.provider, slot: health.slot, scanned: payments.length, results } }, 200, requestId);
   } catch (error) {
