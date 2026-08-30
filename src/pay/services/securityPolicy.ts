@@ -23,16 +23,16 @@ export function validateExternalOrderId(value: string | null | undefined): boole
 export function validatePublicMetadata(metadata: unknown): boolean {
   try {
     const encoded = JSON.stringify(metadata ?? {});
-    return Buffer.byteLength(encoded, 'utf8') <= MAX_PUBLIC_METADATA_BYTES;
+    return new TextEncoder().encode(encoded).byteLength <= MAX_PUBLIC_METADATA_BYTES;
   } catch {
     return false;
   }
 }
 
 /**
- * Webhook URL policy. This is a first-line SSRF filter, not the complete egress
- * defense. Production delivery must resolve the hostname safely and re-check
- * the destination before each outbound request to defeat DNS rebinding.
+ * First-line SSRF filter. Production delivery must also perform safe DNS
+ * resolution with private/link-local/loopback/metadata ranges blocked and
+ * re-check the resolved destination to defeat DNS rebinding.
  */
 export function validateWebhookUrl(value: string): boolean {
   if (value.length === 0 || value.length > MAX_WEBHOOK_URL_LENGTH) return false;
@@ -45,6 +45,7 @@ export function validateWebhookUrl(value: string): boolean {
   if (url.protocol !== 'https:') return false;
   if (url.username || url.password) return false;
   const host = url.hostname.toLowerCase();
+  if (host.includes(':')) return false; // Reject IP-literal IPv6 URLs at policy layer.
   if (host === 'localhost' || host.endsWith('.localhost')) return false;
   if (host === 'metadata.google.internal' || host === 'metadata.google.com') return false;
   if (/^127(?:\.\d{1,3}){3}$/.test(host)) return false;
@@ -52,7 +53,6 @@ export function validateWebhookUrl(value: string): boolean {
   if (/^192\.168(?:\.\d{1,3}){2}$/.test(host)) return false;
   if (/^169\.254(?:\.\d{1,3}){2}$/.test(host)) return false;
   if (/^172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}$/.test(host)) return false;
-  if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80:')) return false;
   return true;
 }
 
@@ -67,10 +67,7 @@ export interface AuthorizationDecision {
     | 'RESOURCE_SUSPENDED';
 }
 
-/**
- * Central object-level authorization predicate. Every merchant-scoped handler
- * should call an equivalent check before reading or mutating a resource.
- */
+/** Central object-level authorization predicate for merchant-scoped handlers. */
 export function authorizeMerchantResource(input: {
   authenticatedUserId: string | null;
   merchantOwnerUserId: string | null;
