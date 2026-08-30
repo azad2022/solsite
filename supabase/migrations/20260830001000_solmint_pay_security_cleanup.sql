@@ -8,7 +8,7 @@ alter table public.pay_merchants
 create table if not exists public.pay_merchant_members (
   id uuid primary key default gen_random_uuid(),
   merchant_id uuid not null references public.pay_merchants(id) on delete cascade,
-  user_id uuid not null,
+  user_id text not null references public.users(id) on delete restrict,
   role text not null,
   status text not null default 'active',
   created_at timestamptz not null default now(),
@@ -34,17 +34,17 @@ alter table public.pay_webhooks
   add column if not exists signing_secret_ciphertext text,
   add column if not exists signing_secret_kid text;
 
-alter table public.pay_wallet_ownership_challenges
+alter table public.pay_wallet_challenges
   add column if not exists signature_base58 text,
   add column if not exists signer_public_key text,
   add column if not exists rejection_reason text;
 
 create unique index if not exists pay_wallet_challenge_verified_uidx
-  on public.pay_wallet_ownership_challenges (merchant_id, wallet_id)
+  on public.pay_wallet_challenges (merchant_id, wallet_address)
   where status = 'verified';
 
 create unique index if not exists pay_wallet_challenges_active_wallet_uidx
-  on public.pay_wallet_ownership_challenges (wallet_id)
+  on public.pay_wallet_challenges (merchant_id, wallet_address)
   where status = 'issued' and consumed_at is null;
 
 alter table public.pay_merchant_wallets
@@ -60,6 +60,6 @@ comment on table public.pay_merchant_members is 'Merchant tenant membership and 
 comment on column public.pay_webhooks.signing_secret_ciphertext is 'Encrypted webhook HMAC secret envelope; decrypt only inside the isolated server-side signing worker through KMS/HSM.';
 comment on column public.pay_webhooks.signing_secret_kid is 'Key-management-system key identifier for the webhook signing secret.';
 comment on column public.pay_webhooks.secret_hash is 'Legacy/non-authoritative digest retained only for compatibility; runtime signing uses the encrypted secret envelope.';
-comment on column public.pay_wallet_ownership_challenges.signature_base58 is 'One-time wallet ownership proof; never accepted as a reusable credential.';
-comment on column public.pay_wallet_ownership_challenges.signer_public_key is 'Public key presented during challenge verification; runtime must prove correspondence to wallet address.';
-comment on column public.pay_wallet_ownership_challenges.rejection_reason is 'Non-sensitive reason for a rejected ownership challenge.';
+comment on column public.pay_wallet_challenges.signature_base58 is 'One-time wallet ownership proof; never accepted as a reusable credential.';
+comment on column public.pay_wallet_challenges.signer_public_key is 'Public key presented during challenge verification; runtime must prove correspondence to wallet address.';
+comment on column public.pay_wallet_challenges.rejection_reason is 'Non-sensitive reason for a rejected ownership challenge.';
