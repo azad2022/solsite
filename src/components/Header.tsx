@@ -30,8 +30,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
         <div className="overflow-visible rounded-2xl border border-white/[0.10] bg-[#05050a]/95 shadow-[0_14px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl">
           <div className="flex h-16 items-center justify-between gap-3 px-3 sm:px-5">
             <div onClick={() => handleNav('/')} className="flex shrink-0 cursor-pointer items-center gap-2.5 group">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center transition-transform group-hover:scale-105">
-                <img src="/assets/solmint-mascot-solana-coin.webp?v=2" alt="" aria-hidden="true" className="h-10 w-10 object-contain" width="40" height="40" decoding="async" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center transition-transform group-hover:scale-105">
+                <img src="/assets/solmint-mascot-solana-coin.webp?v=2" alt="" aria-hidden="true" className="h-12 w-12 object-contain" width="48" height="48" decoding="async" />
               </div>
               <div className="hidden sm:flex flex-col"><span className="flex items-center gap-1.5 text-lg font-extrabold tracking-tight text-white">سولمینت <span className="rounded-full border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[#14F195]">Solmint</span></span></div>
             </div>
