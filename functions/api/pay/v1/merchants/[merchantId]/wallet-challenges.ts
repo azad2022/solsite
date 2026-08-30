@@ -1,7 +1,7 @@
 import { getAuthenticatedUser, jsonResponse } from '../../../../auth/_shared';
 import { PayRuntimeError, payFeatureEnabled, supabaseRequest } from '../../../_shared/runtime';
-import { buildWalletOwnershipMessage, validateChallengeWindow } from '../../../../../src/pay/services/walletSignature';
-import { classifyMerchantReceivingAddress } from '../../../../../src/pay/services/walletAddressVerifier';
+import { buildWalletOwnershipMessage, validateChallengeWindow } from '../../../../../../src/pay/services/walletSignature';
+import { classifyMerchantReceivingAddress } from '../../../../../../src/pay/services/walletAddressVerifier';
 
 interface PayEnv {
   SUPABASE_URL?: string;
