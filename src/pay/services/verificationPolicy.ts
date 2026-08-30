@@ -1,12 +1,11 @@
 /**
  * Deterministic payment-verification rules.
  *
- * This module consumes normalized blockchain observations. RPC/indexer adapters
- * are kept outside it so the business decision does not depend on a provider's
- * response shape. A payment is financially eligible only when every required
- * invariant passes at the configured commitment level.
+ * This policy intentionally knows nothing about RPC/indexer response formats.
+ * Provider adapters must normalize token-account ownership before this policy
+ * decides whether a transaction is financially eligible.
  */
-import type { PaymentAsset, PaymentStatus } from '../types/domain';
+import type { PaymentAsset, PaymentStatus, TokenProgram } from '../types/domain';
 
 export type SolanaCommitment = 'confirmed' | 'finalized';
 
@@ -14,6 +13,8 @@ export interface ExpectedPayment {
   amountAtomic: string;
   asset: PaymentAsset;
   tokenMint: string | null;
+  tokenProgram: TokenProgram | null;
+  tokenDecimals: number | null;
   merchantDestination: string;
   feeDestination: string;
   merchantSettlementAtomic: string;
@@ -26,9 +27,13 @@ export interface ExpectedPayment {
 export interface ObservedTransfer {
   role: 'merchant_settlement' | 'gateway_fee' | 'refund' | 'other';
   source: string | null;
+  sourceAuthority: string | null;
   destination: string;
+  destinationAuthority: string | null;
   asset: PaymentAsset;
   tokenMint: string | null;
+  tokenProgram: TokenProgram | null;
+  tokenDecimals: number | null;
   amountAtomic: string;
   instructionIndex: number | null;
 }
@@ -52,10 +57,33 @@ export interface VerificationResult {
     | 'REFERENCE_MISMATCH'
     | 'MERCHANT_TRANSFER_MISMATCH'
     | 'FEE_TRANSFER_MISMATCH'
+    | 'TOKEN_ACCOUNT_MISMATCH'
     | 'SENDER_MISMATCH'
     | 'SPONSOR_MISMATCH'
     | 'DUPLICATE_SIGNATURE'
     | 'MISSING_SIGNATURE';
+}
+
+function transferMatches(
+  transfer: ObservedTransfer,
+  expected: ExpectedPayment,
+  destination: string,
+  amountAtomic: string,
+): boolean {
+  if (transfer.destination !== transfer.destination.trim()) return false;
+  if (transfer.asset !== expected.asset || transfer.amountAtomic !== amountAtomic) return false;
+
+  if (expected.asset === 'SOL') {
+    return transfer.tokenMint === null
+      && transfer.tokenProgram === null
+      && transfer.tokenDecimals === null
+      && transfer.destination === destination;
+  }
+
+  return transfer.tokenMint === expected.tokenMint
+    && transfer.tokenProgram === expected.tokenProgram
+    && transfer.tokenDecimals === expected.tokenDecimals
+    && transfer.destinationAuthority === destination;
 }
 
 export function verifyPaymentTransaction(
@@ -74,36 +102,31 @@ export function verifyPaymentTransaction(
     return { valid: false, status: 'failed', reason: 'SPONSOR_MISMATCH' };
   }
 
-  const merchantTransfer = observed.transfers.find(
-    (transfer) =>
-      transfer.role === 'merchant_settlement' &&
-      transfer.destination === expected.merchantDestination &&
-      transfer.asset === expected.asset &&
-      transfer.tokenMint === expected.tokenMint &&
-      transfer.amountAtomic === expected.merchantSettlementAtomic,
+  const merchantTransfer = observed.transfers.find((transfer) =>
+    transfer.role === 'merchant_settlement' &&
+    transferMatches(transfer, expected, expected.merchantDestination, expected.merchantSettlementAtomic),
   );
-
   if (!merchantTransfer) return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
 
-  const feeTransfer = observed.transfers.find(
-    (transfer) =>
-      transfer.role === 'gateway_fee' &&
-      transfer.destination === expected.feeDestination &&
-      transfer.asset === expected.asset &&
-      transfer.tokenMint === expected.tokenMint &&
-      transfer.amountAtomic === expected.gatewayFeeAtomic,
+  const feeTransfer = observed.transfers.find((transfer) =>
+    transfer.role === 'gateway_fee' &&
+    transferMatches(transfer, expected, expected.feeDestination, expected.gatewayFeeAtomic),
   );
-
   if (!feeTransfer) return { valid: false, status: 'failed', reason: 'FEE_TRANSFER_MISMATCH' };
 
-  // Both value legs must originate from the same customer authority. This
-  // prevents a malicious transaction containing a valid merchant transfer from
-  // one source and a valid fee transfer from an unrelated source.
-  if (!merchantTransfer.source || !feeTransfer.source || merchantTransfer.source !== feeTransfer.source) {
+  if (expected.asset !== 'SOL') {
+    if (!merchantTransfer.destinationAuthority || !feeTransfer.destinationAuthority) {
+      return { valid: false, status: 'failed', reason: 'TOKEN_ACCOUNT_MISMATCH' };
+    }
+  }
+
+  // Both value legs must be authorized by the same payer. For SPL tokens,
+  // source is a token account while sourceAuthority is its owner/delegate;
+  // verification therefore compares the normalized authority, not token-account
+  // addresses that may differ across wallets or transactions.
+  if (!merchantTransfer.sourceAuthority || !feeTransfer.sourceAuthority || merchantTransfer.sourceAuthority !== feeTransfer.sourceAuthority) {
     return { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' };
   }
 
-  // Verification proves the transaction. Completion is a later business step
-  // that records accounting and emits merchant webhooks exactly once.
   return { valid: true, status: 'confirmed', reason: 'OK' };
 }
