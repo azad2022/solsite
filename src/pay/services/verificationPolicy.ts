@@ -20,6 +20,7 @@ export interface ExpectedPayment {
   gatewayFeeAtomic: string;
   reference: string;
   requiredCommitment: SolanaCommitment;
+  expectedSponsorAddress?: string | null;
 }
 
 export interface ObservedTransfer {
@@ -51,6 +52,8 @@ export interface VerificationResult {
     | 'REFERENCE_MISMATCH'
     | 'MERCHANT_TRANSFER_MISMATCH'
     | 'FEE_TRANSFER_MISMATCH'
+    | 'SENDER_MISMATCH'
+    | 'SPONSOR_MISMATCH'
     | 'DUPLICATE_SIGNATURE'
     | 'MISSING_SIGNATURE';
 }
@@ -60,23 +63,18 @@ export function verifyPaymentTransaction(
   observed: ObservedPaymentTransaction,
   duplicateSignature = false,
 ): VerificationResult {
-  if (!observed.signature) {
-    return { valid: false, status: 'failed', reason: 'MISSING_SIGNATURE' };
-  }
-  if (duplicateSignature) {
-    return { valid: false, status: 'duplicate', reason: 'DUPLICATE_SIGNATURE' };
-  }
-  if (!observed.success) {
-    return { valid: false, status: 'failed', reason: 'TRANSACTION_FAILED' };
-  }
+  if (!observed.signature) return { valid: false, status: 'failed', reason: 'MISSING_SIGNATURE' };
+  if (duplicateSignature) return { valid: false, status: 'duplicate', reason: 'DUPLICATE_SIGNATURE' };
+  if (!observed.success) return { valid: false, status: 'failed', reason: 'TRANSACTION_FAILED' };
   if (expected.requiredCommitment === 'finalized' && observed.commitment !== 'finalized') {
     return { valid: false, status: 'verifying', reason: 'COMMITMENT_TOO_LOW' };
   }
-  if (!observed.referenceMatched) {
-    return { valid: false, status: 'wrong_recipient', reason: 'REFERENCE_MISMATCH' };
+  if (!observed.referenceMatched) return { valid: false, status: 'wrong_recipient', reason: 'REFERENCE_MISMATCH' };
+  if (expected.expectedSponsorAddress && observed.feePayer !== expected.expectedSponsorAddress) {
+    return { valid: false, status: 'failed', reason: 'SPONSOR_MISMATCH' };
   }
 
-  const merchantMatches = observed.transfers.some(
+  const merchantTransfer = observed.transfers.find(
     (transfer) =>
       transfer.role === 'merchant_settlement' &&
       transfer.destination === expected.merchantDestination &&
@@ -85,11 +83,9 @@ export function verifyPaymentTransaction(
       transfer.amountAtomic === expected.merchantSettlementAtomic,
   );
 
-  if (!merchantMatches) {
-    return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
-  }
+  if (!merchantTransfer) return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
 
-  const feeMatches = observed.transfers.some(
+  const feeTransfer = observed.transfers.find(
     (transfer) =>
       transfer.role === 'gateway_fee' &&
       transfer.destination === expected.feeDestination &&
@@ -98,8 +94,13 @@ export function verifyPaymentTransaction(
       transfer.amountAtomic === expected.gatewayFeeAtomic,
   );
 
-  if (!feeMatches) {
-    return { valid: false, status: 'failed', reason: 'FEE_TRANSFER_MISMATCH' };
+  if (!feeTransfer) return { valid: false, status: 'failed', reason: 'FEE_TRANSFER_MISMATCH' };
+
+  // Both value legs must originate from the same customer authority. This
+  // prevents a malicious transaction containing a valid merchant transfer from
+  // one source and a valid fee transfer from an unrelated source.
+  if (!merchantTransfer.source || !feeTransfer.source || merchantTransfer.source !== feeTransfer.source) {
+    return { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' };
   }
 
   // Verification proves the transaction. Completion is a later business step
