@@ -49,6 +49,7 @@ export async function verifyPayment(
     status: 'failed',
     reason: 'MISSING_SIGNATURE',
   };
+  let validCandidate: VerificationCandidate | null = null;
 
   for (const observation of observations) {
     if (!observation?.signature || checked.has(observation.signature)) continue;
@@ -59,13 +60,26 @@ export async function verifyPayment(
     lastResult = result;
 
     if (result.valid) {
-      return {
-        result,
-        candidate: { signature: observation.signature, observation, result },
-        checks,
-        checkedSignatures: [...checked],
-      };
+      if (validCandidate) {
+        const ambiguous: VerificationResult = { valid: false, status: 'failed', reason: 'AMBIGUOUS_CANDIDATE' };
+        return {
+          result: ambiguous,
+          candidate: null,
+          checks,
+          checkedSignatures: [...checked],
+        };
+      }
+      validCandidate = { signature: observation.signature, observation, result };
     }
+  }
+
+  if (validCandidate) {
+    return {
+      result: validCandidate.result,
+      candidate: validCandidate,
+      checks,
+      checkedSignatures: [...checked],
+    };
   }
 
   return {
