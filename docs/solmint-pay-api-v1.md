@@ -1,14 +1,14 @@
 # SolMint Pay API v1 — Contract Draft
 
-This is a design contract, not an enabled production API. No public endpoint should be implemented from this document until authentication, idempotency, rate limiting, verification and accounting are reviewed.
+This document is a design contract, not an enabled production API. No public endpoint is permitted until authentication, idempotency, rate limiting, verification, accounting, and deployment gates pass review.
 
 ## Authentication
 
-Production merchant APIs use a server-issued API key. Keys are scoped to a merchant and must be stored only as a one-way hash. Raw secrets are displayed only at creation time.
+Production merchant APIs use a server-issued API key. Keys are scoped to one merchant, stored only as one-way hashes, and shown in plaintext only at creation time. The merchant identity is always derived from the credential; clients must never be trusted to submit a merchant ID for authorization.
 
 ## Idempotency
 
-Any mutating endpoint that can create a payment, invoice, refund, webhook delivery or payout uses an `Idempotency-Key` supplied by the caller. Replays with the same key must return the original logical result.
+Every mutating request that can create or change financial/business state accepts an `Idempotency-Key`. The key is persisted per merchant and endpoint scope with a request hash. Reusing a key with a different request body must fail rather than replaying the first operation for a different request.
 
 ## Core resources
 
@@ -27,18 +27,48 @@ POST   /api/pay/v1/webhooks
 
 ## Payment creation
 
-A payment request must define:
+The request defines:
 
-- Merchant identity (derived from API credentials; never trusted from the request body).
-- External order identifier (optional, merchant-controlled).
-- Amount in atomic units.
+- Merchant identity derived from API credentials.
+- Optional merchant `external_order_id`; it is unique within that merchant when supplied.
+- Base merchant amount in atomic units.
 - Asset and network.
 - Fee payer: `merchant` or `customer`.
 - Optional payment-link/invoice association.
-- Expiration time.
-- Optional customer-facing metadata that is safe to expose publicly.
+- Expiration.
+- Safe customer-facing metadata.
 
-The server generates the canonical payment identifier, reference and receiving destination policy.
+The server generates and snapshots:
+
+- canonical payment ID
+- unique reference
+- receiving destination
+- gateway fee rate
+- exact gateway fee amount
+- customer total
+- merchant net amount
+- SolMint fee recipient
+- gas sponsorship policy
+
+These snapshots are authoritative for accounting even if merchant configuration changes later.
+
+## Fee semantics
+
+The gateway rate is currently 100 bps (1%). The merchant may choose who bears that gateway fee.
+
+```text
+merchant pays:
+customerTotal = baseAmount
+merchantNet   = baseAmount - gatewayFee
+
+customer pays:
+customerTotal = baseAmount + gatewayFee
+merchantNet   = baseAmount
+```
+
+If the customer pays the fee, the on-chain transaction may contain multiple transfer legs in one atomic transaction: merchant settlement plus the SolMint gateway fee. The API must not model a blockchain transaction as having only one recipient.
+
+Gateway fee and Solana network fee are different concepts. Gas sponsorship is handled by a separate policy and ledger.
 
 ## Response model
 
@@ -52,7 +82,9 @@ API responses use stable machine-readable codes. Localized UI text is generated 
     "status": "pending",
     "amount": "100.00",
     "asset": "USDC",
-    "feePayer": "merchant",
+    "feePayer": "customer",
+    "customerTotal": "101.00",
+    "merchantNet": "100.00",
     "checkoutUrl": "https://solmint.ir/pay/checkout/...",
     "expiresAt": "..."
   },
@@ -62,7 +94,7 @@ API responses use stable machine-readable codes. Localized UI text is generated 
 
 ## Webhooks
 
-Events must be signed with a merchant-specific webhook secret and include an event ID. Delivery is at-least-once; merchants must deduplicate by event ID.
+Events are signed with a merchant-specific webhook secret and include a globally unique event ID. Delivery is at-least-once. A single event may be delivered independently to multiple merchant endpoints, so deduplication is scoped to the webhook endpoint as well as the event ID.
 
 Recommended event names:
 
@@ -77,19 +109,10 @@ payment.refunded
 invoice.paid
 ```
 
-## Error envelope
+## Blockchain verification
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "PAYMENT_EXPIRED",
-    "message": "Payment has expired."
-  },
-  "requestId": "..."
-}
-```
+A payment is not financially eligible because a browser reports success. The backend must verify the observed transaction and its transfer legs against the payment snapshot: network, token mint, recipient, amount, reference/correlation, signature uniqueness, and confirmation policy.
 
 ## Accounting rule
 
-The API must never infer merchant balance from a frontend callback. A payment becomes financially eligible only after backend verification of the on-chain observation and deterministic fee calculation.
+Financial records are backend-owned. The database must distinguish the business payment intent from on-chain observations and transfer legs. Referral commissions are liabilities derived from eligible gateway revenue, not from sign-ups alone. Gas credits and sponsorship spend are tracked in their own ledger and never mixed with merchant settlement funds or SolMint gateway revenue.
