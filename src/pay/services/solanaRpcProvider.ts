@@ -48,6 +48,18 @@ function tokenProgramFromOwner(owner: unknown): TokenProgram | null {
   return null;
 }
 
+function normalizeAccountKey(accountKey: any): string | null {
+  if (typeof accountKey === 'string') return accountKey;
+  if (typeof accountKey?.pubkey === 'string') return accountKey.pubkey;
+  return null;
+}
+
+export function transactionContainsReference(transaction: any, reference: string): boolean {
+  const accountKeys = transaction?.transaction?.message?.accountKeys;
+  if (!Array.isArray(accountKeys) || !reference) return false;
+  return accountKeys.some((key: any) => normalizeAccountKey(key) === reference);
+}
+
 async function getTokenAccountInfo(url: string, address: string): Promise<TokenAccountInfo> {
   const result = await rpc<any>(url, 'getAccountInfo', [address, { encoding: 'jsonParsed', commitment: 'finalized' }]);
   const value = result?.value;
@@ -80,9 +92,6 @@ async function enrichTransfer(url: string, transfer: ObservedTransfer): Promise<
   return {
     ...transfer,
     tokenProgram: sourceInfo.program,
-    // For normal transfers, the instruction's authority is the signer/delegate
-    // that authorized the transfer. The token-account owner is retained as a
-    // fallback for providers that omit the parsed authority field.
     sourceAuthority: transfer.sourceAuthority || sourceInfo.owner,
     destinationAuthority: destinationInfo.owner,
   };
@@ -182,9 +191,15 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     const signatures = await rpc<any[]>(this.rpcUrl, 'getSignaturesForAddress', [reference, { commitment: commitmentValue(commitment), limit: 20 }]);
     const results: ObservedPaymentTransaction[] = [];
     for (const item of signatures) {
-      if (!item?.signature || item?.err) continue;
+      if (!item?.signature) continue;
       const transaction = await this.getTransaction(item.signature, commitment);
-      if (transaction) results.push({ ...transaction, referenceMatched: true });
+      if (!transaction) continue;
+
+      // getSignaturesForAddress is only a candidate-discovery mechanism. The
+      // actual transaction must contain the reference account in its message
+      // account keys before the candidate is eligible for verification.
+      const referenceMatched = transactionContainsReference((transaction as any)._rawTransaction, reference);
+      results.push({ ...transaction, referenceMatched });
     }
     return results;
   }
