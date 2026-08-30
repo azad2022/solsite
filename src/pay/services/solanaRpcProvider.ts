@@ -156,35 +156,55 @@ function collectParsedInstructions(transaction: any): any[] {
   return [...outer, ...inner];
 }
 
+function normalizeTransaction(result: any, signature: string, commitment: SolanaCommitment, expectedAssetMints: Partial<Record<'USDC' | 'USDT', string>>): ObservedPaymentTransaction {
+  const parsedTransfers = collectParsedInstructions(result)
+    .map((instruction) => parseSupportedInstruction(instruction, expectedAssetMints))
+    .filter((transfer): transfer is ObservedTransfer => Boolean(transfer));
+
+  const transfers: ObservedTransfer[] = [];
+  return {
+    signature,
+    success: result.meta?.err == null,
+    commitment,
+    feePayer: result.transaction?.message?.accountKeys?.[0]?.pubkey ?? null,
+    referenceMatched: false,
+    transfers,
+  };
+}
+
 export class SolanaRpcProvider implements SolanaPaymentProvider {
   constructor(private readonly rpcUrl: string, private readonly expectedAssetMints: Partial<Record<'USDC' | 'USDT', string>>) {}
 
-  async getTransaction(signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction | null> {
+  private async fetchTransaction(signature: string, commitment: SolanaCommitment): Promise<any | null> {
     const result = await rpc<any>(this.rpcUrl, 'getTransaction', [signature, {
       commitment: commitmentValue(commitment),
       encoding: 'jsonParsed',
       maxSupportedTransactionVersion: 0,
     }]);
-    if (!result) return null;
+    return result || null;
+  }
+
+  private async normalize(result: any, signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction> {
+    const observation = normalizeTransaction(result, signature, commitment, this.expectedAssetMints);
+    for (const transfer of observation.transfers) {
+      void transfer;
+    }
 
     const parsedTransfers = collectParsedInstructions(result)
       .map((instruction) => parseSupportedInstruction(instruction, this.expectedAssetMints))
       .filter((transfer): transfer is ObservedTransfer => Boolean(transfer));
-
     const transfers: ObservedTransfer[] = [];
     for (const transfer of parsedTransfers) {
       const enriched = await enrichTransfer(this.rpcUrl, transfer);
       if (enriched) transfers.push(enriched);
     }
+    return { ...observation, transfers };
+  }
 
-    return {
-      signature,
-      success: result.meta?.err == null,
-      commitment,
-      feePayer: result.transaction?.message?.accountKeys?.[0]?.pubkey ?? null,
-      referenceMatched: false,
-      transfers,
-    };
+  async getTransaction(signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction | null> {
+    const result = await this.fetchTransaction(signature, commitment);
+    if (!result) return null;
+    return this.normalize(result, signature, commitment);
   }
 
   async findTransactionsByReference(reference: string, commitment: SolanaCommitment): Promise<readonly ObservedPaymentTransaction[]> {
@@ -192,14 +212,10 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     const results: ObservedPaymentTransaction[] = [];
     for (const item of signatures) {
       if (!item?.signature) continue;
-      const transaction = await this.getTransaction(item.signature, commitment);
-      if (!transaction) continue;
-
-      // getSignaturesForAddress is only a candidate-discovery mechanism. The
-      // actual transaction must contain the reference account in its message
-      // account keys before the candidate is eligible for verification.
-      const referenceMatched = transactionContainsReference((transaction as any)._rawTransaction, reference);
-      results.push({ ...transaction, referenceMatched });
+      const raw = await this.fetchTransaction(item.signature, commitment);
+      if (!raw) continue;
+      const observation = await this.normalize(raw, item.signature, commitment);
+      results.push({ ...observation, referenceMatched: transactionContainsReference(raw, reference) });
     }
     return results;
   }
