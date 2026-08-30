@@ -1,7 +1,7 @@
 import { createSolanaRpcProvider } from '../../../../src/pay/services/solanaRpcProvider';
 import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../../../../src/pay/services/reconciliationEngine';
 import type { ObservedPaymentTransaction, ObservedTransfer } from '../../../../src/pay/services/verificationPolicy';
-import { payJson, PayRuntimeError, readJsonBody, supabaseRequest, makePayRequestId } from '../../pay/_shared/runtime';
+import { payJson, PayRuntimeError, readJsonBody, supabaseRequest, makePayRequestId, enforcePayRateLimit } from '../../pay/_shared/runtime';
 
 type Env = {
   SUPABASE_URL?: string;
@@ -49,6 +49,7 @@ function toPayment(row: PaymentRow): ReconciliationPayment {
   return {
     id: row.id,
     merchantId: row.merchant_id,
+    createdAt: (row as PaymentRow & { created_at?: string }).created_at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     amountAtomic: row.amount_atomic,
     customerTotalAtomic: row.customer_total_atomic,
     merchantSettlementAtomic: row.merchant_settlement_atomic,
@@ -67,7 +68,7 @@ function toPayment(row: PaymentRow): ReconciliationPayment {
 }
 
 async function loadPayments(env: Env, limit: number): Promise<ReconciliationPayment[]> {
-  const fields = ['id','merchant_id','amount_atomic','customer_total_atomic','merchant_settlement_atomic','fee_atomic','asset','token_mint','token_program','token_decimals','recipient','fee_recipient','reference','verification_commitment','expires_at','status'].join(',');
+  const fields = ['id','merchant_id','created_at','amount_atomic','customer_total_atomic','merchant_settlement_atomic','fee_atomic','asset','token_mint','token_program','token_decimals','recipient','fee_recipient','reference','verification_commitment','expires_at','status'].join(',');
   const now = new Date().toISOString();
   const active = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid)&expires_at=gt.${encodeURIComponent(now)}&order=created_at.asc&limit=${limit}`, { headers: { Accept: 'application/json' } });
   if (!active.ok) throw new PayRuntimeError('PAYMENT_SCAN_FAILED', 503, 'Unable to scan payment intents.');
@@ -84,7 +85,7 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
   constructor(private readonly env: Env, private readonly requestId: string) {}
 
   async loadKnownSignatures(paymentId: string): Promise<ReadonlySet<string>> {
-    const response = await supabaseRequest(this.env, `/rest/v1/pay_payment_transactions?select=signature&payment_id=eq.${encodeURIComponent(paymentId)}&limit=100`, { headers: { Accept: 'application/json' } });
+    const response = await supabaseRequest(this.env, `/rest/v1/pay_payment_transactions?select=signature&payment_id=eq.${encodeURIComponent(paymentId)}&order=observed_at.asc`, { headers: { Accept: 'application/json' } });
     if (!response.ok) throw new PayRuntimeError('TRANSACTION_SCAN_FAILED', 503, 'Unable to load known payment observations.');
     const rows = await response.json() as Array<{ signature: string }>;
     return new Set(rows.map((row) => row.signature).filter(Boolean));
@@ -161,6 +162,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   const requestId = makePayRequestId();
   try {
     if (!authorized(request, env)) return payJson({ code: 'UNAUTHORIZED' }, 401, requestId);
+    const subjectBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pay-reconcile'));
+    const subjectHash = Array.from(new Uint8Array(subjectBytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    await enforcePayRateLimit(env, 'reconcile:worker', subjectHash, 60, 30);
+
     const body = await readJsonBody(request).catch(() => ({}));
     const requested = body.limit === undefined ? 10 : Number(body.limit);
     if (!Number.isInteger(requested) || requested < 1 || requested > 50) throw new PayRuntimeError('INVALID_BATCH_SIZE', 400, 'limit must be an integer between 1 and 50.');
