@@ -1,10 +1,10 @@
-/** Minimal base58 codec used by SolMint Pay for Solana addresses/signatures. */
+/** Minimal Base58 codec used by SolMint Pay for Solana addresses/signatures. */
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const LOOKUP = new Map(ALPHABET.split('').map((char, index) => [char, index]));
 
 export function decodeBase58(value: string): Uint8Array {
   if (!value || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(value)) throw new Error('Invalid base58 string.');
-  const bytes: number[] = [0];
+  const bytes: number[] = [];
   for (const char of value) {
     const digit = LOOKUP.get(char);
     if (digit === undefined) throw new Error('Invalid base58 character.');
@@ -29,7 +29,7 @@ export function decodeBase58(value: string): Uint8Array {
 
 export function encodeBase58(value: Uint8Array): string {
   if (value.length === 0) return '';
-  const digits: number[] = [0];
+  const digits: number[] = [];
   for (const byte of value) {
     let carry = byte;
     for (let i = 0; i < digits.length; i++) {
@@ -47,5 +47,5 @@ export function encodeBase58(value: Uint8Array): string {
     if (byte !== 0) break;
     leadingZeroes++;
   }
-  return '1'.repeat(leadingZeroes) + digits.reverse().map((digit) => ALPHABET[digit]).join('');
+  return '1'.repeat(leadingZeroes) + (digits.length ? digits.reverse().map((digit) => ALPHABET[digit]).join('') : '');
 }
