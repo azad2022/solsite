@@ -97,7 +97,7 @@ create table if not exists public.pay_payment_links (
   expires_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint pay_link_asset_check check (asset is null or asset in ('SOL','USDC','USDC')),
+  constraint pay_link_asset_check check (asset is null or asset in ('SOL','USDC','USDT')),
   constraint pay_link_fee_payer_check check (fee_payer is null or fee_payer in ('merchant','customer')),
   constraint pay_link_locale_check check (checkout_locale in ('fa-IR','en-US','ar','ru','auto')),
   constraint pay_link_amount_check check (fixed_amount_atomic is null or fixed_amount_atomic > 0)
