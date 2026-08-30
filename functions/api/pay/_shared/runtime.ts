@@ -1,6 +1,6 @@
-import { calculateGatewayFee } from '../../../src/pay/services/feePolicy';
-import { validateApiKeyFormat, validateApiKeyRecord } from '../../../src/pay/services/apiKeyPolicy';
-import { validateIdempotencyKey, validatePublicMetadata } from '../../../src/pay/services/securityPolicy';
+import { calculateGatewayFee } from '../../../../src/pay/services/feePolicy';
+import { validateApiKeyFormat, validateApiKeyRecord } from '../../../../src/pay/services/apiKeyPolicy';
+import { validateIdempotencyKey, validatePublicMetadata } from '../../../../src/pay/services/securityPolicy';
 
 export interface PayRuntimeEnv {
   SUPABASE_URL?: string;
@@ -15,11 +15,6 @@ export interface PayApiPrincipal {
   merchantId: string;
   keyId: string;
   scopes: readonly string[];
-}
-
-export interface PayApiContext {
-  requestId: string;
-  merchant: PayApiPrincipal;
 }
 
 export class PayRuntimeError extends Error {
@@ -164,8 +159,6 @@ export async function authenticateMerchantApi(
     throw new PayRuntimeError(code, code === 'FORBIDDEN' ? 403 : 401, 'Pay API credential is not authorized.');
   }
 
-  // Update last_used_at only after successful authentication. Failure to record
-  // telemetry must never turn an otherwise valid financial request into a retry.
   await supabaseRequest(
     env,
     `/rest/v1/pay_api_keys?id=eq.${encodeURIComponent(record.id)}`,
