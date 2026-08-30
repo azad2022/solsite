@@ -11,7 +11,7 @@ interface RpcEnv {
 
 type RpcResponse<T> = { result?: T; error?: { code?: number; message?: string } };
 
-function commitmentValue(value: SolanaCommitment): string {
+function commitmentValue(value: SolanaCommitment): 'confirmed' | 'finalized' {
   return value === 'finalized' ? 'finalized' : 'confirmed';
 }
 
@@ -35,74 +35,55 @@ async function rpc<T>(url: string, method: string, params: unknown[]): Promise<T
   }
 }
 
-function toAtomic(value: unknown, decimals: number): string | null {
-  if (typeof value === 'number' || typeof value === 'string') {
-    const normalized = String(value);
-    if (/^\d+$/.test(normalized)) return normalized;
-    if (/^\d+\.\d+$/.test(normalized)) {
-      const [whole, fraction] = normalized.split('.');
-      if (fraction.length > decimals) return null;
-      return BigInt(whole) * 10n ** BigInt(decimals) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals));
-    }
-  }
-  return null;
+function toAtomicDecimal(value: unknown, decimals: number): string | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  const normalized = String(value);
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const [whole, fraction = ''] = normalized.split('.');
+  if (fraction.length > decimals) return null;
+  return (BigInt(whole) * 10n ** BigInt(decimals) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals))).toString();
 }
 
-function parseParsedInstruction(instruction: any, accountKeys: any[]): ObservedTransfer | null {
+function parseSupportedInstruction(
+  instruction: any,
+  expectedAssetMints: Partial<Record<'USDC' | 'USDT', string>>,
+): ObservedTransfer | null {
   const programId = instruction?.programId ?? null;
   const parsed = instruction?.parsed;
   if (!parsed || typeof parsed !== 'object') return null;
 
   if (programId === SYSTEM_PROGRAM && parsed.type === 'transfer') {
     const info = parsed.info;
-    const amount = toAtomic(info?.lamports, 9);
-    if (!info?.destination || !amount) return null;
-    return {
-      role: 'other',
-      source: typeof info.source === 'string' ? info.source : null,
-      destination: info.destination,
-      asset: 'SOL',
-      tokenMint: null,
-      amountAtomic: amount,
-      instructionIndex: null,
-    };
+    const amount = toAtomicDecimal(info?.lamports, 9);
+    if (!info?.source || !info?.destination || !amount) return null;
+    return { role: 'other', source: info.source, destination: info.destination, asset: 'SOL', tokenMint: null, amountAtomic: amount, instructionIndex: null };
   }
 
-  if (programId === TOKEN_PROGRAM && (parsed.type === 'transfer' || parsed.type === 'transferChecked')) {
-    const info = parsed.info;
-    const amount = parsed.type === 'transferChecked'
-      ? toAtomic(info?.tokenAmount?.amount, Number(info?.tokenAmount?.decimals ?? 0))
-      : null;
-    const fallbackAmount = parsed.type === 'transfer' && typeof info?.amount === 'string' && /^\d+$/.test(info.amount) ? info.amount : null;
-    if (!info?.destination || !(amount || fallbackAmount) || !info?.mint) return null;
-    return {
-      role: 'other',
-      source: typeof info.source === 'string' ? info.source : null,
-      destination: info.destination,
-      asset: 'USDC',
-      tokenMint: info.mint,
-      amountAtomic: amount || fallbackAmount!,
-      instructionIndex: null,
-    };
-  }
-  return null;
+  // Only TransferChecked is accepted for SPL payment recognition here. Its
+  // parsed tokenAmount carries both exact atomic amount and decimals, while the
+  // mint is explicit. Plain Transfer would require an additional token-account
+  // lookup before it can safely be recognized.
+  if (programId !== TOKEN_PROGRAM || parsed.type !== 'transferChecked') return null;
+  const info = parsed.info;
+  const mint = typeof info?.mint === 'string' ? info.mint : null;
+  const decimals = Number(info?.tokenAmount?.decimals);
+  const amount = toAtomicDecimal(info?.tokenAmount?.uiAmountString ?? info?.tokenAmount?.uiAmount, Number.isInteger(decimals) ? decimals : -1);
+  if (!info?.source || !info?.destination || !mint || !Number.isInteger(decimals) || decimals < 0 || !amount) return null;
+
+  const asset = expectedAssetMints.USDC === mint ? 'USDC' : expectedAssetMints.USDT === mint ? 'USDT' : null;
+  if (!asset) return null;
+
+  return { role: 'other', source: info.source, destination: info.destination, asset, tokenMint: mint, amountAtomic: amount, instructionIndex: null };
 }
 
-function collectInstructions(transaction: any): any[] {
+function collectParsedInstructions(transaction: any): any[] {
   const message = transaction?.transaction?.message;
   const meta = transaction?.meta;
   const outer = Array.isArray(message?.instructions) ? message.instructions : [];
-  const inner = Array.isArray(meta?.innerInstructions) ? meta.innerInstructions.flatMap((group: any) => Array.isArray(group.instructions) ? group.instructions : []) : [];
+  const inner = Array.isArray(meta?.innerInstructions)
+    ? meta.innerInstructions.flatMap((group: any) => Array.isArray(group.instructions) ? group.instructions : [])
+    : [];
   return [...outer, ...inner];
-}
-
-function referenceInTransaction(transaction: any, reference: string): boolean {
-  const keys = transaction?.transaction?.message?.accountKeys || [];
-  return keys.some((key: any) => (typeof key === 'string' ? key : key?.pubkey) === reference);
-}
-
-function commitmentFor(observed: SolanaCommitment): SolanaCommitment {
-  return observed;
 }
 
 export class SolanaRpcProvider implements SolanaPaymentProvider {
@@ -116,25 +97,17 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     }]);
     if (!result) return null;
 
-    const transfers = collectInstructions(result)
-      .map((instruction) => parseParsedInstruction(instruction, result?.transaction?.message?.accountKeys || []))
+    const transfers = collectParsedInstructions(result)
+      .map((instruction) => parseSupportedInstruction(instruction, this.expectedAssetMints))
       .filter((transfer): transfer is ObservedTransfer => Boolean(transfer));
-
-    const normalized = transfers.map((transfer) => {
-      if (transfer.asset !== 'USDC') return transfer;
-      const mint = transfer.tokenMint;
-      const isUsdc = mint && this.expectedAssetMints.USDC === mint;
-      const isUsdt = mint && this.expectedAssetMints.USDT === mint;
-      return { ...transfer, asset: isUsdt ? 'USDT' : isUsdc ? 'USDC' : transfer.asset };
-    });
 
     return {
       signature,
       success: result.meta?.err == null,
-      commitment: commitmentFor(commitment),
+      commitment,
       feePayer: result.transaction?.message?.accountKeys?.[0]?.pubkey ?? null,
       referenceMatched: false,
-      transfers: normalized,
+      transfers,
     };
   }
 
@@ -144,15 +117,17 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     for (const item of signatures) {
       if (!item?.signature || item?.err) continue;
       const transaction = await this.getTransaction(item.signature, commitment);
-      if (transaction) results.push({ ...transaction, referenceMatched: referenceInTransaction(transaction, reference) });
+      // The candidate was discovered by getSignaturesForAddress(reference), so
+      // the RPC itself established account-level reference correlation. A later
+      // verifier still checks the concrete transfer legs and snapshot.
+      if (transaction) results.push({ ...transaction, referenceMatched: true });
     }
     return results;
   }
 
   async getHealth(): Promise<{ ok: boolean; slot: number | null; provider: string }> {
     try {
-      const result = await rpc<number>(this.rpcUrl, 'getSlot', [{ commitment: 'finalized' }]);
-      return { ok: true, slot: result, provider: 'solana-rpc' };
+      return { ok: true, slot: await rpc<number>(this.rpcUrl, 'getSlot', [{ commitment: 'finalized' }]), provider: 'solana-rpc' };
     } catch {
       return { ok: false, slot: null, provider: 'solana-rpc' };
     }
