@@ -7,7 +7,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.pay_merchants (
   id uuid primary key default gen_random_uuid(),
-  owner_user_id uuid,
+  owner_user_id text not null references public.users(id) on delete restrict,
   business_name text not null,
   slug text not null unique,
   default_checkout_locale text not null default 'fa-IR',
@@ -62,11 +62,8 @@ create table if not exists public.pay_payment_intents (
   constraint pay_payment_status_check check (status in ('created','pending','detected','verifying','confirmed','completed','expired','underpaid','overpaid','wrong_token','wrong_recipient','duplicate','failed','refunded'))
 );
 
-create index if not exists pay_payment_intents_merchant_created_idx
-  on public.pay_payment_intents (merchant_id, created_at desc);
-
-create index if not exists pay_payment_intents_status_expires_idx
-  on public.pay_payment_intents (status, expires_at);
+create index if not exists pay_payment_intents_merchant_created_idx on public.pay_payment_intents (merchant_id, created_at desc);
+create index if not exists pay_payment_intents_status_expires_idx on public.pay_payment_intents (status, expires_at);
 
 create table if not exists public.pay_payment_transactions (
   id uuid primary key default gen_random_uuid(),
@@ -85,8 +82,7 @@ create table if not exists public.pay_payment_transactions (
   constraint pay_tx_amount_check check (observed_amount_atomic > 0)
 );
 
-create index if not exists pay_payment_transactions_payment_idx
-  on public.pay_payment_transactions (payment_id, observed_at desc);
+create index if not exists pay_payment_transactions_payment_idx on public.pay_payment_transactions (payment_id, observed_at desc);
 
 create table if not exists public.pay_payment_links (
   id uuid primary key default gen_random_uuid(),
@@ -101,7 +97,7 @@ create table if not exists public.pay_payment_links (
   expires_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint pay_link_asset_check check (asset is null or asset in ('SOL','USDC','USDT')),
+  constraint pay_link_asset_check check (asset is null or asset in ('SOL','USDC','USDC')),
   constraint pay_link_fee_payer_check check (fee_payer is null or fee_payer in ('merchant','customer')),
   constraint pay_link_locale_check check (checkout_locale in ('fa-IR','en-US','ar','ru','auto')),
   constraint pay_link_amount_check check (fixed_amount_atomic is null or fixed_amount_atomic > 0)
@@ -199,13 +195,12 @@ create table if not exists public.pay_webhook_deliveries (
   constraint pay_webhook_delivery_status_check check (status in ('pending','delivering','delivered','failed','dead_letter'))
 );
 
-create index if not exists pay_webhook_deliveries_retry_idx
-  on public.pay_webhook_deliveries (status, next_attempt_at);
+create index if not exists pay_webhook_deliveries_retry_idx on public.pay_webhook_deliveries (status, next_attempt_at);
 
 create table if not exists public.pay_audit_logs (
   id uuid primary key default gen_random_uuid(),
   merchant_id uuid references public.pay_merchants(id) on delete set null,
-  actor_user_id uuid,
+  actor_user_id text references public.users(id) on delete set null,
   event_type text not null,
   entity_type text not null,
   entity_id text,
@@ -214,8 +209,7 @@ create table if not exists public.pay_audit_logs (
   created_at timestamptz not null default now()
 );
 
-create index if not exists pay_audit_logs_merchant_created_idx
-  on public.pay_audit_logs (merchant_id, created_at desc);
+create index if not exists pay_audit_logs_merchant_created_idx on public.pay_audit_logs (merchant_id, created_at desc);
 
 comment on table public.pay_payment_intents is 'Business-level payment intent; never treat a raw blockchain transaction as the accounting record.';
 comment on table public.pay_payment_transactions is 'Observed on-chain transactions linked to payment intents after verification.';
