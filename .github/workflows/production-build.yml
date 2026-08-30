@@ -45,7 +45,7 @@ jobs:
           grep -Fq 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
           grep -Fq 'function readArticleBootstrap(): Article[]' src/App.tsx
-          grep -Fq 'const bootstrap = readArticleBootstrap();' src/App.tsx
+          grep -Fq '...readArticleBootstrap()' src/App.tsx
           grep -Fq 'function preloadInitialRoute()' src/main.tsx
           grep -Fq 'function revealAppAfterMount()' src/main.tsx
           grep -Fq 'solmint-hydrating' src/main.tsx
