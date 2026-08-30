@@ -1,7 +1,7 @@
 import { createSolanaRpcProvider } from '../../../../src/pay/services/solanaRpcProvider';
 import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../../../../src/pay/services/reconciliationEngine';
 import type { ObservedPaymentTransaction, ObservedTransfer } from '../../../../src/pay/services/verificationPolicy';
-import { payJson, PayRuntimeError, readJsonBody, supabaseRequest, makePayRequestId } from '../../../pay/_shared/runtime';
+import { payJson, PayRuntimeError, readJsonBody, supabaseRequest, makePayRequestId } from '../../pay/_shared/runtime';
 
 type Env = {
   SUPABASE_URL?: string;
@@ -20,6 +20,7 @@ type PaymentRow = ReconciliationPayment & {
   customer_total_atomic: string;
   merchant_settlement_atomic: string;
   fee_atomic: string;
+  fee_recipient: string;
   token_mint: string | null;
   token_program: 'spl-token' | 'token-2022' | null;
   token_decimals: number | null;
