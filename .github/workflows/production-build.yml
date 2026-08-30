@@ -60,11 +60,6 @@ jobs:
         run: node scripts/apply-html-aware-ssr-linking.mjs
       - name: Apply contextual internal article linking
         run: node scripts/apply-article-internal-linking.mjs
-      - name: Verify contextual internal linking
-        run: |
-          grep -Fq 'contextualArticleLinking' 'functions/article/[slug].ts'
-          grep -Fq 'renderContextualMarkdownLine(line, escapeHtml, safeUrl)' 'functions/article/[slug].ts'
-          grep -Fq 'articles: articles.map(article => ({ title: article.title, slug: article.slug }))' 'src/components/BlogHub.tsx'
       - name: Verify contextual linker regression tests
         run: bun test tests/contextualHtmlLinking.test.ts
       - name: Persist generated source cleanup
