@@ -1,8 +1,8 @@
 /**
  * Explicit Payment Intent transitions.
  *
- * Keeping legal transitions in one pure module prevents handlers, workers and
- * UI code from inventing incompatible status changes as the product grows.
+ * The TypeScript policy mirrors the authoritative database transition function.
+ * Workers and HTTP handlers must never invent ad-hoc status changes.
  */
 import type { PaymentStatus } from '../types/domain';
 
@@ -10,11 +10,8 @@ const transitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
   created: ['pending', 'expired'],
   pending: ['detected', 'expired', 'failed'],
   detected: ['verifying', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'failed'],
-  verifying: ['confirmed', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'failed'],
-  // Underpayment may be followed by another valid transfer before expiry.
-  underpaid: ['detected', 'verifying', 'expired'],
-  // Overpayment requires an explicit business decision; it may be completed
-  // only after reconciliation or refunded as a separate business operation.
+  verifying: ['pending', 'confirmed', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'failed'],
+  underpaid: ['pending', 'detected', 'verifying', 'expired'],
   overpaid: ['refunded', 'completed'],
   confirmed: ['completed', 'refunded'],
   completed: ['refunded'],
