@@ -3,7 +3,7 @@
  *
  * The engine never writes directly to the database and never trusts the
  * provider to assign semantic transfer roles. Database implementations must
- * commit a verified observation and the financial state transition atomically.
+ * commit the verified observation and financial state transition atomically.
  */
 import type { PaymentAsset, PaymentStatus, TokenProgram } from '../types/domain';
 import type { SolanaPaymentProvider } from './blockchainProvider';
@@ -64,20 +64,24 @@ function expectedFromPayment(payment: ReconciliationPayment): ExpectedPayment {
 }
 
 function labelVerifiedTransfers(expected: ExpectedPayment, transfers: readonly ObservedTransfer[]): readonly ObservedTransfer[] {
-  const merchant = transfers.find((transfer) =>
+  const merchant = transfers.filter((transfer) =>
     transfer.destination === expected.merchantDestination
       && transfer.asset === expected.asset
       && transfer.amountAtomic === expected.merchantSettlementAtomic,
   );
-  const fee = transfers.find((transfer) =>
+  const fee = transfers.filter((transfer) =>
     transfer.destination === expected.feeDestination
       && transfer.asset === expected.asset
       && transfer.amountAtomic === expected.gatewayFeeAtomic,
   );
 
+  if (merchant.length !== 1 || fee.length !== 1) {
+    throw new Error('Verified observation contains ambiguous settlement legs.');
+  }
+
   return transfers.map((transfer) => {
-    if (transfer === merchant) return { ...transfer, role: 'merchant_settlement' };
-    if (transfer === fee) return { ...transfer, role: 'gateway_fee' };
+    if (transfer === merchant[0]) return { ...transfer, role: 'merchant_settlement' };
+    if (transfer === fee[0]) return { ...transfer, role: 'gateway_fee' };
     return { ...transfer, role: 'other' };
   });
 }
@@ -107,29 +111,51 @@ export async function reconcilePayment(
   }
 
   if (verification.candidate) {
-    const observation = await provider.getTransaction(verification.candidate.signature, payment.verificationCommitment);
-    if (!observation) {
-      return { paymentId: payment.id, outcome: 'provider_unavailable', checkedSignatures: verification.checkedSignatures, verification };
-    }
     try {
-      const transfers = labelVerifiedTransfers(expectedFromPayment(payment), observation.transfers);
-      const outcome = await repository.applyVerifiedObservation({ payment, observation, transfers });
-      return { paymentId: payment.id, outcome, checkedSignatures: verification.checkedSignatures, verification };
+      const expected = expectedFromPayment(payment);
+      const transfers = labelVerifiedTransfers(expected, verification.candidate.observation.transfers);
+      const outcome = await repository.applyVerifiedObservation({
+        payment,
+        observation: verification.candidate.observation,
+        transfers,
+      });
+      return {
+        paymentId: payment.id,
+        outcome,
+        checkedSignatures: verification.checkedSignatures,
+        verification,
+      };
     } catch {
-      return { paymentId: payment.id, outcome: 'stale', checkedSignatures: verification.checkedSignatures, verification };
+      return {
+        paymentId: payment.id,
+        outcome: 'stale',
+        checkedSignatures: verification.checkedSignatures,
+        verification,
+      };
     }
   }
 
-  for (const signature of verification.checkedSignatures) {
-    const observation = await provider.getTransaction(signature, payment.verificationCommitment);
-    if (!observation) continue;
+  if (verification.result.reason === 'DUPLICATE_SIGNATURE') {
+    return {
+      paymentId: payment.id,
+      outcome: 'duplicate',
+      checkedSignatures: verification.checkedSignatures,
+      verification,
+    };
+  }
+
+  for (const check of verification.checks) {
     try {
-      await repository.recordRejectedObservation(payment.id, observation, verification.result.reason);
+      await repository.recordRejectedObservation(payment.id, check.observation, check.result.reason);
     } catch {
-      // Fail closed: persistence failure never turns a rejected observation
-      // into a financial success.
+      // Fail closed: persistence failure never turns a rejected observation into success.
     }
   }
 
-  return { paymentId: payment.id, outcome: 'no_match', checkedSignatures: verification.checkedSignatures, verification };
+  return {
+    paymentId: payment.id,
+    outcome: 'no_match',
+    checkedSignatures: verification.checkedSignatures,
+    verification,
+  };
 }
