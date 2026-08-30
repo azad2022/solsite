@@ -11,11 +11,14 @@ const transitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
   pending: ['detected', 'expired', 'failed'],
   detected: ['verifying', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'failed'],
   verifying: ['confirmed', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'failed'],
+  // Underpayment may be followed by another valid transfer before expiry.
+  underpaid: ['detected', 'verifying', 'expired'],
+  // Overpayment requires an explicit business decision; it may be completed
+  // only after reconciliation or refunded as a separate business operation.
+  overpaid: ['refunded', 'completed'],
   confirmed: ['completed', 'refunded'],
   completed: ['refunded'],
   expired: [],
-  underpaid: [],
-  overpaid: [],
   wrong_token: [],
   wrong_recipient: [],
   duplicate: [],
