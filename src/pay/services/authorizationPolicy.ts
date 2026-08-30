@@ -1,10 +1,10 @@
-import type { AuthUser } from '../../../functions/api/auth/_shared';
-
 /**
- * Maps the existing SolMint session identity to Pay-specific capabilities.
- * Payment operations must never trust a merchantId submitted by the client.
- * The authenticated principal is resolved server-side and the target merchant
- * is loaded from the database before this policy is evaluated.
+ * Server-side Pay authorization policy.
+ *
+ * This module intentionally depends only on a small principal contract. The
+ * Pay domain must not import the concrete authentication implementation from
+ * `functions/`, which keeps the frontend/domain layer independent from the
+ * current session mechanism.
  */
 
 export type PayCapability =
@@ -19,21 +19,27 @@ export type PayCapability =
   | 'gas.manage'
   | 'referral.read';
 
+export interface PayUserPrincipal {
+  id: string;
+  role: string;
+  permissions: readonly unknown[];
+  isActive: boolean;
+}
+
 export interface MerchantPrincipal {
   merchantId: string;
   ownerUserId: string;
   status: 'pending' | 'active' | 'suspended' | 'closed';
 }
 
-export function hasPayCapability(user: AuthUser, capability: PayCapability): boolean {
-  if (user.is_active === false) return false;
+export function hasPayCapability(user: PayUserPrincipal, capability: PayCapability): boolean {
+  if (!user.isActive) return false;
   if (user.role === 'superadmin') return true;
-  if (!Array.isArray(user.permissions)) return false;
-  return (user.permissions as unknown[]).some((permission) => permission === `pay:${capability}` || permission === capability);
+  return user.permissions.some((permission) => permission === `pay:${capability}` || permission === capability);
 }
 
 export function authorizePayMerchant(
-  user: AuthUser | null,
+  user: PayUserPrincipal | null,
   merchant: MerchantPrincipal | null,
   requestedMerchantId: string | null,
   capability: PayCapability,
