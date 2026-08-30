@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@noble/ed25519": "3.1.0",
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.1.14",
     "compression": "^1.8.1",
