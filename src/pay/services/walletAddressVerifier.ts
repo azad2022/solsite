@@ -1,4 +1,3 @@
-import * as ed25519 from '@noble/ed25519';
 import { decodeBase58 } from './base58';
 
 type WalletAddressKind = 'wallet' | 'token-account' | 'program-account' | 'invalid';
@@ -38,9 +37,10 @@ async function getAccountInfo(rpcUrl: string, address: string): Promise<any> {
 /**
  * Classifies a public address for merchant receiving-wallet registration.
  *
- * An unfunded on-curve Ed25519 public key is a valid wallet address even when
- * no account exists yet. An existing token account is not a wallet address and
- * must not be stored as the merchant's canonical receiving wallet.
+ * An unfunded 32-byte Solana public key is a syntactically valid wallet
+ * address even when no account exists yet. Cryptographic ownership is proved
+ * separately by the challenge-signature flow. Existing token accounts and
+ * program-owned accounts must not be stored as the merchant's receiving wallet.
  */
 export async function classifyMerchantReceivingAddress(address: string, rpcUrl: string): Promise<SolanaAddressClassification> {
   const normalized = address.trim();
@@ -48,7 +48,6 @@ export async function classifyMerchantReceivingAddress(address: string, rpcUrl: 
   try {
     publicKey = decodeBase58(normalized);
     if (publicKey.length !== 32) return { valid: false, kind: 'invalid', existsOnChain: false, programOwner: null, tokenMint: null };
-    ed25519.Point.fromBytes(publicKey, false);
   } catch {
     return { valid: false, kind: 'invalid', existsOnChain: false, programOwner: null, tokenMint: null };
   }
