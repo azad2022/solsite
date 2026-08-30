@@ -3,19 +3,6 @@ import { SolanaStatus, UserAccount } from '../types';
 import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search, Activity } from 'lucide-react';
 import { HeaderMarketTicker } from './HeaderMarketTicker';
 
-export const SolanaLogoIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
-  <svg className={className} viewBox="0 0 397 311" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-4.6-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_1)"/>
-    <path d="M64.6 3.8C67 1.4 70.3 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-4.6-4.6-11.1l62.7-62.7z" fill="url(#sol_grad_2)"/>
-    <path d="M332.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H5.5c-5.8 0-8.7 5.8-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-5.8 4.6-11.1l-62.7-62.7z" fill="url(#sol_grad_3)"/>
-    <defs>
-      <linearGradient id="sol_grad_1" x1="391" y1="234" x2="3" y2="311" gradientUnits="userSpaceOnUse"><stop stopColor="#00FFA3"/><stop offset="1" stopColor="#DC1FFF"/></linearGradient>
-      <linearGradient id="sol_grad_2" x1="391" y1="0" x2="3" y2="77" gradientUnits="userSpaceOnUse"><stop stopColor="#00FFA3"/><stop offset="1" stopColor="#DC1FFF"/></linearGradient>
-      <linearGradient id="sol_grad_3" x1="3" y1="116" x2="391" y2="194" gradientUnits="userSpaceOnUse"><stop stopColor="#00FFA3"/><stop offset="1" stopColor="#DC1FFF"/></linearGradient>
-    </defs>
-  </svg>
-);
-
 interface HeaderProps {
   solanaStatus: SolanaStatus;
   refreshStatus: () => void;
@@ -43,8 +30,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
         <div className="overflow-visible rounded-2xl border border-white/[0.10] bg-[#05050a]/95 shadow-[0_14px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl">
           <div className="flex h-16 items-center justify-between gap-3 px-3 sm:px-5">
             <div onClick={() => handleNav('/')} className="flex shrink-0 cursor-pointer items-center gap-2.5 group">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-[#9945FF] via-[#14F195] to-[#00C2FF] p-0.5 shadow-lg shadow-[#9945FF]/20 transition-transform group-hover:scale-105">
-                <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-[#05050a] p-0.5"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" aria-hidden="true" className="h-full w-full object-contain" decoding="async" /></div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center transition-transform group-hover:scale-105">
+                <img src="/assets/solmint-mascot-solana-coin.webp?v=2" alt="" aria-hidden="true" className="h-10 w-10 object-contain" width="40" height="40" decoding="async" />
               </div>
               <div className="hidden sm:flex flex-col"><span className="flex items-center gap-1.5 text-lg font-extrabold tracking-tight text-white">سولمینت <span className="rounded-full border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[#14F195]">Solmint</span></span></div>
             </div>
@@ -91,15 +78,18 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
               <button onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
               <button onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
               <button onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>ساخت میم کوین</button>
-              <button onClick={() => handleNav('/security')} className={mobileNavClass(currentPath === '/security')}>امنیت</button>
-              <button onClick={() => handleNav('/faq')} className={mobileNavClass(currentPath === '/faq')}>سوالات متداول</button>
-              <button onClick={() => handleNav('/blog')} className={mobileNavClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}>وبلاگ</button>
-              <div className="pt-2">
-                {currentUser ? <div className="flex items-center justify-between rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-2 text-xs text-slate-200">
-                  <button onClick={onLogout} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 transition-colors hover:text-rose-400"><LogOut className="h-4 w-4" /></button>
-                  <button onClick={openAdminModal} className="flex items-center gap-1.5 font-bold transition-colors hover:text-[#14F195]">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span></button>
-                </div> : <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-xs font-bold text-slate-200 transition-colors hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
+              <button onClick={() => handleNav('/security')} className={mobileNavClass(currentPath === '/security')}>معماری امنیتی غیرامانی</button>
+              <div className={`rounded-2xl border p-2 ${toolsActive ? 'border-[#14F195]/30 bg-[#14F195]/5' : 'border-white/10 bg-white/[0.02]'}`}>
+                <div className="flex items-center gap-2 px-3 py-2"><Wrench className="h-4 w-4 text-[#14F195]" /><span className="text-xs font-black text-white">ابزارهای Solmint</span></div>
+                <button onClick={() => handleNav('/tools/solana-token-tools')} className="w-full rounded-xl px-3 py-2.5 text-right text-xs font-bold text-slate-300 hover:bg-white/5">مرکز ابزارهای توکن سولانا</button>
+                <button onClick={() => handleNav('/tools/solana-token-scanner')} className="w-full rounded-xl px-3 py-2.5 text-right text-xs font-semibold text-slate-300 hover:bg-white/5">بررسی توکن سولانا</button>
+                <button onClick={() => handleNav('/tools/token-2022-inspector')} className="w-full rounded-xl px-3 py-2.5 text-right text-xs font-semibold text-slate-300 hover:bg-white/5">Token-2022 Inspector</button>
               </div>
+              <button onClick={() => handleNav('/download')} className={mobileNavClass(currentPath === '/download')}>دانلود نسخه اندروید</button>
+              <button onClick={() => handleNav('/faq')} className={mobileNavClass(currentPath === '/faq')}>سوالات متداول</button>
+              <button onClick={() => handleNav('/blog')} className={`flex w-full items-center gap-2 rounded-xl px-4 py-2.5 text-right text-xs font-bold ${currentPath === '/blog' ? 'border border-[#9945FF]/40 bg-[#9945FF]/20 text-[#14F195]' : 'bg-white/5 text-slate-300'}`}><BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ و آکادمی solmint.ir</button>
+              {currentUser && canManageShowcase && <button onClick={() => handleNav('/showcase-admin')} className="flex w-full items-center gap-2 rounded-xl border border-[#14F195]/25 bg-[#14F195]/10 px-4 py-2.5 text-right text-xs font-bold text-[#14F195]"><Smartphone className="h-4 w-4" />مدیریت نمایش اپلیکیشن</button>}
+              {currentUser ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><button onClick={openAdminModal} className="flex items-center gap-2 text-xs font-bold text-slate-200">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span></button><button onClick={onLogout} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : <button onClick={openAdminModal} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
             </div>
           </div>}
         </div>
