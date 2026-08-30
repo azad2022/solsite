@@ -46,7 +46,7 @@ create index if not exists pay_idempotency_created_idx
 -- merchant/payment accounting tables.
 create table if not exists public.pay_affiliates (
   id uuid primary key default gen_random_uuid(),
-  owner_user_id uuid,
+  owner_user_id text references public.users(id) on delete set null,
   display_name text not null,
   referral_code text not null unique,
   commission_rate_bps integer not null default 2000,
