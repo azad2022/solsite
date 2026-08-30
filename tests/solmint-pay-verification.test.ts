@@ -25,12 +25,14 @@ function observed(overrides: Partial<ObservedPaymentTransaction> = {}): Observed
 
 test('verification derives semantic transfer legs from destination and exact amount', () => {
   assert.equal(verifyPaymentTransaction(expected, observed()).valid, true);
-  assert.equal(verifyPaymentTransaction(expected, observed({
-    transfers: [
-      { ...observed().transfers[0], role: 'gateway_fee' },
-      { ...observed().transfers[1], role: 'merchant_settlement', destinationAuthority: 'OtherWallet' },
-    ],
-  })).reason, 'MERCHANT_TRANSFER_MISMATCH');
+});
+
+test('verification ignores provider role labels and still rejects wrong merchant destination authority', () => {
+  const wrongDestination = observed({ transfers: [
+    observed().transfers[0],
+    { ...observed().transfers[1], destinationAuthority: 'OtherWallet' },
+  ] });
+  assert.equal(verifyPaymentTransaction(expected, wrongDestination).reason, 'FEE_TRANSFER_MISMATCH');
 });
 
 test('verification rejects mismatched token program or decimals', () => {
@@ -41,6 +43,28 @@ test('verification rejects mismatched token program or decimals', () => {
 test('verification compares the instruction authority across value legs', () => {
   const mismatched = observed({ transfers: [observed().transfers[0], { ...observed().transfers[1], sourceAuthority: 'AnotherAuthority' }] });
   assert.equal(verifyPaymentTransaction(expected, mismatched).reason, 'SENDER_MISMATCH');
+});
+
+test('verification rejects duplicate matching merchant settlement legs', () => {
+  const duplicateMerchant = observed({ transfers: [
+    observed().transfers[0],
+    { ...observed().transfers[0], instructionIndex: 2 },
+    observed().transfers[1],
+  ] });
+  assert.equal(verifyPaymentTransaction(expected, duplicateMerchant).reason, 'AMBIGUOUS_TRANSFER');
+});
+
+test('verification rejects duplicate matching gateway fee legs', () => {
+  const duplicateFee = observed({ transfers: [
+    observed().transfers[0],
+    observed().transfers[1],
+    { ...observed().transfers[1], instructionIndex: 2 },
+  ] });
+  assert.equal(verifyPaymentTransaction(expected, duplicateFee).reason, 'AMBIGUOUS_TRANSFER');
+});
+
+test('verification rejects a previously recognized signature', () => {
+  assert.equal(verifyPaymentTransaction(expected, observed(), true).reason, 'DUPLICATE_SIGNATURE');
 });
 
 test('wallet ownership proof verifies a real Ed25519 signature and rejects message substitution', async () => {
