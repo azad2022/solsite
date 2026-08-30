@@ -8,10 +8,18 @@ const headers = {
   'X-Content-Type-Options': 'nosniff',
 };
 
+type KrakenTickerField = string | string[] | undefined;
+
 type KrakenTicker = {
   error?: string[];
-  result?: Record<string, { c?: string[]; o?: string[] }>;
+  result?: Record<string, { c?: KrakenTickerField; o?: KrakenTickerField }>;
 };
+
+function toFiniteNumber(value: KrakenTickerField): number | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export const onRequestGet = async () => {
   try {
@@ -30,14 +38,14 @@ export const onRequestGet = async () => {
 
     const key = Object.keys(payload.result ?? {})[0];
     const ticker = key ? payload.result?.[key] : undefined;
-    const price = Number(ticker?.c?.[0]);
-    const open24h = Number(ticker?.o?.[0]);
+    const price = toFiniteNumber(ticker?.c);
+    const open24h = toFiniteNumber(ticker?.o);
 
-    if (!Number.isFinite(price) || price <= 0) {
+    if (price === null || price <= 0) {
       return Response.json({ error: ['Invalid market price'] }, { status: 502, headers });
     }
 
-    const change24h = Number.isFinite(open24h) && open24h > 0
+    const change24h = open24h !== null && open24h > 0
       ? ((price / open24h) - 1) * 100
       : null;
 
