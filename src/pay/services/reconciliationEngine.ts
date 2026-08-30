@@ -1,10 +1,3 @@
-/**
- * Provider-to-ledger reconciliation orchestration.
- *
- * The engine never writes directly to the database and never trusts the
- * provider to assign semantic transfer roles. Database implementations must
- * commit the verified observation and financial state transition atomically.
- */
 import type { PaymentAsset, PaymentStatus, TokenProgram } from '../types/domain';
 import type { SolanaPaymentProvider } from './blockchainProvider';
 import { verifyPayment, type PaymentVerificationDecision } from './paymentVerifier';
@@ -13,6 +6,7 @@ import type { ExpectedPayment, ObservedPaymentTransaction, ObservedTransfer } fr
 export interface ReconciliationPayment {
   id: string;
   merchantId: string;
+  createdAt: string;
   amountAtomic: string;
   customerTotalAtomic: string;
   merchantSettlementAtomic: string;
@@ -105,7 +99,13 @@ export async function reconcilePayment(
 
   let verification: PaymentVerificationDecision;
   try {
-    verification = await verifyPayment(provider, expectedFromPayment(payment), undefined, knownSignatures);
+    verification = await verifyPayment(
+      provider,
+      expectedFromPayment(payment),
+      undefined,
+      knownSignatures,
+      { createdAt: payment.createdAt, expiresAt: payment.expiresAt },
+    );
   } catch {
     return { paymentId: payment.id, outcome: 'provider_unavailable', checkedSignatures: [], verification: null };
   }
