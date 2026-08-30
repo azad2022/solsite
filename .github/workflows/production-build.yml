@@ -35,6 +35,8 @@ jobs:
         run: |
           node scripts/ensure-article-ui-mount.mjs
           node scripts/harden-article-ssr-content-v2.mjs
+      - name: Repair stale admin source contract
+        run: node scripts/repair-admin-solana-logo.mjs
       - name: Verify hardened source
         run: |
           ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
@@ -43,7 +45,7 @@ jobs:
           grep -Fq 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
           grep -Fq 'function readArticleBootstrap(): Article[]' src/App.tsx
-          grep -Fq 'const bootstrap = readArticleBootstrap();' src/App.tsx
+          grep -Fq '...readArticleBootstrap()' src/App.tsx
           grep -Fq 'function preloadInitialRoute()' src/main.tsx
           grep -Fq 'function revealAppAfterMount()' src/main.tsx
           grep -Fq 'solmint-hydrating' src/main.tsx
