@@ -1,3 +1,5 @@
-# SolMint Pay validation marker
+# SolMint Pay — Reconciliation Validation Marker
 
-This file exists only to force a fresh branch/CI validation point after the runtime foundation cleanup. It has no runtime behavior and must not be exposed as a public product page.
+This marker documents the current pre-production validation stage for the blockchain observer and reconciliation engine.
+
+Public `/pay` routes and live financial processing remain disabled until CI, schema, and end-to-end validation gates pass.
