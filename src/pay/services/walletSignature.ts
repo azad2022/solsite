@@ -1,3 +1,4 @@
+import * as ed25519 from '@noble/ed25519';
 import { decodeBase58, encodeBase58 } from './base58';
 
 const MAX_CHALLENGE_AGE_MS = 10 * 60 * 1000;
@@ -22,7 +23,11 @@ export function validateChallengeWindow(issuedAt: string, expiresAt: string, now
   return Number.isFinite(issued) && Number.isFinite(expires) && expires > issued && expires - issued <= MAX_CHALLENGE_AGE_MS && issued <= now && now < expires;
 }
 
-/** Verify an Ed25519 wallet signature without ever handling a private key. */
+/**
+ * Verify a wallet proof using Ed25519. The strict RFC8032/FIPS-compatible mode
+ * is used for an explicit ownership proof, avoiding non-canonical ZIP215 forms
+ * that are not necessary for this application-level authentication artifact.
+ */
 export async function verifySolanaWalletSignature(input: { walletAddress: string; message: string; signatureBase58: string }): Promise<boolean> {
   let publicKey: Uint8Array;
   let signature: Uint8Array;
@@ -33,9 +38,11 @@ export async function verifySolanaWalletSignature(input: { walletAddress: string
     return false;
   }
   if (publicKey.length !== PUBLIC_KEY_BYTES || signature.length !== SIGNATURE_BYTES) return false;
+
   try {
-    const cryptoKey = await crypto.subtle.importKey('raw', publicKey, { name: 'Ed25519' }, false, ['verify']);
-    return await crypto.subtle.verify('Ed25519', cryptoKey, signature, new TextEncoder().encode(input.message));
+    // Reject malformed/non-canonical Ed25519 public keys before verification.
+    ed25519.Point.fromBytes(publicKey, false);
+    return await ed25519.verifyAsync(signature, new TextEncoder().encode(input.message), publicKey, { zip215: false });
   } catch {
     return false;
   }
