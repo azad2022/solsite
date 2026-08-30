@@ -38,5 +38,16 @@ if (!source.includes('<MediaCategoryDefaultPicker asset={asset}')) {
   source = source.replace(stableMarker, picker + stableMarker);
 }
 
+const headerFile = 'src/components/Header.tsx';
+let headerSource = fs.readFileSync(headerFile, 'utf8');
+if (!headerSource.includes('export const SolanaLogoIcon')) {
+  const exportShim = `\nexport const SolanaLogoIcon: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) => (\n  <img\n    src="/assets/solmint-mascot-solana-coin.webp?v=2"\n    alt=""\n    aria-hidden="true"\n    className={className}\n    decoding="async"\n  />\n);\n`;
+  const anchor = "import { HeaderMarketTicker } from './HeaderMarketTicker';\n";
+  if (!headerSource.includes(anchor)) throw new Error('[header-export] import anchor not found');
+  headerSource = headerSource.replace(anchor, `${anchor}${exportShim}`);
+  fs.writeFileSync(headerFile, headerSource, 'utf8');
+}
+
 fs.writeFileSync(file, source, 'utf8');
 console.log('✓ [media-picker] existing media thumbnails now open the category default picker.');
+console.log('✓ [header-export] restored SolanaLogoIcon export without restoring the legacy Solana mark.');
