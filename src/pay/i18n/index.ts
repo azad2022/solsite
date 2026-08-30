@@ -4,7 +4,14 @@ import { enUS } from './locales/en-US';
 import { ar } from './locales/ar';
 import { ru } from './locales/ru';
 
-export type PayMessages = typeof faIR;
+/**
+ * Locale dictionaries share the same message keys while allowing each locale
+ * to provide different string values. Inferring values as string literals
+ * would incorrectly reject valid translations at compile time.
+ */
+export type PayMessages = {
+  readonly [K in keyof typeof faIR]: string;
+};
 
 export const PAY_LOCALES: readonly PayLocale[] = ['fa-IR', 'en-US', 'ar', 'ru'];
 
