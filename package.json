@@ -11,7 +11,7 @@
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/ensure-article-ui-mount.mjs && tsc --noEmit",
+    "lint": "node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && tsc --noEmit",
     "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
@@ -34,7 +34,6 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "10.4.21",
-    "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.3"
+    "tailwindcss": "^4.3.3"
   }
 }
