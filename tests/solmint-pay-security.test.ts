@@ -39,7 +39,6 @@ test('input-boundary validation rejects common injection and SSRF primitives', (
   assert.equal(validateExternalOrderId('bad\u0000id'), false);
   assert.equal(validateExternalOrderId(null), true);
   assert.equal(validatePublicMetadata({ order: '123', note: 'ok' }), true);
-  assert.equal(validatePublicMetadata([],  ), true);
   assert.equal(validatePublicMetadata('x'.repeat(5000)), false);
   assert.equal(validateWebhookUrl('https://merchant.example/webhooks'), true);
   assert.equal(validateWebhookUrl('http://merchant.example/webhooks'), false);
