@@ -1,10 +1,3 @@
-/**
- * Payment verification orchestrator.
- *
- * The provider discovers and normalizes observations; this module evaluates
- * every candidate exactly once and returns the observation that was verified.
- * Callers must persist the authoritative result in a transaction-safe workflow.
- */
 import type { SolanaPaymentProvider } from './blockchainProvider';
 import {
   verifyPaymentTransaction,
@@ -37,10 +30,11 @@ export async function verifyPayment(
   expected: ExpectedPayment,
   signature?: string,
   knownSignatures: ReadonlySet<string> = new Set(),
+  window?: { createdAt: string; expiresAt: string },
 ): Promise<PaymentVerificationDecision> {
   const observations = signature
     ? [await provider.getTransaction(signature, expected.requiredCommitment)]
-    : await provider.findTransactionsByReference(expected.reference, expected.requiredCommitment);
+    : await provider.findTransactionsByReference(expected.reference, expected.requiredCommitment, window);
 
   const checked = new Set<string>();
   const checks: VerificationCheck[] = [];
@@ -62,30 +56,15 @@ export async function verifyPayment(
     if (result.valid) {
       if (validCandidate) {
         const ambiguous: VerificationResult = { valid: false, status: 'failed', reason: 'AMBIGUOUS_CANDIDATE' };
-        return {
-          result: ambiguous,
-          candidate: null,
-          checks,
-          checkedSignatures: [...checked],
-        };
+        return { result: ambiguous, candidate: null, checks, checkedSignatures: [...checked] };
       }
       validCandidate = { signature: observation.signature, observation, result };
     }
   }
 
   if (validCandidate) {
-    return {
-      result: validCandidate.result,
-      candidate: validCandidate,
-      checks,
-      checkedSignatures: [...checked],
-    };
+    return { result: validCandidate.result, candidate: validCandidate, checks, checkedSignatures: [...checked] };
   }
 
-  return {
-    result: lastResult,
-    candidate: null,
-    checks,
-    checkedSignatures: [...checked],
-  };
+  return { result: lastResult, candidate: null, checks, checkedSignatures: [...checked] };
 }
