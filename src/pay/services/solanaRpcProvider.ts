@@ -72,7 +72,7 @@ async function enrichTransfer(url: string, transfer: ObservedTransfer): Promise<
   return { ...transfer, tokenProgram: sourceInfo.program, sourceAuthority: transfer.sourceAuthority || sourceInfo.owner, destinationAuthority: destinationInfo.owner };
 }
 
-function parseSupportedInstruction(instruction: any, expectedAssetMints: Partial<Record<'USDC' | 'USDT', string>>): ObservedTransfer | null {
+function parseSupportedInstruction(instruction: any, expectedAssetMints: Partial<Record<'USDC' | 'USDT', string>>, instructionIndex: number): ObservedTransfer | null {
   const programId = instruction?.programId ?? null;
   const parsed = instruction?.parsed;
   if (!parsed || typeof parsed !== 'object') return null;
@@ -81,7 +81,7 @@ function parseSupportedInstruction(instruction: any, expectedAssetMints: Partial
     const info = parsed.info;
     const amount = typeof info?.lamports === 'number' || typeof info?.lamports === 'string' ? String(info.lamports) : null;
     if (!info?.source || !info?.destination || !amount || !/^\d+$/.test(amount)) return null;
-    return { role: 'other', source: info.source, sourceAuthority: info.source, destination: info.destination, destinationAuthority: info.destination, asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: null, amountAtomic: amount, instructionIndex: null };
+    return { role: 'other', source: info.source, sourceAuthority: info.source, destination: info.destination, destinationAuthority: info.destination, asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: null, amountAtomic: amount, instructionIndex };
   }
 
   if (programId !== TOKEN_PROGRAM_ADDRESS && programId !== TOKEN_2022_PROGRAM_ADDRESS) return null;
@@ -93,7 +93,7 @@ function parseSupportedInstruction(instruction: any, expectedAssetMints: Partial
   if (!info?.source || !info?.destination || !mint || !amount || !Number.isInteger(decimals) || decimals < 0 || decimals > 255) return null;
   const asset = expectedAssetMints.USDC === mint ? 'USDC' : expectedAssetMints.USDT === mint ? 'USDT' : null;
   if (!asset) return null;
-  return { role: 'other', source: info.source, sourceAuthority: typeof info.authority === 'string' ? info.authority : null, destination: info.destination, destinationAuthority: null, asset, tokenMint: mint, tokenProgram: programId === TOKEN_2022_PROGRAM_ADDRESS ? 'token-2022' : 'spl-token', tokenDecimals: decimals, amountAtomic: amount, instructionIndex: null };
+  return { role: 'other', source: info.source, sourceAuthority: typeof info.authority === 'string' ? info.authority : null, destination: info.destination, destinationAuthority: null, asset, tokenMint: mint, tokenProgram: programId === TOKEN_2022_PROGRAM_ADDRESS ? 'token-2022' : 'spl-token', tokenDecimals: decimals, amountAtomic: amount, instructionIndex };
 }
 
 function collectParsedInstructions(transaction: any): any[] {
@@ -112,13 +112,18 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
   }
 
   private async normalize(result: any, signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction> {
-    const parsedTransfers = collectParsedInstructions(result).map((instruction) => parseSupportedInstruction(instruction, this.expectedAssetMints)).filter((transfer): transfer is ObservedTransfer => Boolean(transfer));
+    const parsedTransfers = collectParsedInstructions(result)
+      .map((instruction, index) => parseSupportedInstruction(instruction, this.expectedAssetMints, index))
+      .filter((transfer): transfer is ObservedTransfer => Boolean(transfer));
     const transfers: ObservedTransfer[] = [];
     for (const transfer of parsedTransfers) {
       const enriched = await enrichTransfer(this.rpcUrl, transfer);
       if (enriched) transfers.push(enriched);
     }
-    return { signature, success: result.meta?.err == null, commitment, feePayer: result.transaction?.message?.accountKeys?.[0]?.pubkey ?? null, referenceMatched: false, transfers };
+    const blockTime = typeof result.blockTime === 'number' ? new Date(result.blockTime * 1000).toISOString() : null;
+    const slot = typeof result.slot === 'number' ? result.slot : null;
+    const networkFeeLamports = typeof result.meta?.fee === 'number' || typeof result.meta?.fee === 'string' ? String(result.meta.fee) : null;
+    return { signature, slot, blockTime, networkFeeLamports, success: result.meta?.err == null, commitment, feePayer: result.transaction?.message?.accountKeys?.[0]?.pubkey ?? null, referenceMatched: false, transfers };
   }
 
   async getTransaction(signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction | null> {
