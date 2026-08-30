@@ -11,6 +11,7 @@ import {
   readJsonBody,
 } from '../_shared/runtime';
 import { randomReferenceAddress } from '../../../../src/pay/services/walletSignature';
+import { resolveSupportedAssetConfig } from '../../../../src/pay/services/assetPolicy';
 
 interface PayEnv {
   SUPABASE_URL?: string;
@@ -19,7 +20,9 @@ interface PayEnv {
   PAY_API_ENABLED?: string;
   PAY_FEE_RECIPIENT?: string;
   PAY_USDC_MINT?: string;
+  PAY_USDC_DECIMALS?: string;
   PAY_USDT_MINT?: string;
+  PAY_USDT_DECIMALS?: string;
   PAY_DEFAULT_EXPIRY_SECONDS?: string;
 }
 
@@ -27,13 +30,10 @@ const DEFAULT_SUPABASE_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const DEFAULT_EXPIRY_SECONDS = 15 * 60;
 const MAX_EXPIRY_SECONDS = 24 * 60 * 60;
 const SCOPE = 'payment-intents:create';
-
 type Asset = 'SOL' | 'USDC' | 'USDT';
 type FeePayer = 'merchant' | 'customer';
 
-function getSecret(env: PayEnv): string {
-  return env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
-}
+function getSecret(env: PayEnv): string { return env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || ''; }
 
 async function dbRequest(env: PayEnv, path: string, init: RequestInit = {}): Promise<Response> {
   const secret = getSecret(env);
@@ -48,28 +48,14 @@ function parsePositiveAtomic(value: unknown, field: string): string {
   if (typeof value !== 'string' || !/^\d{1,78}$/.test(value) || BigInt(value) <= 0n) throw new PayRuntimeError('INVALID_AMOUNT', 400, `${field} must be a positive integer string in atomic units.`);
   return value;
 }
-
 function parseAsset(value: unknown): Asset {
   if (value !== 'SOL' && value !== 'USDC' && value !== 'USDT') throw new PayRuntimeError('INVALID_ASSET', 400, 'asset must be SOL, USDC, or USDT.');
   return value;
 }
-
 function parseFeePayer(value: unknown): FeePayer {
   if (value !== 'merchant' && value !== 'customer') throw new PayRuntimeError('INVALID_FEE_PAYER', 400, 'feePayer must be merchant or customer.');
   return value;
 }
-
-function resolveTokenMint(env: PayEnv, asset: Asset, requested: unknown): string | null {
-  if (asset === 'SOL') {
-    if (requested != null) throw new PayRuntimeError('INVALID_TOKEN_MINT', 400, 'SOL payments must not specify tokenMint.');
-    return null;
-  }
-  const expected = asset === 'USDC' ? env.PAY_USDC_MINT : env.PAY_USDT_MINT;
-  if (!expected) throw new PayRuntimeError('ASSET_NOT_CONFIGURED', 503, `${asset} is not configured for Pay.`);
-  if (requested !== undefined && requested !== expected) throw new PayRuntimeError('INVALID_TOKEN_MINT', 400, `tokenMint does not match the configured ${asset} mint.`);
-  return expected;
-}
-
 function parseExpiry(env: PayEnv, value: unknown): string {
   const raw = value === undefined ? Number(env.PAY_DEFAULT_EXPIRY_SECONDS || DEFAULT_EXPIRY_SECONDS) : Number(value);
   if (!Number.isInteger(raw) || raw < 60 || raw > MAX_EXPIRY_SECONDS) throw new PayRuntimeError('INVALID_EXPIRY', 400, 'expiresInSeconds must be an integer between 60 and 86400.');
@@ -78,21 +64,17 @@ function parseExpiry(env: PayEnv, value: unknown): string {
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: PayEnv }) => {
   const requestId = makePayRequestId();
-
-  if (!payFeatureEnabled(env)) {
-    return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
-  }
+  if (!payFeatureEnabled(env)) return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
 
   try {
     const principal = await authenticateMerchantApi(env, request, 'payment.create');
     const idempotencyKey = await assertIdempotencyKey(request);
     const body = await readJsonBody(request);
     const requestHash = await hashCanonicalRequest(body);
-
     const amountAtomic = parsePositiveAtomic(body.amountAtomic, 'amountAtomic');
     const asset = parseAsset(body.asset);
     const feePayer = parseFeePayer(body.feePayer ?? 'merchant');
-    const tokenMint = resolveTokenMint(env, asset, body.tokenMint);
+    const assetConfig = resolveSupportedAssetConfig(asset, env);
     const expiresAt = parseExpiry(env, body.expiresInSeconds);
     const metadata = assertSafeMetadata(body.metadata);
     const externalOrderId = body.externalOrderId == null ? null : String(body.externalOrderId).trim();
@@ -123,7 +105,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         p_external_order_id: externalOrderId,
         p_amount_atomic: amountAtomic,
         p_asset: asset,
-        p_token_mint: tokenMint,
+        p_token_mint: assetConfig.tokenMint,
+        p_token_program: assetConfig.tokenProgram,
+        p_token_decimals: assetConfig.decimals,
         p_recipient: recipient,
         p_reference: reference,
         p_fee_bps: 100,
@@ -148,16 +132,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
       throw new PayRuntimeError('PAYMENT_CREATION_FAILED', 503, 'Payment intent could not be created safely.');
     }
 
-    const result = await rpcResponse.json() as {
-      state: 'created' | 'replay' | 'conflict' | 'in_progress';
-      response_status?: number;
-      response_body?: unknown;
-    };
-
+    const result = await rpcResponse.json() as { state: 'created' | 'replay' | 'conflict' | 'in_progress'; response_status?: number; response_body?: unknown };
     if (result.state === 'conflict') return payJson({ code: 'IDEMPOTENCY_CONFLICT', message: 'The Idempotency-Key was reused with different request data.' }, 409, requestId);
     if (result.state === 'in_progress') return payJson({ code: 'REQUEST_IN_PROGRESS', message: 'An identical request is already being processed.' }, 409, requestId);
     if (result.state === 'replay' || result.state === 'created') return payJson(result.response_body || {}, result.response_status || 201, requestId);
-
     throw new PayRuntimeError('PAYMENT_CREATION_FAILED', 503, 'Payment intent creation returned an invalid state.');
   } catch (error) {
     if (error instanceof PayRuntimeError) {
