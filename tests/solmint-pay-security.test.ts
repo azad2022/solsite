@@ -2,19 +2,26 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { validateApiKeyFormat, validateApiKeyRecord } from '../src/pay/services/apiKeyPolicy';
-import { authorizePayMerchant, hasPayCapability } from '../src/pay/services/authorizationPolicy';
+import { authorizePayMerchant, hasPayPlatformCapability } from '../src/pay/services/authorizationPolicy';
 import { authorizeMerchantResource, validateExternalOrderId, validateIdempotencyKey, validatePublicMetadata, validateWebhookUrl } from '../src/pay/services/securityPolicy';
 
 const activeUser = {
   id: 'user-1',
   role: 'merchant',
-  permissions: ['pay:payment.create', 'pay:payment.read'],
+  permissions: [],
   isActive: true,
 } as const;
 
 const merchant = {
   merchantId: 'merchant-1',
   ownerUserId: 'user-1',
+  status: 'active' as const,
+};
+
+const ownerMembership = {
+  merchantId: 'merchant-1',
+  userId: 'user-1',
+  role: 'owner' as const,
   status: 'active' as const,
 };
 
@@ -31,13 +38,13 @@ test('API key validation fails closed for revoked, expired, or missing scopes', 
   assert.deepEqual(validateApiKeyRecord(base, 'refund.create'), { valid: false, reason: 'SCOPE_REQUIRED' });
 });
 
-test('object authorization rejects cross-merchant access and inactive principals', () => {
-  assert.equal(hasPayCapability(activeUser, 'payment.create'), true);
-  assert.equal(authorizePayMerchant(activeUser, merchant, 'merchant-1', 'payment.create'), true);
-  assert.equal(authorizePayMerchant(activeUser, merchant, 'merchant-2', 'payment.create'), false);
-  assert.equal(authorizePayMerchant(activeUser, { ...merchant, ownerUserId: 'user-2' }, 'merchant-1', 'payment.create'), false);
-  assert.equal(authorizePayMerchant({ ...activeUser, isActive: false }, merchant, 'merchant-1', 'payment.create'), false);
-  assert.equal(authorizePayMerchant(activeUser, { ...merchant, status: 'suspended' }, 'merchant-1', 'payment.create'), false);
+test('tenant authorization uses membership role rather than site-wide permission flags', () => {
+  assert.equal(authorizePayMerchant(activeUser, merchant, ownerMembership, 'payment.create'), true);
+  assert.equal(authorizePayMerchant(activeUser, merchant, { ...ownerMembership, role: 'viewer' }, 'payment.create'), false);
+  assert.equal(authorizePayMerchant(activeUser, merchant, { ...ownerMembership, userId: 'user-2' }, 'payment.create'), false);
+  assert.equal(authorizePayMerchant(activeUser, { ...merchant, status: 'suspended' }, ownerMembership, 'payment.create'), false);
+  assert.equal(hasPayPlatformCapability(activeUser, 'payment.create'), false);
+  assert.equal(hasPayPlatformCapability({ ...activeUser, permissions: ['pay:payment.create'] }, 'payment.create'), true);
 });
 
 test('generic authorization policy rejects cross-merchant access', () => {
