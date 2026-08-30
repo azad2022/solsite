@@ -19,8 +19,7 @@ create table if not exists public.pay_api_keys (
   constraint pay_api_key_name_check check (char_length(name) between 1 and 120)
 );
 
-create index if not exists pay_api_keys_merchant_idx
-  on public.pay_api_keys (merchant_id, created_at desc);
+create index if not exists pay_api_keys_merchant_idx on public.pay_api_keys (merchant_id, created_at desc);
 
 create table if not exists public.pay_rate_limit_buckets (
   id uuid primary key default gen_random_uuid(),
@@ -35,8 +34,7 @@ create table if not exists public.pay_rate_limit_buckets (
   constraint pay_rate_request_count_check check (request_count >= 0)
 );
 
-create index if not exists pay_rate_limit_lookup_idx
-  on public.pay_rate_limit_buckets (scope, subject_hash, window_started_at desc);
+create index if not exists pay_rate_limit_lookup_idx on public.pay_rate_limit_buckets (scope, subject_hash, window_started_at desc);
 
 alter table public.pay_webhooks
   add column if not exists status text not null default 'active',
@@ -52,15 +50,11 @@ alter table public.pay_webhook_deliveries
   add column if not exists locked_by text,
   add constraint pay_webhook_attempt_count_check check (attempt_count >= 0);
 
--- Wallet ownership challenges are one-time authentication artifacts. A partial
--- uniqueness rule prevents multiple active challenges from being consumed for
--- the same wallet simultaneously.
+-- Wallet ownership challenges are one-time authentication artifacts.
 create unique index if not exists pay_wallet_challenges_active_wallet_uidx
-  on public.pay_wallet_ownership_challenges (wallet_id)
-  where status = 'issued' and consumed_at is null;
+  on public.pay_wallet_challenges (merchant_id, wallet_address)
+  where consumed_at is null;
 
--- Do not allow a verified wallet to be deleted casually; production workflows
--- must first rotate/disable all active payment destinations.
 alter table public.pay_merchant_wallets
   add column if not exists deactivated_at timestamptz;
 
