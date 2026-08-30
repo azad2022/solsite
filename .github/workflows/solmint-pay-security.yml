@@ -10,6 +10,7 @@ on:
       - 'docs/solmint-pay-*.md'
       - '.github/workflows/solmint-pay-security.yml'
       - 'functions/api/pay/**'
+      - 'functions/api/internal/pay/**'
   push:
     branches: [feat/solmint-pay-foundation-v3]
     paths:
@@ -19,6 +20,7 @@ on:
       - 'docs/solmint-pay-*.md'
       - '.github/workflows/solmint-pay-security.yml'
       - 'functions/api/pay/**'
+      - 'functions/api/internal/pay/**'
 
 permissions:
   contents: read
@@ -47,4 +49,4 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run Pay policy and security tests
-        run: npx tsx --test tests/solmint-pay-foundation.test.ts tests/solmint-pay-payment-engine.test.ts tests/solmint-pay-policy.test.ts tests/solmint-pay-security.test.ts tests/solmint-pay-verification.test.ts tests/solmint-pay-wallet.test.ts
+        run: npx tsx --test tests/solmint-pay-foundation.test.ts tests/solmint-pay-payment-engine.test.ts tests/solmint-pay-policy.test.ts tests/solmint-pay-security.test.ts tests/solmint-pay-verification.test.ts tests/solmint-pay-wallet.test.ts tests/solmint-pay-reconciliation.test.ts
