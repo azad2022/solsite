@@ -2,6 +2,8 @@ import { useEffect, type ReactNode } from 'react';
 
 const SITE_URL = 'https://solmint.ir';
 const PAGE_URL = `${SITE_URL}/solana-price`;
+const TITLE = 'قیمت سولانا امروز | نرخ لحظه‌ای SOL و تحلیل بازار';
+const DESCRIPTION = 'قیمت لحظه‌ای سولانا (SOL) به دلار، تغییر ۲۴ ساعت، نمودار زنده SOL/USD، حجم معاملات و تحلیل تکنیکال را با داده بازار Kraken در سولمینت ببینید.';
 
 function upsertMeta(name: string, content: string) {
   let node = document.head.querySelector(`meta[name="${name}"]`);
@@ -37,19 +39,16 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (window.location.pathname.replace(/\/+$/, '') !== '/solana-price') return;
 
-    const title = 'قیمت سولانا امروز؛ نرخ لحظه‌ای سولانا و تحلیل بازار solana';
-    const description = 'قیمت لحظه‌ای سولانا (SOL) به دلار، نمودار کندلی زنده، حجم معاملات، تحلیل تکنیکال و تایم‌فریم‌های مختلف را با داده به‌روز بازار در سولمینت بررسی کنید.';
-
-    document.title = title;
-    upsertMeta('description', description);
+    document.title = TITLE;
+    upsertMeta('description', DESCRIPTION);
     upsertMeta('robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
     upsertMeta('author', 'سولمینت');
     upsertMeta('twitter:card', 'summary_large_image');
-    upsertMeta('twitter:title', title);
-    upsertMeta('twitter:description', description);
+    upsertMeta('twitter:title', TITLE);
+    upsertMeta('twitter:description', DESCRIPTION);
     upsertMeta('twitter:image', `${SITE_URL}/images/solmint-banner.jpg`);
-    upsertProperty('og:title', title);
-    upsertProperty('og:description', description);
+    upsertProperty('og:title', TITLE);
+    upsertProperty('og:description', DESCRIPTION);
     upsertProperty('og:url', PAGE_URL);
     upsertProperty('og:type', 'website');
     upsertProperty('og:site_name', 'سولمینت');
@@ -68,8 +67,8 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
           '@type': 'WebPage',
           '@id': `${PAGE_URL}#webpage`,
           url: PAGE_URL,
-          name: title,
-          description,
+          name: TITLE,
+          description: DESCRIPTION,
           inLanguage: 'fa-IR',
           isPartOf: { '@id': `${SITE_URL}#website` },
           about: {
@@ -83,8 +82,8 @@ export function SolanaPriceSeoEnhancer({ children }: { children: ReactNode }) {
           '@type': 'BreadcrumbList',
           '@id': `${PAGE_URL}#breadcrumb`,
           itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'خانه', item: `${SITE_URL}/` },
-            { '@type': 'ListItem', position: 2, name: 'قیمت لحظه‌ای سولانا', item: PAGE_URL }
+            { '@type': 'ListItem', position: 1, name: 'خانه', item: SITE_URL },
+            { '@type': 'ListItem', position: 2, name: 'قیمت سولانا', item: PAGE_URL }
           ]
         }
       ]
