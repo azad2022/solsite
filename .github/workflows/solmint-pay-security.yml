@@ -45,6 +45,9 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Repair stale admin source contract
+        run: node scripts/repair-admin-solana-logo.mjs
+
       - name: Typecheck
         run: npx tsc --noEmit
 
