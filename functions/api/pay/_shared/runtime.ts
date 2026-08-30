@@ -138,7 +138,17 @@ export function calculateSnapshot(amountAtomic: string, feePayer: 'merchant' | '
   return calculateGatewayFee(amountAtomic, feeBps, feePayer);
 }
 
-export function assertSafeMetadata(value: unknown): Record<string, unknown> {
+export async function enforcePayRateLimit(env: PayRuntimeEnv, scope: string, subjectHash: string, windowSeconds: number, maxRequests: number): Promise<void> {
+  const response = await supabaseRequest(env, '/rest/v1/rpc/pay_check_and_increment_rate_limit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ p_scope: scope, p_subject_hash: subjectHash, p_window_seconds: windowSeconds, p_max_requests: maxRequests }),
+  });
+  const allowed = await response.json() as boolean;
+  if (allowed !== true) throw new PayRuntimeError('RATE_LIMITED', 429, 'Too many Pay API requests.');
+}
+
+export async function assertSafeMetadata(value: unknown): Promise<Record<string, unknown>> {
   if (value === undefined) return {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new PayRuntimeError('INVALID_METADATA', 400, 'Metadata must be a JSON object.');
   if (!validatePublicMetadata(value)) throw new PayRuntimeError('INVALID_METADATA', 400, 'Metadata is too large or has an invalid structure.');
