@@ -1,22 +1,34 @@
 /**
  * Payment verification orchestrator.
  *
- * This service connects a provider-neutral Solana adapter to the pure
- * verification policy. It deliberately returns a verification decision only;
- * callers must persist the authoritative observation and accounting outcome in
- * a transaction-safe server workflow.
+ * The provider discovers and normalizes observations; this module evaluates
+ * every candidate exactly once and returns the observation that was verified.
+ * Callers must persist the authoritative result in a transaction-safe workflow.
  */
 import type { SolanaPaymentProvider } from './blockchainProvider';
-import { verifyPaymentTransaction, type ExpectedPayment, type VerificationResult } from './verificationPolicy';
+import {
+  verifyPaymentTransaction,
+  type ExpectedPayment,
+  type ObservedPaymentTransaction,
+  type VerificationResult,
+} from './verificationPolicy';
 
 export interface VerificationCandidate {
   signature: string;
+  observation: ObservedPaymentTransaction;
+  result: VerificationResult;
+}
+
+export interface VerificationCheck {
+  signature: string;
+  observation: ObservedPaymentTransaction;
   result: VerificationResult;
 }
 
 export interface PaymentVerificationDecision {
   result: VerificationResult;
   candidate: VerificationCandidate | null;
+  checks: readonly VerificationCheck[];
   checkedSignatures: readonly string[];
 }
 
@@ -31,6 +43,7 @@ export async function verifyPayment(
     : await provider.findTransactionsByReference(expected.reference, expected.requiredCommitment);
 
   const checked = new Set<string>();
+  const checks: VerificationCheck[] = [];
   let lastResult: VerificationResult = {
     valid: false,
     status: 'failed',
@@ -41,21 +54,24 @@ export async function verifyPayment(
     if (!observation?.signature || checked.has(observation.signature)) continue;
     checked.add(observation.signature);
 
-    const duplicate = knownSignatures.has(observation.signature);
-    const result = verifyPaymentTransaction(expected, observation, duplicate);
+    const result = verifyPaymentTransaction(expected, observation, knownSignatures.has(observation.signature));
+    checks.push({ signature: observation.signature, observation, result });
+    lastResult = result;
+
     if (result.valid) {
       return {
         result,
-        candidate: { signature: observation.signature, result },
+        candidate: { signature: observation.signature, observation, result },
+        checks,
         checkedSignatures: [...checked],
       };
     }
-    lastResult = result;
   }
 
   return {
     result: lastResult,
     candidate: null,
+    checks,
     checkedSignatures: [...checked],
   };
 }
