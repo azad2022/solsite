@@ -4,7 +4,7 @@ import type { TokenProgram } from '../types/domain';
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
 const TOKEN_PROGRAM_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-const TOKEN_2022_PROGRAM_ADDRESS = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpEb';
+const TOKEN_2022_PROGRAM_ADDRESS = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxEb';
 const RPC_TIMEOUT_MS = 8_000;
 
 type TokenAccountInfo = {
@@ -80,6 +80,9 @@ async function enrichTransfer(url: string, transfer: ObservedTransfer): Promise<
   return {
     ...transfer,
     tokenProgram: sourceInfo.program,
+    // For normal transfers, the instruction's authority is the signer/delegate
+    // that authorized the transfer. The token-account owner is retained as a
+    // fallback for providers that omit the parsed authority field.
     sourceAuthority: transfer.sourceAuthority || sourceInfo.owner,
     destinationAuthority: destinationInfo.owner,
   };
