@@ -1,4 +1,3 @@
-import * as ed25519 from '@noble/ed25519';
 import { decodeBase58, encodeBase58 } from './base58';
 
 const MAX_CHALLENGE_AGE_MS = 10 * 60 * 1000;
@@ -24,9 +23,9 @@ export function validateChallengeWindow(issuedAt: string, expiresAt: string, now
 }
 
 /**
- * Verify a wallet proof using Ed25519. The strict RFC8032/FIPS-compatible mode
- * is used for an explicit ownership proof, avoiding non-canonical ZIP215 forms
- * that are not necessary for this application-level authentication artifact.
+ * Verify an application-level Solana wallet ownership proof with Ed25519.
+ * Web Crypto is used because the deployed runtimes provide the primitive;
+ * this keeps the signing boundary small and avoids an unnecessary dependency.
  */
 export async function verifySolanaWalletSignature(input: { walletAddress: string; message: string; signatureBase58: string }): Promise<boolean> {
   let publicKey: Uint8Array;
@@ -40,9 +39,8 @@ export async function verifySolanaWalletSignature(input: { walletAddress: string
   if (publicKey.length !== PUBLIC_KEY_BYTES || signature.length !== SIGNATURE_BYTES) return false;
 
   try {
-    // Reject malformed/non-canonical Ed25519 public keys before verification.
-    ed25519.Point.fromBytes(publicKey, false);
-    return await ed25519.verifyAsync(signature, new TextEncoder().encode(input.message), publicKey, { zip215: false });
+    const key = await crypto.subtle.importKey('raw', publicKey, { name: 'Ed25519' }, false, ['verify']);
+    return await crypto.subtle.verify({ name: 'Ed25519' }, key, signature, new TextEncoder().encode(input.message));
   } catch {
     return false;
   }
