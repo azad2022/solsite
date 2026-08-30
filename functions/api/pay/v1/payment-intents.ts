@@ -11,7 +11,7 @@ import {
   readJsonBody,
 } from '../_shared/runtime';
 import { randomReferenceAddress } from '../../../../src/pay/services/walletSignature';
-import { resolveSupportedAssetConfig } from '../../../../src/pay/services/assetPolicy';
+import { resolveAssetFromEnvironment } from '../../../../src/pay/services/assetPolicy';
 
 interface PayEnv {
   SUPABASE_URL?: string;
@@ -34,7 +34,6 @@ type Asset = 'SOL' | 'USDC' | 'USDT';
 type FeePayer = 'merchant' | 'customer';
 
 function getSecret(env: PayEnv): string { return env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || ''; }
-
 async function dbRequest(env: PayEnv, path: string, init: RequestInit = {}): Promise<Response> {
   const secret = getSecret(env);
   if (!secret) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay backend is not configured.');
@@ -43,7 +42,6 @@ async function dbRequest(env: PayEnv, path: string, init: RequestInit = {}): Pro
   if (!env.SUPABASE_SECRET_KEY && env.SUPABASE_SERVICE_ROLE_KEY) headers.set('Authorization', `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`);
   return fetch(`${(env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '')}${path}`, { ...init, headers });
 }
-
 function parsePositiveAtomic(value: unknown, field: string): string {
   if (typeof value !== 'string' || !/^\d{1,78}$/.test(value) || BigInt(value) <= 0n) throw new PayRuntimeError('INVALID_AMOUNT', 400, `${field} must be a positive integer string in atomic units.`);
   return value;
@@ -74,13 +72,14 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const amountAtomic = parsePositiveAtomic(body.amountAtomic, 'amountAtomic');
     const asset = parseAsset(body.asset);
     const feePayer = parseFeePayer(body.feePayer ?? 'merchant');
-    const assetConfig = resolveSupportedAssetConfig(asset, env);
+    const assetConfig = resolveAssetFromEnvironment(asset, env as Record<string, string | undefined>);
     const expiresAt = parseExpiry(env, body.expiresInSeconds);
     const metadata = assertSafeMetadata(body.metadata);
     const externalOrderId = body.externalOrderId == null ? null : String(body.externalOrderId).trim();
     if (externalOrderId !== null && !externalOrderId) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId cannot be empty.');
     if (externalOrderId && externalOrderId.length > 255) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId is too long.');
     if (!env.PAY_FEE_RECIPIENT) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay fee recipient is not configured.');
+    if (assetConfig.tokenMint && assetConfig.tokenProgram !== 'spl-token') throw new PayRuntimeError('ASSET_NOT_SUPPORTED', 503, 'Configured token program is not supported for this release.');
 
     const merchantResponse = await dbRequest(env, `/rest/v1/pay_merchants?select=id,status&id=eq.${encodeURIComponent(principal.merchantId)}&limit=1`);
     if (!merchantResponse.ok) throw new PayRuntimeError('MERCHANT_LOOKUP_FAILED', 503, 'Unable to load merchant configuration.');
