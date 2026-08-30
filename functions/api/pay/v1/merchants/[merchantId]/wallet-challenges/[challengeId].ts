@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from '../../../../../auth/_shared';
 import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../../_shared/runtime';
-import { buildWalletOwnershipMessage, validateChallengeWindow, verifySolanaWalletSignature } from '../../../../../../src/pay/services/walletSignature';
+import { buildWalletOwnershipMessage, validateChallengeWindow, verifySolanaWalletSignature } from '../../../../../../../src/pay/services/walletSignature';
 
 interface PayEnv {
   SUPABASE_URL?: string;
