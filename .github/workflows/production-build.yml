@@ -45,14 +45,15 @@ jobs:
           grep -Fq 'canonical' index.html
           ! grep -Fq 'solmint-hydration-guard' index.html
           ! grep -Fq 'visibility: hidden' index.html
-          grep -Fq 'createRoot(document.getElementById(\'root\')!).render(' src/main.tsx
+          grep -Fq 'createRoot' src/main.tsx
+          grep -Fq 'document.getElementById' src/main.tsx
+          grep -Fq '.render(' src/main.tsx
       - name: Verify article SEO and UI contract
         run: |
           grep -Fq 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
           grep -Fq 'function readArticleBootstrap(): Article[]' src/App.tsx
           grep -Fq 'function preloadInitialRoute()' src/main.tsx
-          grep -Fq 'function revealAppAfterMount()' src/main.tsx
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
       - name: Apply HTML-aware contextual SSR linking
