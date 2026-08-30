@@ -1,10 +1,8 @@
 /**
  * Deterministic payment-verification rules.
  *
- * This policy intentionally knows nothing about RPC/indexer response formats.
- * Provider adapters normalize observations; the verifier matches value legs
- * against the immutable Payment Intent snapshot and does not trust a caller- or
- * provider-assigned semantic transfer role.
+ * Provider adapters normalize observations; this policy matches value legs against
+ * the immutable payment snapshot and never trusts provider-assigned transfer roles.
  */
 import type { PaymentAsset, PaymentStatus, TokenProgram } from '../types/domain';
 
@@ -41,9 +39,9 @@ export interface ObservedTransfer {
 
 export interface ObservedPaymentTransaction {
   signature: string;
-  slot: number | null;
-  blockTime: string | null;
-  networkFeeLamports: string | null;
+  slot?: number | null;
+  blockTime?: string | null;
+  networkFeeLamports?: string | null;
   success: boolean;
   commitment: SolanaCommitment;
   feePayer: string | null;
@@ -89,16 +87,10 @@ export function verifyPaymentTransaction(expected: ExpectedPayment, observed: Ob
   if (!observed.signature) return { valid: false, status: 'failed', reason: 'MISSING_SIGNATURE' };
   if (duplicateSignature) return { valid: false, status: 'duplicate', reason: 'DUPLICATE_SIGNATURE' };
   if (!observed.success) return { valid: false, status: 'failed', reason: 'TRANSACTION_FAILED' };
-  if (expected.requiredCommitment === 'finalized' && observed.commitment !== 'finalized') {
-    return { valid: false, status: 'verifying', reason: 'COMMITMENT_TOO_LOW' };
-  }
+  if (expected.requiredCommitment === 'finalized' && observed.commitment !== 'finalized') return { valid: false, status: 'verifying', reason: 'COMMITMENT_TOO_LOW' };
   if (!observed.referenceMatched) return { valid: false, status: 'wrong_recipient', reason: 'REFERENCE_MISMATCH' };
-  if (expected.merchantDestination === expected.feeDestination) {
-    return { valid: false, status: 'failed', reason: 'DESTINATION_COLLISION' };
-  }
-  if (expected.expectedSponsorAddress && observed.feePayer !== expected.expectedSponsorAddress) {
-    return { valid: false, status: 'failed', reason: 'SPONSOR_MISMATCH' };
-  }
+  if (expected.merchantDestination === expected.feeDestination) return { valid: false, status: 'failed', reason: 'DESTINATION_COLLISION' };
+  if (expected.expectedSponsorAddress && observed.feePayer !== expected.expectedSponsorAddress) return { valid: false, status: 'failed', reason: 'SPONSOR_MISMATCH' };
 
   const merchantMatches = observed.transfers.filter((transfer) => transferMatches(transfer, expected, expected.merchantDestination, expected.merchantSettlementAtomic));
   if (merchantMatches.length === 0) return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
@@ -110,12 +102,8 @@ export function verifyPaymentTransaction(expected: ExpectedPayment, observed: Ob
 
   const merchantTransfer = merchantMatches[0];
   const feeTransfer = feeMatches[0];
-  if (expected.asset !== 'SOL' && (!merchantTransfer.destinationAuthority || !feeTransfer.destinationAuthority)) {
-    return { valid: false, status: 'failed', reason: 'TOKEN_ACCOUNT_MISMATCH' };
-  }
-  if (!merchantTransfer.sourceAuthority || !feeTransfer.sourceAuthority || merchantTransfer.sourceAuthority !== feeTransfer.sourceAuthority) {
-    return { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' };
-  }
+  if (expected.asset !== 'SOL' && (!merchantTransfer.destinationAuthority || !feeTransfer.destinationAuthority)) return { valid: false, status: 'failed', reason: 'TOKEN_ACCOUNT_MISMATCH' };
+  if (!merchantTransfer.sourceAuthority || !feeTransfer.sourceAuthority || merchantTransfer.sourceAuthority !== feeTransfer.sourceAuthority) return { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' };
 
   return { valid: true, status: 'confirmed', reason: 'OK' };
 }
