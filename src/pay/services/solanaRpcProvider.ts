@@ -1,9 +1,20 @@
 import type { ObservedPaymentTransaction, ObservedTransfer, SolanaCommitment } from './verificationPolicy';
 import type { SolanaPaymentProvider } from './blockchainProvider';
+import type { TokenProgram } from '../types/domain';
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
-const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const TOKEN_PROGRAM_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const TOKEN_2022_PROGRAM_ADDRESS = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxEb';
 const RPC_TIMEOUT_MS = 8_000;
+
+type TokenAccountInfo = {
+  exists: boolean;
+  program: TokenProgram | null;
+  mint: string | null;
+  owner: string | null;
+  decimals: number | null;
+  accountType: string | null;
+};
 
 interface RpcEnv {
   SOLANA_RPC_URL?: string;
@@ -35,13 +46,64 @@ async function rpc<T>(url: string, method: string, params: unknown[]): Promise<T
   }
 }
 
-function toAtomicDecimal(value: unknown, decimals: number): string | null {
-  if (typeof value !== 'number' && typeof value !== 'string') return null;
-  const normalized = String(value);
-  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
-  const [whole, fraction = ''] = normalized.split('.');
-  if (fraction.length > decimals) return null;
-  return (BigInt(whole) * 10n ** BigInt(decimals) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals))).toString();
+function atomicFromTokenAmount(amount: unknown): string | null {
+  if (typeof amount !== 'string' || !/^\d+$/.test(amount)) return null;
+  return amount;
+}
+
+function tokenProgramFromOwner(owner: unknown): TokenProgram | null {
+  if (owner === TOKEN_PROGRAM_ADDRESS) return 'spl-token';
+  if (owner === TOKEN_2022_PROGRAM_ADDRESS) return 'token-2022';
+  return null;
+}
+
+async function getTokenAccountInfo(url: string, address: string): Promise<TokenAccountInfo> {
+  const result = await rpc<any>(url, 'getAccountInfo', [address, { encoding: 'jsonParsed', commitment: 'finalized' }]);
+  const value = result?.value;
+  if (!value) return { exists: false, program: null, mint: null, owner: null, decimals: null, accountType: null };
+
+  const program = tokenProgramFromOwner(value.owner);
+  if (!program) return { exists: true, program: null, mint: null, owner: null, decimals: null, accountType: null };
+
+  const parsed = value.data?.parsed;
+  const accountType = typeof parsed?.type === 'string' ? parsed.type : null;
+  if (accountType !== 'account') return { exists: true, program, mint: null, owner: null, decimals: null, accountType };
+
+  return {
+    exists: true,
+    program,
+    mint: typeof parsed.info?.mint === 'string' ? parsed.info.mint : null,
+    owner: typeof parsed.info?.owner === 'string' ? parsed.info.owner : null,
+    decimals: null,
+    accountType,
+  };
+}
+
+async function enrichTransfer(
+  url: string,
+  transfer: ObservedTransfer,
+): Promise<ObservedTransfer | null> {
+  if (transfer.asset === 'SOL') {
+    return { ...transfer, sourceAuthority: transfer.source };
+  }
+  if (!transfer.source || !transfer.destination) return null;
+
+  const [sourceInfo, destinationInfo] = await Promise.all([
+    getTokenAccountInfo(url, transfer.source),
+    getTokenAccountInfo(url, transfer.destination),
+  ]);
+
+  if (!sourceInfo.exists || !destinationInfo.exists) return null;
+  if (!sourceInfo.program || sourceInfo.program !== destinationInfo.program) return null;
+  if (!sourceInfo.mint || sourceInfo.mint !== destinationInfo.mint) return null;
+  if (!destinationInfo.owner || !sourceInfo.owner) return null;
+
+  return {
+    ...transfer,
+    tokenProgram: sourceInfo.program,
+    sourceAuthority: sourceInfo.owner,
+    destinationAuthority: destinationInfo.owner,
+  };
 }
 
 function parseSupportedInstruction(
@@ -54,26 +116,38 @@ function parseSupportedInstruction(
 
   if (programId === SYSTEM_PROGRAM && parsed.type === 'transfer') {
     const info = parsed.info;
-    const amount = toAtomicDecimal(info?.lamports, 9);
-    if (!info?.source || !info?.destination || !amount) return null;
-    return { role: 'other', source: info.source, destination: info.destination, asset: 'SOL', tokenMint: null, amountAtomic: amount, instructionIndex: null };
+    const amount = typeof info?.lamports === 'number' || typeof info?.lamports === 'string'
+      ? String(info.lamports)
+      : null;
+    if (!info?.source || !info?.destination || !amount || !/^\d+$/.test(amount)) return null;
+    return {
+      role: 'other', source: info.source, sourceAuthority: info.source,
+      destination: info.destination, destinationAuthority: info.destination,
+      asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: 9,
+      amountAtomic: amount, instructionIndex: null,
+    };
   }
 
-  // Only TransferChecked is accepted for SPL payment recognition here. Its
-  // parsed tokenAmount carries both exact atomic amount and decimals, while the
-  // mint is explicit. Plain Transfer would require an additional token-account
-  // lookup before it can safely be recognized.
-  if (programId !== TOKEN_PROGRAM || parsed.type !== 'transferChecked') return null;
+  if (programId !== TOKEN_PROGRAM_ADDRESS && programId !== TOKEN_2022_PROGRAM_ADDRESS) return null;
+  if (parsed.type !== 'transferChecked') return null;
+
   const info = parsed.info;
   const mint = typeof info?.mint === 'string' ? info.mint : null;
   const decimals = Number(info?.tokenAmount?.decimals);
-  const amount = toAtomicDecimal(info?.tokenAmount?.uiAmountString ?? info?.tokenAmount?.uiAmount, Number.isInteger(decimals) ? decimals : -1);
-  if (!info?.source || !info?.destination || !mint || !Number.isInteger(decimals) || decimals < 0 || !amount) return null;
+  const amount = atomicFromTokenAmount(info?.tokenAmount?.amount);
+  if (!info?.source || !info?.destination || !mint || !amount || !Number.isInteger(decimals) || decimals < 0 || decimals > 255) return null;
 
   const asset = expectedAssetMints.USDC === mint ? 'USDC' : expectedAssetMints.USDT === mint ? 'USDT' : null;
   if (!asset) return null;
 
-  return { role: 'other', source: info.source, destination: info.destination, asset, tokenMint: mint, amountAtomic: amount, instructionIndex: null };
+  return {
+    role: 'other', source: info.source, sourceAuthority: null,
+    destination: info.destination, destinationAuthority: null,
+    asset, tokenMint: mint,
+    tokenProgram: programId === TOKEN_2022_PROGRAM_ADDRESS ? 'token-2022' : 'spl-token',
+    tokenDecimals: decimals,
+    amountAtomic: amount, instructionIndex: null,
+  };
 }
 
 function collectParsedInstructions(transaction: any): any[] {
@@ -97,9 +171,15 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     }]);
     if (!result) return null;
 
-    const transfers = collectParsedInstructions(result)
+    const parsedTransfers = collectParsedInstructions(result)
       .map((instruction) => parseSupportedInstruction(instruction, this.expectedAssetMints))
       .filter((transfer): transfer is ObservedTransfer => Boolean(transfer));
+
+    const transfers: ObservedTransfer[] = [];
+    for (const transfer of parsedTransfers) {
+      const enriched = await enrichTransfer(this.rpcUrl, transfer);
+      if (enriched) transfers.push(enriched);
+    }
 
     return {
       signature,
@@ -117,9 +197,6 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     for (const item of signatures) {
       if (!item?.signature || item?.err) continue;
       const transaction = await this.getTransaction(item.signature, commitment);
-      // The candidate was discovered by getSignaturesForAddress(reference), so
-      // the RPC itself established account-level reference correlation. A later
-      // verifier still checks the concrete transfer legs and snapshot.
       if (transaction) results.push({ ...transaction, referenceMatched: true });
     }
     return results;
