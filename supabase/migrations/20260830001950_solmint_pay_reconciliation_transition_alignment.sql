@@ -1,5 +1,6 @@
 -- Keep database payment lifecycle identical to the TypeScript state machine.
--- This migration only supersedes the transition function created by 01900.
+-- This migration supersedes the transition function created earlier and pins
+-- SECURITY DEFINER execution to an empty search_path.
 
 create or replace function public.pay_transition_payment(
   p_payment_id uuid,
@@ -10,7 +11,7 @@ create or replace function public.pay_transition_payment(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_from text;
