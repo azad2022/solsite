@@ -1,10 +1,11 @@
 /**
  * Server-side Pay authorization policy.
  *
- * Authentication identifies the caller; the merchant membership record identifies
- * which organization the caller belongs to and which capabilities that member has.
- * The frontend/domain layer intentionally depends only on this small principal
- * contract and never imports the site's concrete auth implementation.
+ * Authentication identifies the caller; merchant membership identifies the tenant
+ * and role. Tenant authorization must not depend on an unrelated site-wide
+ * permission flag, otherwise valid merchant team members could be denied simply
+ * because their account predates Pay permissions. Platform-wide administrative
+ * operations remain separately gated by the caller's platform role.
  */
 
 export type PayCapability =
@@ -49,23 +50,24 @@ const roleCapabilities: Record<MerchantMemberRole, readonly PayCapability[]> = {
   viewer: ['merchant.read','payment.read','referral.read'],
 };
 
-export function hasPayCapability(user: PayUserPrincipal, capability: PayCapability): boolean {
+/** Platform-level Pay capability check for administrative operations. */
+export function hasPayPlatformCapability(user: PayUserPrincipal, capability: PayCapability): boolean {
   if (!user.isActive) return false;
   if (user.role === 'superadmin') return true;
   return user.permissions.some((permission) => permission === `pay:${capability}` || permission === capability);
 }
 
+/** Tenant-scoped authorization; merchant membership role is authoritative. */
 export function authorizePayMerchant(
   user: PayUserPrincipal | null,
   merchant: MerchantPrincipal | null,
   membership: MerchantMembership | null,
   capability: PayCapability,
 ): boolean {
-  if (!user || !merchant || !membership) return false;
+  if (!user || !merchant || !membership || !user.isActive) return false;
   if (merchant.status === 'suspended' || merchant.status === 'closed') return false;
   if (membership.status !== 'active' || membership.merchantId !== merchant.merchantId || membership.userId !== user.id) return false;
+  if (membership.role === 'owner' && membership.userId !== merchant.ownerUserId) return false;
   if (user.role === 'superadmin') return true;
-  if (user.id !== merchant.ownerUserId && membership.role === 'owner') return false;
-  if (!hasPayCapability(user, capability)) return false;
   return roleCapabilities[membership.role].includes(capability);
 }
