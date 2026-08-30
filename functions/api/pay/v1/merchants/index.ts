@@ -1,5 +1,5 @@
 import { getAuthenticatedUser, jsonResponse } from '../../../auth/_shared';
-import { PayRuntimeError, payFeatureEnabled, supabaseRequest } from '../_shared/runtime';
+import { PayRuntimeError, payFeatureEnabled, supabaseRequest } from '../../_shared/runtime';
 
 interface PayEnv {
   SUPABASE_URL?: string;
