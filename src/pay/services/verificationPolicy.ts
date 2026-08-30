@@ -102,5 +102,7 @@ export function verifyPaymentTransaction(
     return { valid: false, status: 'failed', reason: 'FEE_TRANSFER_MISMATCH' };
   }
 
-  return { valid: true, status: 'completed', reason: 'OK' };
+  // Verification proves the transaction. Completion is a later business step
+  // that records accounting and emits merchant webhooks exactly once.
+  return { valid: true, status: 'confirmed', reason: 'OK' };
 }
