@@ -71,14 +71,12 @@ async function loadPayments(env: Env, limit: number): Promise<ReconciliationPaym
   const active = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid)&expires_at=gt.${encodeURIComponent(now)}&order=created_at.asc&limit=${limit}`, { headers: { Accept: 'application/json' } });
   if (!active.ok) throw new PayRuntimeError('PAYMENT_SCAN_FAILED', 503, 'Unable to scan payment intents.');
   const activeRows = await active.json() as PaymentRow[];
-
   if (activeRows.length >= limit) return activeRows.map(toPayment);
 
   const remaining = limit - activeRows.length;
   const expired = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid)&expires_at=lte.${encodeURIComponent(now)}&order=expires_at.asc&limit=${remaining}`, { headers: { Accept: 'application/json' } });
   if (!expired.ok) throw new PayRuntimeError('PAYMENT_EXPIRY_SCAN_FAILED', 503, 'Unable to scan expired payment intents.');
-  const expiredRows = await expired.json() as PaymentRow[];
-  return [...activeRows, ...expiredRows].map(toPayment);
+  return [...activeRows, ...await expired.json() as PaymentRow[]].map(toPayment);
 }
 
 class SupabaseReconciliationRepository implements ReconciliationRepository {
@@ -92,7 +90,6 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
   }
 
   async recordRejectedObservation(paymentId: string, observation: ObservedPaymentTransaction, reason: string): Promise<void> {
-    const primary = observation.transfers[0];
     const response = await supabaseRequest(this.env, '/rest/v1/rpc/pay_record_rejected_observation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -104,9 +101,9 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
         p_success: observation.success,
         p_commitment: observation.commitment,
         p_fee_payer: observation.feePayer,
-        p_observed_amount_atomic: primary?.amountAtomic || '1',
-        p_asset: primary?.asset || 'SOL',
-        p_recipient: primary?.destination || '',
+        p_observed_amount_atomic: null,
+        p_asset: observation.transfers[0]?.asset ?? null,
+        p_recipient: observation.transfers[0]?.destination ?? null,
         p_reference_matched: observation.referenceMatched,
         p_reason: reason,
         p_raw_observation: { provider: 'solana-rpc', requestId: this.requestId, signature: observation.signature },
@@ -116,6 +113,8 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
   }
 
   async applyVerifiedObservation(input: { payment: ReconciliationPayment; observation: ObservedPaymentTransaction; transfers: readonly ObservedTransfer[] }): Promise<'confirmed' | 'duplicate' | 'stale'> {
+    const merchantTransfer = input.transfers.find((transfer) => transfer.role === 'merchant_settlement');
+    if (!merchantTransfer) return 'stale';
     const response = await supabaseRequest(this.env, '/rest/v1/rpc/pay_apply_verified_observation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -124,7 +123,7 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
         p_signature: input.observation.signature,
         p_slot: input.observation.slot,
         p_block_time: input.observation.blockTime,
-        p_observed_amount_atomic: input.transfers.find((transfer) => transfer.role === 'merchant_settlement')?.amountAtomic || input.payment.merchantSettlementAtomic,
+        p_observed_amount_atomic: merchantTransfer.amountAtomic,
         p_asset: input.payment.asset,
         p_recipient: input.payment.recipient,
         p_reference_matched: input.observation.referenceMatched,
