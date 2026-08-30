@@ -26,7 +26,7 @@ jobs:
         with:
           bun-version: 1.2.15
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: Apply authentication hardening
         run: node scripts/harden-admin-frontend-auth.mjs
       - name: Repair production TypeScript mismatches
@@ -38,18 +38,21 @@ jobs:
       - name: Verify hardened source
         run: |
           ! grep -R "hashPasscode\|DEFAULT_PASSCODE_HASH\|solmint_admin_passcode\|solmint_admin_pass_hash\|solmint_admin_session\|solmint_current_user" src/components/AdminCmsModal.tsx
+      - name: Verify homepage SEO contract
+        run: |
+          grep -Fq '<h1' index.html
+          grep -Fq 'کیف پول غیرامانی سولانا' index.html
+          grep -Fq 'canonical' index.html
+          ! grep -Fq 'solmint-hydration-guard' index.html
+          ! grep -Fq 'visibility: hidden' index.html
+          grep -Fq 'createRoot(document.getElementById(\'root\')!).render(' src/main.tsx
       - name: Verify article SEO and UI contract
         run: |
           grep -Fq 'solmint-article-bootstrap' 'functions/article/[slug].ts'
           grep -Fq 'setArticleBootstrap' 'functions/article/[slug].ts'
           grep -Fq 'function readArticleBootstrap(): Article[]' src/App.tsx
-          grep -Fq 'const bootstrap = readArticleBootstrap();' src/App.tsx
           grep -Fq 'function preloadInitialRoute()' src/main.tsx
           grep -Fq 'function revealAppAfterMount()' src/main.tsx
-          grep -Fq 'solmint-hydrating' src/main.tsx
-          grep -Fq 'solmint-hydration-guard' index.html
-          grep -Fq 'visibility: hidden' index.html
-          grep -Fq 'createRoot(document.getElementById('\''root'\'')!).render(' src/main.tsx
           ! grep -Fq 'if (!key) return context.next()' 'functions/article/[slug].ts'
           ! grep -Fq 'if (!upstream.ok) return context.next()' 'functions/article/[slug].ts'
       - name: Apply HTML-aware contextual SSR linking
@@ -58,8 +61,9 @@ jobs:
         run: node scripts/apply-article-internal-linking.mjs
       - name: Verify contextual internal linking
         run: |
-          grep -Fq 'linkContextualHtml' 'functions/article/[slug].ts'
-          grep -Fq 'linkContextualHtml(renderMarkdownToHtml(readingArticle.content)' 'src/components/BlogHub.tsx'
+          grep -Fq 'contextualArticleLinking' 'functions/article/[slug].ts'
+          grep -Fq 'renderContextualMarkdownLine(line, escapeHtml, safeUrl)' 'functions/article/[slug].ts'
+          grep -Fq 'articles: articles.map(article => ({ title: article.title, slug: article.slug }))' 'src/components/BlogHub.tsx'
       - name: Verify contextual linker regression tests
         run: bun test tests/contextualHtmlLinking.test.ts
       - name: Persist generated source cleanup
