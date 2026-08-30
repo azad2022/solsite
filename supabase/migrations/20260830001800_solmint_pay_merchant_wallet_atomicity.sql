@@ -56,6 +56,8 @@ grant execute on function public.pay_create_merchant(text,text,text) to service_
 create or replace function public.pay_consume_wallet_challenge(
   p_challenge_id uuid,
   p_user_id text,
+  p_signature_base58 text,
+  p_signer_public_key text,
   p_verified_at timestamptz default now()
 ) returns jsonb
 language plpgsql
@@ -81,7 +83,7 @@ begin
   end if;
   if v_challenge.issued_at > v_now or v_challenge.expires_at <= v_now then
     update public.pay_wallet_challenges
-       set status = 'expired', consumed_at = v_now
+       set status = 'expired', consumed_at = v_now, rejection_reason = 'challenge_expired'
      where id = v_challenge.id and consumed_at is null;
     return jsonb_build_object('ok', false, 'reason', 'CHALLENGE_EXPIRED');
   end if;
@@ -109,7 +111,8 @@ begin
   update public.pay_wallet_challenges
      set status = 'verified',
          consumed_at = v_now,
-         signer_public_key = v_challenge.wallet_address,
+         signer_public_key = p_signer_public_key,
+         signature_base58 = p_signature_base58,
          rejection_reason = null
    where id = v_challenge.id and consumed_at is null;
 
@@ -142,5 +145,5 @@ begin
 end;
 $$;
 
-revoke all on function public.pay_consume_wallet_challenge(uuid,text,timestamptz) from public, anon, authenticated;
-grant execute on function public.pay_consume_wallet_challenge(uuid,text,timestamptz) to service_role;
+revoke all on function public.pay_consume_wallet_challenge(uuid,text,text,text,timestamptz) from public, anon, authenticated;
+grant execute on function public.pay_consume_wallet_challenge(uuid,text,text,text,timestamptz) to service_role;
