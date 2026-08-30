@@ -10,14 +10,20 @@ type PageContext = {
   env?: Env;
 };
 
+type KrakenTickerField = string | string[] | undefined;
+
 type KrakenTicker = {
-  result?: Record<string, { c?: string[]; o?: string[]; p?: string[]; h?: string[]; l?: string[]; v?: string[] }>;
+  error?: string[];
+  result?: Record<string, {
+    c?: KrakenTickerField;
+    o?: KrakenTickerField;
+  }>;
 };
 
 const SITE_URL = 'https://solmint.ir';
 const PAGE_URL = `${SITE_URL}/solana-price`;
-const TITLE = 'قیمت سولانا امروز؛ نرخ لحظه‌ای سولانا و تحلیل بازار solana';
-const DESCRIPTION = 'قیمت سولانا امروز و نرخ لحظه‌ای سولانا (SOL/USD)، نمودار زنده، تغییرات ۲۴ ساعت، حجم معاملات و تحلیل تکنیکال سولانا را با داده به‌روز بازار در سولمینت بررسی کنید.';
+const TITLE = 'قیمت سولانا امروز | نرخ لحظه‌ای SOL و تحلیل بازار';
+const DESCRIPTION = 'قیمت لحظه‌ای سولانا (SOL) به دلار، تغییر ۲۴ ساعت، نمودار زنده SOL/USD، حجم معاملات و تحلیل تکنیکال را با داده بازار Kraken در سولمینت ببینید.';
 const KRAKEN_TICKER_URL = 'https://api.kraken.com/0/public/Ticker?pair=SOLUSD';
 
 function escapeHtml(value: unknown): string {
@@ -31,6 +37,12 @@ function escapeHtml(value: unknown): string {
 
 function escapeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+function toFiniteNumber(value: KrakenTickerField): number | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function setTitle(html: string, title: string): string {
@@ -64,7 +76,7 @@ function setJsonLd(html: string, value: unknown): string {
   return rx.test(html) ? html.replace(rx, tag) : html.replace('</head>', `  ${tag}\n</head>`);
 }
 
-async function fetchTicker(): Promise<{ price: number; change24h: number } | null> {
+async function fetchTicker(): Promise<{ price: number; change24h: number; fetchedAt: string } | null> {
   try {
     const response = await fetch(KRAKEN_TICKER_URL, {
       headers: { Accept: 'application/json' },
@@ -72,30 +84,32 @@ async function fetchTicker(): Promise<{ price: number; change24h: number } | nul
     } as RequestInit & { cf?: { cacheTtl: number; cacheEverything: boolean } });
     if (!response.ok) return null;
     const payload = await response.json() as KrakenTicker;
+    if (Array.isArray(payload.error) && payload.error.length) return null;
     const key = Object.keys(payload.result || {})[0];
     const row = key ? payload.result?.[key] : undefined;
-    const price = Number(row?.c?.[0]);
-    const open24h = Number(row?.o?.[0]);
-    if (!Number.isFinite(price)) return null;
-    const change24h = Number.isFinite(open24h) && open24h !== 0 ? ((price / open24h) - 1) * 100 : 0;
-    return { price, change24h };
+    const price = toFiniteNumber(row?.c);
+    const open24h = toFiniteNumber(row?.o);
+    if (price === null) return null;
+    const change24h = open24h !== null && open24h > 0 ? ((price / open24h) - 1) * 100 : 0;
+    return { price, change24h, fetchedAt: new Date().toISOString() };
   } catch {
     return null;
   }
 }
 
-function buildIntro(market: { price: number; change24h: number } | null): string {
-  const marketText = market
-    ? `قیمت فعلی SOL/USD حدود ${market.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} دلار است و تغییر ۲۴ ساعت اخیر ${market.change24h >= 0 ? '+' : ''}${market.change24h.toFixed(2)} درصد ثبت شده است.`
-    : 'داده بازار در مرورگر به‌صورت زنده دریافت و به‌روزرسانی می‌شود.';
-  return `این صفحه مرجع زنده قیمت سولانا، نرخ لحظه‌ای SOL و تحلیل بازار سولانا در سولمینت است. ${marketText} نمودار کندلی، حجم معاملات، تایم‌فریم‌های کوتاه و بلند و شاخص‌های تکنیکال برای بررسی وضعیت بازار در همین صفحه در دسترس هستند.`;
+function buildIntro(market: { price: number; change24h: number }): string {
+  const price = market.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const change = `${market.change24h >= 0 ? '+' : ''}${market.change24h.toFixed(2)}`;
+  return `در این صفحه قیمت لحظه‌ای سولانا (SOL/USD) و وضعیت بازار را بررسی می‌کنید. قیمت فعلی SOL حدود ${price} دلار و تغییر ۲۴ ساعت اخیر ${change} درصد است. نمودار زنده، داده‌های OHLC، حجم معاملات، تایم‌فریم‌های مختلف و شاخص‌های تکنیکال نیز در همین صفحه در دسترس هستند.`;
 }
 
-function buildSeoShell(market: { price: number; change24h: number } | null): string {
-  const updatedAt = new Date().toISOString();
-  const intro = buildIntro(market);
+function buildSeoShell(market: { price: number; change24h: number; fetchedAt: string } | null): string {
+  const updatedAt = market?.fetchedAt ?? new Date().toISOString();
+  const intro = market
+    ? buildIntro(market)
+    : 'داده بازار در مرورگر به‌صورت زنده دریافت و به‌روزرسانی می‌شود.';
   const priceBlock = market
-    ? `<div class="solmint-price-ssr-card"><strong>${escapeHtml(market.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} USD</strong><span>تغییر ۲۴ ساعت: ${escapeHtml(`${market.change24h >= 0 ? '+' : ''}${market.change24h.toFixed(2)}%`)}</span></div>`
+    ? `<div class="solmint-price-ssr-card" aria-label="قیمت فعلی سولانا"><strong>${escapeHtml(market.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} USD</strong><span>تغییر ۲۴ ساعت: ${escapeHtml(`${market.change24h >= 0 ? '+' : ''}${market.change24h.toFixed(2)}%`)}</span></div>`
     : '';
   return `<div id="solmint-solana-price-ssr" dir="rtl" lang="fa" data-updated-at="${escapeHtml(updatedAt)}">
   <nav aria-label="مسیر صفحه"><a href="/">خانه</a> / <span aria-current="page">قیمت سولانا</span></nav>
@@ -106,10 +120,11 @@ function buildSeoShell(market: { price: number; change24h: number } | null): str
       ${priceBlock}
       <p><time datetime="${escapeHtml(updatedAt)}">آخرین بروزرسانی داده مرجع: ${escapeHtml(new Date(updatedAt).toLocaleString('fa-IR'))}</time> · منبع داده بازار: Kraken · جفت معاملاتی: SOL/USD</p>
     </header>
-    <section aria-labelledby="solana-price-overview"><h2 id="solana-price-overview">قیمت لحظه‌ای سولانا و نمودار زنده SOL/USD</h2><p>برای بررسی قیمت سولانا، روند کوتاه‌مدت و تغییرات بازار می‌توانید نمودار زنده را در تایم‌فریم‌های ۱ دقیقه، ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت، ۴ ساعت و روزانه مشاهده کنید.</p></section>
-    <section aria-labelledby="solana-analysis-today"><h2 id="solana-analysis-today">تحلیل سولانا امروز</h2><p>تحلیل بازار سولانا بر پایه قیمت و داده‌های OHLC انجام می‌شود و شاخص‌هایی مانند EMA، RSI، MACD، ATR، Bollinger Bands، Stochastic، ADX، حجم و سطوح حمایت و مقاومت را بررسی می‌کند. این تحلیل ابزار اطلاعاتی است و توصیه خرید یا فروش نیست.</p></section>
-    <section aria-labelledby="solana-market-data"><h2 id="solana-market-data">داده‌های بازار سولانا</h2><p>در این صفحه علاوه بر نرخ لحظه‌ای، تغییرات ۲۴ ساعت، حجم معاملات، روند بازار و اطلاعات تکنیکال SOL/USD ارائه می‌شود. داده‌های بازار از Kraken دریافت می‌شوند و نمایش زنده در رابط کاربری به‌صورت دوره‌ای به‌روزرسانی می‌شود.</p></section>
-    <section aria-labelledby="solana-faq"><h2 id="solana-faq">سوالات متداول درباره قیمت سولانا</h2><h3>قیمت سولانا امروز چگونه تعیین می‌شود؟</h3><p>قیمت نمایش‌داده‌شده بر اساس داده بازار SOL/USD است و با دریافت داده جدید به‌روزرسانی می‌شود.</p><h3>نرخ لحظه‌ای سولانا هر چند وقت به‌روزرسانی می‌شود؟</h3><p>رابط زنده بازار داده‌ها را به‌صورت دوره‌ای تازه‌سازی می‌کند و زمان آخرین بروزرسانی نیز در صفحه نمایش داده می‌شود.</p><h3>آیا این صفحه تحلیل سولانا امروز را هم ارائه می‌کند؟</h3><p>بله. وضعیت تکنیکال SOL با چند شاخص رایج بازار محاسبه و همراه با نمودار و سطوح کلیدی نمایش داده می‌شود.</p></section>
+    <section aria-labelledby="solana-price-overview"><h2 id="solana-price-overview">قیمت لحظه‌ای سولانا و نمودار زنده SOL/USD</h2><p>برای بررسی روند قیمت سولانا، نمودار زنده را در تایم‌فریم‌های ۱ دقیقه، ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت، ۴ ساعت و روزانه مشاهده کنید.</p></section>
+    <section aria-labelledby="solana-analysis-today"><h2 id="solana-analysis-today">تحلیل سولانا امروز</h2><p>تحلیل تکنیکال SOL بر پایه داده‌های OHLC انجام می‌شود و شاخص‌هایی مانند EMA، RSI، MACD، ATR، Bollinger Bands، Stochastic و ADX به همراه حجم و سطوح حمایت و مقاومت بررسی می‌شوند. این بخش برای اطلاع‌رسانی و تحلیل بازار است و توصیه خرید یا فروش محسوب نمی‌شود.</p></section>
+    <section aria-labelledby="solana-market-data"><h2 id="solana-market-data">داده‌های بازار سولانا</h2><p>در این صفحه قیمت لحظه‌ای، تغییر ۲۴ ساعت، حجم معاملات و روند بازار SOL/USD ارائه می‌شود. منبع داده بازار Kraken است و رابط کاربری به‌صورت دوره‌ای تازه‌سازی می‌شود.</p></section>
+    <section aria-labelledby="solana-related-guides"><h2 id="solana-related-guides">راهنماهای مرتبط با سولانا</h2><ul><li><a href="/solana-wallet">کیف پول سولانا</a></li><li><a href="/solana-token">ساخت و مدیریت توکن سولانا</a></li><li><a href="/solana-meme-coin">میم‌کوین‌های سولانا</a></li><li><a href="/solana-nft">NFTهای سولانا</a></li><li><a href="/blog">مقالات و تحلیل‌های سولانا</a></li></ul></section>
+    <section aria-labelledby="solana-faq"><h2 id="solana-faq">سوالات متداول درباره قیمت سولانا</h2><h3>قیمت سولانا امروز چگونه تعیین می‌شود؟</h3><p>قیمت این صفحه بر اساس داده بازار جفت SOL/USD در Kraken نمایش داده می‌شود و با دریافت داده جدید به‌روزرسانی می‌شود.</p><h3>نرخ لحظه‌ای سولانا هر چند وقت به‌روزرسانی می‌شود؟</h3><p>رابط بازار به‌صورت دوره‌ای تازه‌سازی می‌شود و زمان آخرین دریافت داده نیز در صفحه نمایش داده می‌شود.</p><h3>آیا این صفحه تحلیل سولانا امروز را هم ارائه می‌کند؟</h3><p>بله. وضعیت تکنیکال SOL با چند شاخص رایج بازار محاسبه و همراه با نمودار و سطوح کلیدی ارائه می‌شود.</p></section>
   </main>
 </div>`;
 }
@@ -146,7 +161,7 @@ export const onRequest = async (context: PageContext): Promise<Response> => {
   const headers = new Headers(response.headers);
   headers.set('Content-Type', 'text/html; charset=UTF-8');
   headers.set('X-Robots-Tag', 'index, follow');
-  headers.set('X-Solmint-SEO', 'solana-price-ssr-v3');
+  headers.set('X-Solmint-SEO', 'solana-price-ssr-v4');
   headers.set('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=120');
 
   if (!response.ok) return new Response(response.body, { status: response.status, headers });
