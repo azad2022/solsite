@@ -58,6 +58,7 @@ export interface VerificationResult {
     | 'REFERENCE_MISMATCH'
     | 'MERCHANT_TRANSFER_MISMATCH'
     | 'FEE_TRANSFER_MISMATCH'
+    | 'AMBIGUOUS_TRANSFER'
     | 'TOKEN_ACCOUNT_MISMATCH'
     | 'DESTINATION_COLLISION'
     | 'SENDER_MISMATCH'
@@ -107,18 +108,20 @@ export function verifyPaymentTransaction(
     return { valid: false, status: 'failed', reason: 'SPONSOR_MISMATCH' };
   }
 
-  // Do not trust `role` labels from a provider. Determine the two semantic legs
-  // exclusively from the immutable payment snapshot (destination, asset,
-  // mint/program/decimals and exact amount).
-  const merchantTransfer = observed.transfers.find((transfer) =>
+  const merchantMatches = observed.transfers.filter((transfer) =>
     transferMatches(transfer, expected, expected.merchantDestination, expected.merchantSettlementAtomic),
   );
-  if (!merchantTransfer) return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
+  if (merchantMatches.length === 0) return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
+  if (merchantMatches.length > 1) return { valid: false, status: 'failed', reason: 'AMBIGUOUS_TRANSFER' };
 
-  const feeTransfer = observed.transfers.find((transfer) =>
+  const feeMatches = observed.transfers.filter((transfer) =>
     transferMatches(transfer, expected, expected.feeDestination, expected.gatewayFeeAtomic),
   );
-  if (!feeTransfer) return { valid: false, status: 'failed', reason: 'FEE_TRANSFER_MISMATCH' };
+  if (feeMatches.length === 0) return { valid: false, status: 'failed', reason: 'FEE_TRANSFER_MISMATCH' };
+  if (feeMatches.length > 1) return { valid: false, status: 'failed', reason: 'AMBIGUOUS_TRANSFER' };
+
+  const merchantTransfer = merchantMatches[0];
+  const feeTransfer = feeMatches[0];
 
   if (expected.asset !== 'SOL') {
     if (!merchantTransfer.destinationAuthority || !feeTransfer.destinationAuthority) {
@@ -126,9 +129,6 @@ export function verifyPaymentTransaction(
     }
   }
 
-  // Both value legs must be authorized by the same payer. For SPL tokens,
-  // source is a token account while sourceAuthority is the instruction
-  // authority/delegate normalized by the provider.
   if (!merchantTransfer.sourceAuthority || !feeTransfer.sourceAuthority || merchantTransfer.sourceAuthority !== feeTransfer.sourceAuthority) {
     return { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' };
   }
