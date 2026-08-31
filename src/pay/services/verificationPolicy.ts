@@ -118,7 +118,7 @@ export function verifyPaymentTransaction(expected: ExpectedPayment, observed: Ob
   const feeMatches = observed.transfers.filter((transfer) => transferMatches(transfer, expected, expected.feeDestination, expected.gatewayFeeAtomic));
   const feeTargets = observed.transfers.filter((transfer) => transferMatchesTarget(transfer, expected, expected.feeDestination));
 
-  if (merchantMatches.length > 1 || feeMatches.length > 1) {
+  if (merchantMatches.length > 1 || feeMatches.length > 1 || merchantTargets.length > 1 || feeTargets.length > 1) {
     return { valid: false, status: 'failed', reason: 'AMBIGUOUS_TRANSFER' };
   }
 
@@ -134,27 +134,22 @@ export function verifyPaymentTransaction(expected: ExpectedPayment, observed: Ob
     return { valid: true, status: 'confirmed', reason: 'OK' };
   }
 
-  if (merchantTargets.length > 1 || feeTargets.length > 1) {
-    return { valid: false, status: 'failed', reason: 'AMBIGUOUS_TRANSFER' };
-  }
+  if (merchantTargets.length === 1) {
+    const merchantAmount = BigInt(merchantTargets[0].amountAtomic);
+    const merchantClass = classifyAmount(merchantAmount, BigInt(expected.merchantSettlementAtomic));
+    if (merchantClass === 'underpaid') return { valid: false, status: 'underpaid', reason: 'UNDERPAID' };
+    if (merchantClass === 'overpaid') return { valid: false, status: 'overpaid', reason: 'OVERPAID' };
 
-  const merchantCandidate = merchantTargets[0];
-  const feeCandidate = feeTargets[0];
-
-  if (merchantCandidate) {
-    const merchantAmount = BigInt(merchantCandidate.amountAtomic);
-    const expectedMerchant = BigInt(expected.merchantSettlementAtomic);
-    const amountClass = classifyAmount(merchantAmount, expectedMerchant);
-    if (amountClass === 'underpaid') return { valid: false, status: 'underpaid', reason: 'UNDERPAID' };
-    if (amountClass === 'overpaid') return { valid: false, status: 'overpaid', reason: 'OVERPAID' };
+    if (feeTargets.length === 0) {
+      return { valid: false, status: 'underpaid', reason: 'UNDERPAID' };
+    }
   } else {
     return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
   }
 
-  if (feeCandidate) {
-    const feeAmount = BigInt(feeCandidate.amountAtomic);
-    const expectedFee = BigInt(expected.gatewayFeeAtomic);
-    const feeClass = classifyAmount(feeAmount, expectedFee);
+  if (feeTargets.length === 1) {
+    const feeAmount = BigInt(feeTargets[0].amountAtomic);
+    const feeClass = classifyAmount(feeAmount, BigInt(expected.gatewayFeeAtomic));
     if (feeClass === 'underpaid') return { valid: false, status: 'underpaid', reason: 'UNDERPAID' };
     if (feeClass === 'overpaid') return { valid: false, status: 'overpaid', reason: 'OVERPAID' };
   }
