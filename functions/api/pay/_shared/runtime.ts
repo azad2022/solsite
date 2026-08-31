@@ -55,20 +55,15 @@ async function readBodyWithinLimit(request: Request): Promise<string> {
   const contentLengthHeader = request.headers.get('content-length');
   if (contentLengthHeader !== null) {
     const contentLength = Number(contentLengthHeader);
-    if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
-      throw new PayRuntimeError('INVALID_CONTENT_LENGTH', 400, 'Request content length is invalid.');
-    }
-    if (contentLength > MAX_BODY_BYTES) {
-      throw new PayRuntimeError('REQUEST_TOO_LARGE', 413, 'Request body is too large.');
-    }
+    if (!Number.isSafeInteger(contentLength) || contentLength < 0) throw new PayRuntimeError('INVALID_CONTENT_LENGTH', 400, 'Request content length is invalid.');
+    if (contentLength > MAX_BODY_BYTES) throw new PayRuntimeError('REQUEST_TOO_LARGE', 413, 'Request body is too large.');
   }
 
-  if (!request.body) throw new PayRuntimeError('INVALID_BODY', 400, 'Request body is required.');
+  if (!request.body) return '';
   const reader = request.body.getReader();
   const decoder = new TextDecoder();
   let totalBytes = 0;
   let raw = '';
-
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -89,7 +84,7 @@ async function readBodyWithinLimit(request: Request): Promise<string> {
 
 export async function readJsonBody(request: Request): Promise<Record<string, unknown>> {
   const raw = await readBodyWithinLimit(request);
-
+  if (raw.trim() === '') return {};
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new PayRuntimeError('INVALID_JSON', 400, 'Request body must be valid JSON.'); }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new PayRuntimeError('INVALID_JSON', 400, 'Request body must be a JSON object.');
@@ -132,19 +127,16 @@ function getBearerToken(request: Request): string {
 export async function authenticateMerchantApi(env: PayRuntimeEnv, request: Request, requiredScope: string): Promise<PayApiPrincipal> {
   const token = getBearerToken(request);
   if (!token || !validateApiKeyFormat(token)) throw new PayRuntimeError('UNAUTHORIZED', 401, 'Valid Pay API credentials are required.');
-
   const keyHash = await sha256Hex(token);
   const response = await supabaseRequest(env, `/rest/v1/pay_api_keys?select=id,merchant_id,key_hash,scopes,expires_at,revoked_at&key_hash=eq.${encodeURIComponent(keyHash)}&limit=1`, { headers: { Accept: 'application/json' } });
   const rows = await response.json() as Array<{ id: string; merchant_id: string; key_hash: string; scopes: string[]; expires_at: string | null; revoked_at: string | null }>;
   const record = rows[0];
   if (!record) throw new PayRuntimeError('UNAUTHORIZED', 401, 'Valid Pay API credentials are required.');
-
   const validation = validateApiKeyRecord({ merchantId: record.merchant_id, keyId: record.id, keyHash: record.key_hash, scopes: record.scopes || [], expiresAt: record.expires_at, revokedAt: record.revoked_at }, requiredScope);
   if (!validation.valid) {
     const forbidden = validation.reason === 'SCOPE_REQUIRED';
     throw new PayRuntimeError(forbidden ? 'FORBIDDEN' : 'UNAUTHORIZED', forbidden ? 403 : 401, 'Pay API credential is not authorized.');
   }
-
   await supabaseRequest(env, `/rest/v1/pay_api_keys?id=eq.${encodeURIComponent(record.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ last_used_at: new Date().toISOString() }) }).catch((error) => console.warn('Pay API key last_used_at update failed:', error));
   return { merchantId: record.merchant_id, keyId: record.id, scopes: record.scopes || [] };
 }
