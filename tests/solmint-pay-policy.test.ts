@@ -2,8 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { evaluateGasSponsorship } from '../src/pay/services/gasSponsorPolicy';
+import { calculateGatewayFee } from '../src/pay/services/feePolicy';
 import { recognizeGatewayRevenue } from '../src/pay/services/revenueRecognition';
 import { verifyPaymentTransaction } from '../src/pay/services/verificationPolicy';
+
+test('gateway fee ceiling does not overcharge exact multiples', () => {
+  assert.deepEqual(calculateGatewayFee('10000', 100, 'merchant'), {
+    gatewayFeeAtomic: '1',
+    customerTotalAtomic: '10000',
+    merchantNetAtomic: '9999',
+  });
+  assert.deepEqual(calculateGatewayFee('10001', 100, 'merchant'), {
+    gatewayFeeAtomic: '2',
+    customerTotalAtomic: '10001',
+    merchantNetAtomic: '9999',
+  });
+});
+
+test('customer-paid fee increases customer total without changing merchant principal', () => {
+  assert.deepEqual(calculateGatewayFee('10000', 100, 'customer'), {
+    gatewayFeeAtomic: '1',
+    customerTotalAtomic: '10001',
+    merchantNetAtomic: '10000',
+  });
+});
 
 test('gas sponsorship fails closed when credit is insufficient', () => {
   const decision = evaluateGasSponsorship({ enabled: true, fundingModel: 'solmint_funded', availableAtomic: 49n, perPaymentLimitAtomic: 100n, dailyLimitAtomic: 1000n, spentTodayAtomic: 0n, estimatedNetworkFeeAtomic: 50n });
@@ -23,7 +45,7 @@ test('revenue recognition keeps referral liability inside gross gateway revenue'
 
 test('verification rejects split-source transfer legs', () => {
   const result = verifyPaymentTransaction(
-    { amountAtomic: '101000000', asset: 'USDC', tokenMint: 'USDC_MINT', tokenProgram: 'spl-token', tokenDecimals: 6, merchantDestination: 'MERCHANT', feeDestination: 'SOLMINT', merchantSettlementAtomic: '100000000', gatewayFeeAtomic: '1000000', reference: 'REF', requiredCommitment: 'finalized' },
+    { amountAtomic: '101000000', asset: 'USDC', tokenMint: 'USDC_MINT', tokenProgram: 'spl-token', tokenDecimals: 6, merchantDestination: 'MERCHANT_ATA', feeDestination: 'SOLMINT_ATA', merchantSettlementAtomic: '100000000', gatewayFeeAtomic: '1000000', reference: 'REF', requiredCommitment: 'finalized' },
     {
       signature: 'SIG', success: true, commitment: 'finalized', feePayer: 'CUSTOMER', referenceMatched: true,
       transfers: [
