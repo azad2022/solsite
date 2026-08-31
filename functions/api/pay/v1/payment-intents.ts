@@ -11,6 +11,7 @@ import {
   payJson,
   readJsonBody,
 } from '../_shared/runtime';
+import { validateExternalOrderId } from '../../../../src/pay/services/securityPolicy';
 import { randomReferenceAddress } from '../../../../src/pay/services/walletSignature';
 import { resolveAssetFromEnvironment } from '../../../../src/pay/services/assetPolicy';
 
@@ -83,9 +84,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const assetConfig = resolveAssetFromEnvironment(asset, env as Record<string, string | undefined>);
     const expiresAt = parseExpiry(env, body.expiresInSeconds);
     const metadata = assertSafeMetadata(body.metadata);
-    const externalOrderId = body.externalOrderId == null ? null : String(body.externalOrderId).trim();
-    if (externalOrderId !== null && !externalOrderId) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId cannot be empty.');
-    if (externalOrderId && externalOrderId.length > 255) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId is too long.');
+    const externalOrderId = body.externalOrderId == null ? null : body.externalOrderId;
+    if (!validateExternalOrderId(externalOrderId as string | null | undefined)) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId must be a non-empty safe string up to 255 characters.');
+    if (externalOrderId !== null && typeof externalOrderId !== 'string') throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId must be a string.');
     if (!env.PAY_FEE_RECIPIENT) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay fee recipient is not configured.');
     if (assetConfig.tokenMint && assetConfig.tokenProgram !== 'spl-token') throw new PayRuntimeError('ASSET_NOT_SUPPORTED', 503, 'Configured token program is not supported for this release.');
 
