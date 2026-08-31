@@ -90,6 +90,17 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
     return new Set(rows.map((row) => row.signature).filter(Boolean));
   }
 
+  async prepareVerification(paymentId: string): Promise<'ready' | 'stale'> {
+    const response = await supabaseRequest(this.env, '/rest/v1/rpc/pay_transition_payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ p_payment_id: paymentId, p_to_status: 'verifying', p_reason: 'retry_ambiguous_payment', p_request_id: this.requestId }),
+    });
+    if (!response.ok) return 'stale';
+    const result = await response.json() as { ok?: boolean; reason?: string };
+    return result.ok || result.reason === 'ILLEGAL_TRANSITION' ? 'ready' : 'stale';
+  }
+
   async recordRejectedObservation(paymentId: string, observation: ObservedPaymentTransaction, reason: string): Promise<void> {
     const response = await supabaseRequest(this.env, '/rest/v1/rpc/pay_record_rejected_observation', {
       method: 'POST',
@@ -176,8 +187,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     const subjectHash = Array.from(new Uint8Array(subjectBytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
     await enforcePayRateLimit(env, 'reconcile:worker', subjectHash, 60, 30);
 
-    const rawBody = await readJsonBody(request).catch(() => ({} as Record<string, unknown>));
-    const body = rawBody as Record<string, unknown>;
+    const body = await readJsonBody(request);
     const requested = body.limit === undefined ? 10 : Number(body.limit);
     if (!Number.isInteger(requested) || requested < 1 || requested > 50) throw new PayRuntimeError('INVALID_BATCH_SIZE', 400, 'limit must be an integer between 1 and 50.');
     const configured = Number(env.PAY_RECONCILE_BATCH_SIZE || requested);
