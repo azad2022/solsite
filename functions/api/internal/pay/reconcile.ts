@@ -71,13 +71,11 @@ async function loadPayments(env: Env, limit: number): Promise<ReconciliationPaym
   const fields = ['id','merchant_id','created_at','amount_atomic','customer_total_atomic','merchant_settlement_atomic','fee_atomic','asset','token_mint','token_program','token_decimals','recipient','fee_recipient','reference','verification_commitment','expires_at','status'].join(',');
   const now = new Date().toISOString();
   const active = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid,ambiguous)&expires_at=gt.${encodeURIComponent(now)}&order=created_at.asc&limit=${limit}`, { headers: { Accept: 'application/json' } });
-  if (!active.ok) throw new PayRuntimeError('PAYMENT_SCAN_FAILED', 503, 'Unable to scan payment intents.');
   const activeRows = await active.json() as PaymentRow[];
   if (activeRows.length >= limit) return activeRows.map(toPayment);
 
   const remaining = limit - activeRows.length;
   const expired = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid,ambiguous)&expires_at=lte.${encodeURIComponent(now)}&order=expires_at.asc&limit=${remaining}`, { headers: { Accept: 'application/json' } });
-  if (!expired.ok) throw new PayRuntimeError('PAYMENT_EXPIRY_SCAN_FAILED', 503, 'Unable to scan expired payment intents.');
   return [...activeRows, ...await expired.json() as PaymentRow[]].map(toPayment);
 }
 
@@ -97,8 +95,8 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
       body: JSON.stringify({ p_payment_id: paymentId, p_to_status: 'verifying', p_reason: 'retry_ambiguous_payment', p_request_id: this.requestId }),
     });
     if (!response.ok) return 'stale';
-    const result = await response.json() as { ok?: boolean; reason?: string };
-    return result.ok || result.reason === 'ILLEGAL_TRANSITION' ? 'ready' : 'stale';
+    const result = await response.json() as { ok?: boolean; from?: string; to?: string };
+    return result.ok === true ? 'ready' : 'stale';
   }
 
   async recordRejectedObservation(paymentId: string, observation: ObservedPaymentTransaction, reason: string): Promise<void> {
@@ -131,8 +129,8 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
       body: JSON.stringify({ p_payment_id: paymentId, p_to_status: status, p_reason: reason, p_request_id: this.requestId }),
     });
     if (!response.ok) return 'stale';
-    const result = await response.json() as { ok?: boolean; reason?: string };
-    return result.ok ? 'recorded' : 'stale';
+    const result = await response.json() as { ok?: boolean };
+    return result.ok === true ? 'recorded' : 'stale';
   }
 
   async applyVerifiedObservation(input: { payment: ReconciliationPayment; observation: ObservedPaymentTransaction; transfers: readonly ObservedTransfer[] }): Promise<'confirmed' | 'duplicate' | 'stale'> {
@@ -175,7 +173,7 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
     });
     if (!response.ok) return 'stale';
     const result = await response.json() as { ok?: boolean };
-    return result.ok ? 'expired' : 'stale';
+    return result.ok === true ? 'expired' : 'stale';
   }
 }
 
