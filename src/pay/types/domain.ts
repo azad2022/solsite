@@ -9,7 +9,7 @@ export const SOLMINT_PAY_FEE_BPS = 100;
 export type PayLocale = 'fa-IR' | 'en-US' | 'ar' | 'ru';
 export type Direction = 'rtl' | 'ltr';
 export type FeePayer = 'merchant' | 'customer';
-export type PaymentStatus = 'created'|'pending'|'detected'|'verifying'|'confirmed'|'completed'|'expired'|'underpaid'|'overpaid'|'wrong_token'|'wrong_recipient'|'duplicate'|'failed'|'refunded';
+export type PaymentStatus = 'created'|'pending'|'detected'|'verifying'|'confirmed'|'completed'|'expired'|'underpaid'|'overpaid'|'wrong_token'|'wrong_recipient'|'duplicate'|'ambiguous'|'failed'|'refunded';
 export type PaymentAsset = 'SOL' | 'USDC' | 'USDT';
 export type TokenProgram = 'spl-token' | 'token-2022';
 export interface PaymentFeePolicy { rateBps:number; payer:FeePayer; feeAtomic:string; }
