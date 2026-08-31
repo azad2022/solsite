@@ -1,12 +1,27 @@
 import assert from 'node:assert/strict';
-import { Connection, Keypair, LAMPORTS_PER_SOL, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
+import { Connection, Keypair, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
 import { randomReferenceAddress } from '../../src/pay/services/walletSignature';
 import { createSolanaRpcProvider } from '../../src/pay/services/solanaRpcProvider';
-import { verifyPaymentTransaction, type ExpectedPayment } from '../../src/pay/services/verificationPolicy';
-import type { ObservedPaymentTransaction } from '../../src/pay/services/verificationPolicy';
+import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTransaction } from '../../src/pay/services/verificationPolicy';
 
 const RPC_URL = process.env.SOLANA_DEVNET_RPC_URL?.trim() || 'https://api.devnet.solana.com';
 const connection = new Connection(RPC_URL, { commitment: 'finalized', confirmTransactionInitialTimeout: 45_000 });
+
+function loadFundedSender(): Keypair {
+  const encoded = process.env.DEVNET_E2E_SENDER_SECRET_KEY?.trim();
+  if (!encoded) throw new Error('DEVNET_E2E_SENDER_SECRET_KEY is required for repeatable Devnet E2E. Store only a funded Devnet test key in GitHub Actions Secrets.');
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(encoded);
+  } catch {
+    throw new Error('DEVNET_E2E_SENDER_SECRET_KEY must be a JSON array of 64 secret-key bytes.');
+  }
+  if (!Array.isArray(parsed) || parsed.length !== 64 || parsed.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+    throw new Error('DEVNET_E2E_SENDER_SECRET_KEY must contain exactly 64 byte values.');
+  }
+  return Keypair.fromSecretKey(Uint8Array.from(parsed as number[]));
+}
 
 async function waitForFinalized(signature: string): Promise<void> {
   const deadline = Date.now() + 60_000;
@@ -20,37 +35,23 @@ async function waitForFinalized(signature: string): Promise<void> {
   throw new Error('Devnet transaction did not reach finalized commitment within 60 seconds.');
 }
 
-async function requestAirdropWithRetry(address: Keypair['publicKey']): Promise<void> {
-  let lastError: unknown = null;
-  for (let attempt = 1; attempt <= 4; attempt += 1) {
-    try {
-      const signature = await connection.requestAirdrop(address, 1 * LAMPORTS_PER_SOL);
-      await connection.confirmTransaction(signature, 'confirmed');
-      return;
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
-    }
-  }
-  throw new Error(`Devnet faucet unavailable after retries: ${lastError instanceof Error ? lastError.message : 'unknown error'}`);
-}
-
 function withReference(ix: ReturnType<typeof SystemProgram.transfer>, reference: Keypair['publicKey']): ReturnType<typeof SystemProgram.transfer> {
   ix.keys.push({ pubkey: reference, isSigner: false, isWritable: false });
   return ix;
 }
 
 async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; observation: ObservedPaymentTransaction; reference: string }> {
-  const sender = Keypair.generate();
+  const sender = loadFundedSender();
   const merchant = Keypair.generate();
   const feeRecipient = Keypair.generate();
-  const referenceKey = Keypair.generate();
+  const referenceKey = randomReferenceAddress();
   const reference = referenceKey.publicKey.toBase58();
   const merchantSettlement = 1_000_000n;
   const gatewayFee = 10_000n;
   const total = merchantSettlement + gatewayFee;
 
-  await requestAirdropWithRetry(sender.publicKey);
+  const senderBalance = await connection.getBalance(sender.publicKey, 'finalized');
+  assert.ok(senderBalance > Number(total) + 10_000, 'Devnet E2E sender is not funded sufficiently.');
 
   const merchantTransfer = withReference(SystemProgram.transfer({
     fromPubkey: sender.publicKey,
@@ -64,7 +65,9 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
     lamports: Number(gatewayFee),
   });
 
-  const transaction = new Transaction().add(merchantTransfer, feeTransfer);
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+  const transaction = new Transaction({ recentBlockhash: blockhash, feePayer: sender.publicKey, lastValidBlockHeight })
+    .add(merchantTransfer, feeTransfer);
   const signature = await sendAndConfirmTransaction(connection, transaction, [sender], { commitment: 'confirmed' });
   await waitForFinalized(signature);
 
@@ -82,6 +85,7 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
   assert.equal(observation.success, true);
   assert.equal(observation.commitment, 'finalized');
   assert.equal(observation.feePayer, sender.publicKey.toBase58());
+  assert.equal(observation.transfers.filter((transfer) => transfer.asset === 'SOL').length, 2);
 
   const expected: ExpectedPayment = {
     amountAtomic: total.toString(),
