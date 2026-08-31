@@ -27,6 +27,7 @@ export type ReconciliationOutcomeStatus = 'underpaid' | 'overpaid' | 'ambiguous'
 
 export interface ReconciliationRepository {
   loadKnownSignatures(paymentId: string): Promise<ReadonlySet<string>>;
+  prepareVerification(paymentId: string): Promise<'ready' | 'stale'>;
   recordRejectedObservation(paymentId: string, observation: ObservedPaymentTransaction, reason: string): Promise<void>;
   recordOutcome(paymentId: string, status: ReconciliationOutcomeStatus, reason: string): Promise<'recorded' | 'stale'>;
   applyVerifiedObservation(input: {
@@ -104,6 +105,11 @@ export async function reconcilePayment(
   if (new Date(payment.expiresAt).getTime() <= Date.now()) {
     const outcome = await repository.expirePayment(payment.id);
     return { paymentId: payment.id, outcome, checkedSignatures: [], verification: null };
+  }
+
+  if (payment.status === 'ambiguous') {
+    const prepared = await repository.prepareVerification(payment.id);
+    if (prepared === 'stale') return { paymentId: payment.id, outcome: 'stale', checkedSignatures: [], verification: null };
   }
 
   let knownSignatures: ReadonlySet<string>;
