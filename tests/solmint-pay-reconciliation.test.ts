@@ -38,6 +38,33 @@ class FakeRepository implements ReconciliationRepository {
   async expirePayment(): Promise<'expired' | 'stale'> { this.expired = true; return 'expired'; }
 }
 
+class AtomicRaceRepository implements ReconciliationRepository {
+  private readonly seenSignatures = new Set<string>();
+  private calls = 0;
+  private releaseBarrier: (() => void) | null = null;
+  private readonly barrier = new Promise<void>((resolve) => { this.releaseBarrier = resolve; });
+  private readonly appliedResults: Array<'confirmed' | 'duplicate' | 'stale'> = [];
+
+  get results(): readonly ('confirmed' | 'duplicate' | 'stale')[] { return this.appliedResults; }
+  async loadKnownSignatures(): Promise<ReadonlySet<string>> { return new Set(); }
+  async recordRejectedObservation(): Promise<void> {}
+  async expirePayment(): Promise<'expired' | 'stale'> { return 'stale'; }
+
+  async applyVerifiedObservation(input: { payment: ReconciliationPayment; observation: ObservedPaymentTransaction; transfers: readonly ObservedTransfer[] }): Promise<'confirmed' | 'duplicate' | 'stale'> {
+    this.calls += 1;
+    if (this.calls === 1) await this.barrier;
+    else if (this.calls === 2) this.releaseBarrier?.();
+
+    if (this.seenSignatures.has(input.observation.signature)) {
+      this.appliedResults.push('duplicate');
+      return 'duplicate';
+    }
+    this.seenSignatures.add(input.observation.signature);
+    this.appliedResults.push('confirmed');
+    return 'confirmed';
+  }
+}
+
 test('reference helper requires reference in transaction account keys', () => {
   const reference = payment.reference;
   assert.equal(transactionContainsReference({ transaction: { message: { accountKeys: [{ pubkey: reference }] } } }, reference), true);
@@ -79,4 +106,17 @@ test('incomplete reference discovery fails closed instead of becoming no_match',
   assert.equal(result.outcome, 'provider_unavailable');
   assert.equal(repository.applied.length, 0);
   assert.equal(repository.rejected.length, 0);
+});
+
+test('two concurrent reconciliation workers recognize one signature exactly once', async () => {
+  const provider = new FakeProvider([validObservation('sig-race')]);
+  const repository = new AtomicRaceRepository();
+  const [first, second] = await Promise.all([
+    reconcilePayment(provider, repository, payment),
+    reconcilePayment(provider, repository, payment),
+  ]);
+
+  const outcomes = [first.outcome, second.outcome].sort();
+  assert.deepEqual(outcomes, ['confirmed', 'duplicate']);
+  assert.deepEqual([...repository.results].sort(), ['confirmed', 'duplicate']);
 });
