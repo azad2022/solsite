@@ -8,22 +8,16 @@ import { verifyPaymentTransaction } from '../src/pay/services/verificationPolicy
 
 test('gateway fee ceiling does not overcharge exact multiples', () => {
   assert.deepEqual(calculateGatewayFee('10000', 100, 'merchant'), {
-    gatewayFeeAtomic: '1',
-    customerTotalAtomic: '10000',
-    merchantNetAtomic: '9999',
+    gatewayFeeAtomic: '1', customerTotalAtomic: '10000', merchantNetAtomic: '9999',
   });
   assert.deepEqual(calculateGatewayFee('10001', 100, 'merchant'), {
-    gatewayFeeAtomic: '2',
-    customerTotalAtomic: '10001',
-    merchantNetAtomic: '9999',
+    gatewayFeeAtomic: '2', customerTotalAtomic: '10001', merchantNetAtomic: '9999',
   });
 });
 
 test('customer-paid fee increases customer total without changing merchant principal', () => {
   assert.deepEqual(calculateGatewayFee('10000', 100, 'customer'), {
-    gatewayFeeAtomic: '1',
-    customerTotalAtomic: '10001',
-    merchantNetAtomic: '10000',
+    gatewayFeeAtomic: '1', customerTotalAtomic: '10001', merchantNetAtomic: '10000',
   });
 });
 
@@ -51,6 +45,20 @@ test('verification rejects split-source transfer legs', () => {
       transfers: [
         { role: 'other', source: 'CUSTOMER_A', sourceAuthority: 'AUTH_A', destination: 'MERCHANT_ATA', destinationAuthority: 'MERCHANT', asset: 'USDC', tokenMint: 'USDC_MINT', tokenProgram: 'spl-token', tokenDecimals: 6, amountAtomic: '100000000', instructionIndex: 0 },
         { role: 'other', source: 'CUSTOMER_B', sourceAuthority: 'AUTH_B', destination: 'SOLMINT_ATA', destinationAuthority: 'SOLMINT', asset: 'USDC', tokenMint: 'USDC_MINT', tokenProgram: 'spl-token', tokenDecimals: 6, amountAtomic: '1000000', instructionIndex: 1 },
+      ],
+    },
+  );
+  assert.deepEqual(result, { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' });
+});
+
+test('verification rejects unsponsored transaction with a different fee payer', () => {
+  const result = verifyPaymentTransaction(
+    { amountAtomic: '101000000', asset: 'USDC', tokenMint: 'USDC_MINT', tokenProgram: 'spl-token', tokenDecimals: 6, merchantDestination: 'MERCHANT_ATA', feeDestination: 'SOLMINT_ATA', merchantSettlementAtomic: '100000000', gatewayFeeAtomic: '1000000', reference: 'REF', requiredCommitment: 'finalized', expectedSponsorAddress: null },
+    {
+      signature: 'SIG2', success: true, commitment: 'finalized', feePayer: 'OTHER_PAYER', referenceMatched: true,
+      transfers: [
+        { role: 'other', source: 'CUSTOMER', sourceAuthority: 'CUSTOMER', destination: 'MERCHANT_ATA', destinationAuthority: 'MERCHANT', asset: 'USDC', tokenMint: 'USDC_MINT', tokenProgram: 'spl-token', tokenDecimals: 6, amountAtomic: '100000000', instructionIndex: 0 },
+        { role: 'other', source: 'CUSTOMER', sourceAuthority: 'CUSTOMER', destination: 'SOLMINT_ATA', destinationAuthority: 'SOLMINT', asset: 'USDC', tokenMint: 'USDC_MINT', tokenProgram: 'spl-token', tokenDecimals: 6, amountAtomic: '1000000', instructionIndex: 1 },
       ],
     },
   );
