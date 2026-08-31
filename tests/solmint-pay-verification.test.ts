@@ -58,6 +58,7 @@ test('verification rejects multiple independently valid candidate transactions f
   const provider = {
     async findTransactionsByReference() { return [first, second]; },
     async getTransaction() { return first; },
+    async getHealth() { return { ok: true, slot: 11, provider: 'fake' }; },
   };
   const decision = await verifyPayment(provider, expected);
   assert.equal(decision.candidate, null);
