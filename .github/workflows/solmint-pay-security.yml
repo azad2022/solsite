@@ -12,7 +12,7 @@ on:
       - 'functions/api/pay/**'
       - 'functions/api/internal/pay/**'
   push:
-    branches: [feat/solmint-pay-foundation-v3]
+    branches: [feat/solmint-pay-main-sync]
     paths:
       - 'src/pay/**'
       - 'tests/solmint-pay-*.test.ts'
@@ -52,4 +52,4 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run Pay policy and security tests
-        run: npx tsx --test tests/solmint-pay-foundation.test.ts tests/solmint-pay-payment-engine.test.ts tests/solmint-pay-policy.test.ts tests/solmint-pay-security.test.ts tests/solmint-pay-verification.test.ts tests/solmint-pay-wallet.test.ts tests/solmint-pay-reconciliation.test.ts
+        run: node --test "tests/solmint-pay-*.test.ts"
