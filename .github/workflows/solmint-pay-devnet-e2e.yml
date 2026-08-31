@@ -1,0 +1,51 @@
+name: SolMint Pay Devnet E2E
+
+on:
+  push:
+    branches: [feat/solmint-pay-main-sync]
+    paths:
+      - 'src/pay/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pay/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solmint-pay-devnet-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  devnet-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install repository dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install test-only Solana harness dependency
+        run: bun add --no-save @solana/web3.js@1.98.4
+
+      - name: Run real Devnet payment verification
+        env:
+          SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
+        run: bun run tests/e2e/solmint-pay-devnet.e2e.ts
