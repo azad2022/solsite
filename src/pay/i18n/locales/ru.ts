@@ -1,0 +1,28 @@
+import { faIR } from './fa-IR';
+
+export const ru = {
+  ...faIR,
+  productName: 'SolMint Pay',
+  pay: 'Оплатить',
+  checkout: 'Оплата',
+  merchantDashboard: 'Панель продавца',
+  paymentPending: 'Ожидание платежа',
+  paymentConfirmed: 'Платёж подтверждён',
+  paymentFailed: 'Платёж не выполнен',
+  paymentExpired: 'Срок действия платежа истёк',
+  paymentUnderpaid: 'Полученная сумма меньше требуемой',
+  paymentOverpaid: 'Полученная сумма больше требуемой',
+  feePayerMerchant: 'Комиссию оплачивает продавец',
+  feePayerCustomer: 'Комиссию оплачивает покупатель',
+  network: 'Сеть',
+  amount: 'Сумма',
+  total: 'Итого',
+  wallet: 'Кошелёк',
+  continue: 'Продолжить',
+  cancel: 'Отмена',
+  close: 'Закрыть',
+  language: 'Язык',
+  automatic: 'Автоматически',
+  noMonthlyFee: 'Без ежемесячной платы',
+  poweredBy: 'Работает на SolMint Pay',
+} as const;

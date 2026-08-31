@@ -1,0 +1,28 @@
+import { faIR } from './fa-IR';
+
+export const ar = {
+  ...faIR,
+  productName: 'سولمينت باي',
+  pay: 'دفع',
+  checkout: 'الدفع',
+  merchantDashboard: 'لوحة تحكم التاجر',
+  paymentPending: 'الدفع قيد الانتظار',
+  paymentConfirmed: 'تم تأكيد الدفع',
+  paymentFailed: 'فشلت عملية الدفع',
+  paymentExpired: 'انتهت صلاحية الدفع',
+  paymentUnderpaid: 'المبلغ المدفوع أقل من المطلوب',
+  paymentOverpaid: 'المبلغ المدفوع أكبر من المطلوب',
+  feePayerMerchant: 'التاجر يدفع الرسوم',
+  feePayerCustomer: 'العميل يدفع الرسوم',
+  network: 'الشبكة',
+  amount: 'المبلغ',
+  total: 'الإجمالي',
+  wallet: 'المحفظة',
+  continue: 'متابعة',
+  cancel: 'إلغاء',
+  close: 'إغلاق',
+  language: 'اللغة',
+  automatic: 'تلقائي',
+  noMonthlyFee: 'بدون رسوم شهرية',
+  poweredBy: 'مدعوم بواسطة SolMint Pay',
+} as const;
