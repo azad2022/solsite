@@ -23,9 +23,12 @@ export interface ReconciliationPayment {
   status: PaymentStatus;
 }
 
+export type ReconciliationOutcomeStatus = 'underpaid' | 'overpaid' | 'ambiguous';
+
 export interface ReconciliationRepository {
   loadKnownSignatures(paymentId: string): Promise<ReadonlySet<string>>;
   recordRejectedObservation(paymentId: string, observation: ObservedPaymentTransaction, reason: string): Promise<void>;
+  recordOutcome(paymentId: string, status: ReconciliationOutcomeStatus, reason: string): Promise<'recorded' | 'stale'>;
   applyVerifiedObservation(input: {
     payment: ReconciliationPayment;
     observation: ObservedPaymentTransaction;
@@ -36,7 +39,7 @@ export interface ReconciliationRepository {
 
 export interface ReconciliationResult {
   paymentId: string;
-  outcome: 'confirmed' | 'duplicate' | 'expired' | 'no_match' | 'provider_unavailable' | 'stale';
+  outcome: 'confirmed' | 'duplicate' | 'expired' | 'no_match' | 'underpaid' | 'overpaid' | 'ambiguous' | 'provider_unavailable' | 'stale';
   checkedSignatures: readonly string[];
   verification: PaymentVerificationDecision | null;
 }
@@ -80,6 +83,19 @@ function labelVerifiedTransfers(expected: ExpectedPayment, transfers: readonly O
   });
 }
 
+async function persistOutcome(
+  repository: ReconciliationRepository,
+  paymentId: string,
+  status: ReconciliationOutcomeStatus,
+  reason: string,
+): Promise<'recorded' | 'stale'> {
+  try {
+    return await repository.recordOutcome(paymentId, status, reason);
+  } catch {
+    return 'stale';
+  }
+}
+
 export async function reconcilePayment(
   provider: SolanaPaymentProvider,
   repository: ReconciliationRepository,
@@ -108,6 +124,19 @@ export async function reconcilePayment(
     );
   } catch {
     return { paymentId: payment.id, outcome: 'provider_unavailable', checkedSignatures: [], verification: null };
+  }
+
+  if (verification.result.reason === 'AMBIGUOUS_CANDIDATE') {
+    for (const check of verification.checks) {
+      try { await repository.recordRejectedObservation(payment.id, check.observation, 'AMBIGUOUS_CANDIDATE'); } catch { /* keep retryable outcome */ }
+    }
+    const persisted = await persistOutcome(repository, payment.id, 'ambiguous', 'AMBIGUOUS_CANDIDATE');
+    return {
+      paymentId: payment.id,
+      outcome: persisted === 'stale' ? 'stale' : 'ambiguous',
+      checkedSignatures: verification.checkedSignatures,
+      verification,
+    };
   }
 
   if (verification.candidate) {
@@ -148,8 +177,24 @@ export async function reconcilePayment(
     try {
       await repository.recordRejectedObservation(payment.id, check.observation, check.result.reason);
     } catch {
-      // Fail closed: persistence failure never turns a rejected observation into success.
+      return {
+        paymentId: payment.id,
+        outcome: 'stale',
+        checkedSignatures: verification.checkedSignatures,
+        verification,
+      };
     }
+  }
+
+  if (verification.result.reason === 'UNDERPAID' || verification.result.reason === 'OVERPAID') {
+    const status = verification.result.reason === 'UNDERPAID' ? 'underpaid' : 'overpaid';
+    const persisted = await persistOutcome(repository, payment.id, status, verification.result.reason);
+    return {
+      paymentId: payment.id,
+      outcome: persisted === 'stale' ? 'stale' : status,
+      checkedSignatures: verification.checkedSignatures,
+      verification,
+    };
   }
 
   return {
