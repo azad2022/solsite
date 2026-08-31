@@ -8,9 +8,9 @@ import type { PaymentStatus } from '../types/domain';
 
 const transitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
   created: ['pending', 'expired'],
-  pending: ['detected', 'expired', 'failed'],
-  detected: ['verifying', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'failed'],
-  verifying: ['pending', 'confirmed', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'failed'],
+  pending: ['detected', 'expired', 'failed', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'ambiguous'],
+  detected: ['verifying', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'ambiguous', 'failed'],
+  verifying: ['pending', 'confirmed', 'underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'duplicate', 'ambiguous', 'failed'],
   underpaid: ['pending', 'detected', 'verifying', 'expired'],
   overpaid: ['refunded', 'completed'],
   confirmed: ['completed', 'refunded'],
@@ -19,6 +19,7 @@ const transitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
   wrong_token: [],
   wrong_recipient: [],
   duplicate: [],
+  ambiguous: ['pending', 'detected', 'verifying', 'expired'],
   failed: [],
   refunded: [],
 };
