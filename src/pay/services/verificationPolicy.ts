@@ -131,6 +131,9 @@ export function verifyPaymentTransaction(expected: ExpectedPayment, observed: Ob
     if (!merchantTransfer.sourceAuthority || !feeTransfer.sourceAuthority || merchantTransfer.sourceAuthority !== feeTransfer.sourceAuthority) {
       return { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' };
     }
+    if (!expected.expectedSponsorAddress && observed.feePayer !== merchantTransfer.sourceAuthority) {
+      return { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' };
+    }
     return { valid: true, status: 'confirmed', reason: 'OK' };
   }
 
@@ -139,10 +142,7 @@ export function verifyPaymentTransaction(expected: ExpectedPayment, observed: Ob
     const merchantClass = classifyAmount(merchantAmount, BigInt(expected.merchantSettlementAtomic));
     if (merchantClass === 'underpaid') return { valid: false, status: 'underpaid', reason: 'UNDERPAID' };
     if (merchantClass === 'overpaid') return { valid: false, status: 'overpaid', reason: 'OVERPAID' };
-
-    if (feeTargets.length === 0) {
-      return { valid: false, status: 'underpaid', reason: 'UNDERPAID' };
-    }
+    if (feeTargets.length === 0) return { valid: false, status: 'underpaid', reason: 'UNDERPAID' };
   } else {
     return { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' };
   }
