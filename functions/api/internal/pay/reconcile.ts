@@ -166,7 +166,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     const subjectHash = Array.from(new Uint8Array(subjectBytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
     await enforcePayRateLimit(env, 'reconcile:worker', subjectHash, 60, 30);
 
-    const body = await readJsonBody(request).catch(() => ({}));
+    const rawBody = await readJsonBody(request).catch(() => ({} as Record<string, unknown>));
+    const body = rawBody as Record<string, unknown>;
     const requested = body.limit === undefined ? 10 : Number(body.limit);
     if (!Number.isInteger(requested) || requested < 1 || requested > 50) throw new PayRuntimeError('INVALID_BATCH_SIZE', 400, 'limit must be an integer between 1 and 50.');
     const configured = Number(env.PAY_RECONCILE_BATCH_SIZE || requested);
