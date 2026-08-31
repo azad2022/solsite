@@ -83,7 +83,7 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
   constructor(private readonly env: Env, private readonly requestId: string) {}
 
   async loadKnownSignatures(paymentId: string): Promise<ReadonlySet<string>> {
-    const response = await supabaseRequest(this.env, `/rest/v1/pay_payment_transactions?select=signature&payment_id=eq.${encodeURIComponent(paymentId)}&order=observed_at.asc`, { headers: { Accept: 'application/json' } });
+    const response = await supabaseRequest(this.env, `/rest/v1/pay_payment_transactions?select=signature&payment_id=eq.${encodeURIComponent(paymentId)}&is_authoritative=eq.true&order=observed_at.asc`, { headers: { Accept: 'application/json' } });
     const rows = await response.json() as Array<{ signature: string }>;
     return new Set(rows.map((row) => row.signature).filter(Boolean));
   }
@@ -95,7 +95,7 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
       body: JSON.stringify({ p_payment_id: paymentId, p_to_status: 'verifying', p_reason: 'retry_ambiguous_payment', p_request_id: this.requestId }),
     });
     if (!response.ok) return 'stale';
-    const result = await response.json() as { ok?: boolean; from?: string; to?: string };
+    const result = await response.json() as { ok?: boolean };
     return result.ok === true ? 'ready' : 'stale';
   }
 
