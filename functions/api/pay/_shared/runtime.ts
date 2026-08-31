@@ -51,12 +51,44 @@ export function payJson(body: unknown, status = 200, requestId?: string): Respon
   );
 }
 
-export async function readJsonBody(request: Request): Promise<Record<string, unknown>> {
-  const contentLength = Number(request.headers.get('content-length') || '0');
-  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) throw new PayRuntimeError('REQUEST_TOO_LARGE', 413, 'Request body is too large.');
+async function readBodyWithinLimit(request: Request): Promise<string> {
+  const contentLengthHeader = request.headers.get('content-length');
+  if (contentLengthHeader !== null) {
+    const contentLength = Number(contentLengthHeader);
+    if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
+      throw new PayRuntimeError('INVALID_CONTENT_LENGTH', 400, 'Request content length is invalid.');
+    }
+    if (contentLength > MAX_BODY_BYTES) {
+      throw new PayRuntimeError('REQUEST_TOO_LARGE', 413, 'Request body is too large.');
+    }
+  }
 
-  const raw = await request.text();
-  if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) throw new PayRuntimeError('REQUEST_TOO_LARGE', 413, 'Request body is too large.');
+  if (!request.body) throw new PayRuntimeError('INVALID_BODY', 400, 'Request body is required.');
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let raw = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_BODY_BYTES) {
+        await reader.cancel();
+        throw new PayRuntimeError('REQUEST_TOO_LARGE', 413, 'Request body is too large.');
+      }
+      raw += decoder.decode(value, { stream: true });
+    }
+    raw += decoder.decode();
+    return raw;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function readJsonBody(request: Request): Promise<Record<string, unknown>> {
+  const raw = await readBodyWithinLimit(request);
 
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new PayRuntimeError('INVALID_JSON', 400, 'Request body must be valid JSON.'); }
