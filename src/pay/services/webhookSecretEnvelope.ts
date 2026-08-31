@@ -1,11 +1,9 @@
 /**
  * Versioned envelope encryption for merchant webhook secrets.
  *
- * The master key is supplied by the deployment secret store (for example a
- * Cloudflare Worker Secret). Ciphertext may be persisted in the database; the
- * master key never is. AES-GCM authentication protects both confidentiality
- * and integrity. Rotation is represented by a key version supplied by the
- * caller, not by silently changing the envelope format.
+ * The master key is supplied by the deployment secret store. Ciphertext may be
+ * persisted in the database; the master key never is. AES-GCM provides
+ * confidentiality and authenticated integrity for the persisted secret.
  */
 
 const VERSION = 'v1';
@@ -20,7 +18,7 @@ function bytesToBase64Url(bytes: Uint8Array): string {
 }
 
 function base64UrlToBytes(value: string): Uint8Array {
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid base64url value.');
+  if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length % 4 === 1) throw new Error('Invalid base64url value.');
   const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4);
   const binary = atob(padded);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
@@ -29,13 +27,13 @@ function base64UrlToBytes(value: string): Uint8Array {
 async function importAesKey(masterKeyBase64Url: string): Promise<CryptoKey> {
   const raw = base64UrlToBytes(masterKeyBase64Url);
   if (raw.byteLength !== KEY_BYTES) throw new Error('Webhook master key must be exactly 32 bytes.');
-  return crypto.subtle.importKey('raw', raw.buffer, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
-function normalizeSecret(secret: string): Uint8Array {
-  const bytes = new TextEncoder().encode(secret);
-  if (bytes.byteLength !== SECRET_BYTES) throw new Error('Webhook signing secret must be exactly 32 UTF-8 bytes.');
-  return bytes;
+function decodeSecret(secret: string): Uint8Array {
+  const raw = base64UrlToBytes(secret);
+  if (raw.byteLength !== SECRET_BYTES) throw new Error('Webhook signing secret must encode exactly 32 bytes.');
+  return raw;
 }
 
 export function generateWebhookSecret(): string {
@@ -51,7 +49,7 @@ export function generateWebhookMasterKey(): string {
 }
 
 export async function encryptWebhookSecret(input: { secret: string; masterKeyBase64Url: string }): Promise<string> {
-  const secret = normalizeSecret(input.secret);
+  const secret = decodeSecret(input.secret);
   const key = await importAesKey(input.masterKeyBase64Url);
   const iv = new Uint8Array(IV_BYTES);
   crypto.getRandomValues(iv);
@@ -68,7 +66,7 @@ export async function decryptWebhookSecret(input: { envelope: string; masterKeyB
   if (ciphertext.byteLength < 16) throw new Error('Invalid webhook envelope ciphertext.');
   const key = await importAesKey(input.masterKeyBase64Url);
   const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
-  const secret = new TextDecoder().decode(plaintext);
-  normalizeSecret(secret);
-  return secret;
+  const secretBytes = new Uint8Array(plaintext);
+  if (secretBytes.byteLength !== SECRET_BYTES) throw new Error('Invalid webhook secret length.');
+  return bytesToBase64Url(secretBytes);
 }
