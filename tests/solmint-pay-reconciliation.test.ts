@@ -16,8 +16,8 @@ function transfer(destination: string, amountAtomic: string, sourceAuthority = '
   return { role: 'other', source: sourceAuthority, sourceAuthority, destination, destinationAuthority: destination, asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: null, amountAtomic, instructionIndex: 0 };
 }
 
-function validObservation(signature: string): ObservedPaymentTransaction {
-  return { signature, slot: 10, blockTime: new Date().toISOString(), networkFeeLamports: '5000', success: true, commitment: 'finalized', feePayer: 'Customer111111111111111111111111111111111', referenceMatched: true, transfers: [transfer(payment.recipient, payment.merchantSettlementAtomic), transfer(payment.feeRecipient, payment.gatewayFeeAtomic)] };
+function validObservation(signature: string, merchantAmount = payment.merchantSettlementAtomic, feeAmount = payment.gatewayFeeAtomic): ObservedPaymentTransaction {
+  return { signature, slot: 10, blockTime: new Date().toISOString(), networkFeeLamports: '5000', success: true, commitment: 'finalized', feePayer: 'Customer111111111111111111111111111111111', referenceMatched: true, transfers: [transfer(payment.recipient, merchantAmount), transfer(payment.feeRecipient, feeAmount)] };
 }
 
 class FakeProvider {
@@ -32,8 +32,11 @@ class FakeRepository implements ReconciliationRepository {
   applied: unknown[] = [];
   rejected: unknown[] = [];
   expired = false;
+  outcomes: string[] = [];
   async loadKnownSignatures(): Promise<ReadonlySet<string>> { return new Set(); }
+  async prepareVerification(): Promise<'ready' | 'stale'> { return 'ready'; }
   async recordRejectedObservation(paymentId: string, observation: ObservedPaymentTransaction, reason: string): Promise<void> { this.rejected.push({ paymentId, observation, reason }); }
+  async recordOutcome(_paymentId: string, status: 'underpaid' | 'overpaid' | 'ambiguous'): Promise<'recorded' | 'stale'> { this.outcomes.push(status); return 'recorded'; }
   async applyVerifiedObservation(input: { payment: ReconciliationPayment; observation: ObservedPaymentTransaction; transfers: readonly ObservedTransfer[] }): Promise<'confirmed' | 'duplicate' | 'stale'> { this.applied.push(input); return 'confirmed'; }
   async expirePayment(): Promise<'expired' | 'stale'> { this.expired = true; return 'expired'; }
 }
@@ -44,17 +47,16 @@ class AtomicRaceRepository implements ReconciliationRepository {
   private releaseBarrier: (() => void) | null = null;
   private readonly barrier = new Promise<void>((resolve) => { this.releaseBarrier = resolve; });
   private readonly appliedResults: Array<'confirmed' | 'duplicate' | 'stale'> = [];
-
   get results(): readonly ('confirmed' | 'duplicate' | 'stale')[] { return this.appliedResults; }
   async loadKnownSignatures(): Promise<ReadonlySet<string>> { return new Set(); }
+  async prepareVerification(): Promise<'ready' | 'stale'> { return 'ready'; }
   async recordRejectedObservation(): Promise<void> {}
+  async recordOutcome(): Promise<'recorded' | 'stale'> { return 'recorded'; }
   async expirePayment(): Promise<'expired' | 'stale'> { return 'stale'; }
-
   async applyVerifiedObservation(input: { payment: ReconciliationPayment; observation: ObservedPaymentTransaction; transfers: readonly ObservedTransfer[] }): Promise<'confirmed' | 'duplicate' | 'stale'> {
     this.calls += 1;
     if (this.calls === 1) await this.barrier;
     else if (this.calls === 2) this.releaseBarrier?.();
-
     if (this.seenSignatures.has(input.observation.signature)) {
       this.appliedResults.push('duplicate');
       return 'duplicate';
@@ -87,6 +89,39 @@ test('reconciliation labels verified legs from immutable payment expectations, n
   const applied = repository.applied[0] as { transfers: readonly ObservedTransfer[] };
   assert.equal(applied.transfers.find((x) => x.destination === payment.recipient)?.role, 'merchant_settlement');
   assert.equal(applied.transfers.find((x) => x.destination === payment.feeRecipient)?.role, 'gateway_fee');
+});
+
+test('underpayment is preserved as a retryable business outcome', async () => {
+  const provider = new FakeProvider([validObservation('sig-under', payment.merchantSettlementAtomic.slice(0, -1) + '9')]);
+  const repository = new FakeRepository();
+  const result = await reconcilePayment(provider, repository, payment);
+  assert.equal(result.outcome, 'underpaid');
+  assert.deepEqual(repository.outcomes, ['underpaid']);
+});
+
+test('overpayment is preserved as a distinct business outcome', async () => {
+  const overpaid = (BigInt(payment.merchantSettlementAtomic) + 1n).toString();
+  const provider = new FakeProvider([validObservation('sig-over', overpaid)]);
+  const repository = new FakeRepository();
+  const result = await reconcilePayment(provider, repository, payment);
+  assert.equal(result.outcome, 'overpaid');
+  assert.deepEqual(repository.outcomes, ['overpaid']);
+});
+
+test('ambiguous candidates are never collapsed into no_match', async () => {
+  const provider = new FakeProvider([validObservation('sig-a'), validObservation('sig-b')]);
+  const repository = new FakeRepository();
+  const result = await reconcilePayment(provider, repository, payment);
+  assert.equal(result.outcome, 'ambiguous');
+  assert.deepEqual(repository.outcomes, ['ambiguous']);
+});
+
+test('ambiguous payment can re-enter verification after state transition', async () => {
+  const provider = new FakeProvider([validObservation('sig-retry')]);
+  const repository = new FakeRepository();
+  const ambiguousPayment = { ...payment, status: 'ambiguous' as const };
+  const result = await reconcilePayment(provider, repository, ambiguousPayment);
+  assert.equal(result.outcome, 'confirmed');
 });
 
 test('expired payment is never sent to blockchain verification', async () => {
