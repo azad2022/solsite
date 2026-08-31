@@ -55,7 +55,7 @@ export async function verifyPayment(
 
     if (result.valid) {
       if (validCandidate) {
-        const ambiguous: VerificationResult = { valid: false, status: 'failed', reason: 'AMBIGUOUS_CANDIDATE' };
+        const ambiguous: VerificationResult = { valid: false, status: 'ambiguous', reason: 'AMBIGUOUS_CANDIDATE' };
         return { result: ambiguous, candidate: null, checks, checkedSignatures: [...checked] };
       }
       validCandidate = { signature: observation.signature, observation, result };
