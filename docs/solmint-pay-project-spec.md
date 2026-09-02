@@ -1,341 +1,435 @@
 # SolMint Pay — Authoritative Project Specification
 
-> Status: Product and engineering source of truth for the SolMint Pay workstream.
+> **Status:** Product and engineering source of truth for SolMint Pay.
 >
-> This document is intentionally broader than an API document. It defines the product boundary, commercial model, financial invariants, backend architecture, frontend/merchant experience, UI direction, multilingual requirements, security rules, testing expectations, operations, and release gates.
+> This document is the binding product contract for the Pay workstream. It defines what SolMint Pay is, how money moves, how revenue is calculated, how referral earnings work, what the backend and database must guarantee, how the frontend must behave, and what must be proven before release.
 >
-> **Critical rule:** documentation is not evidence of implementation. Every requirement in this document must eventually be traced to code, database constraints, automated tests, CI evidence, and—where financial or blockchain correctness is involved—real Devnet/E2E evidence.
+> **Critical rule:** documentation is not implementation evidence. Every requirement below must eventually map to source code, database constraints, automated tests, CI evidence, and—where payment or blockchain correctness is involved—real Devnet/E2E evidence.
 
-## 1. Product Definition
+## 1. Executive Product Decision
 
-SolMint Pay is a non-custodial Solana payment gateway for merchants. A merchant creates a payment intent, customer pays through a supported Solana asset, SolMint independently verifies the blockchain transaction, and only then is the payment considered financially valid.
+SolMint Pay is a **non-custodial Solana payment gateway**.
 
-Primary supported assets for the first release:
+For the first production release:
 
-- SOL
-- USDC
-- USDT
+1. The customer pays a Merchant directly on Solana.
+2. SolMint independently verifies the blockchain transaction.
+3. SolMint's gateway fee is **1.00% (100 bps)**.
+4. The gateway fee is sent to the SolMint fee destination according to the verified settlement plan.
+5. Merchant principal is **not held in a SolMint custodial balance** in V1.
+6. Therefore the Merchant does **not** need to request a withdrawal for ordinary payment principal in V1; the payment is settled directly to the Merchant receiving wallet.
+7. Referral earnings are a separate liability. They are accumulated in a SolMint-controlled referral payout balance and the Affiliate requests withdrawal.
+8. The first release is single-chain: Solana.
+9. Primary supported assets: SOL, USDC and USDT.
+10. `/pay` and production Pay APIs remain disabled until all release gates pass.
 
-The first release is intentionally single-chain: Solana.
+This decision intentionally resolves a potential contradiction between a non-custodial gateway and a custodial Merchant withdrawal model. A future managed/custodial Merchant settlement product would be a separate product mode with its own legal, custody, signer, treasury, reconciliation and release requirements. It is **not** part of V1.
 
-The gateway must support, as the product matures:
+## 2. Non-Negotiable Source-of-Truth Hierarchy
 
-- Hosted checkout
-- Payment links
-- QR / Solana Pay compatible payment requests
-- API integration
-- SDK/application integration
-- Invoices
-- Merchant dashboard
-- Referral/affiliate program
-- Webhooks
-- Refund workflows
-- Optional gas sponsorship
-- Analytics and reporting
+For any conflict, use the following authority order:
 
-`/pay` must remain disabled until all release gates pass.
-
-## 2. Source-of-Truth Rules
-
-The following hierarchy is mandatory:
-
-1. Database constraints and authoritative ledger state for financial invariants.
+1. Database constraints and authoritative append-only financial ledger state for financial invariants.
 2. Server-side verification and authorization for security decisions.
-3. Payment Intent snapshot for the business terms agreed at payment creation.
+3. Immutable Payment Intent snapshot for business terms agreed at payment creation.
 4. Verified blockchain observation for on-chain truth.
 5. Frontend only for presentation and user input.
-6. Webhooks only for notification and delivery, never for payment truth.
-7. Referral codes only for attribution/discovery, never as proof of payment or authorization.
+6. Webhooks only for notification and delivery.
+7. Referral codes only for attribution/discovery.
 
-Never treat the following as equivalent:
+Never treat these as equivalent:
 
 - Payment Intent = Blockchain Transaction
 - Reference = Proof of Payment
 - Webhook = Source of Truth
 - Frontend = Trusted System
 - Observed transaction = Financially recognized payment
+- Referral code = authorization
+- Cached balance = accounting truth
 
-## 3. Commercial Model
+## 3. V1 Commercial Model
 
-### 3.1 Gateway economics
+### 3.1 Gateway fee
 
-The intended launch economics are:
+The V1 Gateway fee is **1.00% = 100 basis points**.
 
-- SolMint gateway revenue target: **1.00% (100 bps)** of eligible successful payment value/fee base, subject to the final pricing-policy interpretation documented in the payment snapshot.
-- The 1% SolMint revenue must be credited to the SolMint gateway revenue flow, not counted as merchant principal.
-- Network fees are separate from the gateway fee.
-- Gas sponsorship is a separate cost/accounting domain.
-- Merchant principal and SolMint revenue must never be mixed in the same financial balance.
+There is **no additional 1.50% fee/share in V1**.
 
-### 3.2 Immediate merchant settlement vs SolMint withdrawal
+The previously discussed 1.50% wording is intentionally not interpreted as a second fee because it was ambiguous and could create a hidden or conflicting commercial charge. V1 must have one unambiguous primary fee rule. A future 1.50% commercial component may be introduced only as a new, explicitly named, versioned policy with its own calculation, UI disclosure, ledger entry and Payment Intent snapshot.
 
-The requested business direction distinguishes two money flows:
+### 3.2 Fee payer modes
 
-1. **Merchant settlement:** the merchant's entitled payment proceeds should be made available/settled promptly after the payment becomes authoritative on-chain.
-2. **SolMint gateway revenue:** SolMint's revenue is accumulated in the gateway revenue flow and is not treated as merchant funds.
+SolMint Pay supports two V1 fee-payer modes:
 
-The exact interpretation of the requested percentages—specifically whether **1.5%** is a merchant-side share/fee, a settlement deduction, or another commercial component—must be normalized into one explicit formula before implementation. No developer or automation may infer that meaning silently.
-
-Until that formula is explicitly fixed, code must not introduce a second hidden fee or a conflicting percentage.
-
-### 3.3 Recommended normalized launch formula
-
-The preferred model for a simple first release is:
+**Merchant-paid fee**
 
 ```text
-Gross Payment
-    |
-    +--> Merchant Principal / Settlement
-    |
-    +--> SolMint Gateway Fee (1%)
-             |
-             +--> Referral Liability
-             +--> SolMint Net Revenue
+Gross Payment = 100 USDC
+Gateway Fee   = 1 USDC
+Merchant      = 99 USDC
+SolMint       = 1 USDC
+Customer pays = 100 USDC
 ```
 
-If a separate 1.5% commercial component is retained, it must be represented as a named fee/share with its own field, accounting entry, UI disclosure, and immutable Payment Intent snapshot. It must not be embedded inside generic `fee_bps` logic.
+**Customer-paid fee**
 
-### 3.4 Financial unit rules
+```text
+Merchant Principal = 100 USDC
+Gateway Fee        = 1 USDC
+Merchant receives  = 100 USDC
+Customer pays      = 101 USDC
+SolMint            = 1 USDC
+```
 
-All money calculations must use integer atomic units. JavaScript floating-point arithmetic is forbidden for monetary decisions.
+The selected fee payer and calculated values are immutable fields of the Payment Intent.
 
-Use decimal strings / `BigInt` in application code and sufficiently wide numeric/decimal types in PostgreSQL.
+### 3.3 Direct settlement architecture
 
-Round deterministically. Prefer explicit floor/ceiling policy documented beside the calculation. Never perform hidden banker-style or locale-dependent rounding.
+The preferred V1 transaction plan contains two value-transfer legs when applicable:
+
+```text
+Customer wallet
+      |
+      +---- Merchant settlement ----> Merchant receiving wallet
+      |
+      +---- Gateway fee ------------> SolMint fee destination
+```
+
+For SPL tokens, the corresponding token accounts/ATAs and authorities must be independently validated. Wallet addresses and token accounts must never be conflated.
+
+### 3.4 Merchant withdrawal decision
+
+**V1 does not implement custodial Merchant withdrawal of ordinary payment principal.**
+
+The Merchant receiving wallet gets its entitled settlement directly on-chain. A merchant dashboard may show a **reporting mirror** of verified merchant principal, but that mirror is not a custody balance and cannot be spent by SolMint.
+
+Any future feature described as Merchant Withdrawal must be a separate settlement mode and must not be silently added to the V1 direct-settlement model.
 
 ## 4. Accounting Model
 
 The accounting domains are independent:
 
-1. **Merchant Principal** — money economically belonging to the merchant.
-2. **SolMint Gateway Revenue** — SolMint's earned gateway fee.
-3. **Referral Liability** — amount owed to an eligible affiliate.
-4. **Gas Cost / Sponsorship** — network-cost accounting, distinct from revenue.
-5. **Refund** — return/reversal of previously recognized value.
+1. **Merchant Principal** — economically belonging to Merchant.
+2. **SolMint Gateway Revenue** — earned 1% gateway fee.
+3. **Referral Liability** — money owed to eligible Affiliates.
+4. **Gas Sponsorship** — network-cost accounting.
+5. **Refund/Reversal** — return or reversal of previously recognized value.
 
-Recommended financial flow:
-
-```text
-Verified Payment
-      |
-      +--> Merchant Principal Ledger
-      |
-      +--> Gateway Revenue Ledger
-              |
-              +--> Referral Liability Ledger
-              |
-              +--> Net SolMint Revenue
-```
-
-Financial writes happen only after complete verification.
-
-Ledgers are append-only. Corrections use compensating entries/reversals rather than editing history.
-
-## 5. Merchant Settlement and Withdrawal Model
-
-The product must distinguish between:
-
-- money that belongs to a merchant,
-- money that belongs to SolMint,
-- money owed to affiliates,
-- money reserved for gas sponsorship,
-- pending/held amounts awaiting final verification or reconciliation.
-
-### Merchant payout/withdrawal
-
-The desired product direction is that the merchant can request withdrawal of the merchant-controlled balance where applicable. The withdrawal subsystem must define:
-
-- available balance
-- pending balance
-- minimum withdrawal
-- supported asset/network
-- destination wallet ownership
-- withdrawal fee, if any
-- request status
-- idempotency
-- anti-double-spend protection
-- transaction signature and final settlement evidence
-- failure/retry/reconciliation
-
-A merchant withdrawal must never be inferred from a client-side balance.
-
-## 6. Referral / Affiliate Economics
-
-### 6.1 Core model
-
-Referral commission is a percentage of **eligible SolMint gateway revenue**, not of gross merchant principal and not merely of signup activity.
-
-Example policy baseline:
+Recommended accounting flow:
 
 ```text
-Gateway Fee = 1.00 USDC
-Referral Rate = 20%
-Referral Liability = 0.20 USDC
-SolMint Gross Gateway Revenue retained = 0.80 USDC
+Authoritative Verified Payment
+          |
+          +--> Merchant Principal / Settlement evidence
+          |
+          +--> Gateway Revenue
+                   |
+                   +--> Referral Liability
+                   |
+                   +--> Net SolMint Revenue
 ```
 
-The rate may evolve, but the policy must be explicitly configured and captured for each eligible commission.
+Important: when Merchant settlement is direct to the Merchant wallet, the Merchant Principal ledger is a verified accounting/reporting mirror of the on-chain settlement. It is not a SolMint custody account.
 
-### 6.2 Referral tiers
+Financial recognition happens only after complete verification.
 
-Referral income should scale with the value and size of the affiliate's active merchant network. A person with two active merchants should not automatically receive the same commercial treatment as a partner managing ten or more active merchants.
+Ledgers are append-only. Corrections use compensating entries/reversals rather than destructive mutation.
 
-Recommended **future** tier framework:
+All monetary calculations use atomic integer units. No floating-point arithmetic is permitted for money.
 
-| Tier | Active referred merchants | Commission on eligible gateway revenue |
+## 5. Referral / Affiliate Program — V1 Contract
+
+### 5.1 Core rule
+
+Referral commission is a percentage of **eligible SolMint gateway revenue**, not gross Merchant principal and not signup/click activity.
+
+Example:
+
+```text
+Gross payment             100 USDC
+Gateway fee                1 USDC
+Affiliate commission rate 20%
+Affiliate liability        0.20 USDC
+SolMint retained revenue   0.80 USDC
+```
+
+### 5.2 No multi-level referrals
+
+V1 has exactly one referral level:
+
+```text
+Affiliate -> Merchant
+```
+
+There is no Affiliate -> Affiliate -> Merchant commission chain in V1.
+
+### 5.3 Affiliate tiers
+
+Referral income scales with the number of **active eligible referred Merchants**.
+
+Launch policy:
+
+| Tier | Active eligible referred Merchants | Commission on eligible Gateway Revenue |
 |---|---:|---:|
 | Starter | 1–2 | 10% |
 | Growth | 3–9 | 15% |
 | Partner | 10–24 | 20% |
 | Strategic | 25+ | 25% |
 
-These numbers are a product-policy proposal, not a claim that the current code already implements them. The production policy must be explicitly approved before being encoded.
+These are the **V1 commercial policy values** for implementation unless a later signed/approved product specification explicitly versions the policy.
 
-The tier decision must use a precisely defined metric (for example, active eligible merchants during a rolling period). Do not let frontend counts determine the tier.
+### 5.4 Definition of active eligible referred Merchant
 
-### 6.3 Referral flow
+A referred Merchant counts as **active eligible** when all of the following are true:
+
+- the Merchant is active and not suspended/closed;
+- the referral relationship is valid and attributable to the Affiliate;
+- the Merchant has at least one authoritative completed payment within the trailing **30 calendar days**;
+- the relevant payment is not merely detected, submitted, or unverified;
+- the Merchant is not the Affiliate's prohibited self-referral identity.
+
+Frontend counters are never authoritative for tier calculation.
+
+### 5.5 Tier timing
+
+The tier used for a commission is the Affiliate's tier at the moment the underlying payment becomes **authoritative and eligible for revenue recognition**.
+
+The resulting commission rate is snapshotted permanently onto the commission record.
+
+A later change in tier does not rewrite historical commissions.
+
+### 5.6 Attribution rules
+
+A Merchant may have at most one active referral relationship in V1.
+
+Attribution must be:
+
+- created/validated server-side;
+- associated with the authenticated Merchant identity;
+- associated with a real Affiliate identity;
+- stored against the Merchant relationship;
+- reflected into the Payment Intent snapshot where relevant.
+
+Referral attribution may be corrected before the Merchant creates its first Payment Intent, subject to authorized server-side controls and audit logging. Once the Merchant has created its first Payment Intent, the referral relationship becomes immutable for ordinary application users. Any exceptional administrative correction requires an explicit audited compensating/accounting policy and may not silently rewrite historical commissions.
+
+Referral codes are discovery/attribution mechanisms only. They are never payment proof, authorization, or settlement evidence.
+
+### 5.7 Self-referral
+
+Self-referral is prohibited.
+
+The system must reject an attribution where the Affiliate and Merchant resolve to the same prohibited ownership/identity relationship, subject to the application's authoritative identity rules.
+
+This must be enforced server-side. Frontend checks are advisory only.
+
+### 5.8 Commission eligibility
+
+A commission may be created only when:
+
+1. the payment intent is valid;
+2. the referenced Merchant relationship is valid;
+3. the payment has authoritative blockchain verification;
+4. the gateway fee has been recognized;
+5. the applicable Affiliate/tier policy is known;
+6. the commission calculation is deterministic;
+7. no prior commission exists for the same `(referral, payment)` pair.
+
+### 5.9 Referral liability
+
+Referral earnings are **not SolMint free revenue**.
+
+They must be represented as a liability.
+
+The system must separately track at least:
+
+- pending earnings;
+- payable earnings;
+- paid earnings;
+- reversed earnings;
+- withdrawal requests;
+- payout transaction signatures.
+
+### 5.10 Referral payout custody model
+
+The requested V1 product behavior is:
 
 ```text
-Affiliate
-   |
-   +--> verified affiliate identity
+Verified eligible commission
           |
-          +--> referral relationship with Merchant
-                  |
-                  +--> Payment Intent snapshot
-                          |
-                          +--> verified payment
-                                  |
-                                  +--> commission liability
-                                          |
-                                          +--> approved/payable
-                                                  |
-                                                  +--> Affiliate withdrawal request
+          v
+SolMint-controlled referral payout balance
+          |
+          v
+Affiliate withdrawal request
+          |
+          v
+Payout transaction
+          |
+          v
+Verified on-chain payout
 ```
 
-### 6.4 Referral money custody model
+This creates an actual operational custody/liability boundary for Affiliate funds. The database and product must therefore treat the amount as an Affiliate liability, never as spendable SolMint revenue.
 
-Requested business direction:
+Any future change to this custody model requires a new product decision and security/legal review.
 
-> Referral earnings initially flow to the SolMint-controlled referral payout balance. The affiliate must request withdrawal.
+### 5.11 Referral payout wallet
 
-This means referral money must be represented as a **liability**, not SolMint's free revenue.
+The Affiliate payout destination must:
 
-The system must keep:
+- be a valid Solana address;
+- be owned by the Affiliate according to the project's wallet-ownership verification mechanism;
+- be verified before payout;
+- be bound to the withdrawal request;
+- be immutable for that withdrawal after processing begins;
+- never expose or require private keys from SolMint.
 
-- affiliate payable balance
-- paid amount
-- pending amount
-- reversed amount
-- withdrawal requests
-- payout transaction signatures
+### 5.12 Withdrawal rules
 
-separate and auditable.
+Affiliate withdrawal creation requires:
 
-### 6.5 Mandatory referral protections
+- authenticated Affiliate identity;
+- ownership verification;
+- sufficient payable balance;
+- idempotency;
+- concurrent-worker protection;
+- minimum-withdrawal policy;
+- immutable payout destination snapshot;
+- explicit state machine;
+- payout transaction signature;
+- final reconciliation.
 
-- No multi-level referral in the first release.
-- No commission merely for clicks/signups.
-- No self-referral.
-- Attribution must be tenant-scoped and server-validated.
-- Attribution becomes immutable for the Payment Intent after creation.
-- Commission is created only after successful authoritative payment verification.
-- One `(referral, payment)` can produce at most one commission.
-- Commission rate is snapshotted per commission.
-- Refund/reversal creates compensating accounting entries.
-- Affiliate payout destination requires ownership verification.
-- Paid commissions cannot be paid twice.
-- Withdrawal creation requires idempotency and concurrency protection.
+**V1 minimum withdrawal:** 10 USD-equivalent of the payout asset, determined using a server-side documented pricing source at withdrawal eligibility time. A concrete oracle/price-provider implementation must be selected and independently audited before enabling USD-equivalent rules. Until that provider is available, the system must not pretend the threshold is operational.
 
-## 7. Payment Intent
+Payout batching is preferred to per-commission transactions when economically and operationally safe.
 
-A Payment Intent is the canonical business agreement for a payment.
+### 5.13 Referral withdrawal state machine
 
-It must snapshot at creation time:
+```text
+REQUESTED -> VALIDATING -> APPROVED -> PROCESSING -> PAID
+```
 
-- merchant
-- amount
-- asset
-- token mint
-- token program
-- decimals
-- recipient
-- reference
-- gateway fee policy
-- fee payer
-- calculated gateway fee
-- customer total
-- merchant settlement amount
-- fee destination
-- expiry
-- gas sponsorship policy
-- relevant referral attribution/policy where applicable
+Exceptional states:
 
-Changing merchant configuration later must not silently change an existing Payment Intent.
+```text
+REJECTED
+CANCELLED
+FAILED
+REVERSED
+```
 
-## 8. Blockchain Verification
+A paid withdrawal can never be paid again.
+
+### 5.14 Refund/reversal interaction
+
+If a payment that produced referral liability is refunded or otherwise financially reversed:
+
+- the original commission record is not edited destructively;
+- a compensating reversal is created;
+- payable balance is reduced by the reversal where applicable;
+- an already-paid amount becomes an Affiliate receivable/offset according to an explicit policy;
+- future withdrawals must account for the resulting balance.
+
+No refund may create free referral money.
+
+## 6. Payment Intent Contract
+
+A Payment Intent is the canonical business agreement before payment.
+
+It must snapshot at creation time, where applicable:
+
+- Payment Intent ID;
+- Merchant ID;
+- external order ID;
+- amount in atomic units;
+- asset;
+- token mint;
+- token program;
+- token decimals;
+- Merchant receiving destination;
+- reference;
+- gateway fee rate;
+- fee payer;
+- gateway fee amount;
+- customer total;
+- merchant settlement amount;
+- SolMint fee destination;
+- expiry;
+- gas sponsorship policy;
+- referral attribution/policy relevant to the payment.
+
+Merchant/global settings must not silently rewrite an existing Payment Intent.
+
+## 7. Blockchain Truth and Verification
 
 Payment verification must independently validate the observed transaction against the immutable Payment Intent.
 
 At minimum, where applicable:
 
-- signature
-- successful transaction execution
-- required commitment
-- block/time validity
-- reference presence and exact match
-- recipient/destination
-- amount in atomic units
-- asset
-- token mint
-- token program
-- decimals
-- token-account ownership/authority
-- transfer source authority
-- fee payer
-- fee transfer
-- merchant settlement transfer
-- expected transaction structure/invariants
-- duplicate/replay state
+- signature;
+- successful execution;
+- required commitment/finality;
+- block/time validity;
+- exact reference presence;
+- recipient/destination;
+- atomic amount;
+- asset;
+- token mint;
+- token program;
+- token decimals;
+- token-account ownership/authority;
+- source/transfer authority;
+- fee payer and relevant signers;
+- merchant settlement transfer;
+- gateway fee transfer;
+- expected transaction/message structure;
+- duplicate/replay state.
 
-Reference lookup is discovery only.
+Reference discovery is not proof of payment.
 
-`getSignaturesForAddress` alone is not proof of payment.
+`getSignaturesForAddress` is a discovery mechanism, not payment proof.
 
-Discovery must be paginated and scoped to the Payment Intent creation/expiry window. An incomplete scan is a retryable/incomplete state, never `no_match`.
+Discovery must be paginated and restricted to a Payment Intent time window. Incomplete discovery is retryable/incomplete and must never become `no_match`.
 
-Multiple valid candidates are ambiguous and must be rejected rather than resolved by choosing the first result.
+Multiple independently valid candidates must become `ambiguous` and must not be resolved by selecting the first result.
 
-## 9. Reconciliation
+## 8. Reconciliation Architecture
 
-Responsibilities must be separated:
+Responsibilities are separated:
 
 ```text
-Observer -> discovers blockchain observations
-Verifier -> decides whether an observation satisfies the Payment Intent
-Reconciliation -> atomically persists the decision/state transition
-Ledger -> records financial truth
+Observer
+  -> discovers observations
+
+Verifier
+  -> decides whether observation satisfies Payment Intent
+
+Reconciliation
+  -> atomically persists decision and state transition
+
+Ledger
+  -> financial truth
 ```
+
+No financial write happens before authoritative verification.
 
 Required outcomes include:
 
-- confirmed
-- duplicate
-- underpaid
-- overpaid
-- wrong token
-- wrong recipient
-- failed
-- expired
-- ambiguous
-- provider unavailable
-- stale/incomplete
+- confirmed;
+- duplicate;
+- underpaid;
+- overpaid;
+- wrong token;
+- wrong recipient;
+- failed;
+- expired;
+- ambiguous;
+- provider unavailable;
+- stale/incomplete.
 
-No financial recognition before authoritative verification.
+Concurrent workers must converge to one recognized signature.
 
-Concurrent workers must converge to exactly one recognized signature.
-
-## 10. Payment State Machine
+## 9. Payment State Machine
 
 Primary path:
 
@@ -357,130 +451,210 @@ FAILED
 REFUNDED
 ```
 
-State transitions must be enforced both in application logic and at the database boundary where practical.
+Transitions must be guarded in application logic and database boundaries where practical.
 
-## 11. Merchant Identity and Isolation
+## 10. Merchant Isolation and Authorization
 
-Each merchant is a separate tenant.
+Every Merchant is a separate tenant.
 
-Every sensitive API must derive merchant identity from authenticated credentials, not from a caller-controlled `merchantId`.
+Every sensitive endpoint derives Merchant identity from authenticated credentials rather than trusting a caller-controlled Merchant ID.
 
-Database RLS/authorization must ensure a merchant cannot read or mutate another merchant's:
+RLS/authorization must block cross-tenant access to:
 
-- payments
-- invoices
-- links
-- wallet records
-- API keys
-- webhook configuration
-- referral relationships
-- balances
-- withdrawal requests
-- reports
-- audit records
+- payments;
+- invoices;
+- payment links;
+- receiving wallets;
+- API keys;
+- webhook configuration;
+- referral relationships;
+- balances/reporting mirrors;
+- withdrawal requests;
+- reports;
+- audit records.
 
-## 12. Merchant Wallet Ownership
+## 11. Merchant Receiving Wallet
 
-Receiving wallet registration requires:
+V1 permits one authoritative active verified receiving wallet per Merchant.
 
-- short-lived challenge
-- tenant/merchant binding
-- single-use semantics
-- real Ed25519 signature verification
-- wallet address validation
-- on-chain validation where required
-- one authoritative active receiving wallet in the first-release policy
+Registration requires:
 
-A private key must never enter SolMint backend, database, source, logs, or application configuration.
+- short-lived challenge;
+- merchant binding;
+- single-use semantics;
+- genuine Ed25519 verification;
+- valid Solana address handling;
+- on-chain validation where required.
 
-Wallet addresses and SPL token accounts/ATAs must not be conflated.
+Private keys must never enter the backend, database, source code, logs or application configuration.
 
-## 13. API Security
+## 12. API Keys and API Security
 
-Production Pay APIs must implement, where applicable:
+Merchant API keys are bearer credentials.
 
-- authentication
-- authorization
-- merchant isolation
-- atomic rate limiting
-- idempotency
-- request validation
-- body-size limit
-- request ID
-- audit logging
-- safe error responses
-- secret hygiene
-- abuse controls
-- timeout handling
+Persist only one-way digests where possible. Support:
 
-The API must reject malformed, ambiguous, stale, unauthorized, or incomplete financial operations.
+- scopes;
+- expiry;
+- revocation;
+- key prefix;
+- last-used timestamp;
+- Merchant binding.
 
-## 14. API Keys
+Production APIs must implement, where relevant:
 
-Merchant API keys are bearer credentials and must be handled as secrets.
+- authentication;
+- authorization;
+- tenant isolation;
+- atomic rate limiting;
+- idempotency;
+- input validation;
+- body-size limits;
+- request IDs;
+- audit logging;
+- safe error responses;
+- secret hygiene;
+- abuse controls;
+- timeout handling.
 
-Persist only one-way key digests where possible. Support:
+## 13. Webhooks
 
-- scopes
-- expiry
-- revocation
-- prefix for operator recognition
-- last-used timestamp
-- merchant binding
-
-Never expose full keys after creation.
-
-## 15. Webhooks
-
-Webhooks are notifications, not payment proof.
+Webhooks are notifications only.
 
 Required properties:
 
-- HMAC signing
-- timestamp binding
-- replay protection
-- event IDs
-- per-webhook uniqueness
-- retry/backoff
-- timeout
-- delivery history
-- delivery locks
-- dead-letter state
-- secret rotation
-- encrypted secret persistence
-- SSRF-safe outbound delivery
-- operational visibility
+- HMAC signing;
+- timestamp binding;
+- replay protection;
+- event IDs;
+- per-webhook uniqueness;
+- retry/backoff;
+- timeout;
+- delivery history;
+- delivery locks;
+- dead-letter state;
+- secret rotation;
+- encrypted secret persistence;
+- SSRF-safe outbound delivery;
+- operational visibility.
 
-The same event may legitimately be delivered to different merchant endpoints. Uniqueness must therefore include the webhook identity.
+The same event may be delivered to multiple Merchant endpoints, so uniqueness must include the webhook identity.
 
-## 16. Gas Sponsorship
+## 14. Gas Sponsorship
 
 Gas sponsorship is optional and separately accounted for.
 
-The system must distinguish:
+Supported funding models:
 
-- merchant-funded gas
-- SolMint-funded gas
+- merchant-funded;
+- SolMint-funded.
 
 Required controls:
 
-- per-payment limit
-- daily limit
-- policy enforcement
-- simulation where appropriate
-- emergency disable
-- signer isolation
-- no signing oracle
-- spend/reconciliation ledger
-- on-chain spend observation
+- per-payment limit;
+- daily limit;
+- policy enforcement;
+- simulation where appropriate;
+- emergency disable;
+- signer isolation;
+- no signing oracle;
+- spend ledger;
+- on-chain spend reconciliation.
 
-A cached SOL balance is not an accounting source of truth.
+Cached balances are not accounting truth.
 
-## 17. Frontend Product Scope
+## 15. Backend Architecture
 
-The Pay frontend must be a separate product boundary under `src/pay/`.
+The Pay backend must keep these responsibilities separate:
 
-Core areas:
+```text
+API/Auth
+   |
+   v
+Payment Intent Service
+   |
+   v
+Observer / RPC Provider
+   |
+   v
+Verifier
+   |
+   v
+Reconciliation
+   |
+   +--> Payment State
+   +--> Accounting Ledger
+   +--> Referral Liability
+   +--> Webhook Event
+```
+
+Referral and withdrawal systems must not be able to bypass Payment Verification or ledger invariants.
+
+The preferred architecture is modular and low-coupling. UI logic must never contain financial decision logic.
+
+## 16. Database Rules
+
+Migrations must be:
+
+- uniquely named;
+- ordered;
+- deterministic;
+- auditable;
+- dependency-safe;
+- atomic where practical.
+
+Financial/security invariants should be enforced in the DB where practical.
+
+`SECURITY DEFINER` is allowed only when necessary and must use `search_path=''`, schema-qualified references, and least privilege.
+
+Ledger tables must be append-only. Historical financial records must not be updated or deleted merely to correct an error.
+
+## 17. Referral Data Model — Required Concepts
+
+The production data model must be capable of representing at least:
+
+```text
+Affiliate
+  ├─ identity
+  ├─ status
+  ├─ payout wallet
+  └─ tier policy / effective rate
+
+Referral Relationship
+  ├─ Affiliate
+  ├─ Merchant
+  ├─ attribution time
+  └─ active/immutable state
+
+Commission
+  ├─ Referral
+  ├─ Payment
+  ├─ eligible Gateway Revenue
+  ├─ commission rate snapshot
+  ├─ commission amount
+  └─ lifecycle status
+
+Affiliate Liability
+  ├─ pending
+  ├─ payable
+  ├─ paid
+  └─ reversed
+
+Affiliate Withdrawal
+  ├─ requested amount
+  ├─ destination snapshot
+  ├─ idempotency
+  ├─ status
+  └─ payout signature
+```
+
+A schema containing only Affiliate + Commission rows is not sufficient evidence of a complete payout system.
+
+## 18. Frontend Product Scope
+
+Pay is a separate frontend product boundary under `src/pay/`.
+
+Target structure:
 
 ```text
 src/pay/
@@ -492,6 +666,7 @@ src/pay/
 │   ├── checkout/
 │   ├── invoices/
 │   ├── referrals/
+│   ├── withdrawals/
 │   ├── analytics/
 │   └── developer/
 ├── i18n/
@@ -502,311 +677,369 @@ src/pay/
 └── types/
 ```
 
-### Customer checkout
+## 19. Customer Checkout
 
-The checkout must make the following obvious:
+The customer must clearly see:
 
-- merchant identity
-- amount
-- asset/network
-- fee information
-- total payable
-- reference/payment status
-- expiry
-- wallet connection/payment action
-- success/failure/incomplete state
+- Merchant identity;
+- amount;
+- asset/network;
+- fee payer and fee information;
+- total payable;
+- reference/payment status;
+- expiry;
+- wallet action;
+- success/failure/incomplete states.
 
-Never claim success merely because a wallet transaction was submitted.
+The UI must never claim payment success merely because a wallet transaction was submitted.
 
-### Merchant dashboard
+## 20. Merchant Dashboard
 
 The dashboard should expose:
 
-- current/pending/available balances
-- payment history
-- payment details and on-chain signature
-- links
-- invoices
-- withdrawals
-- API keys
-- webhook settings and delivery history
-- referral/affiliate status where applicable
-- analytics
-- wallet settings
-- security events
+- verified/pending payment reporting;
+- payment history;
+- transaction signature/details;
+- payment links;
+- invoices;
+- webhook settings/delivery history;
+- API keys;
+- wallet settings;
+- security/audit events;
+- analytics.
 
-### Affiliate dashboard
+Because V1 is direct-settlement/non-custodial, the dashboard may show:
 
-The affiliate experience should expose:
+- verified Merchant Principal;
+- pending Merchant Principal;
+- payment settlement history;
 
-- active referred merchants
-- tier/status
-- eligible earnings
-- pending earnings
-- paid earnings
-- reversed earnings
-- withdrawal requests
-- payout history
-- payout destination status
+but must not represent those values as SolMint-held custodial funds.
 
-Do not expose internal security fields or secrets.
+## 21. Affiliate Dashboard
 
-## 18. UI / Visual Direction
+The Affiliate dashboard should expose:
 
-The Pay product should use a **light/bright visual theme** as the default.
+- active eligible referred Merchants;
+- current tier;
+- next tier threshold;
+- eligible earnings;
+- pending earnings;
+- payable earnings;
+- paid earnings;
+- reversed earnings;
+- withdrawal requests;
+- payout history;
+- payout wallet verification state.
+
+Internal secrets, signing material and security-only fields must never be displayed.
+
+## 22. UI and Visual Direction
+
+The default Pay UI is **light/bright**.
+
+Required direction:
+
+- white/light surfaces;
+- high readability and contrast;
+- restrained SolMint brand accents;
+- mobile-first checkout;
+- responsive dashboard;
+- clear financial hierarchy;
+- accessible focus/hover/disabled states;
+- logical CSS properties for RTL/LTR;
+- no dark-only dependency;
+- minimal decorative animation;
+- professional payment-product visual language.
+
+Do not build Pay as a visually noisy crypto demo.
+
+## 23. Multilingual / i18n
+
+Required locales from the architecture stage:
+
+- Persian `fa-IR`;
+- English `en-US`;
+- Arabic `ar`;
+- Russian `ru`.
+
+Persian is the first polished locale, but components must not hard-code Persian strings.
 
 Requirements:
 
-- clean white/light surfaces
-- strong readability and contrast
-- restrained use of SolMint brand accents
-- responsive layouts
-- mobile-first checkout
-- professional merchant dashboard
-- clear financial hierarchy
-- accessible focus/hover/disabled states
-- logical CSS properties for RTL/LTR
-- no dark-only dependency
+- locale registry;
+- translation keys;
+- RTL/LTR handling;
+- localized numbers and dates;
+- grammar-safe translated messages;
+- logical CSS properties;
+- locale-aware error presentation.
 
-UI should feel like a professional payment product, not a crypto-themed demo.
+Backend security decisions must never depend on UI language.
 
-The product should avoid visual clutter, excessive gradients, decorative motion, or animations that interfere with financial clarity.
+## 24. SEO and Public Information Architecture
 
-## 19. Multilingual / i18n
+SEO is part of the Pay public information layer, not part of financial truth.
 
-The architecture must be multilingual from day one.
+Public pages may include:
 
-Required locales:
+- Pay overview;
+- pricing;
+- merchant documentation;
+- API reference;
+- webhook documentation;
+- supported assets;
+- security model;
+- FAQ;
+- integration guides.
 
-- Persian: `fa-IR`
-- English: `en-US`
-- Arabic: `ar`
-- Russian: `ru`
+Merchant dashboards, internal payment endpoints and sensitive API surfaces must not be indexable.
 
-Persian may be the first fully polished locale, but components must not hard-code Persian strings.
+SEO work must never change payment accounting or verification behavior.
 
-Requirements:
+## 25. Supported Channels
 
-- locale registry
-- translation keys
-- RTL/LTR direction handling
-- localized number/date formatting
-- no string concatenation that breaks translation grammar
-- logical CSS properties
-- locale-aware validation/error presentation
+The engine is designed to support:
 
-The backend API must not depend on UI language for security decisions.
+- hosted checkout;
+- payment links;
+- QR / Solana Pay-compatible requests;
+- API integration;
+- SDK/application integration;
+- invoices;
+- social sharing via payment links.
 
-## 20. SEO and Public Information Architecture
+A channel is not production-ready until its path ends at the same Payment Intent, Verification, Reconciliation and Ledger invariants.
 
-SEO is required for public Pay information but must not drive premature activation of payment endpoints.
+## 26. Security Invariants
 
-Public information may include:
+The following are absolute:
 
-- Pay overview
-- merchant documentation
-- API reference
-- webhook documentation
-- pricing
-- FAQ
-- security model
-- supported assets
-- developer integration pages
+- ambiguity = reject/retryable ambiguous;
+- incomplete verification = retry/incomplete;
+- RPC failure = failure/retry;
+- stale state = reject/retry;
+- invalid authorization = reject;
+- duplicate signature = reject;
+- replay = reject;
+- cross-tenant access = reject;
+- private key exposure = never allowed;
+- frontend state = untrusted;
+- webhook = notification only;
+- referral code = attribution only.
 
-Sensitive merchant/dashboard/payment APIs must not be indexed.
+## 27. Testing Requirements
 
-SEO work starts after functionality/security are stable and should not modify financial behavior.
+Important features require:
 
-## 21. Database and Migration Rules
+- unit tests;
+- integration tests;
+- security tests;
+- failure tests;
+- concurrency tests;
+- real Devnet/Testnet E2E where appropriate.
 
-Migrations must be:
+Payment cases must include at least:
 
-- ordered
-- deterministic
-- atomic where practical
-- uniquely named
-- auditable
-- safe for repeatable validation
+- valid payment;
+- underpayment;
+- overpayment;
+- wrong asset/token;
+- wrong recipient;
+- wrong reference;
+- failed transaction;
+- expired intent;
+- duplicate signature;
+- cross-payment replay;
+- ambiguous candidates;
+- incomplete discovery;
+- RPC outage/stale observation;
+- concurrent reconciliation;
+- cross-Merchant access;
+- wallet challenge replay/forgery;
+- idempotency-key reuse with changed request;
+- webhook replay;
+- webhook SSRF attempt;
+- referral self-attribution;
+- tier manipulation;
+- duplicate commission;
+- refund commission reversal;
+- duplicate Affiliate withdrawal;
+- withdrawal race;
+- payout to unverified wallet.
 
-Important financial/security invariants should be enforced by the database as well as application code where practical.
+Mocks are evidence for unit behavior only. They do not prove production readiness.
 
-`SECURITY DEFINER` is allowed only when necessary and must use `search_path = ''`, schema-qualified references, and least-privilege execution grants.
+## 28. CI and Release Gates
 
-No experimental migration may be executed against production.
+The following must all pass before V1 production launch:
 
-## 22. Testing Requirements
+1. Current branch/HEAD integrity and correct ancestry.
+2. No unresolved divergence from the production base.
+3. Typecheck and production build on current HEAD.
+4. Unit/integration/security/failure/concurrency tests on current HEAD.
+5. Real Devnet/Testnet transaction E2E on current implementation.
+6. Blockchain verification correctness.
+7. Reference discovery completeness.
+8. Replay/idempotency/race protection.
+9. Reconciliation atomicity.
+10. Accounting separation and ledger integrity.
+11. Referral attribution/commission/liability/payout path.
+12. Merchant authentication and RLS isolation.
+13. Receiving wallet ownership verification.
+14. API abuse controls and rate limiting.
+15. Migration validation and deterministic migration history.
+16. Webhook signing/replay/retry/DLQ/SSRF controls.
+17. RPC provider reliability and stale-data behavior.
+18. Gas sponsorship policy and signer isolation.
+19. Observability and incident readiness.
+20. Frontend responsive/accessibility review.
+21. i18n/RTL/LTR validation.
+22. Public SEO/information-architecture review.
+23. Documentation/source consistency.
+24. Production infrastructure/deployment validation.
+25. Explicit final production approval.
 
-Every important payment feature requires a combination of:
+`UNKNOWN`, `CANCELLED`, `INCOMPLETE`, stale evidence, old SHA evidence, or missing evidence is **NOT PASS**.
 
-- Unit tests
-- Integration tests
-- Security tests
-- Failure-path tests
-- Concurrency tests
-- Real E2E tests
+`/pay` must remain disabled until all required gates pass.
 
-Mandatory payment cases:
+## 29. Evidence Rules
 
-- valid payment
-- underpayment
-- overpayment
-- wrong token
-- wrong recipient
-- wrong reference
-- failed transaction
-- expired Payment Intent
-- duplicate signature
-- replay across payments
-- ambiguous candidate
-- RPC outage
-- incomplete discovery
-- concurrent reconciliation
-- duplicate webhook delivery
-- webhook replay
-- idempotency conflict
-- merchant isolation violation attempt
-- unauthorized wallet change
-- referral double-credit attempt
-- referral reversal/refund
-- withdrawal race/double-spend attempt
+The following are explicitly **not** sufficient evidence:
 
-Mocks are for unit-level behavior; production readiness requires real Devnet/E2E evidence.
+- a migration file exists;
+- a test file exists;
+- a previous CI run was green;
+- a PR is mergeable;
+- a reference was found;
+- a webhook was signed;
+- a payment transaction was submitted by a wallet;
+- a mock passed;
+- a frontend says `success`;
+- a documentation statement says a feature exists.
 
-## 23. Observability and Operations
+Valid evidence must be tied to the current relevant HEAD and, for payment correctness, preferably to real Devnet/Testnet behavior.
 
-The system needs:
+## 30. Operational and Incident Requirements
 
-- request IDs
-- structured logs
-- security/audit logs
-- payment state transition visibility
-- reconciliation metrics
-- RPC health/latency/error metrics
-- webhook delivery metrics
-- withdrawal metrics
-- referral liability metrics
-- alerts for stuck states
-- alerting for reconciliation backlog
-- alerting for repeated provider failure
-- operational runbooks
+The system must produce sufficient structured evidence to answer:
 
-No sensitive credentials, private keys, HMAC secrets, or full bearer tokens may appear in logs.
+- what Payment Intent was involved;
+- what Merchant was involved;
+- what blockchain signature was observed;
+- which verifier decision was made;
+- which reconciliation worker/state transition ran;
+- which ledger entries were created;
+- whether a Referral Liability was created;
+- whether a withdrawal was created;
+- whether a webhook was dispatched;
+- whether an RPC/provider was stale or unavailable.
 
-## 24. Release / Launch Gates
+Do not log secrets, private keys or sensitive bearer credentials.
 
-SolMint Pay is **not production-ready** until all of the following are PASS on the same current release candidate/HEAD:
+## 31. Implementation Priorities
 
-1. Repository integrity and branch ancestry verified.
-2. Current PR/base/head state verified.
-3. TypeScript/build passes.
-4. Unit/integration/security tests pass.
-5. Database migration validation passes.
-6. Auth/RLS/merchant isolation is verified.
-7. Wallet ownership flow is verified.
-8. Blockchain verification is verified.
-9. Reference discovery is complete and retry-safe.
-10. Replay/idempotency/race protections are verified.
-11. Reconciliation is atomic and verified.
-12. Accounting/ledger invariants are verified.
-13. Merchant settlement/withdrawal flow is verified.
-14. Referral attribution/commission/withdrawal flow is verified.
-15. Webhook signing/retry/replay/dead-letter is verified.
-16. RPC provider reliability/failover behavior is verified.
-17. Gas sponsorship policy is verified if enabled.
-18. Observability and incident readiness are verified.
-19. Public API/docs/contract integrity is verified.
-20. Real Devnet E2E is green on current code.
-21. Production deployment configuration is validated without activating `/pay` prematurely.
-22. Final independent adversarial audit passes.
-23. Explicit production release authorization exists.
+When several tasks are available, work in this order unless current evidence proves a different critical blocker:
 
-`UNKNOWN`, `AMBIGUOUS`, `INCOMPLETE`, `CANCELLED`, stale evidence, or evidence from an unrelated/old HEAD is **NOT PASS**.
+1. Correctness/security blockers.
+2. Current-HEAD branch/migration/CI blockers.
+3. Payment verification and reconciliation.
+4. Accounting invariants.
+5. Referral attribution, tier, liability and payout.
+6. Merchant/affiliate authorization and RLS.
+7. Webhook/RPC/gas reliability.
+8. Frontend checkout/dashboard.
+9. UI polish.
+10. SEO/public growth work.
 
-## 25. Engineering Workflow
+Do not optimize visuals while a financial or security invariant remains unresolved.
 
-Every material Pay change follows:
+## 32. Required Documentation Map
+
+The Pay workstream should keep these documents aligned:
 
 ```text
-Repository review
-      ↓
-Architecture/design
-      ↓
-Authoritative research
-      ↓
-Implementation
-      ↓
-Unit/integration/security/failure/concurrency tests
-      ↓
-Adversarial security audit
-      ↓
-Current-HEAD CI/build/validation
-      ↓
-Final review
+docs/solmint-pay-project-spec.md     <- this authoritative product/engineering contract
+docs/solmint-pay-foundation.md      <- foundation architecture and release planning
+docs/solmint-pay-payment-engine.md  <- payment engine details
+docs/solmint-pay-reconciliation.md  <- reconciliation details
+docs/solmint-pay-security-audit.md  <- security/audit findings and decisions
+docs/solmint-pay-api-v1.md          <- public API contract
+docs/solmint-pay-devnet-e2e.md      <- real E2E procedure/evidence
+docs/solmint-pay-foundation-audit.md <- foundation audit record
+src/pay/README.md                   <- developer-facing Pay module entry point
 ```
 
-Do not merge, deploy, run production migrations, or enable `/pay` merely because code compiles or tests were written.
+If a lower-level document conflicts with this file, the conflict must be reported and resolved rather than silently choosing one.
 
-## 26. Automation Rules
+## 33. Automation Contract
 
-All SolMint Pay scheduled automation lanes must read this document before acting.
+Three recurring SolMint Pay lanes consume this document:
 
 ### Lane 1 — Audit & Priority
 
-Use this specification to identify the highest-risk unresolved requirement or contradiction. Verify current repository state first. Challenge stale assumptions and old CI evidence.
+Find the highest-risk unresolved security, financial, architectural, integration or release issue. Verify it on the current HEAD. Do not invent requirements.
 
 ### Lane 2 — Implementation & Hardening
 
-Use this specification as the implementation contract. Do not invent commercial rules that are not defined here. When the document marks a policy as unresolved, stop before encoding an irreversible financial behavior and report the decision needed.
+Implement the smallest coherent fix for the highest-priority verified issue. Follow this document and validate on the same HEAD.
 
 ### Lane 3 — Verification & Release Gate
 
-Use this specification as the independent audit checklist. Attempt to falsify the implementation through code, database, CI, security, financial, concurrency, and E2E evidence. Documentation alone is never evidence of PASS.
+Independently try to break the implementation. Challenge Lane 1 and Lane 2 results. Determine PASS/NOT PASS for every release gate using direct evidence.
 
-No lane has authority to merge, deploy, execute production migrations, or activate `/pay` without explicit authorization.
+Recurring execution order is not guaranteed. Every lane must fetch current repository state before acting.
 
-## 27. Current Known Policy Decisions
+## 34. Change-Control Rules for Product Economics
 
-Confirmed direction:
+The following values are V1 product policy and may not be silently changed by automation or ordinary implementation work:
 
-- Solana-only first release.
-- SOL, USDC, USDT first-release assets.
-- Gateway revenue baseline: 1%.
-- Referral is based on eligible gateway revenue, not gross payment.
-- Referral money is a liability until paid to the affiliate.
-- Affiliate withdrawals are requested rather than silently pushed on every event.
-- Referral tiers should scale with active referred merchant count/value.
-- No multi-level referral in the first release.
-- Light theme is the default Pay UI.
-- Persian is first-class; English/Arabic/Russian are architectural requirements.
-- `/pay` stays disabled until release gates pass.
+- Gateway fee: 1.00% / 100 bps;
+- no additional 1.50% fee/share in V1;
+- direct non-custodial Merchant settlement;
+- no ordinary Merchant custodial withdrawal in V1;
+- one referral level;
+- referral commission based on eligible Gateway Revenue;
+- referral tiers: 10% / 15% / 20% / 25%;
+- active referred Merchant metric: authoritative payment activity within trailing 30 days;
+- commission rate snapshot at authoritative payment recognition;
+- Affiliate withdrawal model;
+- 10 USD-equivalent V1 minimum Affiliate withdrawal, subject to an approved operational price source before enabling the rule.
 
-## 28. Decisions Still Required Before Production
+Any change to these values is a **product decision**, not a routine implementation detail. It requires an updated version of this document and corresponding code/schema/test changes.
 
-These are intentionally explicit so automation does not guess:
+## 35. Final Product Definition
 
-1. Exact mathematical interpretation of the requested 1.5% commercial component.
-2. Final launch referral tier thresholds and percentages.
-3. Exact definition of an "active referred merchant" for tier calculation.
-4. Referral payout currency and supported networks/assets.
-5. Minimum affiliate withdrawal amount and payout schedule.
-6. Merchant withdrawal asset/network policy and minimum amount.
-7. Whether merchant settlement is on-chain immediate transfer or an internal available-balance claim followed by withdrawal.
-8. Final fee responsibility policy: merchant-paid, customer-paid, or selectable per Payment Intent.
-9. Final refund/overpayment economics.
-10. Production RPC/provider configuration and failover policy.
+SolMint Pay V1 is therefore defined as:
 
-## 29. Non-Negotiable Security Principles
+```text
+Customer
+   |
+   |  Solana transaction
+   v
+Merchant receiving wallet  <---- Merchant principal settles directly
+   |
+   +------------------------------+
+                                  |
+                                  v
+                           SolMint gateway fee
+                                  |
+                      +-----------+-----------+
+                      |                       |
+                      v                       v
+                SolMint revenue      Referral liability
+                                              |
+                                              v
+                                      Affiliate request
+                                              |
+                                              v
+                                      SolMint payout flow
+                                              |
+                                              v
+                                      Verified Affiliate wallet
+```
 
-- Fail closed.
-- Never trust frontend input for authorization or payment truth.
-- Never treat a reference as payment proof.
-- Never recognize money before complete verification.
-- Never allow a signature to be recognized twice.
-- Never allow one merchant to access another merchant's data.
-- Never store or request customer private keys.
-- Never expose server secrets in browser code.
-- Never use floating-point arithmetic for money.
-- Never mutate financial history to correct an error.
-- Never treat an incomplete blockchain scan as no payment.
-- Never mark cancelled/unknown CI as PASS.
-- Never approve production release on stale HEAD evidence.
+The gateway's job is not to become the custodian of Merchant principal in V1. Its job is to create deterministic payment intents, produce a verifiable transaction plan, independently verify blockchain truth, reconcile exactly once, account correctly, notify safely, and operate a controlled Affiliate payout/liability system.
+
+That is the contract to implement, test, audit and verify before production launch.
