@@ -2,22 +2,45 @@
 
 This directory is the dedicated frontend boundary for SolMint Pay.
 
+## Authoritative specification
+
+The complete product and engineering source of truth is:
+
+`docs/solmint-pay-project-spec.md`
+
+Read that document before changing Pay behavior. It defines the commercial model, accounting boundaries, referral economics, merchant/affiliate withdrawal rules, backend contracts, blockchain verification, reconciliation, security, frontend surfaces, light-theme UI direction, i18n, testing and release gates.
+
+Documentation is a contract, not implementation evidence. When code and the specification disagree, do not guess: identify the conflict and resolve the policy/architecture decision explicitly.
+
 ## Purpose
 
 SolMint Pay is a merchant-facing payment product exposed at `/pay` while remaining intentionally separate from the existing SolMint content, tools, and wallet UI.
 
-The first implementation phase establishes structure and contracts only. The public route is intentionally not registered yet.
+The public route is intentionally disabled until the project release gates pass.
 
 ## Architectural rules
 
 - Keep payment business logic out of the existing site components.
-- Keep Customer Checkout, Merchant Dashboard, and Developer Portal as separate UI surfaces.
+- Keep Customer Checkout, Merchant Dashboard, Affiliate Dashboard, and Developer Portal as separate UI surfaces.
 - Keep all display text behind the i18n layer; do not hard-code customer-facing copy in feature logic.
 - Use semantic payment states and typed domain models instead of presentation strings.
 - Keep blockchain verification behind a service boundary so the UI does not call RPC/indexers directly.
 - Keep referral accounting separate from payment presentation and calculate commissions from eligible gateway revenue.
-- Treat fee payer selection (`merchant` or `customer`) as a first-class payment policy.
+- Treat fee policy as a first-class payment policy and snapshot it into the Payment Intent.
 - Keep Gas Sponsorship as a separate policy and accounting boundary.
+- Do not trust frontend merchant IDs, referral counts, balances, payment status, or transaction-submission success.
+- Use light/bright UI as the default Pay product direction.
+
+## Product surfaces
+
+```text
+Customer Checkout
+Merchant Dashboard
+Affiliate / Referral Dashboard
+Developer Portal
+Public Pricing / Documentation
+Security / FAQ / Status information
+```
 
 ## Planned structure
 
@@ -36,17 +59,44 @@ src/pay/
 └── utils/          Pure helpers with no network side effects
 ```
 
+## Multilingual requirement
+
+Pay must be multilingual-ready from the first release:
+
+- `fa-IR` — first-class product locale
+- `en-US` — first-class architecture/production target
+- `ar` — RTL target
+- `ru` — LTR target
+
+RTL/LTR must use logical layout properties. Localized numbers, dates, errors, statuses and financial amounts must remain semantically consistent across locales.
+
+## Financial boundary
+
+The frontend must display, but never authoritatively determine:
+
+- merchant principal
+- gateway revenue
+- referral liability
+- gas cost
+- refund state
+- available/pending balances
+- payout/withdrawal state
+
+All of these come from authenticated server-side and database-enforced state.
+
 ## Launch gate
 
-`/pay` must not become publicly reachable until the following are complete and reviewed:
+`/pay` must not become publicly reachable until the complete release checklist in `docs/solmint-pay-project-spec.md` is satisfied on the same current release candidate/HEAD, including:
 
-1. Payment lifecycle and verification design.
-2. Supabase schema and accounting model.
-3. API v1 contract.
-4. Webhook reliability model.
-5. Referral and fee economics.
-6. Gas sponsorship policy.
-7. Checkout and merchant UX.
-8. SEO metadata and public information architecture.
-9. Production tests and observability.
-10. Deployment and rollback plan.
+1. Payment lifecycle and blockchain verification.
+2. Supabase schema, RLS, accounting and migration validation.
+3. API v1 contract and abuse controls.
+4. Webhook reliability and replay protection.
+5. Fee and referral economics, attribution, liabilities and withdrawals.
+6. Merchant settlement/withdrawal flow.
+7. Gas sponsorship policy and signer boundaries, if enabled.
+8. Checkout, merchant, affiliate and developer UX.
+9. Light-theme responsive and accessibility validation.
+10. Multilingual/i18n validation.
+11. Production tests, real Devnet E2E and observability.
+12. Deployment, rollback and final independent adversarial audit.
