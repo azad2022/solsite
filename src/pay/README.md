@@ -6,15 +6,15 @@ This directory is the dedicated frontend boundary for SolMint Pay.
 
 The complete product and engineering source of truth is:
 
-`docs/solmint-pay-project-spec.md`
+`docs/solmint-pay-v1-product-contract.md`
 
-Read that document before changing Pay behavior. It defines the commercial model, accounting boundaries, referral economics, merchant/affiliate withdrawal rules, backend contracts, blockchain verification, reconciliation, security, frontend surfaces, light-theme UI direction, i18n, testing and release gates.
+Read that document before changing Pay behavior. It defines the V1 product boundary, commercial model, accounting separation, referral economics, merchant/affiliate withdrawal rules, backend contracts, blockchain verification, reconciliation, security, frontend surfaces, light-theme UI direction, i18n, testing and release gates. The older `docs/solmint-pay-project-spec.md` document is background context only; if the documents conflict, the V1 product contract is authoritative.
 
 Documentation is a contract, not implementation evidence. When code and the specification disagree, do not guess: identify the conflict and resolve the policy/architecture decision explicitly.
 
 ## Purpose
 
-SolMint Pay is a merchant-facing payment product exposed at `/pay` while remaining intentionally separate from the existing SolMint content, tools, and wallet UI.
+SolMint Pay is a separate merchant-facing payment product exposed at `/pay` while remaining intentionally separate from the existing SolMint content, tools, and wallet UI.
 
 The public route is intentionally disabled until the project release gates pass.
 
@@ -86,7 +86,7 @@ All of these come from authenticated server-side and database-enforced state.
 
 ## Launch gate
 
-`/pay` must not become publicly reachable until the complete release checklist in `docs/solmint-pay-project-spec.md` is satisfied on the same current release candidate/HEAD, including:
+`/pay` must not become publicly reachable until the complete release checklist in `docs/solmint-pay-v1-product-contract.md` is satisfied on the same current release candidate/HEAD, including:
 
 1. Payment lifecycle and blockchain verification.
 2. Supabase schema, RLS, accounting and migration validation.
