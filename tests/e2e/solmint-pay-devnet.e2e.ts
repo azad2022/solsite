@@ -1,15 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
 import { randomReferenceAddress } from '../../src/pay/services/walletSignature';
 import { createSolanaRpcProvider } from '../../src/pay/services/solanaRpcProvider';
 import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTransaction } from '../../src/pay/services/verificationPolicy';
 
 const RPC_URL = process.env.SOLANA_DEVNET_RPC_URL?.trim() || 'https://api.devnet.solana.com';
-const FUNDING_RPC_URLS = [
-  RPC_URL,
-  'https://demo.helius.dev/api/rpc?network=devnet',
-].filter((url, index, urls) => urls.indexOf(url) === index);
-
 const connection = new Connection(RPC_URL, { commitment: 'finalized', confirmTransactionInitialTimeout: 45_000 });
 
 async function waitForFinalized(client: Connection, signature: string, timeoutMs = 60_000): Promise<void> {
@@ -24,50 +20,17 @@ async function waitForFinalized(client: Connection, signature: string, timeoutMs
   throw new Error(`Devnet transaction did not reach finalized commitment within ${timeoutMs} ms.`);
 }
 
-async function fundEphemeralSender(sender: Keypair): Promise<void> {
-  const minimumLamports = 100_000_000;
-  const deadline = Date.now() + 90_000;
-  let lastError: unknown = null;
-  let delayMs = 3_000;
-
-  while (Date.now() < deadline) {
-    for (const fundingRpcUrl of FUNDING_RPC_URLS) {
-      const fundingConnection = new Connection(fundingRpcUrl, { commitment: 'finalized', confirmTransactionInitialTimeout: 30_000 });
-      try {
-        const balance = await fundingConnection.getBalance(sender.publicKey, 'finalized');
-        if (balance >= minimumLamports) {
-          if (fundingRpcUrl !== RPC_URL) {
-            const visibleBalance = await connection.getBalance(sender.publicKey, 'finalized');
-            if (visibleBalance >= minimumLamports) return;
-          } else {
-            return;
-          }
-        }
-
-        const signature = await fundingConnection.requestAirdrop(sender.publicKey, minimumLamports);
-        await waitForFinalized(fundingConnection, signature, 60_000);
-
-        const fundedBalance = await connection.getBalance(sender.publicKey, 'finalized');
-        if (fundedBalance >= minimumLamports) return;
-        lastError = new Error(`Devnet airdrop finalized but balance is only ${fundedBalance} lamports.`);
-      } catch (error) {
-        lastError = error;
-      }
-    }
-
-    const remainingMs = deadline - Date.now();
-    if (remainingMs <= 0) break;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, remainingMs)));
-    delayMs = Math.min(delayMs * 2, 15_000);
+async function loadFundedSender(): Promise<Keypair> {
+  const keypairPath = process.env.DEVNET_E2E_SENDER_KEYPAIR_PATH?.trim();
+  if (!keypairPath) {
+    throw new Error('DEVNET_E2E_SENDER_KEYPAIR_PATH is required for the CI Devnet E2E harness.');
   }
 
-  throw new Error(`Unable to fund ephemeral Devnet E2E sender within 90 seconds: ${String(lastError)}`);
-}
-
-async function loadFundedSender(): Promise<Keypair> {
-  const ephemeral = Keypair.generate();
-  await fundEphemeralSender(ephemeral);
-  return ephemeral;
+  const raw = JSON.parse(await readFile(keypairPath, 'utf8')) as unknown;
+  if (!Array.isArray(raw) || raw.length !== 64 || raw.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+    throw new Error('CI Devnet E2E keypair file must contain exactly 64 byte values.');
+  }
+  return Keypair.fromSecretKey(Uint8Array.from(raw));
 }
 
 function withReference(ix: ReturnType<typeof SystemProgram.transfer>, reference: PublicKey): ReturnType<typeof SystemProgram.transfer> {
