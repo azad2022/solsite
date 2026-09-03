@@ -1,6 +1,6 @@
 begin;
 
-select plan(11);
+select plan(14);
 
 -- Pay is intentionally server-mediated. Client roles must not be able to reach
 -- Pay tables directly, and every Pay table must have PostgreSQL RLS enabled.
@@ -159,6 +159,49 @@ select ok(
       and privilege_type = 'EXECUTE'
   ),
   'Anonymous role cannot execute webhook worker RPCs'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'pay_payment_transfers'
+      and t.tgname = 'pay_payment_transfer_merchant_ledger'
+      and not t.tgisinternal
+  ),
+  'Merchant principal ledger is triggered after transfer-leg insertion'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'pay_apply_verified_observation'
+      and p.prosecdef is true
+      and p.proconfig @> array['search_path=""']::text[]
+      and position('destinationAuthority' in pg_get_functiondef(p.oid)) > 0
+  ),
+  'Verified reconciliation validates SPL destination authority in a SECURITY DEFINER function'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_index i
+    join pg_class t on t.oid = i.indrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'pay_payment_transactions'
+      and i.indisunique
+      and i.indpred is null
+      and pg_get_indexdef(i.indexrelid) like '%(signature)%'
+  ),
+  'Blockchain signatures are globally unique across payment transactions'
 );
 
 select * from finish();
