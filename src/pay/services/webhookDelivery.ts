@@ -1,5 +1,8 @@
+import { validateWebhookUrl } from './securityPolicy';
+
 export const WEBHOOK_MAX_ATTEMPTS = 8;
 export const WEBHOOK_TIMEOUT_MS = 10_000;
+export const WEBHOOK_MAX_BODY_BYTES = 256 * 1024;
 
 export function webhookRetryDelaySeconds(attemptCount: number): number {
   if (!Number.isInteger(attemptCount) || attemptCount < 1) throw new Error('Invalid webhook attempt count.');
@@ -20,6 +23,8 @@ export async function fetchWebhookWithTimeout(input: {
 }): Promise<{ ok: boolean; status: number }> {
   const timeoutMs = input.timeoutMs ?? WEBHOOK_TIMEOUT_MS;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30_000) throw new Error('Invalid webhook timeout.');
+  if (!validateWebhookUrl(input.endpointUrl)) throw new Error('Webhook endpoint URL is not allowed.');
+  if (new TextEncoder().encode(input.body).byteLength > WEBHOOK_MAX_BODY_BYTES) throw new Error('Webhook payload is too large.');
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
