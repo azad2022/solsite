@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [
+    "tests/e2e/**/*.ts",
+    "src/pay/**/*.ts"
+  ],
+  "exclude": [
+    "supabase/functions/**"
+  ]
+}

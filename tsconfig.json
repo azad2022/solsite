@@ -27,6 +27,7 @@
     ]
   },
   "exclude": [
-    "supabase/functions/**"
+    "supabase/functions/**",
+    "tests/e2e/**"
   ]
 }

@@ -1,0 +1,46 @@
+/*
+ * SolMint Pay design tokens.
+ *
+ * Pay intentionally owns its visual language instead of inheriting the main
+ * SolMint site's dark Web3 presentation. The initial product direction is
+ * light, calm and fintech-oriented; final palette values belong to the design
+ * phase and should not leak into the existing site's global styles.
+ */
+
+:root {
+  --pay-bg: #f7f8fb;
+  --pay-surface: #ffffff;
+  --pay-surface-muted: #f1f3f7;
+  --pay-text: #111827;
+  --pay-text-muted: #667085;
+  --pay-border: #e4e7ec;
+  --pay-primary: #111827;
+  --pay-primary-contrast: #ffffff;
+  --pay-success: #067647;
+  --pay-warning: #b54708;
+  --pay-danger: #b42318;
+  --pay-radius-sm: 8px;
+  --pay-radius-md: 12px;
+  --pay-radius-lg: 16px;
+  --pay-shadow-sm: 0 1px 3px rgb(16 24 40 / 0.08);
+  --pay-shadow-md: 0 8px 24px rgb(16 24 40 / 0.08);
+}
+
+[data-pay-direction='rtl'] {
+  direction: rtl;
+}
+
+[data-pay-direction='ltr'] {
+  direction: ltr;
+}
+
+/*
+ * Keep spacing logical so one layout can serve both RTL and LTR locales.
+ * Components should prefer these tokens and logical CSS properties over
+ * left/right-specific declarations.
+ */
+.pay-root {
+  min-height: 100%;
+  background: var(--pay-bg);
+  color: var(--pay-text);
+}

@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "bun test \"tests/**/*.test.ts\""
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
