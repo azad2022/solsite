@@ -5,6 +5,7 @@ import { evaluateGasSponsorship } from '../src/pay/services/gasSponsorPolicy';
 import { calculateGatewayFee } from '../src/pay/services/feePolicy';
 import { recognizeGatewayRevenue } from '../src/pay/services/revenueRecognition';
 import { verifyPaymentTransaction } from '../src/pay/services/verificationPolicy';
+import { authorizePayMerchant, hasPayPlatformCapability } from '../src/pay/services/authorizationPolicy';
 
 test('gateway fee ceiling implements the V1 1% gateway fee', () => {
   assert.deepEqual(calculateGatewayFee('10000', 100, 'merchant'), {
@@ -35,6 +36,60 @@ test('gas sponsorship obeys per-payment and daily limits', () => {
 
 test('revenue recognition keeps referral liability inside gross gateway revenue', () => {
   assert.deepEqual(recognizeGatewayRevenue('1000', 2000), { grossGatewayFeeAtomic: '1000', referralCommissionAtomic: '200', netGatewayRevenueAtomic: '800' });
+});
+
+test('tenant authorization follows merchant membership role and fails closed across tenants', () => {
+  const owner = { id: 'user-owner', role: 'user', permissions: [], isActive: true } as const;
+  const activeMerchant = { merchantId: 'merchant-a', ownerUserId: 'user-owner', status: 'active' } as const;
+
+  assert.equal(authorizePayMerchant(owner, activeMerchant, {
+    merchantId: 'merchant-a', userId: 'user-owner', role: 'owner', status: 'active',
+  }, 'merchant.manage'), true);
+
+  assert.equal(authorizePayMerchant(owner, activeMerchant, {
+    merchantId: 'merchant-b', userId: 'user-owner', role: 'owner', status: 'active',
+  }, 'merchant.manage'), false);
+
+  assert.equal(authorizePayMerchant(owner, activeMerchant, {
+    merchantId: 'merchant-a', userId: 'another-user', role: 'admin', status: 'active',
+  }, 'merchant.read'), false);
+
+  assert.equal(authorizePayMerchant(owner, { ...activeMerchant, status: 'suspended' }, {
+    merchantId: 'merchant-a', userId: 'user-owner', role: 'owner', status: 'active',
+  }, 'merchant.read'), false);
+});
+
+test('tenant role capabilities are narrower for finance, developer, and viewer roles', () => {
+  const merchant = { merchantId: 'merchant-a', ownerUserId: 'owner', status: 'active' } as const;
+  const user = { id: 'member', role: 'user', permissions: [], isActive: true } as const;
+
+  assert.equal(authorizePayMerchant(user, merchant, {
+    merchantId: 'merchant-a', userId: 'member', role: 'finance', status: 'active',
+  }, 'payment.refund'), true);
+  assert.equal(authorizePayMerchant(user, merchant, {
+    merchantId: 'merchant-a', userId: 'member', role: 'finance', status: 'active',
+  }, 'payment.create'), false);
+
+  assert.equal(authorizePayMerchant(user, merchant, {
+    merchantId: 'merchant-a', userId: 'member', role: 'developer', status: 'active',
+  }, 'payment.create'), true);
+  assert.equal(authorizePayMerchant(user, merchant, {
+    merchantId: 'merchant-a', userId: 'member', role: 'developer', status: 'active',
+  }, 'payment.refund'), false);
+
+  assert.equal(authorizePayMerchant(user, merchant, {
+    merchantId: 'merchant-a', userId: 'member', role: 'viewer', status: 'active',
+  }, 'payment.read'), true);
+  assert.equal(authorizePayMerchant(user, merchant, {
+    merchantId: 'merchant-a', userId: 'member', role: 'viewer', status: 'active',
+  }, 'payment.create'), false);
+});
+
+test('platform capabilities fail closed for inactive users and accept explicit pay grants', () => {
+  assert.equal(hasPayPlatformCapability({ id: 'u', role: 'superadmin', permissions: [], isActive: true }, 'gas.manage'), true);
+  assert.equal(hasPayPlatformCapability({ id: 'u', role: 'user', permissions: ['pay:gas.manage'], isActive: true }, 'gas.manage'), true);
+  assert.equal(hasPayPlatformCapability({ id: 'u', role: 'user', permissions: ['pay:gas.manage'], isActive: false }, 'gas.manage'), false);
+  assert.equal(hasPayPlatformCapability({ id: 'u', role: 'user', permissions: ['payment.read'], isActive: true }, 'payment.refund'), false);
 });
 
 test('verification rejects split-source transfer legs', () => {
