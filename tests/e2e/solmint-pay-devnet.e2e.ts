@@ -23,8 +23,8 @@ function loadConfiguredSender(): Keypair | null {
   return Keypair.fromSecretKey(Uint8Array.from(parsed as number[]));
 }
 
-async function waitForFinalized(signature: string): Promise<void> {
-  const deadline = Date.now() + 60_000;
+async function waitForFinalized(signature: string, timeoutMs = 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const statuses = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
     const status = statuses.value[0];
@@ -32,33 +32,34 @@ async function waitForFinalized(signature: string): Promise<void> {
     if (status?.confirmationStatus === 'finalized') return;
     await new Promise((resolve) => setTimeout(resolve, 1_500));
   }
-  throw new Error('Devnet transaction did not reach finalized commitment within 60 seconds.');
+  throw new Error(`Devnet transaction did not reach finalized commitment within ${timeoutMs} ms.`);
 }
 
 async function fundEphemeralSender(sender: Keypair): Promise<void> {
-  const minimumLamports = 2_000_000_000;
+  const minimumLamports = 1_000_000_000;
   const deadline = Date.now() + 90_000;
   let lastError: unknown = null;
+  let delayMs = 3_000;
 
   while (Date.now() < deadline) {
     try {
       const balance = await connection.getBalance(sender.publicKey, 'finalized');
       if (balance >= minimumLamports) return;
 
-      const signature = await connection.requestAirdrop(sender.publicKey, minimumLamports);
-      const latest = await connection.getLatestBlockhash('finalized');
-      await connection.confirmTransaction({
-        signature,
-        ...latest,
-        }, 'finalized');
+      const signature = await connection.requestAirdrop(sender.publicKey, minimumLamports, 'finalized');
+      await waitForFinalized(signature, 60_000);
 
       const fundedBalance = await connection.getBalance(sender.publicKey, 'finalized');
       if (fundedBalance >= minimumLamports) return;
-      lastError = new Error(`Devnet airdrop confirmed but balance is only ${fundedBalance} lamports.`);
+      lastError = new Error(`Devnet airdrop finalized but balance is only ${fundedBalance} lamports.`);
     } catch (error) {
       lastError = error;
     }
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, remainingMs)));
+    delayMs = Math.min(delayMs * 2, 15_000);
   }
 
   throw new Error(`Unable to fund ephemeral Devnet E2E sender within 90 seconds: ${String(lastError)}`);
