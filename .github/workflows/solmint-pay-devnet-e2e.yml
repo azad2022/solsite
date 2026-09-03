@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_CI_RPC_URL }}
+  SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
 
 jobs:
   devnet-e2e:
@@ -57,10 +57,9 @@ jobs:
 
       - name: Validate CI funding configuration
         env:
-          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+          DEVNET_E2E_FUNDER_SECRET_KEY_B58: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: |
-          test -n "$SOLANA_DEVNET_RPC_URL" || { echo 'SOLANA_DEVNET_CI_RPC_URL secret is required.'; exit 1; }
-          test -n "$DEVNET_E2E_FUNDER_SECRET_KEY_B64" || { echo 'DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.'; exit 1; }
+          test -n "$DEVNET_E2E_FUNDER_SECRET_KEY_B58" || { echo 'DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.'; exit 1; }
 
       - name: Generate ephemeral Devnet E2E keypair
         run: |
@@ -69,28 +68,50 @@ jobs:
 
       - name: Fund ephemeral sender from dedicated Devnet funding wallet
         env:
-          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+          DEVNET_E2E_FUNDER_SECRET_KEY_B58: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: |
           umask 077
           bun - <<'BUN'
           const { readFile } = require('node:fs/promises');
           const { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
 
+          const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+          const BASE58_INDEX = new Map(Array.from(BASE58_ALPHABET, (char, index) => [char, index]));
+          const decodeBase58 = (value) => {
+            if (!value || value.trim() !== value) throw new Error('Devnet funder secret key is empty or has surrounding whitespace.');
+            const bytes = [0];
+            for (const char of value) {
+              const digit = BASE58_INDEX.get(char);
+              if (digit === undefined) throw new Error('Devnet funder secret key is not valid Base58.');
+              let carry = digit;
+              for (let i = 0; i < bytes.length; i += 1) {
+                const next = bytes[i] * 58 + carry;
+                bytes[i] = next & 255;
+                carry = Math.floor(next / 256);
+              }
+              while (carry > 0) {
+                bytes.push(carry & 255);
+                carry = Math.floor(carry / 256);
+              }
+            }
+            let leadingZeros = 0;
+            while (leadingZeros < value.length && value[leadingZeros] === '1') leadingZeros += 1;
+            const decoded = new Uint8Array(leadingZeros + bytes.length - (bytes.length > 1 && bytes[bytes.length - 1] === 0 ? 1 : 0));
+            for (let i = 0; i < leadingZeros; i += 1) decoded[i] = 0;
+            for (let i = 0; i < bytes.length; i += 1) decoded[decoded.length - 1 - i] = bytes[i];
+            return decoded;
+          };
+
           const rpcUrl = process.env.SOLANA_DEVNET_RPC_URL;
-          const funderSecretKeyB64 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64;
+          const funderSecretKeyB58 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B58;
           const senderPath = '/tmp/solmint-pay-devnet-e2e-keypair.json';
           const fundingLamports = 5_000_000;
           const minimumBalance = 2_000_000;
 
-          if (!rpcUrl) throw new Error('SOLANA_DEVNET_CI_RPC_URL secret is required.');
-          if (!funderSecretKeyB64) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.');
+          if (!rpcUrl) throw new Error('Devnet RPC URL is required.');
+          if (!funderSecretKeyB58) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.');
 
-          let funderSecretKey;
-          try {
-            funderSecretKey = Uint8Array.from(Buffer.from(funderSecretKeyB64, 'base64'));
-          } catch {
-            throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is not valid base64.');
-          }
+          const funderSecretKey = decodeBase58(funderSecretKeyB58);
           if (funderSecretKey.length !== 64) {
             throw new Error(`Devnet funder secret key must decode to 64 bytes, got ${funderSecretKey.length}.`);
           }
