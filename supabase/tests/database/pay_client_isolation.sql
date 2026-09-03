@@ -1,6 +1,6 @@
 begin;
 
-select plan(10);
+select plan(11);
 
 -- Pay is intentionally server-mediated. Client roles must not be able to reach
 -- Pay tables directly, and every Pay table must have PostgreSQL RLS enabled.
@@ -94,6 +94,20 @@ select ok(
       and pg_get_constraintdef(c.oid) like '%webhook_id%event_id%'
   ),
   'Webhook deliveries are idempotent per webhook and event'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'pay_webhook_deliveries'
+      and c.contype = 'u'
+      and pg_get_constraintdef(c.oid) = 'UNIQUE (event_id)'
+  ),
+  'Webhook event ids are not globally unique across subscriptions'
 );
 
 select ok(
