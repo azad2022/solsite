@@ -15,6 +15,7 @@ on:
       - 'tests/e2e/**'
       - 'tsconfig.e2e.json'
       - '.github/workflows/solmint-pay-devnet-e2e.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,7 +27,7 @@ concurrency:
 jobs:
   devnet-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -55,13 +56,82 @@ jobs:
           umask 077
           bun -e "const { Keypair } = require('@solana/web3.js'); const { writeFileSync } = require('node:fs'); writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json', JSON.stringify(Array.from(Keypair.generate().secretKey)));"
 
-      - name: Install Devnet proof-of-work faucet client
-        run: cargo install devnet-pow
-
-      - name: Fund ephemeral sender through Devnet proof-of-work faucet
+      - name: Fund ephemeral sender through Solana Devnet airdrop
         env:
           SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
-        run: devnet-pow mine --target-lamports 20000000 --url "$SOLANA_DEVNET_RPC_URL" --keypair-path /tmp/solmint-pay-devnet-e2e-keypair.json
+        run: |
+          umask 077
+          bun - <<'BUN'
+          const { readFile } = require('node:fs/promises');
+          const { Connection, Keypair, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+
+          const rpcUrl = process.env.SOLANA_DEVNET_RPC_URL;
+          const path = '/tmp/solmint-pay-devnet-e2e-keypair.json';
+          const minimumBalance = 25_000_000;
+          const requestLamports = 50_000_000;
+          const retryDelaysMs = [0, 15_000, 30_000, 60_000, 120_000];
+
+          const raw = JSON.parse(await readFile(path, 'utf8'));
+          if (!Array.isArray(raw) || raw.length !== 64 || raw.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+            throw new Error('CI Devnet E2E keypair file is invalid.');
+          }
+
+          const sender = Keypair.fromSecretKey(Uint8Array.from(raw));
+          const connection = new Connection(rpcUrl, {
+            commitment: 'finalized',
+            confirmTransactionInitialTimeout: 45_000,
+          });
+
+          console.log(`Funding ephemeral sender ${sender.publicKey.toBase58()}`);
+
+          for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
+            if (retryDelaysMs[attempt] > 0) {
+              await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+            }
+
+            const before = await connection.getBalance(sender.publicKey, 'finalized');
+            if (before >= minimumBalance) {
+              console.log(`Sender already funded: ${before} lamports`);
+              process.exit(0);
+            }
+
+            try {
+              const signature = await connection.requestAirdrop(sender.publicKey, requestLamports);
+              const deadline = Date.now() + 60_000;
+
+              while (Date.now() < deadline) {
+                const status = (await connection.getSignatureStatuses([signature], {
+                  searchTransactionHistory: true,
+                })).value[0];
+
+                if (status?.err) {
+                  throw new Error(`Devnet airdrop transaction failed: ${JSON.stringify(status.err)}`);
+                }
+
+                if (status?.confirmationStatus === 'finalized') {
+                  const balance = await connection.getBalance(sender.publicKey, 'finalized');
+                  console.log(`Airdrop finalized; sender balance: ${balance} lamports`);
+                  if (balance >= minimumBalance) process.exit(0);
+                  break;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 1_500));
+              }
+
+              const balance = await connection.getBalance(sender.publicKey, 'finalized');
+              if (balance >= minimumBalance) {
+                console.log(`Sender funded successfully: ${balance} lamports`);
+                process.exit(0);
+              }
+              console.log(`Attempt ${attempt + 1} did not reach the required balance; retrying.`);
+            } catch (error) {
+              console.log(`Airdrop attempt ${attempt + 1} failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
+
+          const finalBalance = await connection.getBalance(sender.publicKey, 'finalized');
+          throw new Error(`Unable to fund ephemeral sender after all retries. Final balance: ${finalBalance} lamports; required: ${minimumBalance}.`);
+          BUN
 
       - name: Run real Devnet payment verification
         env:
