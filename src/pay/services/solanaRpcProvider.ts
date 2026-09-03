@@ -250,7 +250,8 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
       }
 
       if (reachedStart || signatures.length < DISCOVERY_PAGE_SIZE) return results;
-      before = typeof signatures[signatures.length - 1]?.signature === 'string' ? signatures[signatures.length - 1].signature : undefined;
+      const lastSignature = signatures[signatures.length - 1]?.signature;
+      before = typeof lastSignature === 'string' ? lastSignature : undefined;
       if (!before) return results;
     }
     throw new Error('REFERENCE_DISCOVERY_INCOMPLETE');
