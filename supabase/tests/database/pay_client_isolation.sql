@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(16);
 
 -- Pay is intentionally server-mediated. Client roles must not be able to reach
 -- Pay tables directly, and every Pay table must have PostgreSQL RLS enabled.
@@ -159,6 +159,32 @@ select ok(
       and privilege_type = 'EXECUTE'
   ),
   'Anonymous role cannot execute webhook worker RPCs'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'pay_claim_webhook_deliveries'
+      and pg_get_functiondef(p.oid) like '%p_limit integer default 20%'
+      and pg_get_functiondef(p.oid) like '%p_lease_seconds integer default 300%'
+      and pg_get_functiondef(p.oid) like '%p_limit < 1 or p_limit > 20%'
+  ),
+  'Webhook claim RPC bounds the batch size to the runtime lease budget'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'pay_claim_webhook_deliveries'
+      and pg_get_functiondef(p.oid) like '%p_lease_seconds < 60 or p_lease_seconds > 600%'
+  ),
+  'Webhook claim RPC rejects unsafe lease durations'
 );
 
 select ok(
