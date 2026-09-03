@@ -79,10 +79,10 @@ A candidate on-chain transaction becomes financially eligible only if:
 7. The authoritative observation is stored once; repeated provider observations
    never create a second revenue record.
 
-Solana's `getTransaction` supports `confirmed` and `finalized` commitments and
-returns transaction/meta information required for verification. The official
-payment guidance recommends verification after receipt and production-grade
-indexing for high-volume monitoring.
+The production blockchain provider is Helius RPC on Solana Mainnet. Provider
+credentials are server-only deployment secrets and are not committed to source
+control. The provider remains behind the repository's `SolanaPaymentProvider`
+interface so the verification and accounting layers remain provider-neutral.
 
 ## Gas sponsorship
 
@@ -151,7 +151,7 @@ Merchant fulfills order
 ## Explicit non-goals of this stage
 
 - No public payment endpoints are enabled.
-- No production RPC/indexer credentials are introduced.
+- No production RPC secret is committed to the repository. Production injection is a deployment concern documented separately in `docs/solmint-pay-rpc-configuration.md`.
 - No merchant private keys are stored.
 - No real gas sponsorship signer is deployed.
 - No Supabase production migration is applied automatically.
