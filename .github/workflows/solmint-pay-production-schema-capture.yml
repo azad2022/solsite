@@ -93,7 +93,7 @@ supabase_cli_version=2.116.0
 schema_sha256=${expected_sha}
 EOF
 
-          echo "Captured schema provenance:" 
+          echo "Captured schema provenance:"
           cat "$metadata_file"
 
       - name: Upload schema artifact
@@ -102,4 +102,4 @@ EOF
           name: solmint-pay-production-schema-${{ github.ref_name }}-${{ github.run_id }}
           path: artifacts/solmint-pay-production-schema/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
