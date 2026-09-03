@@ -63,10 +63,9 @@ select ok(
     where n.nspname = 'public'
       and p.proname = 'pay_guard_initial_revenue_recognition'
       and p.prosecdef is true
-      and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=%'
-      and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=%'
+      and p.proconfig @> array['search_path=""']::text[]
   ),
-  'Revenue recognition guard is a SECURITY DEFINER function with explicit configuration'
+  'Revenue recognition guard is SECURITY DEFINER with an empty search_path'
 );
 
 select * from finish();
