@@ -12,7 +12,9 @@ on:
       - 'functions/api/pay/**'
       - 'functions/api/internal/pay/**'
   push:
-    branches: [feat/solmint-pay-main-sync]
+    branches:
+      - 'feat/solmint-pay-*'
+      - 'audit/solmint-pay-*'
     paths:
       - 'src/pay/**'
       - 'tests/solmint-pay-*.test.ts'
@@ -21,6 +23,7 @@ on:
       - '.github/workflows/solmint-pay-security.yml'
       - 'functions/api/pay/**'
       - 'functions/api/internal/pay/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
