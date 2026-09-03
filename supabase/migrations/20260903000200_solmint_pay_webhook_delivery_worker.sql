@@ -47,6 +47,8 @@ begin
 end;
 $$;
 
+revoke all on function public.pay_enqueue_webhook_deliveries() from public, anon, authenticated;
+
 drop trigger if exists pay_payment_event_enqueue_webhooks on public.pay_payment_events;
 create trigger pay_payment_event_enqueue_webhooks
 after insert on public.pay_payment_events
