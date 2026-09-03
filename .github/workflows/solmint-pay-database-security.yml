@@ -55,7 +55,8 @@ jobs:
           find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print0 \
             | xargs -0 -r -I{} cp "{}" "$PAY_DB_DIR/supabase/migrations/"
 
-          cp supabase/tests/database/pay_client_isolation.sql "$PAY_DB_DIR/supabase/tests/database/"
+          find supabase/tests/database -maxdepth 1 -type f -name 'pay_*.sql' -print0 \
+            | xargs -0 -r -I{} cp "{}" "$PAY_DB_DIR/supabase/tests/database/"
 
           echo "PAY_DB_DIR=$PAY_DB_DIR" >> "$GITHUB_ENV"
 
