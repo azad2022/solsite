@@ -31,14 +31,42 @@ jobs:
         with:
           version: latest
 
+      - name: Prepare isolated Pay migration project
+        shell: bash
+        run: |
+          set -euo pipefail
+          PAY_DB_DIR="${RUNNER_TEMP}/solmint-pay-supabase"
+          rm -rf "$PAY_DB_DIR"
+          supabase init --workdir "$PAY_DB_DIR"
+
+          mkdir -p "$PAY_DB_DIR/supabase/migrations" "$PAY_DB_DIR/supabase/tests/database"
+
+          # The site's historical migration chain starts from a pre-existing schema
+          # and cannot bootstrap an empty database. Pay currently depends on the
+          # custom users table only for its explicit foreign-key boundary.
+          cat > "$PAY_DB_DIR/supabase/migrations/00000000000000_ci_pay_prerequisites.sql" <<'SQL'
+          create extension if not exists pgcrypto;
+
+          create table public.users (
+            id text primary key
+          );
+          SQL
+
+          find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print0 \
+            | xargs -0 -r -I{} cp "{}" "$PAY_DB_DIR/supabase/migrations/"
+
+          cp supabase/tests/database/pay_client_isolation.sql "$PAY_DB_DIR/supabase/tests/database/"
+
+          echo "PAY_DB_DIR=$PAY_DB_DIR" >> "$GITHUB_ENV"
+
       - name: Start isolated local Supabase
-        run: supabase db start
+        run: supabase --workdir "$PAY_DB_DIR" db start
 
       - name: Run database security tests
-        run: supabase test db
+        run: supabase --workdir "$PAY_DB_DIR" test db
 
       - name: Verify migration replayability
-        run: supabase db reset --local
+        run: supabase --workdir "$PAY_DB_DIR" db reset --local
 
       - name: Re-run database security tests after reset
-        run: supabase test db
+        run: supabase --workdir "$PAY_DB_DIR" test db
