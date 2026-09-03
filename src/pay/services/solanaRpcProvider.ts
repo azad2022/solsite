@@ -177,8 +177,8 @@ function outerInstructionIndex(index: number): number {
 
 function innerInstructionIndex(parentIndex: number, childIndex: number): number {
   if (!Number.isInteger(parentIndex) || parentIndex < 0 || parentIndex >= INNER_INSTRUCTION_INDEX_BASE) throw new Error('Invalid inner parent instruction index.');
-  if (!Number.isInteger(childIndex) || childIndex < 0 || childIndex >= INNER_INSTRUCTION_INDEX_BASE) throw new Error('Invalid inner child instruction index.');
-  return (parentIndex * INNER_INSTRUCTION_INDEX_BASE) + childIndex;
+  if (!Number.isInteger(childIndex) || childIndex < 0 || childIndex >= INNER_INSTRUCTION_INDEX_INDEX_BASE) throw new Error('Invalid inner child instruction index.');
+  return -((parentIndex * INNER_INSTRUCTION_INDEX_BASE) + childIndex + 1);
 }
 
 function collectParsedInstructions(transaction: unknown): InstructionWithPath[] {
