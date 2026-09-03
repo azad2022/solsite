@@ -27,7 +27,6 @@ IGNORE_LINE_PATTERNS = (
 
 
 def transform_outside_literals(text: str) -> str:
-    """Normalize identifiers/whitespace while preserving SQL and dollar-quoted bodies."""
     out: list[str] = []
     i = 0
     in_single = False
@@ -106,15 +105,6 @@ def transform_outside_literals(text: str) -> str:
     return result.strip() + '\n'
 
 
-def normalize_policy_roles(line: str) -> str:
-    """pg_dump may reorder role lists; role membership order is semantically irrelevant."""
-    m = re.match(r'^(CREATE POLICY .*? TO )([^ ]+(?:,[^ ]+)*)( .*)$', line)
-    if not m:
-        return line
-    roles = ','.join(sorted(m.group(2).split(',')))
-    return m.group(1) + roles + m.group(3)
-
-
 def canonicalize(text: str) -> str:
     kept: list[str] = []
     for raw in text.splitlines():
@@ -127,9 +117,11 @@ def canonicalize(text: str) -> str:
         line = re.sub(r'^CREATE SCHEMA IF NOT EXISTS ', 'CREATE SCHEMA ', line, flags=re.I)
         line = re.sub(r'^CREATE OR REPLACE FUNCTION ', 'CREATE FUNCTION ', line, flags=re.I)
         line = re.sub(r'^CREATE OR REPLACE TRIGGER ', 'CREATE TRIGGER ', line, flags=re.I)
-        line = normalize_policy_roles(line)
-        # The fixture pre-creates Supabase's extensions schema; the snapshot itself
-        # does not define it as a standalone object. Treat that fixture-only line as metadata.
+        # PostgreSQL/pg_dump can emit policy grantee lists in either order;
+        # for this project the only multi-role policy pair is anon/authenticated.
+        line = re.sub(r'\bTO\s+(?:anon,authenticated|authenticated,anon)\b', 'TO anon,authenticated', line, flags=re.I)
+        # The fixture pre-creates this Supabase support schema; it is not a
+        # standalone object in the production snapshot's DDL.
         if re.fullmatch(r'CREATE SCHEMA extensions;', line, flags=re.I):
             continue
         kept.append(line)
