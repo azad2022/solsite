@@ -13,6 +13,7 @@ import {
 } from '../_shared/runtime';
 import { validateExternalOrderId } from '../../../../src/pay/services/securityPolicy';
 import { randomReferenceAddress } from '../../../../src/pay/services/walletSignature';
+import { decodeBase58 } from '../../../../src/pay/services/base58';
 import { resolveAssetFromEnvironment } from '../../../../src/pay/services/assetPolicy';
 
 interface PayEnv {
@@ -61,6 +62,15 @@ function parseExpiry(env: PayEnv, value: unknown): string {
   if (!Number.isInteger(raw) || raw < 60 || raw > MAX_EXPIRY_SECONDS) throw new PayRuntimeError('INVALID_EXPIRY', 400, 'expiresInSeconds must be an integer between 60 and 86400.');
   return new Date(Date.now() + raw * 1000).toISOString();
 }
+function assertSolanaPublicKey(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.trim() !== value || value.length === 0) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, `${field} is not configured safely.`);
+  try {
+    if (decodeBase58(value).length !== 32) throw new Error('invalid key length');
+  } catch {
+    throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, `${field} is not a valid Solana public key.`);
+  }
+  return value;
+}
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: PayEnv }) => {
   const requestId = makePayRequestId();
@@ -87,7 +97,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const externalOrderId = body.externalOrderId == null ? null : body.externalOrderId;
     if (!validateExternalOrderId(externalOrderId as string | null | undefined)) throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId must be a non-empty safe string up to 255 characters.');
     if (externalOrderId !== null && typeof externalOrderId !== 'string') throw new PayRuntimeError('INVALID_EXTERNAL_ORDER_ID', 400, 'externalOrderId must be a string.');
-    if (!env.PAY_FEE_RECIPIENT) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay fee recipient is not configured.');
+    const feeRecipient = assertSolanaPublicKey(env.PAY_FEE_RECIPIENT, 'PAY_FEE_RECIPIENT');
     if (assetConfig.tokenMint && assetConfig.tokenProgram !== 'spl-token') throw new PayRuntimeError('ASSET_NOT_SUPPORTED', 503, 'Configured token program is not supported for this release.');
 
     const merchantResponse = await dbRequest(env, `/rest/v1/pay_merchants?select=id,status&id=eq.${encodeURIComponent(principal.merchantId)}&limit=1`);
@@ -123,7 +133,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         p_fee_atomic: calculated.gatewayFeeAtomic,
         p_customer_total_atomic: calculated.customerTotalAtomic,
         p_merchant_net_atomic: calculated.merchantNetAtomic,
-        p_fee_recipient: env.PAY_FEE_RECIPIENT,
+        p_fee_recipient: feeRecipient,
         p_network: 'solana',
         p_expires_at: expiresAt,
         p_metadata: metadata,
