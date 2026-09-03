@@ -8,6 +8,7 @@ alter table public.pay_payment_intents
   add column if not exists token_decimals integer;
 
 alter table public.pay_payment_transactions
+  add column if not exists token_mint text,
   add column if not exists token_program text,
   add column if not exists token_decimals integer;
 
