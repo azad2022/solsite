@@ -4,7 +4,7 @@
 **Environment:** Supabase Production
 **Project ref:** `nvopkbiedorfshwbmyhn`
 **Region:** `eu-central-1`
-**Purpose:** Immutable audit record of the production schema snapshot and migration ledger observed during SolMint Pay baseline recovery.
+**Purpose:** Immutable audit record of the production schema snapshot, replay/equivalence evidence, and migration ledger observed during SolMint Pay baseline recovery.
 
 ## Production schema snapshot
 
@@ -21,6 +21,26 @@
 - Data-statement scan: no `INSERT INTO` or `COPY ... FROM stdin` blocks detected
 - Connection-string scan: no PostgreSQL URI or `SUPABASE_DB_URL=` pattern detected
 - Pay-object scan: no `pay_`, `solmint_pay`, `payment_intent`, or `payment` identifiers were found in the captured schema text
+
+## Snapshot replay / schema equivalence
+
+- Replay workflow: `SolMint Pay — Production Schema Replay Equivalence`
+- Primary replay execution used: GitHub Actions run `33792606677`, job `100772584920`
+- Replay checkout before comparator-only fixes: branch `audit/solmint-pay-next`, commit `6e15318b9edffab69c9b9c3dc8f5de7545235f27`
+- Snapshot source artifact: `9907361271`
+- Snapshot SHA-256 reverified inside CI: `553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5`
+- Replay target: disposable `postgres:17-alpine` container; Production was never used as the replay target
+- Replay DDL execution: **PASS** with `psql -v ON_ERROR_STOP=1`
+- Replayed schema dump: **PASS** and contained no `INSERT INTO` / `COPY ... FROM stdin` data statements
+- Replayed relation/index/function inventories were successfully generated
+- Independent rerun of the final canonical comparator against the exact replay artifact: **PASS**
+- Final canonical SHA-256, snapshot: `f52a2e9c1d49a42cad70aa9f59fa36aafc6e5b645898ef901153f39dc5f114c1`
+- Final canonical SHA-256, replay: `f52a2e9c1d49a42cad70aa9f59fa36aafc6e5b645898ef901153f39dc5f114c1`
+- Canonicalized lengths: `43,550` bytes on both sides
+
+### Equivalence scope
+
+The comparator intentionally excludes deployment-environment metadata that is not a core PostgreSQL object-equivalence signal: ownership, ACLs/default privileges, unsupported Supabase platform extension declarations unavailable in the disposable image, realtime publication metadata, standard schema comments, and `CREATE OR REPLACE`/role-order serialization differences. The replay therefore proves **core PostgreSQL DDL replayability and canonical schema equivalence**, not byte-for-byte identity with the Supabase-hosted control plane.
 
 ## Production migration ledger snapshot
 
@@ -87,6 +107,6 @@ The live `supabase_migrations.schema_migrations` ledger contained 55 applied ver
 
 ## Recovery decision
 
-This manifest is evidence, not a production migration authorization. The production migration ledger and schema remain authoritative for what is deployed. The repository's Pay migrations remain repository-only until a deterministic baseline and replay/equivalence gates are proven.
+This manifest is evidence, not a production migration authorization. The production migration ledger and schema remain authoritative for what is deployed. The repository's Pay migrations remain repository-only until the migration baseline is reconciled with the 55-production-migration ledger and all Pay-specific replay/security/E2E gates pass.
 
-No remote migration metadata was changed by this capture process, and no Pay DDL was applied to Production as part of the capture.
+No remote migration metadata was changed by the capture or replay process, and no Pay DDL was applied to Production as part of this work.
