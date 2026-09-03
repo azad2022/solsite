@@ -1,6 +1,6 @@
 begin;
 
-select plan(16);
+select plan(17);
 
 -- Pay is intentionally server-mediated. Client roles must not be able to reach
 -- Pay tables directly, and every Pay table must have PostgreSQL RLS enabled.
@@ -228,6 +228,21 @@ select ok(
       and pg_get_indexdef(i.indexrelid) like '%(signature)%'
   ),
   'Blockchain signatures are globally unique across payment transactions'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'pay_create_payment_intent'
+      and lower(pg_get_functiondef(p.oid)) like '%v_expected_fee := ceil(%'
+      and lower(pg_get_functiondef(p.oid)) like '%v_expected_customer_total%'
+      and lower(pg_get_functiondef(p.oid)) like '%v_expected_merchant_net%'
+      and lower(pg_get_functiondef(p.oid)) like '%fee invariants do not match canonical calculation%'
+  ),
+  'Payment Intent creation recomputes and validates fee, customer total, and merchant net inside the database'
 );
 
 select * from finish();
