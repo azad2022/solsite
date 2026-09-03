@@ -14,22 +14,10 @@ const INNER_INSTRUCTION_INDEX_BASE = 10_000;
 type RpcEnv = { SOLANA_RPC_URL?: string };
 type RpcResponse<T> = { result?: T; error?: { code?: number; message?: string } };
 type RpcAccountKey = string | { pubkey?: unknown };
-type ParsedInstruction = {
-  programId?: unknown;
-  parsed?: unknown;
-};
+type ParsedInstruction = { programId?: unknown; parsed?: unknown };
 type ParsedTransaction = {
-  transaction?: {
-    message?: {
-      accountKeys?: unknown;
-      instructions?: unknown;
-    };
-  };
-  meta?: {
-    innerInstructions?: unknown;
-    err?: unknown;
-    fee?: unknown;
-  };
+  transaction?: { message?: { accountKeys?: unknown; instructions?: unknown } };
+  meta?: { innerInstructions?: unknown; err?: unknown; fee?: unknown };
   blockTime?: unknown;
   slot?: unknown;
 };
@@ -41,10 +29,7 @@ type ParsedTransferInfo = {
   mint?: unknown;
   tokenAmount?: { amount?: unknown; decimals?: unknown };
 };
-type TokenAccountValue = {
-  owner?: unknown;
-  data?: { parsed?: { type?: unknown; info?: { mint?: unknown; owner?: unknown } } };
-};
+type TokenAccountValue = { owner?: unknown; data?: { parsed?: { type?: unknown; info?: { mint?: unknown; owner?: unknown } } } };
 type TokenAccountResult = { value?: TokenAccountValue | null };
 type SignatureEntry = { signature?: unknown; blockTime?: unknown };
 type InstructionWithPath = { instruction: ParsedInstruction; instructionIndex: number };
@@ -177,7 +162,7 @@ function outerInstructionIndex(index: number): number {
 
 function innerInstructionIndex(parentIndex: number, childIndex: number): number {
   if (!Number.isInteger(parentIndex) || parentIndex < 0 || parentIndex >= INNER_INSTRUCTION_INDEX_BASE) throw new Error('Invalid inner parent instruction index.');
-  if (!Number.isInteger(childIndex) || childIndex < 0 || childIndex >= INNER_INSTRUCTION_INDEX_INDEX_BASE) throw new Error('Invalid inner child instruction index.');
+  if (!Number.isInteger(childIndex) || childIndex < 0 || childIndex >= INNER_INSTRUCTION_INDEX_BASE) throw new Error('Invalid inner child instruction index.');
   return -((parentIndex * INNER_INSTRUCTION_INDEX_BASE) + childIndex + 1);
 }
 
@@ -186,11 +171,8 @@ function collectParsedInstructions(transaction: unknown): InstructionWithPath[] 
   const tx = transaction as ParsedTransaction;
   const outer = Array.isArray(tx.transaction?.message?.instructions) ? tx.transaction.message.instructions : [];
   const entries: InstructionWithPath[] = [];
-
   outer.forEach((instruction, index) => {
-    if (instruction && typeof instruction === 'object') {
-      entries.push({ instruction: instruction as ParsedInstruction, instructionIndex: outerInstructionIndex(index) });
-    }
+    if (instruction && typeof instruction === 'object') entries.push({ instruction: instruction as ParsedInstruction, instructionIndex: outerInstructionIndex(index) });
   });
 
   const innerGroups = Array.isArray(tx.meta?.innerInstructions) ? tx.meta.innerInstructions : [];
@@ -201,12 +183,9 @@ function collectParsedInstructions(transaction: unknown): InstructionWithPath[] 
     const instructions = (group as { instructions?: unknown }).instructions;
     if (!Array.isArray(instructions)) continue;
     instructions.forEach((instruction, childIndex) => {
-      if (instruction && typeof instruction === 'object') {
-        entries.push({ instruction: instruction as ParsedInstruction, instructionIndex: innerInstructionIndex(parentIndex, childIndex) });
-      }
+      if (instruction && typeof instruction === 'object') entries.push({ instruction: instruction as ParsedInstruction, instructionIndex: innerInstructionIndex(parentIndex, childIndex) });
     });
   }
-
   return entries;
 }
 
@@ -248,7 +227,6 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
 
     const results: ObservedPaymentTransaction[] = [];
     let before: string | undefined;
-
     for (let page = 0; page < MAX_DISCOVERY_PAGES; page += 1) {
       const options: Record<string, unknown> = { commitment: commitmentValue(commitment), limit: DISCOVERY_PAGE_SIZE };
       if (before) options.before = before;
@@ -275,7 +253,6 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
       before = typeof signatures[signatures.length - 1]?.signature === 'string' ? signatures[signatures.length - 1].signature : undefined;
       if (!before) return results;
     }
-
     throw new Error('REFERENCE_DISCOVERY_INCOMPLETE');
   }
 
