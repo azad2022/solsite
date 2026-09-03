@@ -61,9 +61,11 @@ jobs:
           done
           docker exec solmint-pay-replay-postgres pg_isready -U postgres -d postgres
 
-      - name: Prepare Supabase-compatible roles
+      - name: Prepare Supabase-compatible roles and schemas
         run: |
           set -Eeuo pipefail
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            "CREATE SCHEMA IF NOT EXISTS extensions;"
           docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
             "DO \$\$ BEGIN
                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
