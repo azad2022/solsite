@@ -21,8 +21,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: solmint-pay-devnet-e2e-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Serialize runs because they share one isolated Devnet funding wallet.
+  group: solmint-pay-devnet-e2e-funder
+  cancel-in-progress: false
+
+env:
+  SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_CI_RPC_URL }}
 
 jobs:
   devnet-e2e:
@@ -51,91 +55,90 @@ jobs:
       - name: Typecheck Devnet E2E harness
         run: npx tsc -p tsconfig.e2e.json --noEmit
 
+      - name: Validate CI funding configuration
+        env:
+          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: |
+          test -n "$SOLANA_DEVNET_RPC_URL" || { echo 'SOLANA_DEVNET_CI_RPC_URL secret is required.'; exit 1; }
+          test -n "$DEVNET_E2E_FUNDER_SECRET_KEY_B64" || { echo 'DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.'; exit 1; }
+
       - name: Generate ephemeral Devnet E2E keypair
         run: |
           umask 077
           bun -e "const { Keypair } = require('@solana/web3.js'); const { writeFileSync } = require('node:fs'); writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json', JSON.stringify(Array.from(Keypair.generate().secretKey)));"
 
-      - name: Fund ephemeral sender through Solana Devnet airdrop
+      - name: Fund ephemeral sender from dedicated Devnet funding wallet
         env:
-          SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
+          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: |
           umask 077
           bun - <<'BUN'
           const { readFile } = require('node:fs/promises');
-          const { Connection, Keypair, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+          const { Connection, Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
 
           const rpcUrl = process.env.SOLANA_DEVNET_RPC_URL;
-          const path = '/tmp/solmint-pay-devnet-e2e-keypair.json';
-          const minimumBalance = 25_000_000;
-          const requestLamports = 50_000_000;
-          const retryDelaysMs = [0, 15_000, 30_000, 60_000, 120_000];
+          const funderSecretKeyB64 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64;
+          const senderPath = '/tmp/solmint-pay-devnet-e2e-keypair.json';
+          const fundingLamports = 5_000_000;
+          const minimumBalance = 2_000_000;
 
-          const raw = JSON.parse(await readFile(path, 'utf8'));
-          if (!Array.isArray(raw) || raw.length !== 64 || raw.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
-            throw new Error('CI Devnet E2E keypair file is invalid.');
+          if (!rpcUrl) throw new Error('SOLANA_DEVNET_CI_RPC_URL secret is required.');
+          if (!funderSecretKeyB64) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.');
+
+          let funderSecretKey;
+          try {
+            funderSecretKey = Uint8Array.from(Buffer.from(funderSecretKeyB64, 'base64'));
+          } catch {
+            throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is not valid base64.');
+          }
+          if (funderSecretKey.length !== 64) {
+            throw new Error(`Devnet funder secret key must decode to 64 bytes, got ${funderSecretKey.length}.`);
           }
 
+          const raw = JSON.parse(await readFile(senderPath, 'utf8'));
+          if (!Array.isArray(raw) || raw.length !== 64 || raw.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+            throw new Error('CI Devnet E2E sender keypair file is invalid.');
+          }
+
+          const funder = Keypair.fromSecretKey(funderSecretKey);
           const sender = Keypair.fromSecretKey(Uint8Array.from(raw));
           const connection = new Connection(rpcUrl, {
             commitment: 'finalized',
             confirmTransactionInitialTimeout: 45_000,
           });
 
-          console.log(`Funding ephemeral sender ${sender.publicKey.toBase58()}`);
-
-          for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
-            if (retryDelaysMs[attempt] > 0) {
-              await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
-            }
-
-            const before = await connection.getBalance(sender.publicKey, 'finalized');
-            if (before >= minimumBalance) {
-              console.log(`Sender already funded: ${before} lamports`);
-              process.exit(0);
-            }
-
-            try {
-              const signature = await connection.requestAirdrop(sender.publicKey, requestLamports);
-              const deadline = Date.now() + 60_000;
-
-              while (Date.now() < deadline) {
-                const status = (await connection.getSignatureStatuses([signature], {
-                  searchTransactionHistory: true,
-                })).value[0];
-
-                if (status?.err) {
-                  throw new Error(`Devnet airdrop transaction failed: ${JSON.stringify(status.err)}`);
-                }
-
-                if (status?.confirmationStatus === 'finalized') {
-                  const balance = await connection.getBalance(sender.publicKey, 'finalized');
-                  console.log(`Airdrop finalized; sender balance: ${balance} lamports`);
-                  if (balance >= minimumBalance) process.exit(0);
-                  break;
-                }
-
-                await new Promise((resolve) => setTimeout(resolve, 1_500));
-              }
-
-              const balance = await connection.getBalance(sender.publicKey, 'finalized');
-              if (balance >= minimumBalance) {
-                console.log(`Sender funded successfully: ${balance} lamports`);
-                process.exit(0);
-              }
-              console.log(`Attempt ${attempt + 1} did not reach the required balance; retrying.`);
-            } catch (error) {
-              console.log(`Airdrop attempt ${attempt + 1} failed: ${error instanceof Error ? error.message : String(error)}`);
-            }
+          const funderBalance = await connection.getBalance(funder.publicKey, 'finalized');
+          const requiredFunderBalance = fundingLamports + 20_000;
+          if (funderBalance < requiredFunderBalance) {
+            throw new Error(`Devnet CI funder is underfunded: ${funderBalance} lamports; required at least ${requiredFunderBalance}.`);
           }
 
-          const finalBalance = await connection.getBalance(sender.publicKey, 'finalized');
-          throw new Error(`Unable to fund ephemeral sender after all retries. Final balance: ${finalBalance} lamports; required: ${minimumBalance}.`);
+          const senderBalanceBefore = await connection.getBalance(sender.publicKey, 'finalized');
+          if (senderBalanceBefore < minimumBalance) {
+            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+            const transaction = new Transaction({ recentBlockhash: blockhash, feePayer: funder.publicKey }).add(
+              SystemProgram.transfer({
+                fromPubkey: funder.publicKey,
+                toPubkey: sender.publicKey,
+                lamports: fundingLamports,
+              }),
+            );
+            const signature = await sendAndConfirmTransaction(connection, transaction, [funder], {
+              commitment: 'finalized',
+              lastValidBlockHeight,
+            });
+            console.log(`Funder transfer finalized: ${signature}`);
+          }
+
+          const senderBalanceAfter = await connection.getBalance(sender.publicKey, 'finalized');
+          if (senderBalanceAfter < minimumBalance) {
+            throw new Error(`Devnet E2E sender funding failed. Balance: ${senderBalanceAfter} lamports; required: ${minimumBalance}.`);
+          }
+          console.log(`Ephemeral sender funded: ${sender.publicKey.toBase58()} (${senderBalanceAfter} lamports)`);
           BUN
 
       - name: Run real Devnet payment verification
         env:
-          SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
           DEVNET_E2E_SENDER_KEYPAIR_PATH: /tmp/solmint-pay-devnet-e2e-keypair.json
         run: bun run tests/e2e/solmint-pay-devnet.e2e.ts
 
