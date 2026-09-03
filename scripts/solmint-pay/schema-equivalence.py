@@ -8,34 +8,117 @@ import sys
 SNAPSHOT = Path('artifacts/solmint-pay-replay/input/production-schema.sql')
 REPLAY = Path('artifacts/solmint-pay-replay/replayed-schema.sql')
 REPORT = Path('artifacts/solmint-pay-replay/equivalence-report.md')
+DIFF = Path('artifacts/solmint-pay-replay/equivalence-diff.txt')
+
+IGNORE_LINE_PATTERNS = (
+    r'^SET\s',
+    r'^SELECT pg_catalog\.set_config',
+    r'^CREATE EXTENSION IF NOT EXISTS ',
+    r'^ALTER EXTENSION ',
+    r'^COMMENT ON EXTENSION ',
+    r'^ALTER (SCHEMA|TABLE|FUNCTION) .* OWNER TO ',
+    r'^GRANT ',
+    r'^REVOKE ',
+    r'^ALTER DEFAULT PRIVILEGES ',
+    r'^ALTER PUBLICATION ',
+    r'^CREATE PUBLICATION ',
+)
+
+
+def transform_outside_literals(text: str) -> str:
+    """Normalize whitespace and simple quoted identifiers without touching SQL literals."""
+    out: list[str] = []
+    i = 0
+    in_single = False
+    dollar_tag: str | None = None
+    whitespace_pending = False
+
+    while i < len(text):
+        if dollar_tag is not None:
+            end = text.find(dollar_tag, i)
+            if end == -1:
+                out.append(text[i:])
+                break
+            out.append(text[i:end + len(dollar_tag)])
+            i = end + len(dollar_tag)
+            dollar_tag = None
+            continue
+
+        if in_single:
+            ch = text[i]
+            out.append(ch)
+            if ch == "'":
+                if i + 1 < len(text) and text[i + 1] == "'":
+                    out.append("'")
+                    i += 2
+                    continue
+                in_single = False
+            i += 1
+            continue
+
+        if text[i] == "'":
+            if whitespace_pending and out and out[-1] != ' ':
+                out.append(' ')
+            whitespace_pending = False
+            out.append("'")
+            in_single = True
+            i += 1
+            continue
+
+        if text[i] == '$':
+            m = re.match(r'\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$', text[i:])
+            if m:
+                if whitespace_pending and out and out[-1] != ' ':
+                    out.append(' ')
+                whitespace_pending = False
+                tag = m.group(0)
+                out.append(tag)
+                i += len(tag)
+                dollar_tag = tag
+                continue
+
+        ch = text[i]
+        if ch.isspace():
+            whitespace_pending = True
+            i += 1
+            continue
+
+        if whitespace_pending and out and out[-1] not in ' (.,;':
+            out.append(' ')
+        whitespace_pending = False
+
+        # pg_dump may quote simple identifiers in the source snapshot but omit
+        # quotes in the regenerated dump. Normalize only safe identifier tokens.
+        if ch == '"':
+            end = text.find('"', i + 1)
+            if end != -1:
+                ident = text[i + 1:end]
+                if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', ident):
+                    out.append(ident)
+                    i = end + 1
+                    continue
+
+        out.append(ch)
+        i += 1
+
+    result = ''.join(out)
+    result = re.sub(r'\s+;', ';', result)
+    result = re.sub(r';\s*', ';\n', result)
+    return result.strip() + '\n'
 
 
 def canonicalize(text: str) -> str:
-    out = []
+    kept: list[str] = []
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith('--') or line.startswith('\\'):
             continue
-        if line.startswith('SET ') or line.startswith('SELECT pg_catalog.set_config'):
+        if any(re.match(pattern, line, re.I) for pattern in IGNORE_LINE_PATTERNS):
             continue
-        if re.match(r'^CREATE EXTENSION IF NOT EXISTS ', line):
-            continue
-        if re.match(r'^ALTER EXTENSION ', line):
-            continue
-        if re.match(r'^COMMENT ON EXTENSION ', line):
-            continue
-        if re.match(r'^ALTER (SCHEMA|TABLE|FUNCTION) .* OWNER TO ', line):
-            continue
-        if re.match(r'^GRANT ', line) or re.match(r'^REVOKE ', line):
-            continue
-        if re.match(r'^ALTER DEFAULT PRIVILEGES ', line):
-            continue
-        if re.match(r'^ALTER PUBLICATION ', line) or re.match(r'^CREATE PUBLICATION ', line):
-            continue
-        line = line.replace('CREATE TABLE IF NOT EXISTS ', 'CREATE TABLE ')
-        line = line.replace('CREATE SCHEMA IF NOT EXISTS ', 'CREATE SCHEMA ')
-        out.append(line)
-    return '\n'.join(out).strip() + '\n'
+        line = re.sub(r'^CREATE TABLE IF NOT EXISTS ', 'CREATE TABLE ', line, flags=re.I)
+        line = re.sub(r'^CREATE SCHEMA IF NOT EXISTS ', 'CREATE SCHEMA ', line, flags=re.I)
+        kept.append(line)
+    return transform_outside_literals('\n'.join(kept))
 
 
 def digest(text: str) -> str:
@@ -68,22 +151,22 @@ if not same:
         src.splitlines(), replay.splitlines(),
         fromfile='snapshot', tofile='replay', n=3,
     ))
-    REPORT.with_name('equivalence-diff.txt').write_text('\n'.join(diff[:400]) + '\n', encoding='utf-8')
+    DIFF.write_text('\n'.join(diff[:1000]) + '\n', encoding='utf-8')
     lines += [
         'The canonicalized SQL differs. A bounded unified diff was written to `equivalence-diff.txt`.',
         '',
         '## Interpretation',
         '',
-        '`FAIL` means the snapshot did not replay to the same canonical PostgreSQL schema under the current fixture. It does not authorize production migration changes.',
+        '`FAIL` means the snapshot did not reproduce the same canonical SQL under the current PostgreSQL fixture. This is a test failure, not permission to alter Production.',
         '',
     ]
 else:
     lines += [
-        'The full canonicalized schema matched after replay, excluding deployment-environment metadata intentionally removed by this comparator (owners, ACLs, unsupported platform extensions, and realtime publication ownership).',
+        'The canonicalized schema matched after replay, excluding deployment-environment metadata intentionally removed by this comparator (owners, ACLs, unsupported platform extensions, and realtime publication metadata).',
         '',
         '## Interpretation',
         '',
-        '`PASS` means the captured production DDL is replayable and structurally equivalent at the canonical PostgreSQL schema level in the disposable fixture.',
+        '`PASS` means the captured production DDL is replayable and equivalent at the canonical PostgreSQL schema level in the disposable fixture.',
         '',
     ]
 
