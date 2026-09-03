@@ -4,6 +4,7 @@ name: SolMint Pay — Materialize Canonical Production Baseline
 # Production snapshot artifact, archives legacy short-name migrations, and commits
 # the resulting deterministic migration layout to this audit branch.
 # Production database is never modified by this workflow.
+# This workflow intentionally triggers only when this workflow file changes.
 
 on:
   push:
