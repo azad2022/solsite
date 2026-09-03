@@ -26,7 +26,7 @@ concurrency:
 jobs:
   devnet-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -50,7 +50,25 @@ jobs:
       - name: Typecheck Devnet E2E harness
         run: npx tsc -p tsconfig.e2e.json --noEmit
 
+      - name: Generate ephemeral Devnet E2E keypair
+        run: |
+          umask 077
+          bun -e "const { Keypair } = require('@solana/web3.js'); const { writeFileSync } = require('node:fs'); writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json', JSON.stringify(Array.from(Keypair.generate().secretKey)));"
+
+      - name: Install Devnet proof-of-work faucet client
+        run: cargo install devnet-pow --locked
+
+      - name: Fund ephemeral sender through Devnet proof-of-work faucet
+        env:
+          SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
+        run: devnet-pow mine --target-lamports 20000000 --url "$SOLANA_DEVNET_RPC_URL" --keypair-path /tmp/solmint-pay-devnet-e2e-keypair.json
+
       - name: Run real Devnet payment verification
         env:
           SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
+          DEVNET_E2E_SENDER_KEYPAIR_PATH: /tmp/solmint-pay-devnet-e2e-keypair.json
         run: bun run tests/e2e/solmint-pay-devnet.e2e.ts
+
+      - name: Securely remove ephemeral keypair
+        if: always()
+        run: rm -f /tmp/solmint-pay-devnet-e2e-keypair.json
