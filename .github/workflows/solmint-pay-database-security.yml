@@ -3,14 +3,15 @@ name: SolMint Pay Database Security
 on:
   pull_request:
     paths:
-      - "supabase/**"
-      - ".github/workflows/solmint-pay-database-security.yml"
+      - 'supabase/**'
+      - '.github/workflows/solmint-pay-database-security.yml'
   push:
     branches:
-      - feat/solmint-pay-main-sync
+      - 'feat/solmint-pay-*'
+      - 'audit/solmint-pay-*'
     paths:
-      - "supabase/**"
-      - ".github/workflows/solmint-pay-database-security.yml"
+      - 'supabase/**'
+      - '.github/workflows/solmint-pay-database-security.yml'
   workflow_dispatch:
 
 permissions:
