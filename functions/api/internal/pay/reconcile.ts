@@ -1,4 +1,4 @@
-import { createSolanaRpcProvider } from '../../../../src/pay/services/solanaRpcProvider';
+import { createResilientSolanaPaymentProvider } from '../../../../src/pay/services/resilientSolanaPaymentProvider';
 import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../../../../src/pay/services/reconciliationEngine';
 import type { ObservedPaymentTransaction, ObservedTransfer } from '../../../../src/pay/services/verificationPolicy';
 import { payJson, PayRuntimeError, readJsonBody, supabaseRequest, makePayRequestId, enforcePayRateLimit } from '../../pay/_shared/runtime';
@@ -8,6 +8,7 @@ type Env = {
   SUPABASE_SECRET_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SOLANA_RPC_URL?: string;
+  SOLANA_RPC_FALLBACK_URLS?: string;
   PAY_USDC_MINT?: string;
   PAY_USDT_MINT?: string;
   PAY_RECONCILE_SECRET?: string;
@@ -47,7 +48,8 @@ function authorized(request: Request, env: Env): boolean {
 }
 
 function toPayment(row: PaymentRow): ReconciliationPayment {
-  if (typeof row.created_at !== 'string' || !Number.isFinite(Date.parse(row.created_at))) {
+  if (typeof row.created_at !== 'string' || !Number.isFinite(Date.parse(row.created_at))
+      || typeof row.expires_at !== 'string' || !Number.isFinite(Date.parse(row.expires_at))) {
     throw new PayRuntimeError('INVALID_PAYMENT_SNAPSHOT', 503, 'Payment snapshot is invalid.');
   }
 
@@ -199,7 +201,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     const configured = Number(env.PAY_RECONCILE_BATCH_SIZE || requested);
     const limit = Math.min(requested, Number.isInteger(configured) && configured > 0 ? Math.min(configured, 50) : requested);
 
-    const provider = createSolanaRpcProvider(env, { USDC: env.PAY_USDC_MINT, USDT: env.PAY_USDT_MINT });
+    const provider = createResilientSolanaPaymentProvider(env, { USDC: env.PAY_USDC_MINT, USDT: env.PAY_USDT_MINT });
     const health = await provider.getHealth();
     if (!health.ok) return payJson({ code: 'BLOCKCHAIN_PROVIDER_UNAVAILABLE', data: { provider: health.provider } }, 503, requestId);
 
