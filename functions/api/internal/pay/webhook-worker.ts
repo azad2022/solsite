@@ -23,6 +23,9 @@ interface ClaimedDelivery {
   attempt_count: number;
 }
 
+const MAX_CLAIMED_DELIVERIES = 20;
+const WEBHOOK_LEASE_SECONDS = 300;
+
 function constantTimeEqual(a: string, b: string): boolean {
   const left = new TextEncoder().encode(a);
   const right = new TextEncoder().encode(b);
@@ -48,7 +51,7 @@ async function claim(env: Env, workerId: string, limit: number): Promise<Claimed
   const response = await supabaseRequest(env, '/rest/v1/rpc/pay_claim_webhook_deliveries', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ p_worker_id: workerId, p_limit: limit, p_lease_seconds: 60 }),
+    body: JSON.stringify({ p_worker_id: workerId, p_limit: limit, p_lease_seconds: WEBHOOK_LEASE_SECONDS }),
   });
   return await response.json() as ClaimedDelivery[];
 }
@@ -123,8 +126,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   try {
     if (!authorized(request, env)) return payJson({ code: 'UNAUTHORIZED' }, 401, requestId);
     const body = await readJsonBody(request);
-    const requested = body.limit === undefined ? 20 : Number(body.limit);
-    if (!Number.isInteger(requested) || requested < 1 || requested > 100) throw new PayRuntimeError('INVALID_BATCH_SIZE', 400, 'limit must be an integer between 1 and 100.');
+    const requested = body.limit === undefined ? MAX_CLAIMED_DELIVERIES : Number(body.limit);
+    if (!Number.isInteger(requested) || requested < 1 || requested > MAX_CLAIMED_DELIVERIES) throw new PayRuntimeError('INVALID_BATCH_SIZE', 400, `limit must be an integer between 1 and ${MAX_CLAIMED_DELIVERIES}.`);
     const subjectBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pay-webhook-worker'));
     const subjectHash = Array.from(new Uint8Array(subjectBytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
     await enforcePayRateLimit(env, 'webhook:worker', subjectHash, 60, 30);
