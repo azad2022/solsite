@@ -53,6 +53,16 @@ test('verification rejects duplicate matching gateway fee legs', () => {
   assert.equal(verifyPaymentTransaction(expected, duplicateFee).reason, 'AMBIGUOUS_TRANSFER');
 });
 
+test('SPL underpayment is classified from token-account owner authority', () => {
+  const underpaid = observed({ transfers: [{ ...observed().transfers[0], amountAtomic: '989999' }, observed().transfers[1]] });
+  assert.equal(verifyPaymentTransaction(expected, underpaid).reason, 'UNDERPAID');
+});
+
+test('SPL overpayment is classified from token-account owner authority', () => {
+  const overpaid = observed({ transfers: [{ ...observed().transfers[0], amountAtomic: '990001' }, observed().transfers[1]] });
+  assert.equal(verifyPaymentTransaction(expected, overpaid).reason, 'OVERPAID');
+});
+
 test('verification rejects multiple independently valid candidate transactions for one payment reference', async () => {
   const first = observed({ signature: 'sig-1' });
   const second = observed({ signature: 'sig-2', slot: 11 });
