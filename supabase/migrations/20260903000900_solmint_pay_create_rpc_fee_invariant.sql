@@ -124,7 +124,7 @@ begin
     network, gas_sponsored, status, expires_at, metadata
   ) values (
     p_merchant_id, p_external_order_id, p_amount_atomic, p_asset, p_token_mint,
-    p_token_program, p_token_decimals, p_token_decimals, p_recipient, p_reference, p_fee_bps, p_fee_payer,
+    p_token_program, p_token_decimals, p_recipient, p_reference, p_fee_bps, p_fee_payer,
     v_expected_fee, v_expected_customer_total, v_expected_merchant_net, p_fee_recipient,
     p_network, false, 'created', p_expires_at,
     coalesce(p_metadata, '{}'::jsonb)
