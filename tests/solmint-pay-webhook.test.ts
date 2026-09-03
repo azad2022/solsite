@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { fetchWebhookWithTimeout, shouldDeadLetter, webhookRetryDelaySeconds } from '../src/pay/services/webhookDelivery';
+import { generateWebhookSecret } from '../src/pay/services/webhookSecretEnvelope';
 import { signWebhookPayload, verifyWebhookPayload } from '../src/pay/services/webhookSigner';
 
-const secret = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+const secret = generateWebhookSecret();
 const provider = { getSigningSecret: async () => secret };
 
 
