@@ -1,5 +1,8 @@
 name: SolMint Pay — Production Schema Replay Equivalence
 
+# This gate replays the captured Production schema only in a disposable PostgreSQL instance.
+# Production is never used as the replay target.
+
 on:
   workflow_dispatch:
   push:
