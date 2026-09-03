@@ -132,7 +132,7 @@ export async function reconcilePayment(
   try {
     knownSignatures = await repository.loadKnownSignatures(payment.id);
   } catch {
-    return { paymentId: payment.id, outcome: 'provider_unavailable', checkedSignatures: [], verification: null };
+    return { paymentId: payment.id, outcome: 'stale', checkedSignatures: [], verification: null };
   }
 
   let verification: PaymentVerificationDecision;
