@@ -5,6 +5,8 @@ on:
     branches: [feat/solmint-pay-main-sync]
     paths:
       - 'src/pay/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/database/**'
       - 'tests/e2e/**'
       - 'tsconfig.e2e.json'
       - '.github/workflows/solmint-pay-devnet-e2e.yml'
@@ -12,6 +14,8 @@ on:
     branches: [main]
     paths:
       - 'src/pay/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/database/**'
       - 'tests/e2e/**'
       - 'tsconfig.e2e.json'
       - '.github/workflows/solmint-pay-devnet-e2e.yml'
