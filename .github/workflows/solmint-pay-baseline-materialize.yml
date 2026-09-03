@@ -1,0 +1,107 @@
+name: SolMint Pay — Materialize Canonical Production Baseline
+
+# One-shot repository operation. Generates the canonical baseline from the frozen
+# Production snapshot artifact, archives legacy short-name migrations, and commits
+# the resulting deterministic migration layout to this audit branch.
+# Production database is never modified by this workflow.
+
+on:
+  push:
+    branches:
+      - audit/solmint-pay-next
+    paths:
+      - .github/workflows/solmint-pay-baseline-materialize.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: solmint-pay-baseline-materialize
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@v5
+        with:
+          ref: audit/solmint-pay-next
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+
+      - name: Download frozen Production schema artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_ARTIFACT_ID: '9907361271'
+        run: |
+          set -Eeuo pipefail
+          mkdir -p /tmp/solmint-pay-baseline-input
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
+            -o /tmp/production-schema.zip
+          unzip -q /tmp/production-schema.zip -d /tmp/solmint-pay-baseline-input
+          test -s /tmp/solmint-pay-baseline-input/production-schema.sql
+          test -s /tmp/solmint-pay-baseline-input/production-schema.sha256
+          actual_sha="$(sha256sum /tmp/solmint-pay-baseline-input/production-schema.sql | awk '{print $1}')"
+          expected_sha="$(awk '{print $1}' /tmp/solmint-pay-baseline-input/production-schema.sha256)"
+          test "$actual_sha" = "$expected_sha"
+          test "$actual_sha" = '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
+
+      - name: Generate canonical baseline
+        run: |
+          set -Eeuo pipefail
+          node scripts/solmint-pay/baseline-prepare.mjs /tmp/solmint-pay-baseline-input/production-schema.sql
+          node scripts/solmint-pay/baseline-validate.mjs supabase/migrations/20260829090000_solmint_production_baseline.sql
+
+      - name: Assert migration layout before archive
+        run: |
+          set -Eeuo pipefail
+          pay_count="$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' | wc -l)"
+          test "$pay_count" -eq 47
+          legacy_count="$(find supabase/migrations -maxdepth 1 -type f -name '2026*.sql' | grep -v '_solmint_pay_' | wc -l)"
+          test "$legacy_count" -eq 14
+
+      - name: Archive legacy short-name migrations
+        run: node scripts/solmint-pay/activate-canonical-baseline.mjs apply
+
+      - name: Assert canonical active migration layout
+        run: |
+          set -Eeuo pipefail
+          test -f supabase/migrations/20260829090000_solmint_production_baseline.sql
+          pay_count="$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' | wc -l)"
+          test "$pay_count" -eq 47
+          active_sql_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | wc -l)"
+          test "$active_sql_count" -eq 48
+          test "$(find supabase/migration-archive/legacy-2026-09-03 -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq 14
+
+      - name: Commit canonical migration layout
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/migrations/20260829090000_solmint_production_baseline.sql supabase/migration-archive/legacy-2026-09-03
+          git diff --cached --check
+          git diff --cached --stat
+          git commit -m 'db(pay): materialize canonical production migration baseline'
+          git push origin HEAD:audit/solmint-pay-next
+
+      - name: Verify pushed ref
+        run: |
+          set -Eeuo pipefail
+          git fetch origin audit/solmint-pay-next --quiet
+          pushed="$(git rev-parse origin/audit/solmint-pay-next)"
+          local="$(git rev-parse HEAD)"
+          test "$pushed" = "$local"
+          echo "Materialized canonical baseline at $local"
