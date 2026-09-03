@@ -1,9 +1,6 @@
 name: SolMint Pay — Production Schema Capture
 
 on:
-  push:
-    branches:
-      - audit/solmint-pay-next
   workflow_dispatch:
 
 permissions:
