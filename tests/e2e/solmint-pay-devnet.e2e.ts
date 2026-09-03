@@ -7,9 +7,9 @@ import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTra
 const RPC_URL = process.env.SOLANA_DEVNET_RPC_URL?.trim() || 'https://api.devnet.solana.com';
 const connection = new Connection(RPC_URL, { commitment: 'finalized', confirmTransactionInitialTimeout: 45_000 });
 
-function loadFundedSender(): Keypair {
+function loadConfiguredSender(): Keypair | null {
   const encoded = process.env.DEVNET_E2E_SENDER_SECRET_KEY?.trim();
-  if (!encoded) throw new Error('DEVNET_E2E_SENDER_SECRET_KEY is required for repeatable Devnet E2E. Store only a funded Devnet test key in GitHub Actions Secrets.');
+  if (!encoded) return null;
 
   let parsed: unknown;
   try {
@@ -35,13 +35,51 @@ async function waitForFinalized(signature: string): Promise<void> {
   throw new Error('Devnet transaction did not reach finalized commitment within 60 seconds.');
 }
 
+async function fundEphemeralSender(sender: Keypair): Promise<void> {
+  const minimumLamports = 2_000_000_000;
+  const deadline = Date.now() + 90_000;
+  let lastError: unknown = null;
+
+  while (Date.now() < deadline) {
+    try {
+      const balance = await connection.getBalance(sender.publicKey, 'finalized');
+      if (balance >= minimumLamports) return;
+
+      const signature = await connection.requestAirdrop(sender.publicKey, minimumLamports);
+      const latest = await connection.getLatestBlockhash('finalized');
+      await connection.confirmTransaction({
+        signature,
+        ...latest,
+        }, 'finalized');
+
+      const fundedBalance = await connection.getBalance(sender.publicKey, 'finalized');
+      if (fundedBalance >= minimumLamports) return;
+      lastError = new Error(`Devnet airdrop confirmed but balance is only ${fundedBalance} lamports.`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+  }
+
+  throw new Error(`Unable to fund ephemeral Devnet E2E sender within 90 seconds: ${String(lastError)}`);
+}
+
+async function loadFundedSender(): Promise<Keypair> {
+  const configured = loadConfiguredSender();
+  if (configured) return configured;
+
+  const ephemeral = Keypair.generate();
+  await fundEphemeralSender(ephemeral);
+  return ephemeral;
+}
+
 function withReference(ix: ReturnType<typeof SystemProgram.transfer>, reference: PublicKey): ReturnType<typeof SystemProgram.transfer> {
   ix.keys.push({ pubkey: reference, isSigner: false, isWritable: false });
   return ix;
 }
 
 async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; observation: ObservedPaymentTransaction; reference: string }> {
-  const sender = loadFundedSender();
+  const sender = await loadFundedSender();
   const merchant = Keypair.generate();
   const feeRecipient = Keypair.generate();
   const reference = new PublicKey(randomReferenceAddress());
