@@ -11,6 +11,8 @@
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
+    "build:pay-webhook-egress": "esbuild services/pay-webhook-egress-server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/pay-webhook-egress.cjs",
+    "start:pay-webhook-egress": "node dist/pay-webhook-egress.cjs",
     "lint": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && tsc --noEmit",
     "test": "bun test \"tests/**/*.test.ts\""
   },
