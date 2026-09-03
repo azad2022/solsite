@@ -5,7 +5,7 @@
 alter function public.pay_check_and_increment_rate_limit(text,text,integer,integer,timestamptz)
   set search_path = '';
 
-alter function public.pay_create_payment_intent(uuid,text,numeric,text,text,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text)
+alter function public.pay_create_payment_intent(uuid,text,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text)
   set search_path = '';
 
 alter function public.pay_transition_payment(uuid,text,text,text)
