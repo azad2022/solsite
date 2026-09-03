@@ -117,11 +117,13 @@ def canonicalize(text: str) -> str:
         line = re.sub(r'^CREATE SCHEMA IF NOT EXISTS ', 'CREATE SCHEMA ', line, flags=re.I)
         line = re.sub(r'^CREATE OR REPLACE FUNCTION ', 'CREATE FUNCTION ', line, flags=re.I)
         line = re.sub(r'^CREATE OR REPLACE TRIGGER ', 'CREATE TRIGGER ', line, flags=re.I)
-        # PostgreSQL/pg_dump can emit policy grantee lists in either order;
-        # for this project the only multi-role policy pair is anon/authenticated.
-        line = re.sub(r'\bTO\s+(?:anon,authenticated|authenticated,anon)\b', 'TO anon,authenticated', line, flags=re.I)
-        # The fixture pre-creates this Supabase support schema; it is not a
-        # standalone object in the production snapshot's DDL.
+        if line.upper().startswith('CREATE POLICY '):
+            line = re.sub(
+                r'\bTO\s+(?:anon,authenticated|authenticated,anon)\b',
+                'TO anon,authenticated',
+                line,
+                flags=re.I,
+            )
         if re.fullmatch(r'CREATE SCHEMA extensions;', line, flags=re.I):
             continue
         kept.append(line)
