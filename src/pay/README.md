@@ -2,15 +2,21 @@
 
 This directory is the dedicated frontend boundary for SolMint Pay.
 
-## Authoritative specification
+## Authoritative documents
 
-The complete product and engineering source of truth is:
+Product, economic and security authority:
 
 `docs/solmint-pay-v1-product-contract.md`
 
-Read that document before changing Pay behavior. It defines the V1 product boundary, commercial model, accounting separation, referral economics, merchant/affiliate withdrawal rules, backend contracts, blockchain verification, reconciliation, security, frontend surfaces, light-theme UI direction, i18n, testing and release gates. The older `docs/solmint-pay-project-spec.md` document is background context only; if the documents conflict, the V1 product contract is authoritative.
+Operational continuation and engineering handoff:
 
-Documentation is a contract, not implementation evidence. When code and the specification disagree, do not guess: identify the conflict and resolve the policy/architecture decision explicitly.
+`docs/solmint-pay-continuation.md`
+
+Read both before changing Pay behavior. The V1 contract defines what the product must do. The continuation document records the verified current architecture, runtime assumptions, workflow rules, and session-start procedure.
+
+`docs/solmint-pay-project-spec.md` is historical and superseded. Do not use it as an active specification.
+
+Documentation is a contract, not implementation evidence. When code, database state, CI, or runtime observations disagree with documentation, do not guess: identify the conflict and resolve it explicitly.
 
 ## Purpose
 
@@ -25,6 +31,7 @@ The public route is intentionally disabled until the project release gates pass.
 - Keep all display text behind the i18n layer; do not hard-code customer-facing copy in feature logic.
 - Use semantic payment states and typed domain models instead of presentation strings.
 - Keep blockchain verification behind a service boundary so the UI does not call RPC/indexers directly.
+- Production blockchain access uses the server-side provider boundary; do not wire Helius-specific logic into UI components.
 - Keep referral accounting separate from payment presentation and calculate commissions from eligible gateway revenue.
 - Treat fee policy as a first-class payment policy and snapshot it into the Payment Intent.
 - Keep Gas Sponsorship as a separate policy and accounting boundary.
