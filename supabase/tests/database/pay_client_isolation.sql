@@ -1,6 +1,6 @@
 begin;
 
-select plan(5);
+select plan(10);
 
 -- Pay is intentionally server-mediated. Client roles must not be able to reach
 -- Pay tables directly, and every Pay table must have PostgreSQL RLS enabled.
@@ -66,6 +66,85 @@ select ok(
       and p.proconfig @> array['search_path=""']::text[]
   ),
   'Revenue recognition guard is SECURITY DEFINER with an empty search_path'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'pay_payment_events'
+      and t.tgname = 'pay_payment_event_enqueue_webhooks'
+      and not t.tgisinternal
+  ),
+  'Payment events enqueue webhook deliveries through a database trigger'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'pay_webhook_deliveries'
+      and c.contype = 'u'
+      and pg_get_constraintdef(c.oid) like '%webhook_id%event_id%'
+  ),
+  'Webhook deliveries are idempotent per webhook and event'
+);
+
+select ok(
+  not exists (
+    select 1
+    from information_schema.role_routine_grants
+    where specific_schema = 'public'
+      and routine_name in (
+        'pay_claim_webhook_deliveries',
+        'pay_complete_webhook_delivery',
+        'pay_fail_webhook_delivery'
+      )
+      and grantee in ('PUBLIC', 'anon', 'authenticated')
+      and privilege_type = 'EXECUTE'
+  ),
+  'Webhook worker RPCs are not executable by public or client roles'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in (
+        'pay_claim_webhook_deliveries',
+        'pay_complete_webhook_delivery',
+        'pay_fail_webhook_delivery'
+      )
+      and (
+        p.prosecdef is not true
+        or not (p.proconfig @> array['search_path=""']::text[])
+      )
+  ),
+  'Webhook worker RPCs use SECURITY DEFINER with an empty search_path'
+);
+
+select ok(
+  not exists (
+    select 1
+    from information_schema.role_routine_grants
+    where specific_schema = 'public'
+      and routine_name in (
+        'pay_claim_webhook_deliveries',
+        'pay_complete_webhook_delivery',
+        'pay_fail_webhook_delivery'
+      )
+      and grantee = 'anon'
+      and privilege_type = 'EXECUTE'
+  ),
+  'Anonymous role cannot execute webhook worker RPCs'
 );
 
 select * from finish();
