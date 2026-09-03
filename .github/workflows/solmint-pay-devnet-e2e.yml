@@ -74,7 +74,7 @@ jobs:
           umask 077
           bun - <<'BUN'
           const { readFile } = require('node:fs/promises');
-          const { Connection, Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
+          const { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
 
           const rpcUrl = process.env.SOLANA_DEVNET_RPC_URL;
           const funderSecretKeyB64 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64;
@@ -115,7 +115,7 @@ jobs:
 
           const senderBalanceBefore = await connection.getBalance(sender.publicKey, 'finalized');
           if (senderBalanceBefore < minimumBalance) {
-            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+            const { blockhash } = await connection.getLatestBlockhash('finalized');
             const transaction = new Transaction({ recentBlockhash: blockhash, feePayer: funder.publicKey }).add(
               SystemProgram.transfer({
                 fromPubkey: funder.publicKey,
@@ -125,7 +125,6 @@ jobs:
             );
             const signature = await sendAndConfirmTransaction(connection, transaction, [funder], {
               commitment: 'finalized',
-              lastValidBlockHeight,
             });
             console.log(`Funder transfer finalized: ${signature}`);
           }
