@@ -71,6 +71,8 @@ jobs:
           set -Eeuo pipefail
           pay_count="$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' | wc -l)"
           test "$pay_count" -eq 47
+          baseline_count="$(find supabase/migrations -maxdepth 1 -type f -name '20260829090000_solmint_production_baseline.sql' | wc -l)"
+          test "$baseline_count" -eq 1
           legacy_count="$(find supabase/migrations -maxdepth 1 -type f -name '2026*.sql' | grep -v '_solmint_pay_' | grep -v '^supabase/migrations/20260829090000_solmint_production_baseline.sql$' | wc -l)"
           test "$legacy_count" -eq 14
 
