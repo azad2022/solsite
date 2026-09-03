@@ -16,6 +16,7 @@ type Env = {
 
 type PaymentRow = ReconciliationPayment & {
   merchant_id: string;
+  created_at: string;
   amount_atomic: string;
   customer_total_atomic: string;
   merchant_settlement_atomic: string;
@@ -46,10 +47,14 @@ function authorized(request: Request, env: Env): boolean {
 }
 
 function toPayment(row: PaymentRow): ReconciliationPayment {
+  if (typeof row.created_at !== 'string' || !Number.isFinite(Date.parse(row.created_at))) {
+    throw new PayRuntimeError('INVALID_PAYMENT_SNAPSHOT', 503, 'Payment snapshot is invalid.');
+  }
+
   return {
     id: row.id,
     merchantId: row.merchant_id,
-    createdAt: (row as PaymentRow & { created_at?: string }).created_at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: row.created_at,
     amountAtomic: row.amount_atomic,
     customerTotalAtomic: row.customer_total_atomic,
     merchantSettlementAtomic: row.merchant_settlement_atomic,
@@ -71,11 +76,13 @@ async function loadPayments(env: Env, limit: number): Promise<ReconciliationPaym
   const fields = ['id','merchant_id','created_at','amount_atomic','customer_total_atomic','merchant_settlement_atomic','fee_atomic','asset','token_mint','token_program','token_decimals','recipient','fee_recipient','reference','verification_commitment','expires_at','status'].join(',');
   const now = new Date().toISOString();
   const active = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid,ambiguous)&expires_at=gt.${encodeURIComponent(now)}&order=created_at.asc&limit=${limit}`, { headers: { Accept: 'application/json' } });
+  if (!active.ok) throw new PayRuntimeError('PAYMENT_LOAD_FAILED', 503, 'Payment reconciliation data is temporarily unavailable.');
   const activeRows = await active.json() as PaymentRow[];
   if (activeRows.length >= limit) return activeRows.map(toPayment);
 
   const remaining = limit - activeRows.length;
   const expired = await supabaseRequest(env, `/rest/v1/pay_payment_intents?select=${fields}&status=in.(pending,detected,verifying,underpaid,ambiguous)&expires_at=lte.${encodeURIComponent(now)}&order=expires_at.asc&limit=${remaining}`, { headers: { Accept: 'application/json' } });
+  if (!expired.ok) throw new PayRuntimeError('PAYMENT_LOAD_FAILED', 503, 'Payment reconciliation data is temporarily unavailable.');
   return [...activeRows, ...await expired.json() as PaymentRow[]].map(toPayment);
 }
 
@@ -84,6 +91,7 @@ class SupabaseReconciliationRepository implements ReconciliationRepository {
 
   async loadKnownSignatures(paymentId: string): Promise<ReadonlySet<string>> {
     const response = await supabaseRequest(this.env, `/rest/v1/pay_payment_transactions?select=signature&payment_id=eq.${encodeURIComponent(paymentId)}&is_authoritative=eq.true&order=observed_at.asc`, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new PayRuntimeError('SIGNATURE_LOAD_FAILED', 503, 'Payment verification data is temporarily unavailable.');
     const rows = await response.json() as Array<{ signature: string }>;
     return new Set(rows.map((row) => row.signature).filter(Boolean));
   }
