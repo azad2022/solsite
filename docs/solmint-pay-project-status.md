@@ -3,6 +3,7 @@
 **Status date:** 2026-09-03  
 **Repository:** `azad2022/solsite`  
 **Working branch:** `audit/solmint-pay-next`  
+**Current audited HEAD:** `0a496ec6adc2473ee3dba57e0100c6a8903ea19f`  
 **Production route:** `/pay` remains disabled until all release gates pass.
 
 ## Purpose of this file
@@ -15,15 +16,16 @@ A previous assistant/session statement, this file, PR descriptions, commit messa
 
 ## Verified facts as of 2026-09-03
 
-### Production baseline
+### Production database
 
 - Supabase Production project ref: `nvopkbiedorfshwbmyhn`
 - Region: `eu-central-1`
-- PostgreSQL: `17.6.1.147`
-- Project status observed: `ACTIVE_HEALTHY`
-- Production migration ledger observed: **55 applied migrations**
-- Newest observed Production migration: `20260826190853 / category_default_media_gallery_rpc`
-- No Pay migration was present in the Production migration ledger at the time of capture.
+- PostgreSQL observed: `17.6`
+- Production migration ledger currently contains **56 distinct applied versions**.
+- Newest observed Production migration: `20260826190853 / category_default_media_gallery_rpc`.
+- The earlier checkpoint incorrectly recorded 55; the live ledger now has been independently counted and verified as 56. The newest migration version is unchanged.
+- No Pay migration/version is present in the Production migration ledger.
+- Direct inspection of the live `public` schema reports **0 `pay_%` relations**. Pay schema is therefore not deployed to Production.
 
 ### Production schema snapshot
 
@@ -31,108 +33,135 @@ A previous assistant/session statement, this file, PR descriptions, commit messa
 - Verified run: `33781797071`
 - Artifact ID: `9907361271`
 - Snapshot SHA-256: `553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5`
-- Capture contained schema only; no `INSERT INTO` or `COPY ... FROM stdin` data blocks were detected.
-- The snapshot contained no Pay objects.
-- Production was not modified by the snapshot capture.
+- Capture contains schema only; no `INSERT INTO` or `COPY ... FROM stdin` data blocks were detected.
+- Snapshot contains no Pay objects.
+- Production was not modified by the capture.
 
 ### Snapshot replay / core schema equivalence
 
-- The captured Production snapshot was replayed on disposable PostgreSQL 17.
+- Captured Production snapshot replayed on disposable PostgreSQL 17.
 - DDL replay succeeded with `psql -v ON_ERROR_STOP=1`.
-- Final canonical comparison of snapshot vs replay passed.
+- Canonical snapshot/replay comparison passed.
 - Canonical SHA-256 for both sides: `f52a2e9c1d49a42cad70aa9f59fa36aafc6e5b645898ef901153f39dc5f114c1`
 - Canonicalized length on both sides: `43,550` bytes.
-- Scope limitation: this proves core PostgreSQL schema replay/equivalence under the comparator's normalization. It does **not** prove byte-for-byte Supabase control-plane equivalence.
+- Limitation: this proves core PostgreSQL schema replay/equivalence under the comparator's normalization; it does not prove byte-for-byte Supabase control-plane equivalence.
 
-### Pay migration replay on the real Production baseline
+### Pay migration replay
 
-- Workflow: `SolMint Pay — Production Baseline Migration Replay`
+- Workflow: `.github/workflows/solmint-pay-baseline-migration-replay.yml`
 - Target: disposable PostgreSQL 17, never Production.
-- The current Pay migration chain was discovered and applied on top of the captured Production baseline.
-- Latest verified result at this checkpoint: **47/47 Pay migrations applied successfully**.
-- The workflow also checked for removed legacy relations and unexpected non-Pay relation additions.
-- This result proves migration-chain replayability against the captured baseline, but it is not by itself a full definition-level equivalence audit of every legacy object.
+- Current Pay migration chain: **47 migrations**.
+- All **47/47** Pay migrations applied successfully on top of the captured Production baseline.
+- The replay checks legacy relation preservation and Pay object creation.
+- This proves migration-chain replayability against the captured baseline; it is not by itself permission to execute Pay DDL in Production.
 
-## Existing Pay security and E2E coverage — do not assume these are missing
+### Baseline definition preservation audit
+
+- Workflow: `.github/workflows/solmint-pay-baseline-definition-audit.yml`
+- Successful run: `33796828088`
+- Head: `0a496ec6adc2473ee3dba57e0100c6a8903ea19f`
+- Snapshot SHA was independently verified before replay.
+- All 47 Pay migrations applied successfully.
+- Non-Pay relations, columns, constraints, indexes, functions/security configuration, triggers, policies, table grants, routine grants, and extensions were compared before/after.
+- Result: **PASS** — no non-Pay definition changes detected under the comparator.
+
+## Existing Pay security and E2E coverage — do not repeat without evidence of invalidation
 
 ### RLS / client isolation
 
-Existing test file: `supabase/tests/database/pay_client_isolation.sql`
+Existing test: `supabase/tests/database/pay_client_isolation.sql`
 
-The test contains 18 assertions covering, among other things:
+The test has 18 assertions covering RLS on Pay tables, denial of direct `anon`/`authenticated` table privileges, security-definer restrictions, webhook enqueueing, global blockchain signature uniqueness, Payment Intent fee/invariant checks and required-field rejection.
 
-- Pay tables having RLS enabled.
-- `anon` and `authenticated` lacking direct Pay table privileges.
-- Sensitive webhook worker RPCs not executable by public/client roles.
-- Security-sensitive RPCs using `SECURITY DEFINER` with `search_path=""`.
-- Database guards for revenue recognition and webhook enqueueing.
-- Global uniqueness of blockchain payment signatures.
-- Payment Intent fee and required-field invariants.
+Existing workflow: `.github/workflows/solmint-pay-database-security.yml`.
 
-Existing workflow: `.github/workflows/solmint-pay-database-security.yml`
+This gate has already been implemented and tested. Do not recreate equivalent tests merely because new baseline tooling was added.
 
-The workflow runs the database tests and then performs a local migration reset and re-runs the tests. This is an existing security gate, not a missing feature.
+### SECURITY DEFINER / rate limit / reconciliation guards
 
-### SECURITY DEFINER / rate-limit / reconciliation guards
+Existing test: `supabase/tests/database/pay_rate_limit_and_reconciliation_guards.sql`.
 
-Existing test file: `supabase/tests/database/pay_rate_limit_and_reconciliation_guards.sql`
+It covers SECURITY DEFINER + empty search path, client execute restrictions, atomic rate limiting, reconciliation fee-payer binding and fail-closed sponsored-payment behavior.
 
-It explicitly checks `SECURITY DEFINER`, empty search path, client execute restrictions, atomic rate-limit behavior, fee-payer binding, and fail-closed sponsored-payment behavior.
+This coverage already exists and should not be duplicated without a real coverage gap.
 
-Do not create duplicate tests merely because the current baseline replay workflow was added.
-
-### Devnet E2E
+### Real Devnet E2E
 
 Existing workflow: `.github/workflows/solmint-pay-devnet-e2e.yml`  
 Existing harness: `tests/e2e/solmint-pay-devnet.e2e.ts`
 
-The harness is a real Devnet test, not a mock-only test. It:
+Concrete successful historical run:
 
-- connects to `https://api.devnet.solana.com` with finalized commitment;
-- generates an ephemeral sender keypair;
-- funds it through the dedicated CI Devnet funding wallet;
-- sends real SOL transfers;
-- attaches a Solana Pay reference to the merchant transfer;
-- discovers the finalized transaction by reference;
-- asserts the expected signature/reference/success/finalization/fee payer/transfers;
-- runs `verifyPaymentTransaction()` against the observed transaction and requires a valid confirmed result.
+- Run: `33767614630`
+- Job: `devnet-e2e`
+- Conclusion: `success`
+- The successful job included funding an ephemeral sender, executing the real Devnet payment verification, and securely removing the temporary keypair.
 
-**Important evidence distinction:** existence and quality of the Devnet E2E harness are verified here. A future session must still inspect the GitHub Actions history and obtain concrete successful run evidence before declaring the current Devnet E2E gate PASS. Do not confuse “workflow exists” with “latest run passed.”
+The harness itself uses real Devnet transactions, finalized commitment, reference discovery and `verifyPaymentTransaction()`.
 
-## Current architectural blockers / caution
+**Important audit rule:** this is valid evidence that the real Devnet E2E path has been exercised successfully. Because the user has already performed the real wallet/funding test, do not rerun it now merely to repeat the exercise. A fresh current-HEAD E2E run is intentionally deferred until the final release candidate, after substantive backend/baseline changes are complete. That final run is one release-gate validation, not a duplicate development step.
 
-- Production migration history is authoritative. Do not rewrite, rename, or reorder historical migrations.
-- Do not apply Pay DDL to Production merely because disposable replay passed.
-- Do not modify the remote migration ledger until the production baseline/reconciliation strategy is explicitly designed and validated.
-- The Supabase `main` branch has previously been observed in `MIGRATIONS_FAILED`; do not treat that environment as a clean baseline unless independently re-verified.
-- Existing baseline replay checks relation additions/removals, but a future release gate should also consider definition-level changes to legacy tables, columns, constraints, indexes, triggers, policies, grants, functions, and other security-relevant objects.
+## Current architectural blockers
+
+1. **Migration baseline reconciliation** remains the principal Production blocker. The exact live schema is now captured and definition-preserving under Pay replay, but the historical remote migration versions still do not have one-to-one repository artifacts. The repository must adopt an explicit, proven baseline strategy before any remote migration-history repair or Production Pay DDL.
+2. **Operational backend adversarial coverage** still needs a final audit for webhook races/replay/SSRF/retry/DLQ behavior and reconciliation/accounting concurrency. First inspect existing coverage; only add genuinely missing tests.
+3. **Current final release candidate CI evidence** must be collected after substantive changes stop.
+4. **Current-HEAD real Devnet E2E** is deferred to the final release candidate; historical success is already proven.
+5. **Production Pay DDL** remains blocked until the baseline reconciliation strategy and final release gates pass.
 
 ## Required re-verification protocol for every new session
 
-Before making any substantive SolMint Pay change, perform a fresh repository-first audit:
+Before any substantive SolMint Pay change:
 
 1. Resolve the real current branch and HEAD.
 2. Inspect PR #37 and current diff against `main`.
-3. Enumerate the current Pay migration chain and migration ordering.
-4. Inspect all Pay-related workflows under `.github/workflows/`.
-5. Inspect the latest run status for each relevant workflow, not merely workflow existence.
-6. Inspect uploaded evidence artifacts when a gate depends on them.
-7. Re-check production migration ledger and production schema facts when the decision touches deployment/baseline.
-8. Reconcile observed evidence against this document and update this file when the verified state changes.
-9. Never infer PASS from a prior chat message, commit title, or this document alone.
+3. Enumerate current Pay migrations and ordering.
+4. Inspect all Pay workflows.
+5. Inspect latest relevant run status for each gate.
+6. Inspect evidence artifacts when a gate depends on them.
+7. Re-check Production migration ledger and schema for database/deployment decisions.
+8. Search existing tests, workflows, commits and evidence for the requested task before creating new work.
+9. Reconcile observed facts against this document, correcting this document when stale.
+10. Never infer PASS from a previous chat message, commit title, old run, or this document alone.
 
 ## Release-gate principle
 
-The release decision is fail-closed. Missing evidence, stale evidence, ambiguous CI state, cancelled jobs, failed jobs, incomplete discovery, RPC uncertainty, or migration-state ambiguity must not be reported as PASS.
+Missing evidence, stale evidence, ambiguous CI state, cancelled jobs, failed jobs, incomplete discovery, RPC uncertainty, or migration-state ambiguity must never be reported as PASS.
 
-The project is not production-ready merely because the Pay migrations replay successfully. `/pay` remains disabled until the complete release gate set is independently verified.
+The project is not Production-ready merely because Pay migrations replay successfully. `/pay` remains disabled until the complete release gate set is independently satisfied on the final release candidate.
 
 ## Canonical evidence references
 
-- `docs/solmint-pay-production-baseline-manifest-2026-09-03.md` — production snapshot and replay evidence.
-- `.github/workflows/solmint-pay-baseline-migration-replay.yml` — baseline + Pay migration replay gate.
-- `.github/workflows/solmint-pay-database-security.yml` — database security gate.
+- `docs/solmint-pay-production-baseline-manifest-2026-09-03.md` — Production snapshot/equivalence evidence.
+- `docs/solmint-pay-migration-baseline-recovery.md` — migration-baseline recovery contract.
+- `.github/workflows/solmint-pay-baseline-migration-replay.yml` — baseline + Pay migration replay.
+- `.github/workflows/solmint-pay-baseline-definition-audit.yml` — non-Pay definition preservation gate.
+- `.github/workflows/solmint-pay-database-security.yml` — existing database security gate.
 - `.github/workflows/solmint-pay-devnet-e2e.yml` — real Devnet E2E gate.
-- `supabase/tests/database/pay_client_isolation.sql` — RLS/client isolation and security assertions.
-- `supabase/tests/database/pay_rate_limit_and_reconciliation_guards.sql` — rate-limit/reconciliation/Security Definer assertions.
+- `supabase/tests/database/pay_client_isolation.sql` — RLS/client-isolation assertions.
+- `supabase/tests/database/pay_rate_limit_and_reconciliation_guards.sql` — rate-limit/reconciliation assertions.
 - `tests/e2e/solmint-pay-devnet.e2e.ts` — real Devnet verification harness.
+
+## Next safe sequence
+
+```text
+Explicit migration baseline strategy
+        ↓
+Disposable Supabase/control-plane validation
+        ↓
+Only then: production migration-history reconciliation
+        ↓
+Controlled Pay migration application plan
+        ↓
+Webhook + reconciliation/accounting adversarial coverage
+        ↓
+Current-HEAD aggregate CI
+        ↓
+One final current-HEAD real Devnet E2E
+        ↓
+Independent adversarial release audit
+        ↓
+Frontend implementation
+        ↓
+Final production activation of /pay
+```
