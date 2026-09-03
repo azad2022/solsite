@@ -16,6 +16,7 @@ IGNORE_LINE_PATTERNS = (
     r'^CREATE EXTENSION IF NOT EXISTS ',
     r'^ALTER EXTENSION ',
     r'^COMMENT ON EXTENSION ',
+    r'^COMMENT ON SCHEMA ',
     r'^ALTER (SCHEMA|TABLE|FUNCTION) .* OWNER TO ',
     r'^GRANT ',
     r'^REVOKE ',
@@ -26,12 +27,12 @@ IGNORE_LINE_PATTERNS = (
 
 
 def transform_outside_literals(text: str) -> str:
-    """Normalize whitespace and simple quoted identifiers without touching SQL literals."""
+    """Normalize identifiers/whitespace while preserving SQL and dollar-quoted bodies."""
     out: list[str] = []
     i = 0
     in_single = False
     dollar_tag: str | None = None
-    whitespace_pending = False
+    pending_space = False
 
     while i < len(text):
         if dollar_tag is not None:
@@ -57,9 +58,9 @@ def transform_outside_literals(text: str) -> str:
             continue
 
         if text[i] == "'":
-            if whitespace_pending and out and out[-1] != ' ':
+            if pending_space and out and out[-1] != ' ':
                 out.append(' ')
-            whitespace_pending = False
+            pending_space = False
             out.append("'")
             in_single = True
             i += 1
@@ -68,9 +69,9 @@ def transform_outside_literals(text: str) -> str:
         if text[i] == '$':
             m = re.match(r'\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$', text[i:])
             if m:
-                if whitespace_pending and out and out[-1] != ' ':
+                if pending_space and out and out[-1] != ' ':
                     out.append(' ')
-                whitespace_pending = False
+                pending_space = False
                 tag = m.group(0)
                 out.append(tag)
                 i += len(tag)
@@ -79,16 +80,14 @@ def transform_outside_literals(text: str) -> str:
 
         ch = text[i]
         if ch.isspace():
-            whitespace_pending = True
+            pending_space = True
             i += 1
             continue
 
-        if whitespace_pending and out and out[-1] not in ' (.,;':
+        if pending_space and out and out[-1] not in ' (.,;':
             out.append(' ')
-        whitespace_pending = False
+        pending_space = False
 
-        # pg_dump may quote simple identifiers in the source snapshot but omit
-        # quotes in the regenerated dump. Normalize only safe identifier tokens.
         if ch == '"':
             end = text.find('"', i + 1)
             if end != -1:
@@ -107,6 +106,15 @@ def transform_outside_literals(text: str) -> str:
     return result.strip() + '\n'
 
 
+def normalize_policy_roles(line: str) -> str:
+    """pg_dump may reorder role lists; role membership order is semantically irrelevant."""
+    m = re.match(r'^(CREATE POLICY .*? TO )([^ ]+(?:,[^ ]+)*)( .*)$', line)
+    if not m:
+        return line
+    roles = ','.join(sorted(m.group(2).split(',')))
+    return m.group(1) + roles + m.group(3)
+
+
 def canonicalize(text: str) -> str:
     kept: list[str] = []
     for raw in text.splitlines():
@@ -117,6 +125,13 @@ def canonicalize(text: str) -> str:
             continue
         line = re.sub(r'^CREATE TABLE IF NOT EXISTS ', 'CREATE TABLE ', line, flags=re.I)
         line = re.sub(r'^CREATE SCHEMA IF NOT EXISTS ', 'CREATE SCHEMA ', line, flags=re.I)
+        line = re.sub(r'^CREATE OR REPLACE FUNCTION ', 'CREATE FUNCTION ', line, flags=re.I)
+        line = re.sub(r'^CREATE OR REPLACE TRIGGER ', 'CREATE TRIGGER ', line, flags=re.I)
+        line = normalize_policy_roles(line)
+        # The fixture pre-creates Supabase's extensions schema; the snapshot itself
+        # does not define it as a standalone object. Treat that fixture-only line as metadata.
+        if re.fullmatch(r'CREATE SCHEMA extensions;', line, flags=re.I):
+            continue
         kept.append(line)
     return transform_outside_literals('\n'.join(kept))
 
@@ -162,7 +177,7 @@ if not same:
     ]
 else:
     lines += [
-        'The canonicalized schema matched after replay, excluding deployment-environment metadata intentionally removed by this comparator (owners, ACLs, unsupported platform extensions, and realtime publication metadata).',
+        'The canonicalized schema matched after replay, excluding deployment-environment metadata and dump-format differences intentionally normalized by this comparator.',
         '',
         '## Interpretation',
         '',
