@@ -2,7 +2,9 @@ name: SolMint Pay Devnet E2E
 
 on:
   push:
-    branches: [feat/solmint-pay-main-sync]
+    branches:
+      - 'feat/solmint-pay-*'
+      - 'audit/solmint-pay-*'
     paths:
       - 'src/pay/**'
       - 'supabase/migrations/**'
