@@ -56,7 +56,7 @@ jobs:
           bun -e "const { Keypair } = require('@solana/web3.js'); const { writeFileSync } = require('node:fs'); writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json', JSON.stringify(Array.from(Keypair.generate().secretKey)));"
 
       - name: Install Devnet proof-of-work faucet client
-        run: cargo install devnet-pow --locked
+        run: cargo install devnet-pow
 
       - name: Fund ephemeral sender through Devnet proof-of-work faucet
         env:
