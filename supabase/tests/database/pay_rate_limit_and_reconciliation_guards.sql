@@ -53,7 +53,7 @@ select ok(
       join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public'
        and p.proname = 'pay_apply_verified_observation'
-       and lower(pg_get_functiondef(p.oid)) like '%p_payment.gas_sponsored is distinct from false%'
+       and lower(pg_get_functiondef(p.oid)) like '%v_payment.gas_sponsored is distinct from false%'
   ),
   'Verified reconciliation fails closed while sponsored payment binding is not implemented'
 );
