@@ -119,7 +119,7 @@ def canonicalize(text: str) -> str:
         line = re.sub(r'^CREATE OR REPLACE TRIGGER ', 'CREATE TRIGGER ', line, flags=re.I)
         if line.upper().startswith('CREATE POLICY '):
             line = re.sub(
-                r'\bTO\s+(?:anon,authenticated|authenticated,anon)\b',
+                r'\bTO\s+"?(?:anon|authenticated)"?\s*,\s*"?(?:anon|authenticated)"?\b',
                 'TO anon,authenticated',
                 line,
                 flags=re.I,
