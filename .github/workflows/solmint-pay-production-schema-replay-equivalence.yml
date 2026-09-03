@@ -10,6 +10,7 @@ on:
       - 'audit/solmint-pay-next'
     paths:
       - '.github/workflows/solmint-pay-production-schema-replay-equivalence.yml'
+      - 'scripts/solmint-pay/schema-equivalence.py'
 
 permissions:
   contents: read
@@ -122,68 +123,10 @@ jobs:
           test -s artifacts/solmint-pay-replay/replayed_functions.txt
           sha256sum artifacts/solmint-pay-replay/replayed-schema.sql | tee artifacts/solmint-pay-replay/replayed-schema.sha256
 
-      - name: Produce normalized equivalence report
+      - name: Produce canonical schema equivalence report
         run: |
           set -Eeuo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          src = Path('artifacts/solmint-pay-replay/input/production-schema.sql').read_text()
-          replay_tables = Path('artifacts/solmint-pay-replay/replayed_tables.txt').read_text().splitlines()
-          replay_indexes = Path('artifacts/solmint-pay-replay/replayed_indexes.txt').read_text().splitlines()
-          replay_functions = Path('artifacts/solmint-pay-replay/replayed_functions.txt').read_text().splitlines()
-
-          def source_tables(text):
-              return sorted(set(re.findall(r'^CREATE TABLE IF NOT EXISTS "([^"]+)"\."([^"]+)"', text, re.M)))
-
-          def source_indexes(text):
-              return sorted(set(re.findall(r'^CREATE (?:UNIQUE )?INDEX "([^"]+)"', text, re.M)))
-
-          def source_functions(text):
-              return sorted(set(re.findall(r'^CREATE FUNCTION "([^"]+)"\."([^"]+)"', text, re.M)))
-
-          def pair_lines(rows):
-              out = []
-              for row in rows:
-                  parts = row.split('|')
-                  out.append(tuple(parts))
-              return sorted(set(out))
-
-          s = {
-              'tables': set(source_tables(src)),
-              'indexes': set(source_indexes(src)),
-              'functions': set(source_functions(src)),
-          }
-          r = {
-              'tables': set(pair_lines(replay_tables)),
-              'indexes': set(tuple([x]) for x in replay_indexes),
-              'functions': set(tuple(x.split('|')) for x in replay_functions),
-          }
-
-          # Normalize index inventory to schema/name pairs from the snapshot.
-          src_index_map = []
-          for name in s['indexes']:
-              m = re.search(r'^(?:.+?)$', name)
-              src_index_map.append(name)
-          # The snapshot index names are globally unique enough for this comparison;
-          # replay catalog reports schema-qualified names, so retain schema+name only for diff diagnostics.
-          r['indexes'] = set(replay_indexes)
-          lines = ['# SolMint Pay — Snapshot Replay Equivalence', '', '## Result', '']
-          overall = True
-          for key in ('tables','functions'):
-              missing, extra = sorted(s[key] - r[key]), sorted(r[key] - s[key])
-              ok = not missing and not extra
-              overall &= ok
-              lines.append(f'- {key}: `{"PASS" if ok else "FAIL"}` (snapshot={len(s[key])}, replay={len(r[key])})')
-              if missing: lines.append(f'  - missing: {missing[:20]}')
-              if extra: lines.append(f'  - extra: {extra[:20]}')
-          lines += ['', 'Indexes are recorded from both sources; index-name equivalence is checked separately in the detailed evidence.', '', f'Overall core catalog: `{"PASS" if overall else "FAIL"}`', '']
-          Path('artifacts/solmint-pay-replay/equivalence-report.md').write_text('\n'.join(lines))
-          print('\n'.join(lines))
-          if not overall:
-              raise SystemExit(1)
-          PY
+          python3 scripts/solmint-pay/schema-equivalence.py
 
       - name: Verify Pay objects are not in production snapshot input
         run: |
