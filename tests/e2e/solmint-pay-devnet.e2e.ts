@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Connection, Keypair, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
 import { randomReferenceAddress } from '../../src/pay/services/walletSignature';
 import { createSolanaRpcProvider } from '../../src/pay/services/solanaRpcProvider';
 import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTransaction } from '../../src/pay/services/verificationPolicy';
@@ -35,7 +35,7 @@ async function waitForFinalized(signature: string): Promise<void> {
   throw new Error('Devnet transaction did not reach finalized commitment within 60 seconds.');
 }
 
-function withReference(ix: ReturnType<typeof SystemProgram.transfer>, reference: Keypair['publicKey']): ReturnType<typeof SystemProgram.transfer> {
+function withReference(ix: ReturnType<typeof SystemProgram.transfer>, reference: PublicKey): ReturnType<typeof SystemProgram.transfer> {
   ix.keys.push({ pubkey: reference, isSigner: false, isWritable: false });
   return ix;
 }
@@ -44,8 +44,7 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
   const sender = loadFundedSender();
   const merchant = Keypair.generate();
   const feeRecipient = Keypair.generate();
-  const referenceKey = randomReferenceAddress();
-  const reference = referenceKey.publicKey.toBase58();
+  const reference = new PublicKey(randomReferenceAddress());
   const merchantSettlement = 1_000_000n;
   const gatewayFee = 10_000n;
   const total = merchantSettlement + gatewayFee;
@@ -57,7 +56,7 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
     fromPubkey: sender.publicKey,
     toPubkey: merchant.publicKey,
     lamports: Number(merchantSettlement),
-  }), referenceKey.publicKey);
+  }), reference);
 
   const feeTransfer = SystemProgram.transfer({
     fromPubkey: sender.publicKey,
@@ -65,15 +64,15 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
     lamports: Number(gatewayFee),
   });
 
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
-  const transaction = new Transaction({ recentBlockhash: blockhash, feePayer: sender.publicKey, lastValidBlockHeight })
+  const { blockhash } = await connection.getLatestBlockhash('finalized');
+  const transaction = new Transaction({ recentBlockhash: blockhash, feePayer: sender.publicKey })
     .add(merchantTransfer, feeTransfer);
   const signature = await sendAndConfirmTransaction(connection, transaction, [sender], { commitment: 'confirmed' });
   await waitForFinalized(signature);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: RPC_URL });
   const candidates = await provider.findTransactionsByReference(
-    reference,
+    reference.toBase58(),
     'finalized',
     { createdAt: new Date(Date.now() - 5 * 60_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() },
   );
@@ -97,13 +96,13 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
     feeDestination: feeRecipient.publicKey.toBase58(),
     merchantSettlementAtomic: merchantSettlement.toString(),
     gatewayFeeAtomic: gatewayFee.toString(),
-    reference,
+    reference: reference.toBase58(),
     requiredCommitment: 'finalized',
   };
 
   const verification = verifyPaymentTransaction(expected, observation);
   assert.deepEqual(verification, { valid: true, status: 'confirmed', reason: 'OK' });
-  return { expected, observation, reference };
+  return { expected, observation, reference: reference.toBase58() };
 }
 
 async function main(): Promise<void> {
