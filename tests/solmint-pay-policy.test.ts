@@ -6,18 +6,18 @@ import { calculateGatewayFee } from '../src/pay/services/feePolicy';
 import { recognizeGatewayRevenue } from '../src/pay/services/revenueRecognition';
 import { verifyPaymentTransaction } from '../src/pay/services/verificationPolicy';
 
-test('gateway fee ceiling does not overcharge exact multiples', () => {
+test('gateway fee ceiling implements the V1 1% gateway fee', () => {
   assert.deepEqual(calculateGatewayFee('10000', 100, 'merchant'), {
-    gatewayFeeAtomic: '1', customerTotalAtomic: '10000', merchantNetAtomic: '9999',
+    gatewayFeeAtomic: '100', customerTotalAtomic: '10000', merchantNetAtomic: '9900',
   });
   assert.deepEqual(calculateGatewayFee('10001', 100, 'merchant'), {
-    gatewayFeeAtomic: '2', customerTotalAtomic: '10001', merchantNetAtomic: '9999',
+    gatewayFeeAtomic: '101', customerTotalAtomic: '10001', merchantNetAtomic: '9900',
   });
 });
 
 test('customer-paid fee increases customer total without changing merchant principal', () => {
   assert.deepEqual(calculateGatewayFee('10000', 100, 'customer'), {
-    gatewayFeeAtomic: '1', customerTotalAtomic: '10001', merchantNetAtomic: '10000',
+    gatewayFeeAtomic: '100', customerTotalAtomic: '10100', merchantNetAtomic: '10000',
   });
 });
 
@@ -48,7 +48,7 @@ test('verification rejects split-source transfer legs', () => {
       ],
     },
   );
-  assert.deepEqual(result, { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' });
+  assert.deepEqual(result, { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' });
 });
 
 test('verification rejects unsponsored transaction with a different fee payer', () => {
@@ -62,5 +62,5 @@ test('verification rejects unsponsored transaction with a different fee payer', 
       ],
     },
   );
-  assert.deepEqual(result, { valid: false, status: 'failed', reason: 'SENDER_MISMATCH' });
+  assert.deepEqual(result, { valid: false, status: 'wrong_recipient', reason: 'MERCHANT_TRANSFER_MISMATCH' });
 });
