@@ -96,29 +96,70 @@ observe -> verify -> atomically persist -> append-only accounting -> notify
 
 No financial recognition is valid before complete verification and atomic reconciliation.
 
-## 5. Database state rule
+## 5. Database and migration-baseline state
 
 The Pay migration chain exists in Git, but repository migrations are not evidence that the live database has them.
 
-The current connected Supabase project is `nvopkbiedorfshwbmyhn` in `eu-central-1`. As of **2026-09-03**, the production migration history ends at version `20260826190853` and contains **no SolMint Pay migration versions**. Direct inspection also finds no `pay_*` tables, `pay_*` routines, or Pay triggers in the production public schema. The Pay database layer is therefore **not production-validated and not deployed**.
+The current connected Supabase project is `nvopkbiedorfshwbmyhn` in `eu-central-1`. As of **2026-09-03**, the production migration history ends at version `20260826190853` and contains **55 applied migration versions**, with no SolMint Pay versions. Direct inspection also finds no Pay schema layer in production. The Pay database layer is therefore **not production-deployed or production-validated**.
 
-There is a second, independent migration blocker: the Supabase project reports its protected `main` branch as `MIGRATIONS_FAILED`, and the branch-action log on **2026-09-03** recorded `Remote migration versions not found in local migrations directory` while cloning the repository's `main` ref. The repository's current `main` migration files do not use the same historical version identifiers recorded in the live Supabase migration history. This means the Git repository and Supabase migration baseline are already divergent before Pay is introduced.
+There is a second, independent migration blocker: the Supabase project's protected `main` branch currently reports `MIGRATIONS_FAILED`. The associated branch-action log on **2026-09-03** recorded:
 
-**Do not interpret this as a Pay migration bug and do not repair it by adding arbitrary no-op migration placeholders or by blindly applying the full Pay chain to production.** The baseline must first be reconstructed/reconciled from authoritative production history and repository schema state.
+`Remote migration versions not found in local migrations directory.`
 
-Before any production migration action:
+The remote migration ledger uses 14-digit version identifiers such as `20260804215020`, while the repository's historical site migration files use a mixture of shorter date-based filenames such as `20260805_harden_rls_and_article_timestamps.sql`. Several remote migrations are not represented by a corresponding repository file at all.
 
-1. confirm the intended Supabase project/environment;
-2. inspect its exact migration history and actual schema objects;
-3. map every remote migration version to the repository migration that produced the corresponding schema change;
-4. determine whether the repository is missing historical migrations, renamed migrations, or a generated baseline;
-5. use an isolated database for Pay migration replay and destructive/security testing;
-6. validate Pay tables, indexes, constraints, functions, triggers, RLS and grants;
-7. only then prepare a controlled production migration plan that preserves the existing database history.
+A verified copy of the complete production migration ledger is stored in:
 
-The database security workflow is intentionally isolated: it bootstraps only the minimal prerequisite `users` table and applies the Pay migration subset for replay/security testing. This CI database is not production evidence and does not repair the live migration baseline.
+`docs/solmint-pay-supabase-production-migration-ledger-2026-09-03.txt`
 
-## 6. Workflow contract
+The recovery contract is stored in:
+
+`docs/solmint-pay-migration-baseline-recovery.md`
+
+**Do not repair this condition by blindly renaming files, inserting no-op historical placeholders, marking remote migrations repaired, deleting remote history, or running Pay migrations against production.** Those actions could make the ledger look coherent while destroying provenance or fresh-database replayability.
+
+The current evidence does not prove the exact SQL that was executed for every historical remote migration. Therefore a trustworthy baseline requires an authoritative production schema snapshot/diff before any migration-history rewrite or metadata repair.
+
+## 6. Required migration-baseline recovery
+
+The safe sequence is:
+
+```text
+Remote migration ledger
+        +
+Actual production schema
+        +
+Git migration history
+        |
+        v
+Provenance / equivalence analysis
+        |
+        v
+Canonical production schema snapshot
+        |
+        v
+Controlled repository baseline
+        |
+        v
+Fresh-database replay validation
+        |
+        v
+Production/clone validation
+        |
+        v
+Migration-history reconciliation
+        |
+        v
+Only then: Pay migrations
+```
+
+The canonical baseline must contain the actual deployed schema without production data or secrets, including tables, columns, defaults/generated values, constraints, indexes, functions/security configuration, triggers, RLS/policies, grants/revokes, extensions, and relevant comments.
+
+At this time the available connected-database tool surface does not provide a trustworthy `pg_dump`/schema-diff artifact that can be accepted as the canonical baseline. Reconstructing the entire production schema manually from catalog queries would be an avoidable omission risk and is therefore not being treated as complete work.
+
+The result is an intentional **fail-closed blocker**: the baseline recovery contract and the verified remote ledger are now in Git, but production migration metadata/schema are not modified until the canonical snapshot provenance is available.
+
+## 7. Workflow contract
 
 The Pay workflows are deliberately separated by responsibility:
 
@@ -134,7 +175,7 @@ Builds an isolated Supabase environment, runs Pay database tests, resets the iso
 
 Runs the real Devnet transaction harness with an ephemeral sender keypair funded by a dedicated Devnet funding wallet. It must never consume or print the production Helius credential.
 
-All three Pay workflows must use the same trigger principle:
+All three Pay workflows use the same trigger principle:
 
 ```text
 Pull request -> main
@@ -148,7 +189,7 @@ Pay workflows are evidence collectors. A workflow that is skipped, cancelled, in
 
 The generic repository CI remains separate from these focused Pay gates.
 
-## 7. Session-start procedure for every future ChatGPT/engineer
+## 8. Session-start procedure for every future ChatGPT/engineer
 
 Do not start by changing code.
 
@@ -160,8 +201,9 @@ Start by fetching:
 4. relevant workflow definitions and latest current-HEAD runs;
 5. authoritative V1 contract;
 6. this continuation document;
-7. relevant source files and migrations;
-8. live Supabase schema/migration state when database questions are involved.
+7. migration-baseline recovery contract and production ledger manifest;
+8. relevant source files and migrations;
+9. live Supabase schema/migration state when database questions are involved.
 
 Then answer, internally and explicitly in the working notes:
 
@@ -177,7 +219,7 @@ What evidence exists for that blocker?
 
 Only after that should implementation begin.
 
-## 8. Evidence discipline
+## 9. Evidence discipline
 
 Never treat any of these as proof by themselves:
 
@@ -194,42 +236,38 @@ Never treat any of these as proof by themselves:
 
 Evidence must be tied to the current relevant HEAD and environment.
 
-## 9. Pay launch lock
+## 10. Pay launch lock
 
 `PAY_API_ENABLED=false` and the public `/pay` route remain intentionally disabled until every mandatory release gate in the V1 contract is independently satisfied.
 
 No chat, workflow, or automation may flip the Pay launch flag as a shortcut around a failing or unknown gate.
 
-## 10. Current workstream snapshot — 2026-09-03
+## 11. Current workstream snapshot — 2026-09-03
 
 - Main branch HEAD: `30a4de0df02b788d2eeedb88377115922805fffb`.
-- Current Pay audit branch HEAD: `007bd045ed64466be8b04cf6691e303e0cccd525`.
+- Current Pay audit branch HEAD after baseline-recovery documentation: `d8dd284c89d66173db82f63da2b4803abf13c273`.
 - Pay audit work is being tracked in PR #37; the Pay foundation branch is tracked separately in PR #36.
-- PR #37 remains open/draft and is explicitly audit-only; `/pay` remains disabled.
-- The audit branch contains the Pay resilience wrapper, hardened verification/reconciliation/database logic, focused Pay tests, and focused Pay workflows.
-- Production Supabase does not yet contain the Pay migration/schema layer.
-- Production Supabase also has a pre-existing migration-baseline drift: its recorded historical versions are not present under the same identifiers in the repository's `main` migration directory, and its protected `main` branch currently reports `MIGRATIONS_FAILED`.
+- PR #37 remains open/draft and audit-only; `/pay` remains disabled.
+- Production Supabase is healthy, but its migration ledger contains 55 historical versions not represented under the same identifiers in the repository, and its protected `main` branch currently reports `MIGRATIONS_FAILED`.
+- No Pay migration has been applied to production.
+- A verified production migration ledger manifest and a baseline-recovery contract now exist in the repository.
+- No current-HEAD CI PASS is claimed for the latest audit branch HEAD; current workflow evidence remains insufficient until workflows execute for that exact SHA.
 - The existing Helius/Cloudflare RPC arrangement is a completed infrastructure decision, not an open setup task.
-- No current-HEAD CI PASS is claimed for `007bd045ed64466be8b04cf6691e303e0cccd525`; the latest verified state had no workflow run evidence for that exact docs-only HEAD.
 
 This snapshot must be revalidated at the start of the next session rather than assumed current forever.
 
-## 11. What to do next
+## 12. What to do next
 
-Unless fresh evidence reveals a higher-severity blocker, the next logical stage is:
+The next action is to obtain or generate a **canonical production schema snapshot/diff** through a trusted Supabase/PostgreSQL mechanism, validate it against the live database, and only then reconcile the repository migration directory and Supabase migration ledger.
 
-**Database Integration & Migration Baseline Audit**
-
-The first objective is not to deploy Pay. It is to reconcile the existing Supabase migration history with the repository's actual schema history without losing or rewriting production history.
-
-Then:
+After the baseline is genuinely repaired:
 
 ```text
 Migration baseline reconciliation
       ↓
 Isolated Pay migration replay/security
       ↓
-Controlled production migration plan
+Controlled production Pay migration plan
       ↓
 Reconciliation/accounting concurrency
       ↓
