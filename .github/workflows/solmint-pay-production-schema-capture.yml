@@ -2,6 +2,12 @@ name: SolMint Pay — Production Schema Capture
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'audit/solmint-pay-next'
+    paths:
+      - '.github/workflows/solmint-pay-production-schema-capture.yml'
+      - 'scripts/solmint-pay/capture-production-schema.sh'
 
 permissions:
   contents: read
