@@ -1,0 +1,169 @@
+name: SolMint Pay — Production Baseline Migration Replay
+
+# Replays the captured Production schema, then applies the current Pay migration
+# chain on top of that exact baseline in disposable PostgreSQL. Production is never
+# used as the target of this workflow.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'audit/solmint-pay-next'
+    paths:
+      - '.github/workflows/solmint-pay-baseline-migration-replay.yml'
+      - 'supabase/migrations/*_solmint_pay_*.sql'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: solmint-pay-baseline-migration-replay
+  cancel-in-progress: false
+
+jobs:
+  replay-pay:
+    name: Replay Production baseline then apply Pay migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout audited branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download verified Production snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_ARTIFACT_ID: '9907361271'
+        run: |
+          set -Eeuo pipefail
+          mkdir -p artifacts/solmint-pay-baseline-replay/input
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
+            -o /tmp/production-schema.zip
+          unzip -q /tmp/production-schema.zip -d artifacts/solmint-pay-baseline-replay/input
+          test -s artifacts/solmint-pay-baseline-replay/input/production-schema.sql
+          test -s artifacts/solmint-pay-baseline-replay/input/production-schema.sha256
+          cd artifacts/solmint-pay-baseline-replay/input
+          expected_sha="$(awk '{print $1}' production-schema.sha256)"
+          actual_sha="$(sha256sum production-schema.sql | awk '{print $1}')"
+          test "$expected_sha" = "$actual_sha"
+          echo "Snapshot SHA-256 verified: $actual_sha"
+
+      - name: Start disposable PostgreSQL 17
+        run: |
+          set -Eeuo pipefail
+          docker run -d --name solmint-pay-baseline-postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=postgres \
+            -p 5432:5432 \
+            postgres:17-alpine
+          for i in $(seq 1 60); do
+            docker exec solmint-pay-baseline-postgres pg_isready -U postgres -d postgres >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker exec solmint-pay-baseline-postgres pg_isready -U postgres -d postgres
+
+      - name: Prepare Supabase-compatible fixture
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE SCHEMA IF NOT EXISTS extensions;"
+          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END \$\$;"
+          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE PUBLICATION supabase_realtime FOR ALL TABLES;"
+
+      - name: Replay Production schema baseline
+        run: |
+          set -Eeuo pipefail
+          sed \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' \
+            -e '/^COMMENT ON EXTENSION "pg_cron"/d' \
+            -e '/^COMMENT ON EXTENSION "pg_net"/d' \
+            -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
+            -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
+            artifacts/solmint-pay-baseline-replay/input/production-schema.sql > /tmp/production-schema.sql
+          docker cp /tmp/production-schema.sql solmint-pay-baseline-postgres:/tmp/production-schema.sql
+          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/production-schema.sql > artifacts/solmint-pay-baseline-replay/production-replay.log 2>&1
+
+      - name: Capture pre-Pay catalog fingerprint
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-baseline-postgres psql -U postgres -d postgres -AtF '|' -c "select n.nspname,c.relname,c.relkind from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname not in ('pg_catalog','information_schema') and c.relkind in ('r','p','v','m','f','S') order by 1,2,3;" > artifacts/solmint-pay-baseline-replay/pre_relations.txt
+          docker exec solmint-pay-baseline-postgres psql -U postgres -d postgres -AtF '|' -c "select n.nspname,p.proname,pg_catalog.pg_get_function_identity_arguments(p.oid),p.prokind from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname not in ('pg_catalog','information_schema') order by 1,2,3,4;" > artifacts/solmint-pay-baseline-replay/pre_functions.txt
+          docker exec solmint-pay-baseline-postgres psql -U postgres -d postgres -AtF '|' -c "select schemaname,indexname from pg_catalog.pg_indexes where schemaname not in ('pg_catalog','information_schema') order by 1,2;" > artifacts/solmint-pay-baseline-replay/pre_indexes.txt
+
+      - name: Discover and order Pay migration chain
+        run: |
+          set -Eeuo pipefail
+          find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print | sort > artifacts/solmint-pay-baseline-replay/pay-migrations.txt
+          test -s artifacts/solmint-pay-baseline-replay/pay-migrations.txt
+          awk '{print NR ": " $0}' artifacts/solmint-pay-baseline-replay/pay-migrations.txt
+
+      - name: Apply current Pay migration chain
+        run: |
+          set -Eeuo pipefail
+          : > artifacts/solmint-pay-baseline-replay/pay-apply.log
+          while IFS= read -r migration; do
+            echo "===== APPLY ${migration} =====" | tee -a artifacts/solmint-pay-baseline-replay/pay-apply.log
+            docker cp "$migration" solmint-pay-baseline-postgres:/tmp/current-pay-migration.sql
+            docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/current-pay-migration.sql 2>&1 | tee -a artifacts/solmint-pay-baseline-replay/pay-apply.log
+          done < artifacts/solmint-pay-baseline-replay/pay-migrations.txt
+
+      - name: Capture post-Pay catalog and detect unexpected legacy changes
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-baseline-postgres psql -U postgres -d postgres -AtF '|' -c "select n.nspname,c.relname,c.relkind from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname not in ('pg_catalog','information_schema') and c.relkind in ('r','p','v','m','f','S') order by 1,2,3;" > artifacts/solmint-pay-baseline-replay/post_relations.txt
+          docker exec solmint-pay-baseline-postgres psql -U postgres -d postgres -AtF '|' -c "select n.nspname,p.proname,pg_catalog.pg_get_function_identity_arguments(p.oid),p.prokind from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname not in ('pg_catalog','information_schema') order by 1,2,3,4;" > artifacts/solmint-pay-baseline-replay/post_functions.txt
+          docker exec solmint-pay-baseline-postgres psql -U postgres -d postgres -AtF '|' -c "select schemaname,indexname from pg_catalog.pg_indexes where schemaname not in ('pg_catalog','information_schema') order by 1,2;" > artifacts/solmint-pay-baseline-replay/post_indexes.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          pre = set(Path('artifacts/solmint-pay-baseline-replay/pre_relations.txt').read_text().splitlines())
+          post = set(Path('artifacts/solmint-pay-baseline-replay/post_relations.txt').read_text().splitlines())
+          added = sorted(post - pre)
+          removed = sorted(pre - post)
+          pay_prefixes = ('pay_', 'solmint_pay')
+          allowed_added = [x for x in added if any(part.startswith(pay_prefixes) for part in x.split('|')[1:2])]
+          unexpected_added = [x for x in added if x not in allowed_added]
+          report = Path('artifacts/solmint-pay-baseline-replay/legacy-relation-diff.txt')
+          report.write_text('\n'.join([
+              'Added relations:', *added, '',
+              'Removed relations:', *removed, '',
+              'Unexpected non-Pay additions:', *unexpected_added, ''
+          ]))
+          if removed or unexpected_added:
+              raise SystemExit('Unexpected legacy relation change detected')
+          PY
+
+      - name: Verify Pay database invariants
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc "select count(*) from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'pay_%';" | tee artifacts/solmint-pay-baseline-replay/pay_table_count.txt
+          test "$(cat artifacts/solmint-pay-baseline-replay/pay_table_count.txt)" -gt 0
+          ! grep -Eiq 'ERROR:|FATAL:' artifacts/solmint-pay-baseline-replay/pay-apply.log
+
+      - name: Dump final replay schema evidence
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-baseline-postgres pg_dump --schema-only --no-owner --no-privileges -U postgres -d postgres > artifacts/solmint-pay-baseline-replay/final-schema.sql
+          sha256sum artifacts/solmint-pay-baseline-replay/final-schema.sql | tee artifacts/solmint-pay-baseline-replay/final-schema.sha256
+
+      - name: Upload baseline-plus-Pay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-baseline-migration-replay-${{ github.run_id }}
+          path: artifacts/solmint-pay-baseline-replay/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Cleanup disposable database
+        if: always()
+        run: docker rm -f solmint-pay-baseline-postgres >/dev/null 2>&1 || true
