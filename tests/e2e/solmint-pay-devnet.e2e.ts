@@ -7,22 +7,6 @@ import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTra
 const RPC_URL = process.env.SOLANA_DEVNET_RPC_URL?.trim() || 'https://api.devnet.solana.com';
 const connection = new Connection(RPC_URL, { commitment: 'finalized', confirmTransactionInitialTimeout: 45_000 });
 
-function loadConfiguredSender(): Keypair | null {
-  const encoded = process.env.DEVNET_E2E_SENDER_SECRET_KEY?.trim();
-  if (!encoded) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(encoded);
-  } catch {
-    throw new Error('DEVNET_E2E_SENDER_SECRET_KEY must be a JSON array of 64 secret-key bytes.');
-  }
-  if (!Array.isArray(parsed) || parsed.length !== 64 || parsed.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
-    throw new Error('DEVNET_E2E_SENDER_SECRET_KEY must contain exactly 64 byte values.');
-  }
-  return Keypair.fromSecretKey(Uint8Array.from(parsed as number[]));
-}
-
 async function waitForFinalized(signature: string, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -36,7 +20,7 @@ async function waitForFinalized(signature: string, timeoutMs = 60_000): Promise<
 }
 
 async function fundEphemeralSender(sender: Keypair): Promise<void> {
-  const minimumLamports = 1_000_000_000;
+  const minimumLamports = 100_000_000;
   const deadline = Date.now() + 90_000;
   let lastError: unknown = null;
   let delayMs = 3_000;
@@ -66,9 +50,6 @@ async function fundEphemeralSender(sender: Keypair): Promise<void> {
 }
 
 async function loadFundedSender(): Promise<Keypair> {
-  const configured = loadConfiguredSender();
-  if (configured) return configured;
-
   const ephemeral = Keypair.generate();
   await fundEphemeralSender(ephemeral);
   return ephemeral;
