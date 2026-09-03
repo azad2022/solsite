@@ -88,9 +88,12 @@ function transferMatches(transfer: ObservedTransfer, expected: ExpectedPayment, 
 
 function transferMatchesTarget(transfer: ObservedTransfer, expected: ExpectedPayment, destination: string): boolean {
   if (transfer.destination !== transfer.destination.trim()) return false;
-  if (transfer.asset !== expected.asset || transfer.destination !== destination) return false;
+  if (transfer.asset !== expected.asset) return false;
   if (expected.asset === 'SOL') {
-    return transfer.tokenMint === null && transfer.tokenProgram === null && transfer.tokenDecimals === null;
+    return transfer.destination === destination
+      && transfer.tokenMint === null
+      && transfer.tokenProgram === null
+      && transfer.tokenDecimals === null;
   }
   return transfer.tokenMint === expected.tokenMint
     && transfer.tokenProgram === expected.tokenProgram
