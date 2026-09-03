@@ -24,10 +24,16 @@ function base64UrlToBytes(value: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+function toOwnedArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
+}
+
 async function importAesKey(masterKeyBase64Url: string): Promise<CryptoKey> {
   const raw = base64UrlToBytes(masterKeyBase64Url);
   if (raw.byteLength !== KEY_BYTES) throw new Error('Webhook master key must be exactly 32 bytes.');
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  return crypto.subtle.importKey('raw', toOwnedArrayBuffer(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
 function decodeSecret(secret: string): Uint8Array {
@@ -53,7 +59,7 @@ export async function encryptWebhookSecret(input: { secret: string; masterKeyBas
   const key = await importAesKey(input.masterKeyBase64Url);
   const iv = new Uint8Array(IV_BYTES);
   crypto.getRandomValues(iv);
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, secret);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: toOwnedArrayBuffer(iv) }, key, toOwnedArrayBuffer(secret));
   return `${VERSION}.${bytesToBase64Url(iv)}.${bytesToBase64Url(new Uint8Array(ciphertext))}`;
 }
 
@@ -65,7 +71,7 @@ export async function decryptWebhookSecret(input: { envelope: string; masterKeyB
   const ciphertext = base64UrlToBytes(ciphertextEncoded);
   if (ciphertext.byteLength < 16) throw new Error('Invalid webhook envelope ciphertext.');
   const key = await importAesKey(input.masterKeyBase64Url);
-  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toOwnedArrayBuffer(iv) }, key, toOwnedArrayBuffer(ciphertext));
   const secretBytes = new Uint8Array(plaintext);
   if (secretBytes.byteLength !== SECRET_BYTES) throw new Error('Invalid webhook secret length.');
   return bytesToBase64Url(secretBytes);
