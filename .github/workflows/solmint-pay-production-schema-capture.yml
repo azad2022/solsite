@@ -1,6 +1,9 @@
 name: SolMint Pay — Production Schema Capture
 
 on:
+  push:
+    branches:
+      - audit/solmint-pay-next
   workflow_dispatch:
 
 permissions:
@@ -44,6 +47,13 @@ jobs:
         run: |
           if grep -Eiq '^(INSERT INTO|COPY .+ FROM stdin;)' artifacts/solmint-pay-production-schema/production-schema.sql; then
             echo "Production data statements detected in schema artifact; refusing to publish it." >&2
+            exit 1
+          fi
+
+      - name: Validate secret-like connection strings are absent
+        run: |
+          if grep -Eiq '(postgres(ql)?://[^[:space:]]+|SUPABASE_DB_URL=)' artifacts/solmint-pay-production-schema/production-schema.sql; then
+            echo "Possible connection string detected in schema artifact; refusing to publish it." >&2
             exit 1
           fi
 
