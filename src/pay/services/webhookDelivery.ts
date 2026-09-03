@@ -15,33 +15,62 @@ export function shouldDeadLetter(attemptCount: number, maxAttempts = WEBHOOK_MAX
   return attemptCount >= maxAttempts;
 }
 
+interface WebhookEgressEnv {
+  PAY_WEBHOOK_EGRESS_URL?: string;
+  PAY_WEBHOOK_EGRESS_SECRET?: string;
+}
+
+function requireEgressConfiguration(env: WebhookEgressEnv | undefined): { url: string; secret: string } {
+  const url = env?.PAY_WEBHOOK_EGRESS_URL?.trim();
+  const secret = env?.PAY_WEBHOOK_EGRESS_SECRET?.trim();
+  if (!url || !secret || secret.length < 32) throw new Error('Webhook egress is not configured.');
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('Webhook egress URL is not allowed.');
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || !parsed.hostname || (parsed.port && parsed.port !== '443')) {
+    throw new Error('Webhook egress URL is not allowed.');
+  }
+  return { url: parsed.toString(), secret };
+}
+
 export async function fetchWebhookWithTimeout(input: {
   endpointUrl: string;
   signatureHeader: string;
   body: string;
   timeoutMs?: number;
+  env?: WebhookEgressEnv;
 }): Promise<{ ok: boolean; status: number }> {
   const timeoutMs = input.timeoutMs ?? WEBHOOK_TIMEOUT_MS;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30_000) throw new Error('Invalid webhook timeout.');
   if (!validateWebhookUrl(input.endpointUrl)) throw new Error('Webhook endpoint URL is not allowed.');
   if (new TextEncoder().encode(input.body).byteLength > WEBHOOK_MAX_BODY_BYTES) throw new Error('Webhook payload is too large.');
 
+  const egress = requireEgressConfiguration(input.env);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(input.endpointUrl, {
+    const response = await fetch(egress.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'User-Agent': 'SolMint-Pay-Webhook/1.0',
+        Authorization: `Bearer ${egress.secret}`,
+        'X-SolMint-Egress-Target': input.endpointUrl,
         'X-SolMint-Signature': input.signatureHeader,
       },
-      body: input.body,
+      body: JSON.stringify({ endpointUrl: input.endpointUrl, signatureHeader: input.signatureHeader, body: input.body }),
       redirect: 'error',
       signal: controller.signal,
     });
-    return { ok: response.status >= 200 && response.status < 300, status: response.status };
+    if (!response.ok) throw new Error(`Webhook egress unavailable (${response.status}).`);
+    const data = await response.json() as { ok?: boolean; status?: number };
+    if (data.ok !== true || !Number.isInteger(data.status) || data.status < 100 || data.status > 599) {
+      throw new Error('Webhook egress returned an invalid response.');
+    }
+    return { ok: data.status >= 200 && data.status < 300, status: data.status };
   } finally {
     clearTimeout(timer);
   }
