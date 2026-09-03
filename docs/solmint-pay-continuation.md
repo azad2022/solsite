@@ -100,20 +100,23 @@ No financial recognition is valid before complete verification and atomic reconc
 
 The Pay migration chain exists in Git, but repository migrations are not evidence that the live database has them.
 
-At the latest verified audit snapshot on **2026-09-03**, the connected Supabase project used by the repository did not contain the Pay schema/functions queried during audit. That means the Pay database layer must be treated as **not production-validated** until the migration state is reconciled explicitly.
+The current connected Supabase project is `nvopkbiedorfshwbmyhn` in `eu-central-1`. As of **2026-09-03**, the production migration history ends at version `20260826190853` and contains **no SolMint Pay migration versions**. Direct inspection also finds no `pay_*` tables, `pay_*` routines, or Pay triggers in the production public schema. The Pay database layer is therefore **not production-validated and not deployed**.
 
-Do not run Pay migrations against a live database merely to make a check turn green.
+There is a second, independent migration blocker: the Supabase project reports its protected `main` branch as `MIGRATIONS_FAILED`, and the branch-action log on **2026-09-03** recorded `Remote migration versions not found in local migrations directory` while cloning the repository's `main` ref. The repository's current `main` migration files do not use the same historical version identifiers recorded in the live Supabase migration history. This means the Git repository and Supabase migration baseline are already divergent before Pay is introduced.
+
+**Do not interpret this as a Pay migration bug and do not repair it by adding arbitrary no-op migration placeholders or by blindly applying the full Pay chain to production.** The baseline must first be reconstructed/reconciled from authoritative production history and repository schema state.
 
 Before any production migration action:
 
 1. confirm the intended Supabase project/environment;
-2. inspect its migration history and actual Pay objects;
-3. compare that state with the exact current Git migration chain;
-4. use an isolated database for destructive/replay testing;
-5. validate tables, indexes, constraints, functions, triggers, RLS and grants;
-6. only then prepare a controlled production migration plan.
+2. inspect its exact migration history and actual schema objects;
+3. map every remote migration version to the repository migration that produced the corresponding schema change;
+4. determine whether the repository is missing historical migrations, renamed migrations, or a generated baseline;
+5. use an isolated database for Pay migration replay and destructive/security testing;
+6. validate Pay tables, indexes, constraints, functions, triggers, RLS and grants;
+7. only then prepare a controlled production migration plan that preserves the existing database history.
 
-The database security workflow is intentionally isolated: it bootstraps only the minimal prerequisite `users` table and applies the Pay migration subset for replay/security testing. This CI database is not production evidence.
+The database security workflow is intentionally isolated: it bootstraps only the minimal prerequisite `users` table and applies the Pay migration subset for replay/security testing. This CI database is not production evidence and does not repair the live migration baseline.
 
 ## 6. Workflow contract
 
@@ -200,12 +203,14 @@ No chat, workflow, or automation may flip the Pay launch flag as a shortcut arou
 ## 10. Current workstream snapshot — 2026-09-03
 
 - Main branch HEAD: `30a4de0df02b788d2eeedb88377115922805fffb`.
-- Current Pay audit branch HEAD: `f417bf60f62bd9b245c70629ac09c5786b19f47b`.
+- Current Pay audit branch HEAD: `007bd045ed64466be8b04cf6691e303e0cccd525`.
 - Pay audit work is being tracked in PR #37; the Pay foundation branch is tracked separately in PR #36.
-- The current audit branch contains the Pay resilience wrapper, hardened verification/reconciliation/database logic, focused Pay tests, and focused Pay workflows.
-- The current production Supabase environment has not yet been proven to contain the Pay migration/schema layer.
+- PR #37 remains open/draft and is explicitly audit-only; `/pay` remains disabled.
+- The audit branch contains the Pay resilience wrapper, hardened verification/reconciliation/database logic, focused Pay tests, and focused Pay workflows.
+- Production Supabase does not yet contain the Pay migration/schema layer.
+- Production Supabase also has a pre-existing migration-baseline drift: its recorded historical versions are not present under the same identifiers in the repository's `main` migration directory, and its protected `main` branch currently reports `MIGRATIONS_FAILED`.
 - The existing Helius/Cloudflare RPC arrangement is a completed infrastructure decision, not an open setup task.
-- `/pay` remains disabled.
+- No current-HEAD CI PASS is claimed for `007bd045ed64466be8b04cf6691e303e0cccd525`; the latest verified state had no workflow run evidence for that exact docs-only HEAD.
 
 This snapshot must be revalidated at the start of the next session rather than assumed current forever.
 
@@ -213,12 +218,18 @@ This snapshot must be revalidated at the start of the next session rather than a
 
 Unless fresh evidence reveals a higher-severity blocker, the next logical stage is:
 
-**Database Integration & Migration Audit**
+**Database Integration & Migration Baseline Audit**
+
+The first objective is not to deploy Pay. It is to reconcile the existing Supabase migration history with the repository's actual schema history without losing or rewriting production history.
 
 Then:
 
 ```text
-Database integration
+Migration baseline reconciliation
+      ↓
+Isolated Pay migration replay/security
+      ↓
+Controlled production migration plan
       ↓
 Reconciliation/accounting concurrency
       ↓
@@ -233,4 +244,4 @@ Independent adversarial release audit
 Only then consider enabling /pay
 ```
 
-Do not skip ahead because an earlier layer "looks complete" in source code.
+Do not skip the baseline stage because Pay migration files look internally complete.
