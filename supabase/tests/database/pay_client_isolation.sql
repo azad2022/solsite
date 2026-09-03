@@ -1,248 +1,159 @@
 begin;
 
-select plan(17);
+select plan(18);
 
 -- Pay is intentionally server-mediated. Client roles must not be able to reach
 -- Pay tables directly, and every Pay table must have PostgreSQL RLS enabled.
 select ok(
   exists (
-    select 1
-    from pg_class c
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relname like 'pay_%'
-      and c.relkind = 'r'
-  ),
-  'Pay tables exist in the local migration build'
+    select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname like 'pay_%' and c.relkind = 'r'
+  ), 'Pay tables exist in the local migration build'
 );
 
 select ok(
   not exists (
-    select 1
-    from pg_class c
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relname like 'pay_%'
-      and c.relkind = 'r'
-      and c.relrowsecurity is not true
-  ),
-  'Every Pay table has Row Level Security enabled'
+    select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname like 'pay_%' and c.relkind = 'r' and c.relrowsecurity is not true
+  ), 'Every Pay table has Row Level Security enabled'
 );
 
 select ok(
   not exists (
-    select 1
-    from information_schema.role_table_grants
-    where grantee in ('anon', 'authenticated')
-      and table_schema = 'public'
-      and table_name like 'pay_%'
+    select 1 from information_schema.role_table_grants
+    where grantee in ('anon', 'authenticated') and table_schema = 'public' and table_name like 'pay_%'
       and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
-  ),
-  'Client roles have no direct table privileges on Pay data'
+  ), 'Client roles have no direct table privileges on Pay data'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_trigger t
-    join pg_class c on c.oid = t.tgrelid
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relname = 'pay_revenue_ledger'
-      and t.tgname = 'pay_revenue_ledger_state_guard'
-      and not t.tgisinternal
-  ),
-  'Revenue recognition has a database state guard trigger'
+    select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'pay_revenue_ledger' and t.tgname = 'pay_revenue_ledger_state_guard' and not t.tgisinternal
+  ), 'Revenue recognition has a database state guard trigger'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_guard_initial_revenue_recognition'
-      and p.prosecdef is true
-      and p.proconfig @> array['search_path=""']::text[]
-  ),
-  'Revenue recognition guard is SECURITY DEFINER with an empty search_path'
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'pay_guard_initial_revenue_recognition'
+      and p.prosecdef is true and p.proconfig @> array['search_path=""']::text[]
+  ), 'Revenue recognition guard is SECURITY DEFINER with an empty search_path'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_trigger t
-    join pg_class c on c.oid = t.tgrelid
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relname = 'pay_payment_events'
-      and t.tgname = 'pay_payment_event_enqueue_webhooks'
-      and not t.tgisinternal
-  ),
-  'Payment events enqueue webhook deliveries through a database trigger'
+    select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'pay_payment_events' and t.tgname = 'pay_payment_event_enqueue_webhooks' and not t.tgisinternal
+  ), 'Payment events enqueue webhook deliveries through a database trigger'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_constraint c
-    join pg_class t on t.oid = c.conrelid
-    join pg_namespace n on n.oid = t.relnamespace
-    where n.nspname = 'public'
-      and t.relname = 'pay_webhook_deliveries'
-      and c.contype = 'u'
+    select 1 from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public' and t.relname = 'pay_webhook_deliveries' and c.contype = 'u'
       and pg_get_constraintdef(c.oid) = 'UNIQUE (webhook_id, event_id)'
-  ),
-  'Webhook deliveries are idempotent per webhook and event'
+  ), 'Webhook deliveries are idempotent per webhook and event'
 );
 
 select ok(
   not exists (
-    select 1
-    from pg_constraint c
-    join pg_class t on t.oid = c.conrelid
-    join pg_namespace n on n.oid = t.relnamespace
-    where n.nspname = 'public'
-      and t.relname = 'pay_webhook_deliveries'
-      and c.contype = 'u'
+    select 1 from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public' and t.relname = 'pay_webhook_deliveries' and c.contype = 'u'
       and pg_get_constraintdef(c.oid) = 'UNIQUE (event_id)'
-  ),
-  'Webhook event ids are not globally unique across subscriptions'
+  ), 'Webhook event ids are not globally unique across subscriptions'
 );
 
 select ok(
   not exists (
-    select 1
-    from information_schema.role_routine_grants
+    select 1 from information_schema.role_routine_grants
     where specific_schema = 'public'
-      and routine_name in (
-        'pay_claim_webhook_deliveries',
-        'pay_complete_webhook_delivery',
-        'pay_fail_webhook_delivery'
-      )
-      and grantee in ('PUBLIC', 'anon', 'authenticated')
-      and privilege_type = 'EXECUTE'
-  ),
-  'Webhook worker RPCs are not executable by public or client roles'
+      and routine_name in ('pay_claim_webhook_deliveries','pay_complete_webhook_delivery','pay_fail_webhook_delivery')
+      and grantee in ('PUBLIC', 'anon', 'authenticated') and privilege_type = 'EXECUTE'
+  ), 'Webhook worker RPCs are not executable by public or client roles'
 );
 
 select ok(
   not exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
-      and p.proname in (
-        'pay_claim_webhook_deliveries',
-        'pay_complete_webhook_delivery',
-        'pay_fail_webhook_delivery'
-      )
-      and (
-        p.prosecdef is not true
-        or not (p.proconfig @> array['search_path=""']::text[])
-      )
-  ),
-  'Webhook worker RPCs use SECURITY DEFINER with an empty search_path'
+      and p.proname in ('pay_claim_webhook_deliveries','pay_complete_webhook_delivery','pay_fail_webhook_delivery')
+      and (p.prosecdef is not true or not (p.proconfig @> array['search_path=""']::text[]))
+  ), 'Webhook worker RPCs use SECURITY DEFINER with an empty search_path'
 );
 
 select ok(
   not exists (
-    select 1
-    from information_schema.role_routine_grants
+    select 1 from information_schema.role_routine_grants
     where specific_schema = 'public'
-      and routine_name in (
-        'pay_claim_webhook_deliveries',
-        'pay_complete_webhook_delivery',
-        'pay_fail_webhook_delivery'
-      )
-      and grantee = 'anon'
-      and privilege_type = 'EXECUTE'
-  ),
-  'Anonymous role cannot execute webhook worker RPCs'
+      and routine_name in ('pay_claim_webhook_deliveries','pay_complete_webhook_delivery','pay_fail_webhook_delivery')
+      and grantee = 'anon' and privilege_type = 'EXECUTE'
+  ), 'Anonymous role cannot execute webhook worker RPCs'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_claim_webhook_deliveries'
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'pay_claim_webhook_deliveries'
       and lower(pg_get_functiondef(p.oid)) like '%p_limit integer default 20%'
       and lower(pg_get_functiondef(p.oid)) like '%p_lease_seconds integer default 300%'
       and lower(pg_get_functiondef(p.oid)) like '%p_limit < 1 or p_limit > 20%'
-  ),
-  'Webhook claim RPC bounds the batch size to the runtime lease budget'
+  ), 'Webhook claim RPC bounds the batch size to the runtime lease budget'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_claim_webhook_deliveries'
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'pay_claim_webhook_deliveries'
       and lower(pg_get_functiondef(p.oid)) like '%p_lease_seconds < 60 or p_lease_seconds > 600%'
-  ),
-  'Webhook claim RPC rejects unsafe lease durations'
+  ), 'Webhook claim RPC rejects unsafe lease durations'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_trigger t
-    join pg_class c on c.oid = t.tgrelid
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relname = 'pay_payment_transfers'
-      and t.tgname = 'pay_payment_transfer_merchant_ledger'
-      and not t.tgisinternal
-  ),
-  'Merchant principal ledger is triggered after transfer-leg insertion'
+    select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'pay_payment_transfers' and t.tgname = 'pay_payment_transfer_merchant_ledger' and not t.tgisinternal
+  ), 'Merchant principal ledger is triggered after transfer-leg insertion'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_apply_verified_observation'
-      and p.prosecdef is true
-      and p.proconfig @> array['search_path=""']::text[]
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'pay_apply_verified_observation'
+      and p.prosecdef is true and p.proconfig @> array['search_path=""']::text[]
       and position('destinationAuthority' in pg_get_functiondef(p.oid)) > 0
-  ),
-  'Verified reconciliation validates SPL destination authority in a SECURITY DEFINER function'
+  ), 'Verified reconciliation validates SPL destination authority in a SECURITY DEFINER function'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_index i
-    join pg_class t on t.oid = i.indrelid
-    join pg_namespace n on n.oid = t.relnamespace
-    where n.nspname = 'public'
-      and t.relname = 'pay_payment_transactions'
-      and i.indisunique
-      and i.indpred is null
+    select 1 from pg_index i join pg_class t on t.oid = i.indrelid join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public' and t.relname = 'pay_payment_transactions' and i.indisunique and i.indpred is null
       and pg_get_indexdef(i.indexrelid) like '%(signature)%'
-  ),
-  'Blockchain signatures are globally unique across payment transactions'
+  ), 'Blockchain signatures are globally unique across payment transactions'
 );
 
 select ok(
   exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_create_payment_intent'
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'pay_create_payment_intent'
       and lower(pg_get_functiondef(p.oid)) like '%v_expected_fee := ceil(%'
       and lower(pg_get_functiondef(p.oid)) like '%v_expected_customer_total%'
       and lower(pg_get_functiondef(p.oid)) like '%v_expected_merchant_net%'
       and lower(pg_get_functiondef(p.oid)) like '%fee invariants do not match canonical calculation%'
-  ),
-  'Payment Intent creation recomputes and validates fee, customer total, and merchant net inside the database'
+  ), 'Payment Intent creation recomputes and validates fee, customer total, and merchant net inside the database'
+);
+
+select ok(
+  exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'pay_create_payment_intent'
+      and lower(pg_get_functiondef(p.oid)) like '%p_fee_bps is null%'
+      and lower(pg_get_functiondef(p.oid)) like '%p_fee_payer is null%'
+      and lower(pg_get_functiondef(p.oid)) like '%p_network is null%'
+      and lower(pg_get_functiondef(p.oid)) like '%p_expires_at is null%'
+      and lower(pg_get_functiondef(p.oid)) like '%p_token_program is null%'
+  ), 'Payment Intent RPC explicitly rejects nullable security-sensitive inputs'
 );
 
 select * from finish();
