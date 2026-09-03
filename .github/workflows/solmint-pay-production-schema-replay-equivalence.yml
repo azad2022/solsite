@@ -7,7 +7,6 @@ on:
       - 'audit/solmint-pay-next'
     paths:
       - '.github/workflows/solmint-pay-production-schema-replay-equivalence.yml'
-      - 'scripts/solmint-pay/replay-production-schema.sh'
 
 permissions:
   contents: read
@@ -33,7 +32,6 @@ jobs:
       - name: Download verified production snapshot artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN_ID: '33781797071'
           SOURCE_ARTIFACT_ID: '9907361271'
         run: |
           set -Eeuo pipefail
@@ -63,15 +61,27 @@ jobs:
           done
           docker exec solmint-pay-replay-postgres pg_isready -U postgres -d postgres
 
+      - name: Prepare Supabase-compatible roles
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            "DO \$\$ BEGIN
+               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+             END \$\$;"
+
       - name: Replay schema snapshot
         run: |
           set -Eeuo pipefail
           sed \
             -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' \
             -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' \
             -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' \
             -e '/^COMMENT ON EXTENSION "pg_cron"/d' \
             -e '/^COMMENT ON EXTENSION "pg_net"/d' \
+            -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
             -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
             artifacts/solmint-pay-replay/input/production-schema.sql > /tmp/replay-schema.sql
           docker cp /tmp/replay-schema.sql solmint-pay-replay-postgres:/tmp/replay-schema.sql
@@ -103,14 +113,17 @@ jobs:
 
           def inventory(text: str):
               patterns = {
-                  'tables': r'^CREATE TABLE IF NOT EXISTS "([^"]+)"\."([^"]+)"',
+                  'tables': r'^CREATE (?:TABLE|TABLE IF NOT EXISTS) "([^"]+)"\."([^"]+)"',
                   'indexes': r'^CREATE (?:UNIQUE )?INDEX "([^"]+)"',
-                  'functions': r'^CREATE FUNCTION "([^"]+)"\."([^"]+)"',
-                  'views': r'^CREATE VIEW "([^"]+)"\."([^"]+)"',
+                  'functions': r'^CREATE (?:OR REPLACE )?FUNCTION "([^"]+)"\."([^"]+)"',
+                  'views': r'^CREATE (?:OR REPLACE )?VIEW "([^"]+)"\."([^"]+)"',
               }
               out = {}
               for key, pat in patterns.items():
-                  out[key] = sorted(set(m.group(1,2) if len(m.groups()) == 2 else m.group(1) for m in re.finditer(pat, text, re.M)))
+                  matches = set()
+                  for m in re.finditer(pat, text, re.M):
+                      matches.add(m.group(1, 2) if len(m.groups()) == 2 else m.group(1))
+                  out[key] = sorted(matches)
               return out
 
           s = inventory(src)
@@ -118,16 +131,15 @@ jobs:
           lines = ['# SolMint Pay — Snapshot Replay Equivalence', '', '## Result', '']
           overall = True
           for key in s:
-              ss = set(s[key]); rr = set(r[key])
-              missing = sorted(ss - rr)
-              extra = sorted(rr - ss)
+              ss, rr = set(s[key]), set(r[key])
+              missing, extra = sorted(ss - rr), sorted(rr - ss)
               ok = not missing and not extra
               overall &= ok
-              lines += [f'- {key}: `{"PASS" if ok else "FAIL"}` (snapshot={len(ss)}, replay={len(rr)})']
+              lines.append(f'- {key}: `{"PASS" if ok else "FAIL"}` (snapshot={len(ss)}, replay={len(rr)})')
               if missing:
-                  lines += [f'  - missing: {missing[:20]}']
+                  lines.append(f'  - missing: {missing[:20]}')
               if extra:
-                  lines += [f'  - extra: {extra[:20]}']
+                  lines.append(f'  - extra: {extra[:20]}')
           lines += ['', f'Overall: `{"PASS" if overall else "FAIL"}`', '']
           Path('artifacts/solmint-pay-replay/equivalence-report.md').write_text('\n'.join(lines))
           print('\n'.join(lines))
