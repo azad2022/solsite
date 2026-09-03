@@ -46,9 +46,33 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
   const merchantSettlement = 1_000_000n;
   const gatewayFee = 10_000n;
   const total = merchantSettlement + gatewayFee;
+  const rentExemptMinimum = await connection.getMinimumBalanceForRentExemption(0);
 
   const senderBalance = await connection.getBalance(sender.publicKey, 'finalized');
-  assert.ok(senderBalance > Number(total) + 10_000, 'Devnet E2E sender is not funded sufficiently.');
+  const preparationCost = rentExemptMinimum * 2;
+  assert.ok(
+    senderBalance > Number(total) + preparationCost + 10_000,
+    'Devnet E2E sender is not funded sufficiently for recipient account preparation and payment.',
+  );
+
+  // Merchant and fee recipient represent already-existing production accounts.
+  // Pre-fund them to rent-exempt minimum before the actual payment transaction.
+  const { blockhash: preparationBlockhash } = await connection.getLatestBlockhash('finalized');
+  const preparationTransaction = new Transaction({ recentBlockhash: preparationBlockhash, feePayer: sender.publicKey })
+    .add(
+      SystemProgram.transfer({
+        fromPubkey: sender.publicKey,
+        toPubkey: merchant.publicKey,
+        lamports: rentExemptMinimum,
+      }),
+      SystemProgram.transfer({
+        fromPubkey: sender.publicKey,
+        toPubkey: feeRecipient.publicKey,
+        lamports: rentExemptMinimum,
+      }),
+    );
+  const preparationSignature = await sendAndConfirmTransaction(connection, preparationTransaction, [sender], { commitment: 'confirmed' });
+  await waitForFinalized(connection, preparationSignature);
 
   const merchantTransfer = withReference(SystemProgram.transfer({
     fromPubkey: sender.publicKey,
