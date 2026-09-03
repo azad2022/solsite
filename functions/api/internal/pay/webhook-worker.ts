@@ -1,5 +1,5 @@
 import { decryptWebhookSecret } from '../../../../src/pay/services/webhookSecretEnvelope';
-import { fetchWebhookWithTimeout, shouldDeadLetter, WEBHOOK_MAX_ATTEMPTS } from '../../../../src/pay/services/webhookDelivery';
+import { fetchWebhookWithTimeout, WEBHOOK_MAX_ATTEMPTS } from '../../../../src/pay/services/webhookDelivery';
 import { signWebhookPayload } from '../../../../src/pay/services/webhookSigner';
 import { makePayRequestId, PayRuntimeError, payJson, readJsonBody, supabaseRequest, enforcePayRateLimit } from '../../pay/_shared/runtime';
 
@@ -63,15 +63,15 @@ async function complete(env: Env, deliveryId: string, workerId: string, status: 
   if (result.ok !== true) throw new PayRuntimeError('STALE_DELIVERY_LEASE', 503, 'Webhook delivery lease is stale.');
 }
 
-async function fail(env: Env, deliveryId: string, workerId: string, errorCode: string, status: number | null, responseHash: string | null): Promise<string> {
+async function fail(env: Env, deliveryId: string, workerId: string, errorCode: string, status: number | null, responseHash: string | null): Promise<{ status: string; attemptCount: number }> {
   const response = await supabaseRequest(env, '/rest/v1/rpc/pay_fail_webhook_delivery', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ p_delivery_id: deliveryId, p_worker_id: workerId, p_error_code: errorCode, p_response_status: status, p_response_hash: responseHash, p_max_attempts: WEBHOOK_MAX_ATTEMPTS }),
   });
-  const result = await response.json() as { ok?: boolean; status?: string };
-  if (result.ok !== true) throw new PayRuntimeError('STALE_DELIVERY_LEASE', 503, 'Webhook delivery lease is stale.');
-  return result.status || 'failed';
+  const result = await response.json() as { ok?: boolean; status?: string; attemptCount?: number };
+  if (result.ok !== true || !result.status || !Number.isInteger(result.attemptCount)) throw new PayRuntimeError('STALE_DELIVERY_LEASE', 503, 'Webhook delivery lease is stale.');
+  return { status: result.status, attemptCount: result.attemptCount };
 }
 
 async function masterSecret(env: Env, ciphertext: string): Promise<string> {
@@ -79,8 +79,11 @@ async function masterSecret(env: Env, ciphertext: string): Promise<string> {
   return decryptWebhookSecret({ envelope: ciphertext, masterKeyBase64Url: env.PAY_WEBHOOK_MASTER_KEY_B64URL });
 }
 
-async function processDelivery(env: Env, workerId: string, delivery: ClaimedDelivery, requestId: string): Promise<string> {
-  if (!delivery.secret_ciphertext) return await fail(env, delivery.id, workerId, 'WEBHOOK_SECRET_UNAVAILABLE', null, null);
+async function processDelivery(env: Env, workerId: string, delivery: ClaimedDelivery): Promise<{ status: string; attemptCount: number; deadLetter: boolean }> {
+  if (!delivery.secret_ciphertext) {
+    const result = await fail(env, delivery.id, workerId, 'WEBHOOK_SECRET_UNAVAILABLE', null, null);
+    return { ...result, deadLetter: result.status === 'dead_letter' };
+  }
 
   const rawBody = JSON.stringify(delivery.payload);
   let signatureHeader: string;
@@ -95,24 +98,23 @@ async function processDelivery(env: Env, workerId: string, delivery: ClaimedDeli
       secretProvider: { getSigningSecret: async () => secret },
     });
   } catch {
-    return await fail(env, delivery.id, workerId, 'WEBHOOK_SECRET_DECRYPT_FAILED', null, null);
+    const result = await fail(env, delivery.id, workerId, 'WEBHOOK_SECRET_DECRYPT_FAILED', null, null);
+    return { ...result, deadLetter: result.status === 'dead_letter' };
   }
 
   try {
-    const response = await fetchWebhookWithTimeout({
-      endpointUrl: delivery.endpoint_url,
-      signatureHeader,
-      body: rawBody,
-    });
+    const response = await fetchWebhookWithTimeout({ endpointUrl: delivery.endpoint_url, signatureHeader, body: rawBody });
     const responseHash = await sha256Hex(`${response.status}`);
     if (response.ok) {
       await complete(env, delivery.id, workerId, response.status, responseHash);
-      return 'delivered';
+      return { status: 'delivered', attemptCount: delivery.attempt_count + 1, deadLetter: false };
     }
-    return await fail(env, delivery.id, workerId, `HTTP_${response.status}`, response.status, responseHash);
+    const result = await fail(env, delivery.id, workerId, `HTTP_${response.status}`, response.status, responseHash);
+    return { ...result, deadLetter: result.status === 'dead_letter' };
   } catch (error) {
     const code = error instanceof DOMException && error.name === 'AbortError' ? 'WEBHOOK_TIMEOUT' : 'WEBHOOK_NETWORK_ERROR';
-    return await fail(env, delivery.id, workerId, code, null, null);
+    const result = await fail(env, delivery.id, workerId, code, null, null);
+    return { ...result, deadLetter: result.status === 'dead_letter' };
   }
 }
 
@@ -127,13 +129,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     const subjectHash = Array.from(new Uint8Array(subjectBytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
     await enforcePayRateLimit(env, 'webhook:worker', subjectHash, 60, 30);
 
-    const workerId = `${requestId}`;
+    const workerId = requestId;
     const deliveries = await claim(env, workerId, requested);
     const results = [];
-    for (const delivery of deliveries) {
-      const status = await processDelivery(env, workerId, delivery, requestId);
-      results.push({ id: delivery.id, status, attemptCount: delivery.attempt_count + (status === 'delivered' ? 0 : 1), deadLetter: status === 'dead_letter' || shouldDeadLetter(delivery.attempt_count + 1) });
-    }
+    for (const delivery of deliveries) results.push({ id: delivery.id, ...(await processDelivery(env, workerId, delivery)) });
     return payJson({ data: { claimed: deliveries.length, results } }, 200, requestId);
   } catch (error) {
     if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Webhook worker is temporarily unavailable.' : error.message }, error.status, requestId);
