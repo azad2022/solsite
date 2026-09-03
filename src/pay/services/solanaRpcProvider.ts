@@ -8,6 +8,8 @@ const TOKEN_2022_PROGRAM_ADDRESS = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxEb';
 const RPC_TIMEOUT_MS = 8_000;
 const MAX_DISCOVERY_PAGES = 24;
 const DISCOVERY_PAGE_SIZE = 1_000;
+const OUTER_INSTRUCTION_INDEX_BASE = 1_000_000;
+const INNER_INSTRUCTION_INDEX_BASE = 10_000;
 
 type RpcEnv = { SOLANA_RPC_URL?: string };
 type RpcResponse<T> = { result?: T; error?: { code?: number; message?: string } };
@@ -45,6 +47,7 @@ type TokenAccountValue = {
 };
 type TokenAccountResult = { value?: TokenAccountValue | null };
 type SignatureEntry = { signature?: unknown; blockTime?: unknown };
+type InstructionWithPath = { instruction: ParsedInstruction; instructionIndex: number };
 
 function commitmentValue(value: SolanaCommitment): 'confirmed' | 'finalized' {
   return value === 'finalized' ? 'finalized' : 'confirmed';
@@ -167,20 +170,44 @@ function parseSupportedInstruction(instruction: ParsedInstruction, expectedAsset
   };
 }
 
-function collectParsedInstructions(transaction: unknown): ParsedInstruction[] {
+function outerInstructionIndex(index: number): number {
+  if (!Number.isInteger(index) || index < 0 || index >= INNER_INSTRUCTION_INDEX_BASE) throw new Error('Invalid outer instruction index.');
+  return OUTER_INSTRUCTION_INDEX_BASE + index;
+}
+
+function innerInstructionIndex(parentIndex: number, childIndex: number): number {
+  if (!Number.isInteger(parentIndex) || parentIndex < 0 || parentIndex >= INNER_INSTRUCTION_INDEX_BASE) throw new Error('Invalid inner parent instruction index.');
+  if (!Number.isInteger(childIndex) || childIndex < 0 || childIndex >= INNER_INSTRUCTION_INDEX_BASE) throw new Error('Invalid inner child instruction index.');
+  return (parentIndex * INNER_INSTRUCTION_INDEX_BASE) + childIndex;
+}
+
+function collectParsedInstructions(transaction: unknown): InstructionWithPath[] {
   if (!transaction || typeof transaction !== 'object') return [];
   const tx = transaction as ParsedTransaction;
-  const outer = Array.isArray(tx.transaction?.message?.instructions)
-    ? tx.transaction?.message?.instructions
-    : [];
+  const outer = Array.isArray(tx.transaction?.message?.instructions) ? tx.transaction.message.instructions : [];
+  const entries: InstructionWithPath[] = [];
+
+  outer.forEach((instruction, index) => {
+    if (instruction && typeof instruction === 'object') {
+      entries.push({ instruction: instruction as ParsedInstruction, instructionIndex: outerInstructionIndex(index) });
+    }
+  });
+
   const innerGroups = Array.isArray(tx.meta?.innerInstructions) ? tx.meta.innerInstructions : [];
-  const inner: unknown[] = [];
   for (const group of innerGroups) {
     if (!group || typeof group !== 'object') continue;
+    const parentIndex = (group as { index?: unknown }).index;
+    if (typeof parentIndex !== 'number' || !Number.isInteger(parentIndex) || parentIndex < 0) continue;
     const instructions = (group as { instructions?: unknown }).instructions;
-    if (Array.isArray(instructions)) inner.push(...instructions);
+    if (!Array.isArray(instructions)) continue;
+    instructions.forEach((instruction, childIndex) => {
+      if (instruction && typeof instruction === 'object') {
+        entries.push({ instruction: instruction as ParsedInstruction, instructionIndex: innerInstructionIndex(parentIndex, childIndex) });
+      }
+    });
   }
-  return [...outer, ...inner].filter((instruction): instruction is ParsedInstruction => !!instruction && typeof instruction === 'object');
+
+  return entries;
 }
 
 export class SolanaRpcProvider implements SolanaPaymentProvider {
@@ -192,7 +219,7 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
 
   private async normalize(result: ParsedTransaction, signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction> {
     const parsedTransfers = collectParsedInstructions(result)
-      .map((instruction, index) => parseSupportedInstruction(instruction, this.expectedAssetMints, index))
+      .map(({ instruction, instructionIndex }) => parseSupportedInstruction(instruction, this.expectedAssetMints, instructionIndex))
       .filter((transfer): transfer is ObservedTransfer => Boolean(transfer));
     const transfers: ObservedTransfer[] = [];
     for (const transfer of parsedTransfers) {
