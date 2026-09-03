@@ -1,8 +1,8 @@
 name: SolMint Pay — Production Baseline Migration Replay
 
-# Replays the captured Production schema, then applies the current Pay migration
-# chain on top of that exact baseline in disposable PostgreSQL. Production is never
-# used as the target of this workflow.
+# Replays the captured Production schema through the canonical baseline generator,
+# then applies the current Pay migration chain on disposable PostgreSQL.
+# Production is never used as the target of this workflow.
 
 on:
   workflow_dispatch:
@@ -11,6 +11,8 @@ on:
       - 'audit/solmint-pay-next'
     paths:
       - '.github/workflows/solmint-pay-baseline-migration-replay.yml'
+      - 'scripts/solmint-pay/baseline-prepare.mjs'
+      - 'scripts/solmint-pay/baseline-validate.mjs'
       - 'supabase/migrations/*_solmint_pay_*.sql'
 
 permissions:
@@ -23,7 +25,7 @@ concurrency:
 
 jobs:
   replay-pay:
-    name: Replay Production baseline then apply Pay migrations
+    name: Generate canonical baseline then apply Pay migrations
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -33,6 +35,11 @@ jobs:
           ref: ${{ github.ref }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
 
       - name: Download verified Production snapshot
         env:
@@ -54,7 +61,17 @@ jobs:
           expected_sha="$(awk '{print $1}' production-schema.sha256)"
           actual_sha="$(sha256sum production-schema.sql | awk '{print $1}')"
           test "$expected_sha" = "$actual_sha"
+          test "$actual_sha" = '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
           echo "Snapshot SHA-256 verified: $actual_sha"
+
+      - name: Generate and validate canonical baseline
+        run: |
+          set -Eeuo pipefail
+          rm -f supabase/migrations/20260829090000_solmint_production_baseline.sql
+          node scripts/solmint-pay/baseline-prepare.mjs artifacts/solmint-pay-baseline-replay/input/production-schema.sql
+          node scripts/solmint-pay/baseline-validate.mjs supabase/migrations/20260829090000_solmint_production_baseline.sql
+          cp supabase/migrations/20260829090000_solmint_production_baseline.sql artifacts/solmint-pay-baseline-replay/generated-baseline.sql
+          sha256sum artifacts/solmint-pay-baseline-replay/generated-baseline.sql > artifacts/solmint-pay-baseline-replay/generated-baseline.sha256
 
       - name: Start disposable PostgreSQL 17
         run: |
@@ -77,7 +94,7 @@ jobs:
           docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END \$\$;"
           docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE PUBLICATION supabase_realtime FOR ALL TABLES;"
 
-      - name: Replay Production schema baseline
+      - name: Replay canonical Production baseline
         run: |
           set -Eeuo pipefail
           sed \
@@ -89,9 +106,9 @@ jobs:
             -e '/^COMMENT ON EXTENSION "pg_net"/d' \
             -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
             -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
-            artifacts/solmint-pay-baseline-replay/input/production-schema.sql > /tmp/production-schema.sql
-          docker cp /tmp/production-schema.sql solmint-pay-baseline-postgres:/tmp/production-schema.sql
-          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/production-schema.sql > artifacts/solmint-pay-baseline-replay/production-replay.log 2>&1
+            supabase/migrations/20260829090000_solmint_production_baseline.sql > /tmp/production-baseline.sql
+          docker cp /tmp/production-baseline.sql solmint-pay-baseline-postgres:/tmp/production-baseline.sql
+          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/production-baseline.sql > artifacts/solmint-pay-baseline-replay/production-replay.log 2>&1
 
       - name: Capture pre-Pay catalog fingerprint
         run: |
@@ -104,7 +121,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print | sort > artifacts/solmint-pay-baseline-replay/pay-migrations.txt
-          test -s artifacts/solmint-pay-baseline-replay/pay-migrations.txt
+          test "$(wc -l < artifacts/solmint-pay-baseline-replay/pay-migrations.txt)" -eq 47
           awk '{print NR ": " $0}' artifacts/solmint-pay-baseline-replay/pay-migrations.txt
 
       - name: Apply current Pay migration chain
@@ -129,15 +146,12 @@ jobs:
           post = set(Path('artifacts/solmint-pay-baseline-replay/post_relations.txt').read_text().splitlines())
           added = sorted(post - pre)
           removed = sorted(pre - post)
-          pay_prefixes = ('pay_', 'solmint_pay')
-          allowed_added = [x for x in added if any(part.startswith(pay_prefixes) for part in x.split('|')[1:2])]
-          unexpected_added = [x for x in added if x not in allowed_added]
+          def is_pay(line):
+              parts = line.split('|')
+              return len(parts) > 1 and (parts[1].startswith('pay_') or parts[1].startswith('solmint_pay'))
+          unexpected_added = [x for x in added if not is_pay(x)]
           report = Path('artifacts/solmint-pay-baseline-replay/legacy-relation-diff.txt')
-          report.write_text('\n'.join([
-              'Added relations:', *added, '',
-              'Removed relations:', *removed, '',
-              'Unexpected non-Pay additions:', *unexpected_added, ''
-          ]))
+          report.write_text('\n'.join(['Added relations:', *added, '', 'Removed relations:', *removed, '', 'Unexpected non-Pay additions:', *unexpected_added, '']))
           if removed or unexpected_added:
               raise SystemExit('Unexpected legacy relation change detected')
           PY
