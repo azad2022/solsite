@@ -4,6 +4,7 @@ import test from 'node:test';
 import { validateApiKeyFormat, validateApiKeyRecord } from '../src/pay/services/apiKeyPolicy';
 import { authorizePayMerchant, hasPayPlatformCapability } from '../src/pay/services/authorizationPolicy';
 import { validateExternalOrderId, validateIdempotencyKey, validatePublicMetadata, validateWebhookUrl } from '../src/pay/services/securityPolicy';
+import { decryptWebhookSecret, encryptWebhookSecret, generateWebhookMasterKey, generateWebhookSecret } from '../src/pay/services/webhookSecretEnvelope';
 
 const activeUser = { id: 'user-1', role: 'merchant', permissions: [], isActive: true } as const;
 const merchant = { merchantId: 'merchant-1', ownerUserId: 'user-1', status: 'active' as const };
@@ -50,4 +51,23 @@ test('input-boundary validation rejects common injection and SSRF primitives', (
   assert.equal(validateWebhookUrl('https://[fd00::1]/webhooks'), false);
   assert.equal(validateWebhookUrl('https://[fe80::1]/webhooks'), false);
   assert.equal(validateWebhookUrl('https://user:pass@merchant.example/webhooks'), false);
+});
+
+test('webhook secret envelope encrypts, authenticates, and rejects tampering', async () => {
+  const secret = generateWebhookSecret();
+  const masterKey = generateWebhookMasterKey();
+  const envelope = await encryptWebhookSecret({ secret, masterKeyBase64Url: masterKey });
+
+  assert.equal(await decryptWebhookSecret({ envelope, masterKeyBase64Url: masterKey }), secret);
+  assert.notEqual(envelope, await encryptWebhookSecret({ secret, masterKeyBase64Url: masterKey }));
+
+  const parts = envelope.split('.');
+  const ciphertext = parts[2];
+  parts[2] = `${ciphertext.slice(0, -1)}${ciphertext.at(-1) === 'A' ? 'B' : 'A'}`;
+  await assert.rejects(
+    decryptWebhookSecret({ envelope: parts.join('.'), masterKeyBase64Url: masterKey }),
+  );
+  await assert.rejects(
+    decryptWebhookSecret({ envelope, masterKeyBase64Url: generateWebhookMasterKey() }),
+  );
 });
