@@ -61,17 +61,33 @@ function expectedFromPayment(payment: ReconciliationPayment): ExpectedPayment {
   };
 }
 
+function transferMatchesExpectation(transfer: ObservedTransfer, expected: ExpectedPayment, destinationAuthority: string, amountAtomic: string): boolean {
+  if (transfer.asset !== expected.asset || transfer.amountAtomic !== amountAtomic) return false;
+  if (expected.asset === 'SOL') {
+    return transfer.destination === destinationAuthority
+      && transfer.tokenMint === null
+      && transfer.tokenProgram === null
+      && transfer.tokenDecimals === null;
+  }
+  return transfer.destinationAuthority === destinationAuthority
+    && transfer.tokenMint === expected.tokenMint
+    && transfer.tokenProgram === expected.tokenProgram
+    && transfer.tokenDecimals === expected.tokenDecimals;
+}
+
 function labelVerifiedTransfers(expected: ExpectedPayment, transfers: readonly ObservedTransfer[]): readonly ObservedTransfer[] {
-  const merchant = transfers.filter((transfer) =>
-    transfer.destination === expected.merchantDestination
-      && transfer.asset === expected.asset
-      && transfer.amountAtomic === expected.merchantSettlementAtomic,
-  );
-  const fee = transfers.filter((transfer) =>
-    transfer.destination === expected.feeDestination
-      && transfer.asset === expected.asset
-      && transfer.amountAtomic === expected.gatewayFeeAtomic,
-  );
+  const merchant = transfers.filter((transfer) => transferMatchesExpectation(
+    transfer,
+    expected,
+    expected.merchantDestination,
+    expected.merchantSettlementAtomic,
+  ));
+  const fee = transfers.filter((transfer) => transferMatchesExpectation(
+    transfer,
+    expected,
+    expected.feeDestination,
+    expected.gatewayFeeAtomic,
+  ));
 
   if (merchant.length !== 1 || fee.length !== 1) {
     throw new Error('Verified observation contains ambiguous settlement legs.');
