@@ -91,6 +91,40 @@ test('reconciliation labels verified legs from immutable payment expectations, n
   assert.equal(applied.transfers.find((x) => x.destination === payment.feeRecipient)?.role, 'gateway_fee');
 });
 
+test('reconciliation labels SPL legs by token-account owner authority', async () => {
+  const tokenPayment: ReconciliationPayment = {
+    ...payment,
+    id: 'pay-token-1',
+    amountAtomic: '1000000',
+    customerTotalAtomic: '1000000',
+    merchantSettlementAtomic: '990000',
+    gatewayFeeAtomic: '10000',
+    asset: 'USDC',
+    tokenMint: 'MintUSDC',
+    tokenProgram: 'spl-token',
+    tokenDecimals: 6,
+    recipient: 'MerchantTokenOwner',
+    feeRecipient: 'GatewayTokenOwner',
+    reference: 'TokenReference',
+  };
+  const source = 'CustomerWallet';
+  const observation: ObservedPaymentTransaction = {
+    signature: 'sig-token-1', slot: 11, blockTime: new Date().toISOString(), networkFeeLamports: '5000', success: true,
+    commitment: 'finalized', feePayer: source, referenceMatched: true,
+    transfers: [
+      { role: 'other', source: 'CustomerTokenAccount', sourceAuthority: source, destination: 'MerchantATA', destinationAuthority: 'MerchantTokenOwner', asset: 'USDC', tokenMint: 'MintUSDC', tokenProgram: 'spl-token', tokenDecimals: 6, amountAtomic: '990000', instructionIndex: 0 },
+      { role: 'other', source: 'CustomerTokenAccount', sourceAuthority: source, destination: 'GatewayATA', destinationAuthority: 'GatewayTokenOwner', asset: 'USDC', tokenMint: 'MintUSDC', tokenProgram: 'spl-token', tokenDecimals: 6, amountAtomic: '10000', instructionIndex: 1 },
+    ],
+  };
+  const provider = new FakeProvider([observation]);
+  const repository = new FakeRepository();
+  const result = await reconcilePayment(provider, repository, tokenPayment);
+  assert.equal(result.outcome, 'confirmed');
+  const applied = repository.applied[0] as { transfers: readonly ObservedTransfer[] };
+  assert.equal(applied.transfers.find((x) => x.destinationAuthority === tokenPayment.recipient)?.role, 'merchant_settlement');
+  assert.equal(applied.transfers.find((x) => x.destinationAuthority === tokenPayment.feeRecipient)?.role, 'gateway_fee');
+});
+
 test('underpayment is preserved as a retryable business outcome', async () => {
   const provider = new FakeProvider([validObservation('sig-under', payment.merchantSettlementAtomic.slice(0, -1) + '9')]);
   const repository = new FakeRepository();
