@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTransaction } from '../src/pay/services/verificationPolicy';
+import { transactionContainsReference } from '../src/pay/services/solanaRpcProvider';
 import { buildWalletOwnershipMessage, verifySolanaWalletSignature, randomReferenceAddress } from '../src/pay/services/walletSignature';
 import { encodeBase58 } from '../src/pay/services/base58';
 import { signWebhookPayload, verifyWebhookPayload } from '../src/pay/services/webhookSigner';
@@ -68,6 +69,13 @@ test('verification rejects multiple independently valid candidate transactions f
 
 test('verification rejects a previously recognized signature', () => {
   assert.equal(verifyPaymentTransaction(expected, observed(), true).reason, 'DUPLICATE_SIGNATURE');
+});
+
+test('reference detection accepts canonical and parsed account-key forms but never trusts arbitrary objects', () => {
+  assert.equal(transactionContainsReference({ transaction: { message: { accountKeys: ['RefAddress'] } } }, 'RefAddress'), true);
+  assert.equal(transactionContainsReference({ transaction: { message: { accountKeys: [{ pubkey: 'RefAddress' }] } } }, 'RefAddress'), true);
+  assert.equal(transactionContainsReference({ transaction: { message: { accountKeys: [{ pubkey: { valueOf: () => 'RefAddress' } }] } } }, 'RefAddress'), false);
+  assert.equal(transactionContainsReference({ transaction: { message: { accountKeys: ['OtherAddress'] } } }, 'RefAddress'), false);
 });
 
 test('wallet ownership proof verifies a real Web Crypto Ed25519 signature and rejects message substitution', async () => {
