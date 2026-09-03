@@ -50,14 +50,7 @@ jobs:
       - name: Typecheck Devnet E2E harness
         run: npx tsc -p tsconfig.e2e.json --noEmit
 
-      - name: Verify funded Devnet signer is configured
-        env:
-          DEVNET_E2E_SENDER_SECRET_KEY: ${{ secrets.DEVNET_E2E_SENDER_SECRET_KEY }}
-        run: |
-          test -n "$DEVNET_E2E_SENDER_SECRET_KEY" || { echo 'DEVNET_E2E_SENDER_SECRET_KEY is required for Devnet E2E.' >&2; exit 1; }
-
       - name: Run real Devnet payment verification
         env:
           SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
-          DEVNET_E2E_SENDER_SECRET_KEY: ${{ secrets.DEVNET_E2E_SENDER_SECRET_KEY }}
         run: bun run tests/e2e/solmint-pay-devnet.e2e.ts
