@@ -28,7 +28,7 @@ export interface SolanaAddressClassification {
 }
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
-const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJYbNbWf4ZsF9m5bJd4m9VnQx7z';
+const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJYbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxEb';
 const RPC_TIMEOUT_MS = 8_000;
 
