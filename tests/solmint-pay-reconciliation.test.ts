@@ -41,6 +41,10 @@ class FakeRepository implements ReconciliationRepository {
   async expirePayment(): Promise<'expired' | 'stale'> { this.expired = true; return 'expired'; }
 }
 
+class FailingLoadRepository extends FakeRepository {
+  async loadKnownSignatures(): Promise<ReadonlySet<string>> { throw new Error('DATABASE_UNAVAILABLE'); }
+}
+
 class AtomicRaceRepository implements ReconciliationRepository {
   private readonly seenSignatures = new Set<string>();
   private calls = 0;
@@ -166,6 +170,13 @@ test('expired payment is never sent to blockchain verification', async () => {
   assert.equal(result.outcome, 'expired');
   assert.equal(repository.expired, true);
   assert.equal(repository.applied.length, 0);
+});
+
+test('database failure while loading known signatures is stale, not provider_unavailable', async () => {
+  const provider = new FakeProvider([validObservation('sig-db-fail')]);
+  const repository = new FailingLoadRepository();
+  const result = await reconcilePayment(provider, repository, payment);
+  assert.equal(result.outcome, 'stale');
 });
 
 test('incomplete reference discovery fails closed instead of becoming no_match', async () => {
