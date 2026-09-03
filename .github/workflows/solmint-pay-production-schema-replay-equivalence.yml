@@ -134,6 +134,7 @@ jobs:
           ! grep -Eiq '\b(pay_|solmint_pay|payment_intent|payment)\b' artifacts/solmint-pay-replay/input/production-schema.sql
 
       - name: Upload replay evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: solmint-pay-schema-replay-${{ github.run_id }}
