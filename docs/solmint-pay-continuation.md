@@ -100,15 +100,9 @@ No financial recognition is valid before complete verification and atomic reconc
 
 The Pay migration chain exists in Git, but repository migrations are not evidence that the live database has them.
 
-The current connected Supabase project is `nvopkbiedorfshwbmyhn` in `eu-central-1`. As of **2026-09-03**, the production migration history ends at version `20260826190853` and contains **55 applied migration versions**, with no SolMint Pay versions. Direct inspection also finds no Pay schema layer in production. The Pay database layer is therefore **not production-deployed or production-validated**.
+The current connected Supabase project is `nvopkbiedorfshwbmyhn` in `eu-central-1`. The live production migration history currently contains **55 applied migration versions**, ending at `20260826190853`, with no SolMint Pay versions. Direct inspection of the production `public` schema confirms the existing site tables are present and no Pay schema layer has been deployed.
 
-There is a second, independent migration blocker: the Supabase project's protected `main` branch currently reports `MIGRATIONS_FAILED`. The associated branch-action log on **2026-09-03** recorded:
-
-`Remote migration versions not found in local migrations directory.`
-
-The remote migration ledger uses 14-digit version identifiers such as `20260804215020`, while the repository's historical site migration files use a mixture of shorter date-based filenames such as `20260805_harden_rls_and_article_timestamps.sql`. Several remote migrations are not represented by a corresponding repository file at all.
-
-A verified copy of the complete production migration ledger is stored in:
+A verified production migration ledger is stored in:
 
 `docs/solmint-pay-supabase-production-migration-ledger-2026-09-03.txt`
 
@@ -116,9 +110,9 @@ The recovery contract is stored in:
 
 `docs/solmint-pay-migration-baseline-recovery.md`
 
-**Do not repair this condition by blindly renaming files, inserting no-op historical placeholders, marking remote migrations repaired, deleting remote history, or running Pay migrations against production.** Those actions could make the ledger look coherent while destroying provenance or fresh-database replayability.
+The historical remote ledger uses 14-digit version identifiers such as `20260804215020`, while the repository still contains legacy site migration filenames such as `20260805_harden_rls_and_article_timestamps.sql`. These are not one-to-one historical artifacts, so they must not be renamed or fabricated into matches without provenance evidence.
 
-The current evidence does not prove the exact SQL that was executed for every historical remote migration. Therefore a trustworthy baseline requires an authoritative production schema snapshot/diff before any migration-history rewrite or metadata repair.
+The recovery remains fail-closed. Do not repair the drift by blind renaming, empty placeholders, remote-history manipulation, or by applying Pay migrations directly to production.
 
 ## 6. Required migration-baseline recovery
 
@@ -155,11 +149,21 @@ Only then: Pay migrations
 
 The canonical baseline must contain the actual deployed schema without production data or secrets, including tables, columns, defaults/generated values, constraints, indexes, functions/security configuration, triggers, RLS/policies, grants/revokes, extensions, and relevant comments.
 
-At this time the available connected-database tool surface does not provide a trustworthy `pg_dump`/schema-diff artifact that can be accepted as the canonical baseline. Reconstructing the entire production schema manually from catalog queries would be an avoidable omission risk and is therefore not being treated as complete work.
+The repository now contains a read-only capture script:
 
-The result is an intentional **fail-closed blocker**: the baseline recovery contract and the verified remote ledger are now in Git, but production migration metadata/schema are not modified until the canonical snapshot provenance is available.
+`scripts/solmint-pay/capture-production-schema.sh`
 
-## 7. Workflow contract
+It invokes Supabase's schema-only `db dump` using a deployment-time `SUPABASE_DB_URL`, writes a local SQL artifact plus SHA-256 manifest, refuses an empty artifact, and does not modify production.
+
+A dedicated GitHub Actions workflow exists at:
+
+`.github/workflows/solmint-pay-production-schema-capture.yml`
+
+It validates the secret is present, performs the read-only dump, rejects obvious data-dump statements and connection strings, and uploads the artifact with a seven-day retention policy. It now also has a narrowly scoped push trigger for `audit/solmint-pay-next` changes to the capture workflow/script, in addition to manual dispatch.
+
+**The canonical schema artifact is still not present in repository evidence and has not been accepted as a production baseline.** The current GitHub tool surface can inspect workflow state but cannot itself initiate `workflow_dispatch`, so absence of a newly uploaded artifact must not be interpreted as a successful capture.
+
+## 7. Workflow contract and current evidence
 
 The Pay workflows are deliberately separated by responsibility:
 
@@ -175,7 +179,11 @@ Builds an isolated Supabase environment, runs Pay database tests, resets the iso
 
 Runs the real Devnet transaction harness with an ephemeral sender keypair funded by a dedicated Devnet funding wallet. It must never consume or print the production Helius credential.
 
-All three Pay workflows use the same trigger principle:
+### `solmint-pay-production-schema-capture.yml`
+
+Runs only the read-only production schema capture described above. This workflow is evidence collection, not a migration operation.
+
+All Pay workflows use the same trigger principle:
 
 ```text
 Pull request -> main
@@ -187,7 +195,9 @@ Path filters remain enabled so unrelated site changes do not create unnecessary 
 
 Pay workflows are evidence collectors. A workflow that is skipped, cancelled, incomplete, stale, or tied to an old SHA is not a production PASS.
 
-The generic repository CI remains separate from these focused Pay gates.
+For the current `audit/solmint-pay-next` HEAD, GitHub has not exposed a current workflow-run result through the connected workflow-run endpoint. Therefore no CI PASS is claimed.
+
+Cloudflare evidence for the current HEAD `3de6c7c` recorded a successful Pages preview deployment and a separate failed Workers deployment. Neither is production-release evidence for SolMint Pay.
 
 ## 8. Session-start procedure for every future ChatGPT/engineer
 
@@ -205,7 +215,7 @@ Start by fetching:
 8. relevant source files and migrations;
 9. live Supabase schema/migration state when database questions are involved.
 
-Then answer, internally and explicitly in the working notes:
+Then answer:
 
 ```text
 What is the current HEAD?
@@ -245,20 +255,22 @@ No chat, workflow, or automation may flip the Pay launch flag as a shortcut arou
 ## 11. Current workstream snapshot — 2026-09-03
 
 - Main branch HEAD: `30a4de0df02b788d2eeedb88377115922805fffb`.
-- Current Pay audit branch HEAD after baseline-recovery documentation: `d8dd284c89d66173db82f63da2b4803abf13c273`.
-- Pay audit work is being tracked in PR #37; the Pay foundation branch is tracked separately in PR #36.
+- Current Pay audit branch HEAD at handoff update: `f23b0265907de1762d9d493cf24b21a80ed68325`.
+- Prior audit branch HEAD was `3de6c7c2f189452e8aec25d38fde8c0489866508`.
+- The latest audit branch change enabled the audited-branch schema-capture workflow trigger; the handoff update itself records the verified state.
+- Pay audit work is tracked in PR #37; Pay foundation work is tracked separately in PR #36.
 - PR #37 remains open/draft and audit-only; `/pay` remains disabled.
-- Production Supabase is healthy, but its migration ledger contains 55 historical versions not represented under the same identifiers in the repository, and its protected `main` branch currently reports `MIGRATIONS_FAILED`.
-- No Pay migration has been applied to production.
-- A verified production migration ledger manifest and a baseline-recovery contract now exist in the repository.
-- No current-HEAD CI PASS is claimed for the latest audit branch HEAD; current workflow evidence remains insufficient until workflows execute for that exact SHA.
+- Production Supabase currently has 55 applied historical migrations and no Pay migrations; direct schema inspection confirms no Pay schema layer in production.
+- The migration baseline remains the highest-risk blocker before any Pay production migration.
+- A read-only canonical schema-capture mechanism is now committed, but the captured artifact itself has not been obtained/verified through GitHub workflow evidence.
+- No current-HEAD CI PASS is claimed for the latest audit branch HEAD.
 - The existing Helius/Cloudflare RPC arrangement is a completed infrastructure decision, not an open setup task.
 
 This snapshot must be revalidated at the start of the next session rather than assumed current forever.
 
 ## 12. What to do next
 
-The next action is to obtain or generate a **canonical production schema snapshot/diff** through a trusted Supabase/PostgreSQL mechanism, validate it against the live database, and only then reconcile the repository migration directory and Supabase migration ledger.
+The immediate next gate is the canonical production schema capture and its independent validation. Once the artifact exists, compare it against the repository's historical migration intent and use that comparison to design a controlled baseline without fabricating migration provenance.
 
 After the baseline is genuinely repaired:
 
