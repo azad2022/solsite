@@ -1,47 +1,68 @@
 # SolMint Pay — RPC Provider Configuration Contract
 
-**Status:** Configuration contract recorded. No production RPC secret is stored in the repository.
+**Status:** Configuration contract and architectural boundary.
 
 ## 1. Purpose
 
-SolMint Pay uses a provider-neutral blockchain boundary. The payment verifier and reconciliation engine must not depend on Helius-specific SDKs, response shapes, or credentials. The production provider is selected through server-side runtime configuration.
+SolMint Pay uses a provider-neutral blockchain boundary. Payment verification and reconciliation do not depend on Helius-specific SDKs, response shapes, or credentials.
 
-The current implementation uses `SolanaPaymentProvider` as the domain boundary and `SolanaRpcProvider` as the JSON-RPC implementation. The provider requires a valid HTTPS `SOLANA_RPC_URL` and performs blockchain reads only from backend code.
+The current implementation is:
+
+```text
+server runtime
+    |
+    | SOLANA_RPC_URL
+    v
+createSolanaRpcProvider()
+    |
+    v
+SolanaRpcProvider
+    |
+    v
+SolanaPaymentProvider
+    |
+    +--> paymentVerifier
+    +--> reconciliationEngine
+```
+
+The concrete RPC implementation uses Solana JSON-RPC and performs blockchain reads only from backend/server code.
 
 ## 2. Production provider decision
 
-Production SolMint Pay will use **Helius RPC on Solana Mainnet**.
+Production SolMint Pay uses **Helius RPC on Solana Mainnet**.
 
-The Helius API key is a server credential. It must never be:
+The Helius credential is a server-side deployment secret. It must never be:
 
 - committed to Git;
-- placed in `.env.example` with a real value;
+- embedded in client code;
 - prefixed with `VITE_`;
-- embedded in React/client bundles;
-- sent to browsers;
 - stored in the Pay database;
-- returned by any API response;
+- returned by APIs;
 - written to logs.
 
-The repository stores only the variable name and configuration contract. The secret value is injected by the production deployment environment.
+The repository intentionally stores only the variable name and configuration contract.
+
+**Important continuity rule:** Helius provisioning and the Cloudflare production secret are already-established infrastructure decisions. They are not a default engineering task. Reconfigure them only when current runtime evidence proves a problem.
 
 ## 3. Runtime configuration
 
-The canonical server-side variable is:
+Canonical primary variable:
 
 ```text
 SOLANA_RPC_URL
 ```
 
-Production value shape:
+The concrete provider rejects a missing or non-HTTPS URL before making a request.
+
+Optional resilience configuration:
 
 ```text
-https://mainnet.helius-rpc.com/?api-key=<SECRET>
+SOLANA_RPC_FALLBACK_URLS
 ```
 
-The exact secret value is intentionally absent from source control and documentation.
+This is a comma-separated list of additional HTTPS RPC URLs and is optional. The resilience wrapper accepts at most three unique provider URLs in total.
 
-`SOLANA_RPC_URL` is consumed by `createSolanaRpcProvider()` in `src/pay/services/solanaRpcProvider.ts`. The provider rejects missing or non-HTTPS URLs before making blockchain requests.
+Production does **not** require fallback URLs merely because the abstraction supports them. Do not invent or provision secondary credentials without an explicit reliability requirement and evidence.
 
 ## 4. Environment separation
 
@@ -51,107 +72,94 @@ The exact secret value is intentionally absent from source control and documenta
 Network: Solana Mainnet
 Provider: Helius RPC
 Variable: SOLANA_RPC_URL
-Secret source: Cloudflare Pages/Functions production secret
+Runtime: Cloudflare Pages Functions / server-side Pay runtime
 ```
 
-Production must use the Mainnet Helius endpoint configured for SolMint Pay. A Devnet endpoint must never be silently used as a production fallback.
+A Devnet endpoint must never silently become the production fallback.
 
 ### CI / Devnet E2E
 
-Devnet E2E uses the dedicated test environment and must remain isolated from the production Helius credential. Test workflows must not require, print, or expose the production Mainnet RPC secret.
+Devnet E2E uses a dedicated public Devnet RPC and dedicated CI funding material. It must not require or expose the production Mainnet Helius credential.
 
 ### Local development
 
-Local development may use a developer-supplied HTTPS Solana RPC endpoint through `SOLANA_RPC_URL`. No production API key belongs in a local committed file.
+Developers may supply their own HTTPS RPC endpoint through `SOLANA_RPC_URL`. Production credentials do not belong in committed local configuration.
 
-## 5. Current code boundary
+## 5. Provider responsibilities
 
-```text
-Cloudflare runtime environment
-        |
-        | SOLANA_RPC_URL
-        v
-createSolanaRpcProvider()
-        |
-        v
-SolanaRpcProvider
-        |
-        v
-SolanaPaymentProvider
-        |
-        +--> paymentVerifier
-        |
-        +--> reconciliationEngine
-```
-
-The verifier receives a provider instance instead of constructing Helius itself. This keeps Helius replaceable and prevents provider-specific logic from leaking into financial verification.
-
-## 6. Allowed blockchain operations
-
-The current provider performs the following RPC operations as required by the verification architecture:
+`SolanaRpcProvider` currently supports:
 
 - `getTransaction` for authoritative transaction retrieval;
 - `getSignaturesForAddress` for paginated reference discovery;
-- `getAccountInfo` for SPL/Token-2022 token-account metadata validation;
-- `getSlot` for provider/network health.
+- `getAccountInfo` for token-account metadata enrichment/validation;
+- `getSlot` for provider health.
 
-`getSignaturesForAddress` is discovery only. A discovered signature becomes financially meaningful only after full transaction verification against the Payment Intent.
+`getSignaturesForAddress` is discovery only. A discovered signature becomes financially meaningful only after complete verification against the immutable Payment Intent.
 
-## 7. Reliability and failure policy
+The provider uses an 8-second request timeout and bounded discovery pagination. Exhausting the discovery bound is treated as `REFERENCE_DISCOVERY_INCOMPLETE`, not as `no_match`.
 
-The provider currently applies:
+## 6. Resilience layer
 
-- an 8-second RPC timeout;
-- explicit HTTP/error/result validation;
-- bounded discovery pagination;
-- a fail-closed error path for unavailable provider responses;
-- a health check that reports provider availability and finalized slot.
+The repository contains `ResilientSolanaPaymentProvider` above the concrete provider.
 
-Provider outage or incomplete discovery must not create a successful payment state.
+Current behavior:
 
-A future production hardening stage may add multiple-provider failover, circuit breaking, provider-specific backoff, stale-data detection, and indexer/streaming integration. These additions must preserve the provider-neutral interface.
+- up to 3 configured provider URLs;
+- up to 2 attempts per provider;
+- bounded backoff of 250 ms then 750 ms;
+- sequential provider fallback after provider errors;
+- health probing across configured providers;
+- fail-closed outcome when all providers fail.
 
-## 8. Secret-management contract
+The resilience layer does not change financial verification rules. It only provides a more reliable provider boundary.
+
+A future change to fallback semantics must preserve the distinction between:
+
+- provider error/unavailability;
+- a successful empty result;
+- an incomplete discovery result;
+- a transaction that was retrieved but failed financial verification.
+
+Those cases must never be collapsed into one generic result.
+
+## 7. Secret-management contract
 
 The deployment environment is the source of the Helius credential. The repository is not a secret store.
 
-Required production sequence:
+No production Helius secret belongs in:
+
+- GitHub source;
+- `.env.example` with a real value;
+- frontend bundles;
+- database records;
+- application logs;
+- API responses.
+
+## 8. Release implications
+
+Adding or changing an RPC credential is not a substitute for Pay release evidence.
+
+Before enabling live Pay processing, independently prove:
+
+1. the current production runtime receives the intended Mainnet RPC endpoint server-side;
+2. required transaction reads work at the configured commitment;
+3. reference discovery is complete/retryable and never treated as payment proof;
+4. token-account validation works for every supported asset policy;
+5. RPC failures cannot create a successful financial state;
+6. retry/fallback behavior cannot cause duplicate recognition;
+7. observability distinguishes provider failure, stale/incomplete discovery, and verification failure;
+8. no production secret is committed or exposed.
+
+## 9. Current source-of-truth references
+
+For continuation of the Pay workstream, use:
 
 ```text
-Create Helius API key
-        ↓
-Store it as production secret
-        ↓
-Construct SOLANA_RPC_URL in deployment environment
-        ↓
-Deploy backend Functions
-        ↓
-Run provider health verification
-        ↓
-Run real Mainnet-read verification tests
+docs/solmint-pay-v1-product-contract.md  <- product/economic/security authority
+docs/solmint-pay-continuation.md        <- operational facts and safe continuation procedure
+src/pay/services/blockchainProvider.ts   <- provider-neutral interface
+src/pay/services/solanaRpcProvider.ts   <- concrete Solana JSON-RPC implementation
+src/pay/services/resilientSolanaPaymentProvider.ts <- retry/fallback wrapper
 ```
 
-No secret is required to build the public frontend bundle.
-
-## 9. Release gates before enabling Pay
-
-Adding the Helius secret does **not** by itself make Pay production-ready. Before `/pay` or live financial processing is enabled, the following must be independently proven:
-
-1. The production runtime receives `SOLANA_RPC_URL` without exposing it to client code.
-2. Helius Mainnet `getTransaction` reads succeed with the required commitment policy.
-3. Reference discovery is complete/retryable and never treated as proof by itself.
-4. Token-account validation works for every supported production asset policy.
-5. RPC failures fail closed.
-6. Provider latency, errors, and rate limits are observable.
-7. A provider outage/retry scenario cannot double-recognize a payment.
-8. CI confirms no secret literal or production credential is committed.
-9. `/pay` remains disabled until the remaining database, authorization, webhook, accounting, E2E, observability, and release gates pass.
-
-## 10. Current state
-
-At the time of this document:
-
-- Helius production credentials are **not** stored in GitHub.
-- Cloudflare production secrets are **not** configured by this document.
-- `SOLANA_RPC_URL` is documented in `.env.example` as an empty server-only variable.
-- The repository's blockchain layer is already structured so Helius can be introduced without changing payment-verification business logic.
+This file documents the RPC boundary only. It does not override the V1 product contract or current runtime evidence.
