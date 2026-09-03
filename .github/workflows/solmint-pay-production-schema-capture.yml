@@ -21,17 +21,19 @@ jobs:
     name: Read-only production schema capture
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - name: Checkout audited branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.ref }}
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Validate secret presence without printing it
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          set -euo pipefail
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "Missing required GitHub Actions secret: SUPABASE_DB_URL" >&2
             exit 1
@@ -40,30 +42,64 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.116.0
 
       - name: Capture schema
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          set -euo pipefail
           bash scripts/solmint-pay/capture-production-schema.sh
 
-      - name: Validate artifact contains no obvious data dump
+      - name: Validate and fingerprint captured schema
+        shell: bash
         run: |
-          if grep -Eiq '^(INSERT INTO|COPY .+ FROM stdin;)' artifacts/solmint-pay-production-schema/production-schema.sql; then
+          set -euo pipefail
+          schema_file="artifacts/solmint-pay-production-schema/production-schema.sql"
+          metadata_file="artifacts/solmint-pay-production-schema/production-schema.metadata"
+          manifest_file="artifacts/solmint-pay-production-schema/production-schema.sha256"
+
+          test -s "$schema_file"
+          test -s "$manifest_file"
+
+          if grep -Eiq '^(INSERT INTO|COPY .+ FROM stdin;)' "$schema_file"; then
             echo "Production data statements detected in schema artifact; refusing to publish it." >&2
             exit 1
           fi
 
-      - name: Validate secret-like connection strings are absent
-        run: |
-          if grep -Eiq '(postgres(ql)?://[^[:space:]]+|SUPABASE_DB_URL=)' artifacts/solmint-pay-production-schema/production-schema.sql; then
+          if grep -Eiq '(postgres(ql)?://[^[:space:]]+|SUPABASE_DB_URL=)' "$schema_file"; then
             echo "Possible connection string detected in schema artifact; refusing to publish it." >&2
             exit 1
           fi
 
+          expected_sha="$(sha256sum "$schema_file" | awk '{print $1}')"
+          recorded_sha="$(awk '{print $1}' "$manifest_file")"
+          if [ "$expected_sha" != "$recorded_sha" ]; then
+            echo "Schema SHA-256 manifest mismatch." >&2
+            exit 1
+          fi
+
+          capture_head_sha="$(git rev-parse HEAD)"
+          capture_timestamp_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+          cat > "$metadata_file" <<EOF
+capture_branch=${GITHUB_REF_NAME}
+capture_head_sha=${capture_head_sha}
+github_run_id=${GITHUB_RUN_ID}
+github_run_attempt=${GITHUB_RUN_ATTEMPT}
+capture_timestamp_utc=${capture_timestamp_utc}
+supabase_project_ref=nvopkbiedorfshwbmyhn
+supabase_cli_version=2.116.0
+schema_sha256=${expected_sha}
+EOF
+
+          echo "Captured schema provenance:" 
+          cat "$metadata_file"
+
       - name: Upload schema artifact
         uses: actions/upload-artifact@v4
         with:
-          name: solmint-pay-production-schema-${{ github.sha }}
+          name: solmint-pay-production-schema-${{ github.ref_name }}-${{ github.run_id }}
           path: artifacts/solmint-pay-production-schema/
           if-no-files-found: error
           retention-days: 7
