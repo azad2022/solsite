@@ -5,7 +5,7 @@ import {
   payFeatureEnabled,
   payJson,
   supabaseRequest,
-} from '../../_shared/runtime';
+} from '../../../_shared/runtime';
 
 interface PayEnv {
   SUPABASE_URL?: string;
