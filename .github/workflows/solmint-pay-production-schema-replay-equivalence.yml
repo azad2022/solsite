@@ -45,7 +45,11 @@ jobs:
           unzip -q /tmp/production-schema.zip -d artifacts/solmint-pay-replay/input
           test -s artifacts/solmint-pay-replay/input/production-schema.sql
           test -s artifacts/solmint-pay-replay/input/production-schema.sha256
-          sha256sum -c artifacts/solmint-pay-replay/input/production-schema.sha256
+          cd artifacts/solmint-pay-replay/input
+          expected_sha="$(awk '{print $1}' production-schema.sha256)"
+          actual_sha="$(sha256sum production-schema.sql | awk '{print $1}')"
+          test "$expected_sha" = "$actual_sha"
+          echo "Snapshot SHA-256 verified: $actual_sha"
 
       - name: Start disposable PostgreSQL 17
         run: |
