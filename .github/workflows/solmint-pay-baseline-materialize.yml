@@ -1,8 +1,8 @@
 name: SolMint Pay — Materialize Canonical Production Baseline
 
 # One-shot repository operation. Generates the canonical baseline from the frozen
-# Production snapshot artifact, archives legacy short-name migrations, and commits
-# the resulting deterministic migration layout to this audit branch.
+# Production snapshot artifact, archives every non-Pay active migration outside the
+# execution directory, and commits the deterministic migration layout to this branch.
 # Production database is never modified by this workflow.
 # This workflow intentionally triggers only when this workflow file changes.
 
@@ -71,12 +71,11 @@ jobs:
           set -Eeuo pipefail
           pay_count="$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' | wc -l)"
           test "$pay_count" -eq 47
-          baseline_count="$(find supabase/migrations -maxdepth 1 -type f -name '20260829090000_solmint_production_baseline.sql' | wc -l)"
-          test "$baseline_count" -eq 1
-          legacy_count="$(find supabase/migrations -maxdepth 1 -type f -name '2026*.sql' | grep -v '_solmint_pay_' | grep -v '^supabase/migrations/20260829090000_solmint_production_baseline.sql$' | wc -l)"
-          test "$legacy_count" -eq 14
+          test -f supabase/migrations/20260829090000_solmint_production_baseline.sql
+          other_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' ! -name '*_solmint_pay_*.sql' ! -name '20260829090000_solmint_production_baseline.sql' | wc -l)"
+          test "$other_count" -gt 0
 
-      - name: Archive legacy short-name migrations
+      - name: Archive legacy migrations outside active execution directory
         run: node scripts/solmint-pay/activate-canonical-baseline.mjs apply
 
       - name: Assert canonical active migration layout
@@ -87,7 +86,8 @@ jobs:
           test "$pay_count" -eq 47
           active_sql_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | wc -l)"
           test "$active_sql_count" -eq 48
-          test "$(find supabase/migration-archive/legacy-2026-09-03 -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq 14
+          archive_count="$(find supabase/migration-archive/legacy-2026-09-03 -maxdepth 1 -type f -name '*.sql' | wc -l)"
+          test "$archive_count" -gt 0
 
       - name: Commit canonical migration layout
         run: |
