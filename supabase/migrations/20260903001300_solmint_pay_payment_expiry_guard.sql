@@ -23,3 +23,5 @@ for each row execute function public.pay_guard_payment_intent_expiry();
 
 comment on function public.pay_guard_payment_intent_expiry() is
   'Rejects creation of Payment Intents whose expiry is not strictly in the future.';
+
+-- CI trigger marker: no-op comment, does not change database behavior.
