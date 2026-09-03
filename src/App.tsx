@@ -6,6 +6,7 @@ import { safeGetLocalStorage } from './utils/security';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { Footer } from './components/Footer';
+import { DeferredSection } from './components/DeferredSection';
 import { fetchArticlesFromActiveDatabase } from './utils/databaseService';
 import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 import { updateRouteSeo } from './utils/seoManager';
@@ -247,15 +248,27 @@ export default function App() {
     <main className="flex-1 relative z-10"><Suspense fallback={<SuspenseFallback />}>
       {currentPath === '/' && <>
         <HeroSection onExploreFeatures={scrollToFeatures} downloadLinks={downloadLinks} />
-        <Suspense fallback={null}>
+        <DeferredSection estimatedHeight={650}>
           <AppShowcase />
+        </DeferredSection>
+        <DeferredSection estimatedHeight={1}>
           <MemeTicker />
+        </DeferredSection>
+        <DeferredSection estimatedHeight={700}>
           <AppFeaturesSection />
+        </DeferredSection>
+        <DeferredSection estimatedHeight={600}>
           <SecuritySection />
+        </DeferredSection>
+        <DeferredSection estimatedHeight={700}>
           <RoadmapSection />
+        </DeferredSection>
+        <DeferredSection estimatedHeight={650}>
           <FaqSection />
+        </DeferredSection>
+        <DeferredSection estimatedHeight={850}>
           <LatestArticlesSection articles={articles} setArticles={setArticles} onGoToBlog={() => handleNavigate('/blog')} onNavigate={handleNavigate} />
-        </Suspense>
+        </DeferredSection>
       </>}
       {currentPath === '/solana-price' && <><SolanaPriceSeoEnhancer><SolanaPricePage onNavigate={handleNavigate} /></SolanaPriceSeoEnhancer><SolanaMarketInsights /></>}
       {currentPath === '/solana-wallet' && <SolanaWalletPage onNavigate={handleNavigate} downloadLinks={downloadLinks} />}
