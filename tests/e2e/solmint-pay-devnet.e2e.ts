@@ -46,7 +46,7 @@ async function fundEphemeralSender(sender: Keypair): Promise<void> {
       const balance = await connection.getBalance(sender.publicKey, 'finalized');
       if (balance >= minimumLamports) return;
 
-      const signature = await connection.requestAirdrop(sender.publicKey, minimumLamports, 'finalized');
+      const signature = await connection.requestAirdrop(sender.publicKey, minimumLamports);
       await waitForFinalized(signature, 60_000);
 
       const fundedBalance = await connection.getBalance(sender.publicKey, 'finalized');
