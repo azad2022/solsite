@@ -3,10 +3,12 @@ import { timingSafeEqual } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { isIP } from 'node:net';
+import { validateWebhookUrl } from '../src/pay/services/securityPolicy';
 
 export const EGRESS_BODY_LIMIT = 256 * 1024;
 export const EGRESS_RESPONSE_LIMIT = 16 * 1024;
 export const EGRESS_TIMEOUT_MS = 10_000;
+export const EGRESS_DNS_TIMEOUT_MS = 2_000;
 export const MAX_WEBHOOK_ENDPOINT_URL_BYTES = 2048;
 
 function ip4(value: string): number {
@@ -53,7 +55,7 @@ export function assertPublicResolution(addresses: string[]): string[] {
   return unique;
 }
 
-export async function resolvePublicAddresses(hostname: string, resolver = new Resolver()): Promise<string[]> {
+export async function resolvePublicAddresses(hostname: string, resolver = new Resolver({ timeout: EGRESS_DNS_TIMEOUT_MS, tries: 2, maxTimeout: EGRESS_DNS_TIMEOUT_MS })): Promise<string[]> {
   const [v4, v6] = await Promise.all([
     resolver.resolve4(hostname).catch(() => [] as string[]),
     resolver.resolve6(hostname).catch(() => [] as string[]),
@@ -95,7 +97,7 @@ async function readRequestBody(request: Request): Promise<string> {
   return body;
 }
 
-export interface EgressConfig { secret: string; resolver?: Resolver; }
+export interface EgressConfig { secret: string; resolver?: Resolver; egressHostname?: string; }
 
 function authorize(request: Request, secret: string): void {
   if (secret.length < 32) throw new Error('Egress secret is not configured.');
@@ -106,7 +108,9 @@ function authorize(request: Request, secret: string): void {
   if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) throw new Error('Unauthorized.');
 }
 
-async function performPinnedPost(target: URL, body: string, signatureHeader: string, resolver: Resolver): Promise<number> {
+async function performPinnedPost(target: URL, body: string, signatureHeader: string, resolver: Resolver, egressHostname?: string): Promise<number> {
+  if (!validateWebhookUrl(target.toString())) throw new Error('Webhook target is not allowed.');
+  if (egressHostname && target.hostname.replace(/^\[|\]$/g, '').toLowerCase() === egressHostname.trim().toLowerCase()) throw new Error('Webhook target cannot be the egress gateway itself.');
   if (target.username || target.password) throw new Error('Webhook target credentials are not allowed.');
   if (Buffer.byteLength(target.toString(), 'utf8') > MAX_WEBHOOK_ENDPOINT_URL_BYTES) throw new Error('Webhook target URL is too large.');
   if (target.protocol !== 'https:' || (target.port && target.port !== '443') || target.hash) throw new Error('Webhook target is not allowed.');
@@ -144,11 +148,11 @@ export async function handleWebhookEgressRequest(request: Request, config: Egres
     if (!targetHeader || targetHeader !== parsed.endpointUrl) throw new Error('Invalid egress target binding.');
     if (Buffer.byteLength(parsed.body, 'utf8') > EGRESS_BODY_LIMIT) throw new Error('Webhook payload is too large.');
     const target = new URL(parsed.endpointUrl);
-    const status = await performPinnedPost(target, parsed.body, parsed.signatureHeader, config.resolver ?? new Resolver());
+    const status = await performPinnedPost(target, parsed.body, parsed.signatureHeader, config.resolver ?? new Resolver({ timeout: EGRESS_DNS_TIMEOUT_MS, tries: 2, maxTimeout: EGRESS_DNS_TIMEOUT_MS }), config.egressHostname);
     return json({ ok: true, status }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Egress request failed.';
-    const status = message === 'Unauthorized.' ? 401 : message.includes('not allowed') || message.includes('not public') || message.includes('non-public') || message.includes('did not resolve') || message.includes('target URL') || message.includes('fragment') || message.includes('target binding') ? 422 : 502;
+    const status = message === 'Unauthorized.' ? 401 : message.includes('not allowed') || message.includes('not public') || message.includes('non-public') || message.includes('did not resolve') || message.includes('target URL') || message.includes('fragment') || message.includes('target binding') || message.includes('egress gateway') ? 422 : 502;
     return json({ ok: false, code: status === 422 ? 'EGRESS_TARGET_REJECTED' : status === 401 ? 'UNAUTHORIZED' : 'EGRESS_FAILED' }, status);
   }
 }

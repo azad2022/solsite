@@ -4,7 +4,9 @@ import { handleWebhookEgressRequest } from './pay-webhook-egress';
 const app = express();
 const port = Number(process.env.PAY_WEBHOOK_EGRESS_PORT || 8788);
 const secret = process.env.PAY_WEBHOOK_EGRESS_SECRET?.trim() || '';
+const egressHostname = process.env.PAY_WEBHOOK_EGRESS_HOST?.trim() || '';
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid PAY_WEBHOOK_EGRESS_PORT.');
+if (!egressHostname) throw new Error('PAY_WEBHOOK_EGRESS_HOST is required.');
 app.disable('x-powered-by');
 app.use(express.raw({ type: 'application/json', limit: '256kb' }));
 app.post('/internal/pay/webhook-egress', async (req, res) => {
@@ -18,7 +20,7 @@ app.post('/internal/pay/webhook-egress', async (req, res) => {
       }, new Headers()),
       body: Buffer.isBuffer(req.body) ? req.body : undefined,
     });
-    const response = await handleWebhookEgressRequest(request, { secret });
+    const response = await handleWebhookEgressRequest(request, { secret, egressHostname });
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
     res.send(Buffer.from(await response.arrayBuffer()));
