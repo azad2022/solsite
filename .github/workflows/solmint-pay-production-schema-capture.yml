@@ -1,0 +1,56 @@
+name: SolMint Pay — Production Schema Capture
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solmint-pay-production-schema-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Read-only production schema capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Checkout audited branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+
+      - name: Validate secret presence without printing it
+        run: |
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "Missing required GitHub Actions secret: SUPABASE_DB_URL" >&2
+            exit 1
+          fi
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Capture schema
+        run: |
+          bash scripts/solmint-pay/capture-production-schema.sh
+
+      - name: Validate artifact contains no obvious data dump
+        run: |
+          if grep -Eiq '^(INSERT INTO|COPY .+ FROM stdin;)' artifacts/solmint-pay-production-schema/production-schema.sql; then
+            echo "Production data statements detected in schema artifact; refusing to publish it." >&2
+            exit 1
+          fi
+
+      - name: Upload schema artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-production-schema-${{ github.sha }}
+          path: artifacts/solmint-pay-production-schema/
+          if-no-files-found: error
+          retention-days: 7
