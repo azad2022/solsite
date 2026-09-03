@@ -5,12 +5,17 @@ import { createSolanaRpcProvider } from '../../src/pay/services/solanaRpcProvide
 import { verifyPaymentTransaction, type ExpectedPayment, type ObservedPaymentTransaction } from '../../src/pay/services/verificationPolicy';
 
 const RPC_URL = process.env.SOLANA_DEVNET_RPC_URL?.trim() || 'https://api.devnet.solana.com';
+const FUNDING_RPC_URLS = [
+  RPC_URL,
+  'https://demo.helius.dev/api/rpc?network=devnet',
+].filter((url, index, urls) => urls.indexOf(url) === index);
+
 const connection = new Connection(RPC_URL, { commitment: 'finalized', confirmTransactionInitialTimeout: 45_000 });
 
-async function waitForFinalized(signature: string, timeoutMs = 60_000): Promise<void> {
+async function waitForFinalized(client: Connection, signature: string, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const statuses = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+    const statuses = await client.getSignatureStatuses([signature], { searchTransactionHistory: true });
     const status = statuses.value[0];
     if (status?.err) throw new Error(`Devnet transaction failed: ${JSON.stringify(status.err)}`);
     if (status?.confirmationStatus === 'finalized') return;
@@ -26,18 +31,28 @@ async function fundEphemeralSender(sender: Keypair): Promise<void> {
   let delayMs = 3_000;
 
   while (Date.now() < deadline) {
-    try {
-      const balance = await connection.getBalance(sender.publicKey, 'finalized');
-      if (balance >= minimumLamports) return;
+    for (const fundingRpcUrl of FUNDING_RPC_URLS) {
+      const fundingConnection = new Connection(fundingRpcUrl, { commitment: 'finalized', confirmTransactionInitialTimeout: 30_000 });
+      try {
+        const balance = await fundingConnection.getBalance(sender.publicKey, 'finalized');
+        if (balance >= minimumLamports) {
+          if (fundingRpcUrl !== RPC_URL) {
+            const visibleBalance = await connection.getBalance(sender.publicKey, 'finalized');
+            if (visibleBalance >= minimumLamports) return;
+          } else {
+            return;
+          }
+        }
 
-      const signature = await connection.requestAirdrop(sender.publicKey, minimumLamports);
-      await waitForFinalized(signature, 60_000);
+        const signature = await fundingConnection.requestAirdrop(sender.publicKey, minimumLamports);
+        await waitForFinalized(fundingConnection, signature, 60_000);
 
-      const fundedBalance = await connection.getBalance(sender.publicKey, 'finalized');
-      if (fundedBalance >= minimumLamports) return;
-      lastError = new Error(`Devnet airdrop finalized but balance is only ${fundedBalance} lamports.`);
-    } catch (error) {
-      lastError = error;
+        const fundedBalance = await connection.getBalance(sender.publicKey, 'finalized');
+        if (fundedBalance >= minimumLamports) return;
+        lastError = new Error(`Devnet airdrop finalized but balance is only ${fundedBalance} lamports.`);
+      } catch (error) {
+        lastError = error;
+      }
     }
 
     const remainingMs = deadline - Date.now();
@@ -88,7 +103,7 @@ async function buildAndSendRealPayment(): Promise<{ expected: ExpectedPayment; o
   const transaction = new Transaction({ recentBlockhash: blockhash, feePayer: sender.publicKey })
     .add(merchantTransfer, feeTransfer);
   const signature = await sendAndConfirmTransaction(connection, transaction, [sender], { commitment: 'confirmed' });
-  await waitForFinalized(signature);
+  await waitForFinalized(connection, signature);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: RPC_URL });
   const candidates = await provider.findTransactionsByReference(
