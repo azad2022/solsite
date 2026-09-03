@@ -91,7 +91,7 @@ select ok(
     where n.nspname = 'public'
       and t.relname = 'pay_webhook_deliveries'
       and c.contype = 'u'
-      and pg_get_constraintdef(c.oid) like '%webhook_id%event_id%'
+      and pg_get_constraintdef(c.oid) = 'UNIQUE (webhook_id, event_id)'
   ),
   'Webhook deliveries are idempotent per webhook and event'
 );
