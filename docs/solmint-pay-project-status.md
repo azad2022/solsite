@@ -3,7 +3,7 @@
 **Status date:** 2026-09-03  
 **Repository:** `azad2022/solsite`  
 **Working branch:** `audit/solmint-pay-next`  
-**Current audited HEAD:** `0a496ec6adc2473ee3dba57e0100c6a8903ea19f`  
+**Current audited HEAD:** `c86133d6573233cc343ea90b75daea34c1633813`  
 **Production route:** `/pay` remains disabled until all release gates pass.
 
 ## Purpose of this file
@@ -16,16 +16,25 @@ A previous assistant/session statement, this file, PR descriptions, commit messa
 
 ## Verified facts as of 2026-09-03
 
+### Repository / PR
+
+- Working branch: `audit/solmint-pay-next`.
+- PR #37: open, draft, base `main`.
+- Current HEAD: `c86133d6573233cc343ea90b75daea34c1633813`.
+- The immediately preceding functional commit is `0a496ec6adc2473ee3dba57e0100c6a8903ea19f`; `c861...` is documentation/status-only and did not change Pay code, migrations, or workflows.
+- Therefore functional validation performed on `0a496...` remains relevant to the current tree, but fresh aggregate CI has not yet been collected for `c861...`.
+
 ### Production database
 
 - Supabase Production project ref: `nvopkbiedorfshwbmyhn`
 - Region: `eu-central-1`
-- PostgreSQL observed: `17.6`
+- PostgreSQL observed: `17.6.1.147`
+- Production project status observed: `ACTIVE_HEALTHY`.
 - Production migration ledger currently contains **56 distinct applied versions**.
 - Newest observed Production migration: `20260826190853 / category_default_media_gallery_rpc`.
-- The earlier checkpoint incorrectly recorded 55; the live ledger now has been independently counted and verified as 56. The newest migration version is unchanged.
 - No Pay migration/version is present in the Production migration ledger.
 - Direct inspection of the live `public` schema reports **0 `pay_%` relations**. Pay schema is therefore not deployed to Production.
+- The Supabase development branch named `main` is currently `MIGRATIONS_FAILED`; it is not treated as a clean validation baseline.
 
 ### Production schema snapshot
 
@@ -53,31 +62,32 @@ A previous assistant/session statement, this file, PR descriptions, commit messa
 - Current Pay migration chain: **47 migrations**.
 - All **47/47** Pay migrations applied successfully on top of the captured Production baseline.
 - The replay checks legacy relation preservation and Pay object creation.
-- This proves migration-chain replayability against the captured baseline; it is not by itself permission to execute Pay DDL in Production.
+- This proves migration-chain replayability against the captured baseline; it is not permission to execute Pay DDL in Production.
 
 ### Baseline definition preservation audit
 
 - Workflow: `.github/workflows/solmint-pay-baseline-definition-audit.yml`
 - Successful run: `33796828088`
-- Head: `0a496ec6adc2473ee3dba57e0100c6a8903ea19f`
+- Successful run HEAD: `0a496ec6adc2473ee3dba57e0100c6a8903ea19f`.
+- The current HEAD `c861...` differs from that run only by the project-status documentation update.
 - Snapshot SHA was independently verified before replay.
 - All 47 Pay migrations applied successfully.
 - Non-Pay relations, columns, constraints, indexes, functions/security configuration, triggers, policies, table grants, routine grants, and extensions were compared before/after.
-- Result: **PASS** — no non-Pay definition changes detected under the comparator.
+- Result: **PASS** for functional tree `0a496...` — no non-Pay definition changes detected under the comparator.
 
-## Existing Pay security and E2E coverage — do not repeat without evidence of invalidation
+### Current security / real E2E evidence
 
-### RLS / client isolation
+#### RLS / client isolation
 
-Existing test: `supabase/tests/database/pay_client_isolation.sql`
+Existing test: `supabase/tests/database/pay_client_isolation.sql`.
 
-The test has 18 assertions covering RLS on Pay tables, denial of direct `anon`/`authenticated` table privileges, security-definer restrictions, webhook enqueueing, global blockchain signature uniqueness, Payment Intent fee/invariant checks and required-field rejection.
+It has 18 assertions covering RLS on Pay tables, denial of direct `anon`/`authenticated` table privileges, security-definer restrictions, webhook enqueueing, global blockchain signature uniqueness, Payment Intent fee/invariant checks and required-field rejection.
 
 Existing workflow: `.github/workflows/solmint-pay-database-security.yml`.
 
-This gate has already been implemented and tested. Do not recreate equivalent tests merely because new baseline tooling was added.
+This gate is implemented and has prior execution evidence. Do not recreate equivalent tests merely because new baseline tooling was added.
 
-### SECURITY DEFINER / rate limit / reconciliation guards
+#### SECURITY DEFINER / rate limit / reconciliation guards
 
 Existing test: `supabase/tests/database/pay_rate_limit_and_reconciliation_guards.sql`.
 
@@ -85,10 +95,10 @@ It covers SECURITY DEFINER + empty search path, client execute restrictions, ato
 
 This coverage already exists and should not be duplicated without a real coverage gap.
 
-### Real Devnet E2E
+#### Real Devnet E2E
 
 Existing workflow: `.github/workflows/solmint-pay-devnet-e2e.yml`  
-Existing harness: `tests/e2e/solmint-pay-devnet.e2e.ts`
+Existing harness: `tests/e2e/solmint-pay-devnet.e2e.ts`.
 
 Concrete successful historical run:
 
@@ -97,17 +107,35 @@ Concrete successful historical run:
 - Conclusion: `success`
 - The successful job included funding an ephemeral sender, executing the real Devnet payment verification, and securely removing the temporary keypair.
 
-The harness itself uses real Devnet transactions, finalized commitment, reference discovery and `verifyPaymentTransaction()`.
+The harness uses real Devnet transactions, finalized commitment, reference discovery and `verifyPaymentTransaction()`.
 
-**Important audit rule:** this is valid evidence that the real Devnet E2E path has been exercised successfully. Because the user has already performed the real wallet/funding test, do not rerun it now merely to repeat the exercise. A fresh current-HEAD E2E run is intentionally deferred until the final release candidate, after substantive backend/baseline changes are complete. That final run is one release-gate validation, not a duplicate development step.
+This is valid evidence that the real Devnet E2E path has been exercised. Because the user has already performed the wallet/funding/payment test, do not rerun it now merely to repeat development work. A single fresh current-HEAD E2E run remains intentionally deferred until the final release candidate.
 
-## Current architectural blockers
+## Current blockers / audit findings
 
-1. **Migration baseline reconciliation** remains the principal Production blocker. The exact live schema is now captured and definition-preserving under Pay replay, but the historical remote migration versions still do not have one-to-one repository artifacts. The repository must adopt an explicit, proven baseline strategy before any remote migration-history repair or Production Pay DDL.
-2. **Operational backend adversarial coverage** still needs a final audit for webhook races/replay/SSRF/retry/DLQ behavior and reconciliation/accounting concurrency. First inspect existing coverage; only add genuinely missing tests.
-3. **Current final release candidate CI evidence** must be collected after substantive changes stop.
-4. **Current-HEAD real Devnet E2E** is deferred to the final release candidate; historical success is already proven.
-5. **Production Pay DDL** remains blocked until the baseline reconciliation strategy and final release gates pass.
+1. **Migration baseline reconciliation** remains the principal Production blocker. The actual live schema is captured and the 47 Pay migrations preserve all compared non-Pay definitions on disposable replay, but the historical remote migration versions do not have one-to-one repository artifacts. An explicit baseline strategy must be validated before remote migration-history repair or Production Pay DDL.
+2. **Current aggregate CI for HEAD `c861...` is not yet available.** The commit has no ordinary GitHub status entries and no completed PR validation attached to that exact SHA at this checkpoint. Therefore no current-HEAD CI PASS is reported.
+3. **Operational backend adversarial audit** still needs final review for webhook races/replay/SSRF/retry/DLQ and reconciliation/accounting concurrency. Existing tests are inspected first; only real gaps should be added.
+4. **Current-HEAD real Devnet E2E** is deferred to the final release candidate. Historical Devnet E2E success is already proven.
+5. **Production Pay DDL** remains blocked until baseline reconciliation and final release gates pass.
+
+### Separate Production advisor findings — not yet treated as Pay blockers
+
+The current Supabase Security Advisor reports pre-existing non-Pay warnings, including several public `SECURITY DEFINER` functions executable by `anon`/`authenticated` and `pg_net` installed in `public`. These findings were observed directly in Production on 2026-09-03. They are recorded as separate site-security debt and should not be silently mixed into the Pay migration baseline work without a dedicated remediation decision.
+
+The Performance Advisor also reports pre-existing non-Pay items such as an unindexed foreign key, duplicate indexes, unused indexes, and multiple permissive policies. No unrelated Production DDL is being introduced during Pay baseline recovery.
+
+## Migration recovery evidence and safe direction
+
+Official Supabase documentation confirms that:
+
+- `supabase db pull` can create a current-schema baseline migration;
+- `supabase migration repair` changes migration tracking only and does not run/revert the SQL itself;
+- `supabase migration list` compares local migration files against remote migration history;
+- `supabase db push --dry-run` previews pending migrations;
+- `supabase migration squash` can create a schema-only squashed migration for a controlled new baseline.
+
+The safe Pay recovery direction is therefore a **documented canonical baseline strategy**, validated on disposable infrastructure first, with the original 56-entry Production history preserved as forensic evidence before any production history repair. No manual INSERT/DELETE against `supabase_migrations.schema_migrations` is authorized as a shortcut.
 
 ## Required re-verification protocol for every new session
 
