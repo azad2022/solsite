@@ -9,6 +9,8 @@ interface Env {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   PAY_WEBHOOK_MASTER_KEY_B64URL?: string;
   PAY_WEBHOOK_WORKER_SECRET?: string;
+  PAY_WEBHOOK_EGRESS_URL?: string;
+  PAY_WEBHOOK_EGRESS_SECRET?: string;
 }
 
 interface ClaimedDelivery {
@@ -106,7 +108,7 @@ async function processDelivery(env: Env, workerId: string, delivery: ClaimedDeli
   }
 
   try {
-    const response = await fetchWebhookWithTimeout({ endpointUrl: delivery.endpoint_url, signatureHeader, body: rawBody });
+    const response = await fetchWebhookWithTimeout({ endpointUrl: delivery.endpoint_url, signatureHeader, body: rawBody, env });
     const responseHash = await sha256Hex(`${response.status}`);
     if (response.ok) {
       await complete(env, delivery.id, workerId, response.status, responseHash);
