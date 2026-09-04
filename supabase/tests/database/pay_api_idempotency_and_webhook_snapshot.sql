@@ -8,8 +8,14 @@ select ok(
 );
 
 select ok(
-  exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'pay_idempotency_merchant_scope_key_uidx'),
-  'payment intent idempotency key is uniquely scoped by merchant and endpoint scope'
+  exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.pay_idempotency_keys'::regclass
+      and contype = 'u'
+      and pg_get_constraintdef(oid, true) ilike '%(merchant_id, scope, idempotency_key)%'
+  ),
+  'payment intent idempotency key is uniquely constrained by merchant and endpoint scope'
 );
 
 select ok(
