@@ -23,12 +23,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout audit branch
+      - name: Checkout event commit
         uses: actions/checkout@v5
         with:
-          ref: audit/solmint-pay-next
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: true
+
+      - name: Prove checkout matches event commit
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git fetch origin audit/solmint-pay-next --quiet
+          test "$(git rev-parse origin/audit/solmint-pay-next)" = "$GITHUB_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -110,9 +117,5 @@ jobs:
           git fetch origin audit/solmint-pay-next --quiet
           pushed="$(git rev-parse origin/audit/solmint-pay-next)"
           local="$(git rev-parse HEAD)"
-          if git diff --quiet HEAD origin/audit/solmint-pay-next; then
-            echo "Canonical migration layout validated at $local (remote $pushed)"
-          else
-            git diff --stat HEAD origin/audit/solmint-pay-next
-            exit 1
-          fi
+          test "$pushed" = "$local"
+          echo "Canonical migration layout validated at $local"
