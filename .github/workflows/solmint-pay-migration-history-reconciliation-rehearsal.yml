@@ -2,7 +2,8 @@ name: SolMint Pay — Migration History Reconciliation Rehearsal
 
 # Disposable rehearsal only. Production is never a target of this workflow.
 # It proves that migration-history repair changes tracking only, preserves the
-# schema, and leaves exactly the canonical baseline + 51 Pay migrations pending.
+# schema, and that the real Supabase CLI sees/applies exactly the canonical
+# baseline + 51 Pay migrations.
 
 on:
   workflow_dispatch:
@@ -14,6 +15,7 @@ on:
       - 'scripts/solmint-pay/rehearse-migration-history-reconciliation.mjs'
       - 'scripts/solmint-pay/baseline-prepare.mjs'
       - 'scripts/solmint-pay/baseline-validate.mjs'
+      - 'supabase/config.toml'
       - 'supabase/migrations/20260829090000_solmint_production_baseline.sql'
       - 'supabase/migrations/*_solmint_pay_*.sql'
 
@@ -30,11 +32,13 @@ env:
   BASELINE_VERSION: '20260829090000'
   PAY_MIGRATION_COUNT: '51'
   PRODUCTION_MIGRATION_COUNT: '56'
+  SUPABASE_CLI_VERSION: '2.116.0'
+  SUPABASE_DB_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
 
 jobs:
   rehearse:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout audited commit
         uses: actions/checkout@v5
@@ -47,6 +51,17 @@ jobs:
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Prove Supabase CLI version
+        run: |
+          set -Eeuo pipefail
+          supabase --version
+          test "$(supabase --version | awk '{print $3}')" = "$SUPABASE_CLI_VERSION"
 
       - name: Validate frozen Production history manifest
         run: |
@@ -132,92 +147,93 @@ jobs:
           PY
           docker cp /tmp/seed-history.sql solmint-pay-reconciliation-postgres:/tmp/seed-history.sql
           docker exec solmint-pay-reconciliation-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/seed-history.sql
-          test "$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select count(*) from supabase_migrations.schema_migrations;')" = "$PRODUCTION_MIGRATION_COUNT"
+          history_count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select count(*) from supabase_migrations.schema_migrations;')"
+          test "$history_count" = "$PRODUCTION_MIGRATION_COUNT"
 
-      - name: Rehearse guarded history repair only
+      - name: Repair history with the real Supabase CLI
+        env:
+          DB_URL: ${{ env.SUPABASE_DB_URL }}
         run: |
           set -Eeuo pipefail
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          m=json.loads(Path('scripts/solmint-pay/production-migration-history-manifest.json').read_text())
-          sql=['BEGIN;']
-          versions=','.join("'%s'" % row['version'] for row in m)
-          sql.append('DELETE FROM supabase_migrations.schema_migrations WHERE version IN (' + versions + ');')
-          sql.append("INSERT INTO supabase_migrations.schema_migrations(version,name) VALUES ('20260829090000','solmint_production_baseline');")
-          sql.append('COMMIT;')
-          Path('/tmp/repair-history.sql').write_text('\n'.join(sql)+'\n')
-          PY
-          docker cp /tmp/repair-history.sql solmint-pay-reconciliation-postgres:/tmp/repair-history.sql
-          docker exec solmint-pay-reconciliation-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/repair-history.sql
+          mkdir -p artifacts/reconciliation/cli
+          supabase migration list --db-url "$DB_URL" | tee artifacts/reconciliation/cli/history-before-repair.txt
+          mapfile -t legacy_versions < <(node - <<'NODE'
+          const manifest = require('./scripts/solmint-pay/production-migration-history-manifest.json');
+          for (const row of manifest) console.log(row.version);
+          NODE
+          )
+          test "${#legacy_versions[@]}" -eq "$PRODUCTION_MIGRATION_COUNT"
+          for version in "${legacy_versions[@]}"; do
+            supabase migration repair "$version" --status reverted --db-url "$DB_URL" | tee -a artifacts/reconciliation/cli/history-repair.log
+          done
+          supabase migration repair "$BASELINE_VERSION" --status applied --db-url "$DB_URL" | tee -a artifacts/reconciliation/cli/history-repair.log
+          supabase migration list --db-url "$DB_URL" | tee artifacts/reconciliation/cli/history-after-repair.txt
           history_count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select count(*) from supabase_migrations.schema_migrations;')"
-          test "$history_count" = '1'
           history_version="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select version from supabase_migrations.schema_migrations;')"
+          test "$history_count" = '1'
           test "$history_version" = "$BASELINE_VERSION"
 
-      - name: Prove history repair caused zero schema drift
+      - name: Prove CLI history repair caused zero schema drift
         run: |
           set -Eeuo pipefail
           docker exec solmint-pay-reconciliation-postgres pg_dump --schema-only --no-owner --no-privileges --exclude-schema=supabase_migrations -U postgres -d postgres > artifacts/reconciliation/schema-after-history-repair.sql
           sha256sum artifacts/reconciliation/schema-after-history-repair.sql | tee artifacts/reconciliation/schema-after-history-repair.sha256
           cmp artifacts/reconciliation/schema-before-repair.sql artifacts/reconciliation/schema-after-history-repair.sql
 
-      - name: Prove db-push equivalent has exactly 51 Pay migrations pending
+      - name: Verify CLI dry-run proposes exactly 51 Pay migrations
+        env:
+          DB_URL: ${{ env.SUPABASE_DB_URL }}
         run: |
           set -Eeuo pipefail
+          supabase db push --dry-run --db-url "$DB_URL" | tee artifacts/reconciliation/cli/db-push-dry-run.txt
           mapfile -t pay < <(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print | sort)
           test "${#pay[@]}" -eq "$PAY_MIGRATION_COUNT"
           for migration in "${pay[@]}"; do
             version="$(basename "$migration" | cut -d_ -f1)"
-            if docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c "select 1 from supabase_migrations.schema_migrations where version='${version}'" | grep -q '^1$'; then
-              echo "Pay migration unexpectedly marked applied before execution: $version" >&2
-              exit 1
-            fi
+            grep -F "$version" artifacts/reconciliation/cli/db-push-dry-run.txt >/dev/null
           done
-          if docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c "select version from supabase_migrations.schema_migrations" | grep -E '^20260804|^20260805|^20260806|^20260807|^20260810|^20260812|^20260813|^20260817|^20260818|^20260826'; then
-            echo 'A legacy Production migration remains in reconciled history.' >&2
+          if grep -E '20260804212636|20260804212725|20260804215020|20260804215706|20260804220556|20260805083846|20260805083916|20260805083950|20260805083957|20260805084011|20260805094225|20260805095150|20260805095458|20260805102324|20260806185329|20260807120537|20260807120649|20260807120705|20260807120724|20260807120752|20260807123833|20260807124427|20260807145946|20260807191610|20260807192415|20260807192425|20260807193720|20260810160711|20260810172758|20260812121312|20260812121352|20260812121444|20260812122015|20260812170215|20260812170426|20260812170536|20260812172444|20260812172656|20260812175218|20260813120037|20260813120812|20260813120823|20260813121749|20260813171731|20260813171756|20260817164322|20260817175002|20260817175842|20260818125620|20260818125650|20260826170111|20260826170422|20260826170554|20260826173332|20260826190831|20260826190853' artifacts/reconciliation/cli/db-push-dry-run.txt; then
+            echo 'Dry-run proposed a legacy migration.' >&2
+            exit 1
+          fi
+          if grep -F "$BASELINE_VERSION" artifacts/reconciliation/cli/db-push-dry-run.txt; then
+            echo 'Dry-run proposed executing the already-applied baseline.' >&2
             exit 1
           fi
 
-      - name: Apply only the 51 Pay migrations
+      - name: Apply migrations with the real Supabase CLI
+        env:
+          DB_URL: ${{ env.SUPABASE_DB_URL }}
         run: |
           set -Eeuo pipefail
-          : > artifacts/reconciliation/pay-apply.log
-          mapfile -t pay < <(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print | sort)
-          for migration in "${pay[@]}"; do
-            version="$(basename "$migration" | cut -d_ -f1)"
-            echo "===== APPLY PAY $version =====" | tee -a artifacts/reconciliation/pay-apply.log
-            docker cp "$migration" solmint-pay-reconciliation-postgres:/tmp/current-pay-migration.sql
-            docker exec solmint-pay-reconciliation-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/current-pay-migration.sql 2>&1 | tee -a artifacts/reconciliation/pay-apply.log
-            docker exec solmint-pay-reconciliation-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "INSERT INTO supabase_migrations.schema_migrations(version,name) VALUES ('${version}','pay_rehearsal');"
-          done
+          supabase db push --db-url "$DB_URL" | tee artifacts/reconciliation/cli/db-push.txt
+          if grep -F 'No migrations to apply' artifacts/reconciliation/cli/db-push.txt; then
+            echo 'CLI unexpectedly reports no migrations.' >&2
+            exit 1
+          fi
+          ! grep -E '20260804212636|20260804212725|20260804215020|20260804215706|20260804220556|20260805083846|20260805083916|20260805083950|20260805083957|20260805084011|20260805094225|20260805095150|20260805095458|20260805102324|20260806185329|20260807120537|20260807120649|20260807120705|20260807120724|20260807120752|20260807123833|20260807124427|20260807145946|20260807191610|20260807192415|20260807192425|20260807193720|20260810160711|20260810172758|20260812121312|20260812121352|20260812121444|20260812122015|20260812170215|20260812170426|20260812170536|20260812172444|20260812172656|20260812175218|20260813120037|20260813120812|20260813120823|20260813121749|20260813171731|20260813171756|20260817164322|20260817175002|20260817175842|20260818125620|20260818125650|20260826170111|20260826170422|20260826170554|20260826173332|20260826190831|20260826190853' artifacts/reconciliation/cli/db-push.txt
 
-      - name: Verify final history is exactly baseline plus 51 Pay migrations
+      - name: Verify final migration history is exactly baseline plus 51 Pay migrations
+        env:
+          DB_URL: ${{ env.SUPABASE_DB_URL }}
         run: |
           set -Eeuo pipefail
+          supabase migration list --db-url "$DB_URL" | tee artifacts/reconciliation/cli/history-final.txt
           count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select count(*) from supabase_migrations.schema_migrations;')"
           test "$count" = '52'
-          test "$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c \"select count(*) from supabase_migrations.schema_migrations where version='$BASELINE_VERSION';\")" = '1'
-          pay_history="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c \"select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';\")"
+          baseline_count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c "select count(*) from supabase_migrations.schema_migrations where version='$BASELINE_VERSION';")"
+          test "$baseline_count" = '1'
+          pay_history="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")"
           test "$pay_history" = "$PAY_MIGRATION_COUNT"
-          legacy_count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c \"select count(*) from supabase_migrations.schema_migrations where version <> '$BASELINE_VERSION' and version < '20260830000000';\")"
+          legacy_count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c "select count(*) from supabase_migrations.schema_migrations where version <> '$BASELINE_VERSION' and version < '20260830000000';")"
           test "$legacy_count" = '0'
-
-      - name: Assert no legacy SQL was executed during deployment phase
-        run: |
-          set -Eeuo pipefail
-          if grep -Eiq 'APPLY (supabase/migrations/)?20260804|APPLY (supabase/migrations/)?20260805|APPLY (supabase/migrations/)?20260806|APPLY (supabase/migrations/)?20260807|APPLY (supabase/migrations/)?20260810|APPLY (supabase/migrations/)?20260812|APPLY (supabase/migrations/)?20260813|APPLY (supabase/migrations/)?20260817|APPLY (supabase/migrations/)?20260818|APPLY (supabase/migrations/)?20260826' artifacts/reconciliation/pay-apply.log; then
-            echo 'Legacy migration SQL appears in Pay deployment log.' >&2
-            exit 1
-          fi
-          ! grep -Eiq 'ERROR:|FATAL:' artifacts/reconciliation/pay-apply.log
 
       - name: Final schema evidence
         run: |
           set -Eeuo pipefail
           docker exec solmint-pay-reconciliation-postgres pg_dump --schema-only --no-owner --no-privileges --exclude-schema=supabase_migrations -U postgres -d postgres > artifacts/reconciliation/schema-after-pay.sql
           sha256sum artifacts/reconciliation/schema-after-pay.sql | tee artifacts/reconciliation/schema-after-pay.sha256
-          echo "Reconciliation rehearsal PASS: 56 legacy history entries -> baseline -> 51 Pay migrations; history-only repair produced zero schema drift."
+          echo "Real Supabase CLI reconciliation rehearsal passed: 56 legacy history entries -> baseline -> exactly 51 Pay migrations."
 
       - name: Upload rehearsal evidence
         if: always()
