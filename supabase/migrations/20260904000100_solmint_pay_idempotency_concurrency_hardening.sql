@@ -5,9 +5,6 @@
 -- creates the processing record; concurrent identical requests observe either
 -- the completed response or the explicit in-progress state.
 
-create unique index if not exists pay_idempotency_merchant_scope_key_uidx
-  on public.pay_idempotency_keys (merchant_id, scope, idempotency_key);
-
 create or replace function public.pay_create_payment_intent(
   p_merchant_id uuid,
   p_external_order_id text,
