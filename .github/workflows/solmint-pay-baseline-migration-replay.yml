@@ -7,8 +7,7 @@ name: SolMint Pay — Production Baseline Migration Replay
 on:
   workflow_dispatch:
   push:
-    branches:
-      - 'audit/solmint-pay-next'
+    branches: ['audit/solmint-pay-next']
     paths:
       - '.github/workflows/solmint-pay-baseline-migration-replay.yml'
       - 'scripts/solmint-pay/baseline-prepare.mjs'
@@ -22,6 +21,10 @@ permissions:
 concurrency:
   group: solmint-pay-baseline-migration-replay
   cancel-in-progress: false
+
+env:
+  PAY_MIGRATION_COUNT: '50'
+  PRODUCTION_SCHEMA_SHA256: '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
 
 jobs:
   replay-pay:
@@ -55,14 +58,7 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
             -o /tmp/production-schema.zip
           unzip -q /tmp/production-schema.zip -d artifacts/solmint-pay-baseline-replay/input
-          test -s artifacts/solmint-pay-baseline-replay/input/production-schema.sql
-          test -s artifacts/solmint-pay-baseline-replay/input/production-schema.sha256
-          cd artifacts/solmint-pay-baseline-replay/input
-          expected_sha="$(awk '{print $1}' production-schema.sha256)"
-          actual_sha="$(sha256sum production-schema.sql | awk '{print $1}')"
-          test "$expected_sha" = "$actual_sha"
-          test "$actual_sha" = '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
-          echo "Snapshot SHA-256 verified: $actual_sha"
+          test "$(sha256sum artifacts/solmint-pay-baseline-replay/input/production-schema.sql | awk '{print $1}')" = "$PRODUCTION_SCHEMA_SHA256"
 
       - name: Generate and validate canonical baseline
         run: |
@@ -76,15 +72,8 @@ jobs:
       - name: Start disposable PostgreSQL 17
         run: |
           set -Eeuo pipefail
-          docker run -d --name solmint-pay-baseline-postgres \
-            -e POSTGRES_PASSWORD=postgres \
-            -e POSTGRES_DB=postgres \
-            -p 5432:5432 \
-            postgres:17-alpine
-          for i in $(seq 1 60); do
-            docker exec solmint-pay-baseline-postgres pg_isready -U postgres -d postgres >/dev/null 2>&1 && break
-            sleep 2
-          done
+          docker run -d --name solmint-pay-baseline-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:17-alpine
+          for i in $(seq 1 60); do docker exec solmint-pay-baseline-postgres pg_isready -U postgres -d postgres >/dev/null 2>&1 && break; sleep 2; done
           docker exec solmint-pay-baseline-postgres pg_isready -U postgres -d postgres
 
       - name: Prepare Supabase-compatible fixture
@@ -97,16 +86,7 @@ jobs:
       - name: Replay canonical Production baseline
         run: |
           set -Eeuo pipefail
-          sed \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' \
-            -e '/^COMMENT ON EXTENSION "pg_cron"/d' \
-            -e '/^COMMENT ON EXTENSION "pg_net"/d' \
-            -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
-            -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
-            supabase/migrations/20260829090000_solmint_production_baseline.sql > /tmp/production-baseline.sql
+          sed -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' -e '/^COMMENT ON EXTENSION "pg_cron"/d' -e '/^COMMENT ON EXTENSION "pg_net"/d' -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' -e '/^COMMENT ON EXTENSION "supabase_vault"/d' supabase/migrations/20260829090000_solmint_production_baseline.sql > /tmp/production-baseline.sql
           docker cp /tmp/production-baseline.sql solmint-pay-baseline-postgres:/tmp/production-baseline.sql
           docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/production-baseline.sql > artifacts/solmint-pay-baseline-replay/production-replay.log 2>&1
 
@@ -121,7 +101,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print | sort > artifacts/solmint-pay-baseline-replay/pay-migrations.txt
-          test "$(wc -l < artifacts/solmint-pay-baseline-replay/pay-migrations.txt)" -eq 47
+          test "$(wc -l < artifacts/solmint-pay-baseline-replay/pay-migrations.txt)" -eq "$PAY_MIGRATION_COUNT"
           awk '{print NR ": " $0}' artifacts/solmint-pay-baseline-replay/pay-migrations.txt
 
       - name: Apply current Pay migration chain
@@ -148,10 +128,9 @@ jobs:
           removed = sorted(pre - post)
           def is_pay(line):
               parts = line.split('|')
-              return len(parts) > 1 and (parts[1].startswith('pay_') or parts[1].startswith('solmint_pay'))
+              return len(parts) > 1 and parts[1].startswith('pay_')
           unexpected_added = [x for x in added if not is_pay(x)]
-          report = Path('artifacts/solmint-pay-baseline-replay/legacy-relation-diff.txt')
-          report.write_text('\n'.join(['Added relations:', *added, '', 'Removed relations:', *removed, '', 'Unexpected non-Pay additions:', *unexpected_added, '']))
+          Path('artifacts/solmint-pay-baseline-replay/legacy-relation-diff.txt').write_text('\n'.join(['Added relations:', *added, '', 'Removed relations:', *removed, '', 'Unexpected non-Pay additions:', *unexpected_added, '']))
           if removed or unexpected_added:
               raise SystemExit('Unexpected legacy relation change detected')
           PY
@@ -159,8 +138,9 @@ jobs:
       - name: Verify Pay database invariants
         run: |
           set -Eeuo pipefail
-          docker exec solmint-pay-baseline-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc "select count(*) from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'pay_%';" | tee artifacts/solmint-pay-baseline-replay/pay_table_count.txt
-          test "$(cat artifacts/solmint-pay-baseline-replay/pay_table_count.txt)" -gt 0
+          count="$(docker exec solmint-pay-baseline-postgres psql -At -U postgres -d postgres -c "select count(*) from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'pay_%';")"
+          echo "$count" | tee artifacts/solmint-pay-baseline-replay/pay_table_count.txt
+          test "$count" -gt 0
           ! grep -Eiq 'ERROR:|FATAL:' artifacts/solmint-pay-baseline-replay/pay-apply.log
 
       - name: Dump final replay schema evidence
