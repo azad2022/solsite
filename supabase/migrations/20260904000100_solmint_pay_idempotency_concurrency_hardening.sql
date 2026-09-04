@@ -103,8 +103,6 @@ begin
     raise exception 'payment fee invariants do not match canonical calculation';
   end if;
 
-  -- Atomic acquisition of the idempotency record. ON CONFLICT waits for a
-  -- concurrent inserter instead of leaking a unique_violation to the API.
   insert into public.pay_idempotency_keys (
     merchant_id, scope, idempotency_key, request_hash, status
   ) values (
@@ -205,9 +203,6 @@ begin
   );
 exception
   when unique_violation then
-    -- Unique violations from business identifiers (reference/external order)
-    -- are not permission to guess. The transaction rolls back and the caller
-    -- receives a safe failure, preserving the idempotency record's atomicity.
     raise;
 end;
 $$;
@@ -217,5 +212,5 @@ revoke all on function public.pay_create_payment_intent(
 ) from public, anon, authenticated;
 
 grant execute on function public.pay_create_payment_intent(
-  uuid,text,numeric,text,text,text,integer,text,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text
+  uuid,text,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text
 ) to service_role;
