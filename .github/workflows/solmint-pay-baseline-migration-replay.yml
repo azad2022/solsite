@@ -32,12 +32,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Checkout audited branch
+      - name: Checkout audited commit
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Prove checkout matches event commit
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
