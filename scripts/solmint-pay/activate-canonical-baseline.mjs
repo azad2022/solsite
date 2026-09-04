@@ -17,7 +17,8 @@ function assertCleanGitTree() {
 
 function activeMigrationFiles() {
   return readdir(migrationDir, { withFileTypes: true })
-    .then((entries) => entries.map((entry) => entry.name).filter((name) => entry.isFile() && name.endsWith('.sql')))
+    .then((entries) => entries.filter((entry) => entry.isFile() && entry.name.endsWith('.sql')))
+    .then((entries) => entries.map((entry) => entry.name))
     .then((files) => files.filter((name) => name !== baselineName && !name.includes('_solmint_pay_')).sort());
 }
 
