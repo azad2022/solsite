@@ -20,6 +20,11 @@ concurrency:
   group: solmint-pay-baseline-materialize
   cancel-in-progress: false
 
+env:
+  PAY_MIGRATION_COUNT: '48'
+  CANONICAL_ACTIVE_SQL_COUNT: '49'
+  LEGACY_MIGRATION_COUNT: '15'
+
 jobs:
   materialize:
     runs-on: ubuntu-latest
@@ -69,10 +74,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           pay_count="$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' | wc -l)"
-          test "$pay_count" -eq 47
+          test "$pay_count" -eq "$PAY_MIGRATION_COUNT"
           test -f supabase/migrations/20260829090000_solmint_production_baseline.sql
-          other_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' ! -name '*_solmint_pay_*.sql' ! -name '20260829090000_solmint_production_baseline.sql' | wc -l)"
-          test "$other_count" -gt 0
 
       - name: Smoke-test canonical activation plan
         run: node scripts/solmint-pay/activate-canonical-baseline.mjs plan
@@ -85,11 +88,11 @@ jobs:
           set -Eeuo pipefail
           test -f supabase/migrations/20260829090000_solmint_production_baseline.sql
           pay_count="$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' | wc -l)"
-          test "$pay_count" -eq 47
+          test "$pay_count" -eq "$PAY_MIGRATION_COUNT"
           active_sql_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | wc -l)"
-          test "$active_sql_count" -eq 48
+          test "$active_sql_count" -eq "$CANONICAL_ACTIVE_SQL_COUNT"
           archive_count="$(find supabase/migration-archive/legacy-2026-09-03 -maxdepth 1 -type f -name '*.sql' | wc -l)"
-          test "$archive_count" -gt 0
+          test "$archive_count" -eq "$LEGACY_MIGRATION_COUNT"
 
       - name: Commit canonical migration layout
         run: |
@@ -99,8 +102,12 @@ jobs:
           git add supabase/migrations/20260829090000_solmint_production_baseline.sql supabase/migration-archive/legacy-2026-09-03
           git diff --cached --check
           git diff --cached --stat
-          git commit -m 'db(pay): materialize canonical production migration baseline'
-          git push origin HEAD:audit/solmint-pay-next
+          if git diff --cached --quiet; then
+            echo 'Canonical migration layout is already materialized; no commit required.'
+          else
+            git commit -m 'db(pay): materialize canonical production migration baseline'
+            git push origin HEAD:audit/solmint-pay-next
+          fi
 
       - name: Verify pushed ref
         run: |
@@ -108,5 +115,9 @@ jobs:
           git fetch origin audit/solmint-pay-next --quiet
           pushed="$(git rev-parse origin/audit/solmint-pay-next)"
           local="$(git rev-parse HEAD)"
-          test "$pushed" = "$local"
-          echo "Materialized canonical baseline at $local"
+          if git diff --quiet HEAD origin/audit/solmint-pay-next; then
+            echo "Canonical migration layout validated at $local (remote $pushed)"
+          else
+            git diff --stat HEAD origin/audit/solmint-pay-next
+            exit 1
+          fi
