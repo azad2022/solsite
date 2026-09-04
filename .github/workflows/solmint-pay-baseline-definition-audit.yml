@@ -60,7 +60,16 @@ jobs:
       - name: Replay Production schema snapshot
         run: |
           set -Eeuo pipefail
-          sed -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' -e '/^COMMENT ON EXTENSION "pg_cron"/d' -e '/^COMMENT ON EXTENSION "pg_net"/d' -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' -e '/^COMMENT ON EXTENSION "supabase_vault"/d' artifacts/solmint-pay-baseline-definition/input/production-schema.sql > /tmp/production-schema.sql
+          sed -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' \
+              -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' \
+              -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' \
+              -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' \
+              -e '/^COMMENT ON EXTENSION "pg_cron"/d' \
+              -e '/^COMMENT ON EXTENSION "pg_net"/d' \
+              -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
+              -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
+              -e '/^ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";/d' \
+              artifacts/solmint-pay-baseline-definition/input/production-schema.sql > /tmp/production-schema.sql
           docker cp /tmp/production-schema.sql solmint-pay-definition-postgres:/tmp/production-schema.sql
           docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/production-schema.sql > artifacts/solmint-pay-baseline-definition/production-replay.log 2>&1
 
@@ -76,7 +85,7 @@ jobs:
           psql_exec -AtF '|' -c "select n.nspname,c.relname,t.tgname,pg_get_triggerdef(t.oid,true) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/pre_triggers.txt
           psql_exec -AtF '|' -c "select schemaname,tablename,policyname,permissive,roles,cmd,coalesce(qual,''),coalesce(with_check,'') from pg_policies where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/pre_policies.txt
           psql_exec -AtF '|' -c "select table_schema,table_name,grantee,privilege_type,is_grantable from information_schema.role_table_grants where table_schema not like 'pg_%' and table_schema <> 'information_schema' and table_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/pre_table_grants.txt
-          psql_exec -AtF '|' -c "select routine_schema,routine_name,grantee,privilege_type,is_grantable from information_schema.role_routine_grants where routine_schema not like 'pg_%' and routine_schema <> 'information_schema' and routine_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/pre_routine_grants.txt
+          psql_exec -AtF '|' -c "select routine_schema,routine_name,grantee,privilege_type,is_grantable from information_schema.role_routine_grants where routine_schema not like 'pg_%' and routine_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/pre_routine_grants.txt
 
       - name: Replay complete Pay chain
         run: |
@@ -102,7 +111,7 @@ jobs:
           psql_exec -AtF '|' -c "select n.nspname,c.relname,t.tgname,pg_get_triggerdef(t.oid,true) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_triggers.txt
           psql_exec -AtF '|' -c "select schemaname,tablename,policyname,permissive,roles,cmd,coalesce(qual,''),coalesce(with_check,'') from pg_policies where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_policies.txt
           psql_exec -AtF '|' -c "select table_schema,table_name,grantee,privilege_type,is_grantable from information_schema.role_table_grants where table_schema not like 'pg_%' and table_schema <> 'information_schema' and table_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/post_table_grants.txt
-          psql_exec -AtF '|' -c "select routine_schema,routine_name,grantee,privilege_type,is_grantable from information_schema.role_routine_grants where routine_schema not like 'pg_%' and routine_schema <> 'information_schema' and routine_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/post_routine_grants.txt
+          psql_exec -AtF '|' -c "select routine_schema,routine_name,grantee,privilege_type,is_grantable from information_schema.role_routine_grants where routine_schema not like 'pg_%' and routine_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/post_routine_grants.txt
           for name in relations columns constraints indexes functions triggers policies table_grants routine_grants; do diff -u "artifacts/solmint-pay-baseline-definition/pre_${name}.txt" "artifacts/solmint-pay-baseline-definition/post_${name}.txt"; done
           psql_exec -AtF '|' -c "select n.nspname,p.proname,pg_get_function_identity_arguments(p.oid),coalesce(array_to_string(p.proconfig,','),'') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'pay_%' and p.prosecdef order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/pay_security_definers.txt
           if grep -Ev '\|search_path=""$' artifacts/solmint-pay-baseline-definition/pay_security_definers.txt; then
