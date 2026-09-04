@@ -1,15 +1,8 @@
 name: SolMint Pay — Materialize Canonical Production Baseline
 
-# One-shot repository operation. Generates the canonical baseline from the frozen
-# Production snapshot artifact, archives every non-Pay active migration outside the
-# execution directory, and commits the deterministic migration layout to this branch.
-# Production database is never modified by this workflow.
-# The broad push trigger is intentional so the gate cannot be silently skipped by path filters.
-
 on:
   push:
-    branches:
-      - audit/solmint-pay-next
+    branches: [audit/solmint-pay-next]
   workflow_dispatch:
 
 permissions:
@@ -21,8 +14,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PAY_MIGRATION_COUNT: '49'
-  CANONICAL_ACTIVE_SQL_COUNT: '50'
+  PAY_MIGRATION_COUNT: '50'
+  CANONICAL_ACTIVE_SQL_COUNT: '51'
   LEGACY_MIGRATION_COUNT: '15'
 
 jobs:
