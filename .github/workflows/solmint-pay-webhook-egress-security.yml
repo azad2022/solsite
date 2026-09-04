@@ -12,7 +12,7 @@ on:
       - 'tests/solmint-pay-webhook.test.ts'
       - '.github/workflows/solmint-pay-webhook-egress-security.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
   push:
     branches:
       - audit/solmint-pay-next
@@ -25,7 +25,7 @@ on:
       - 'tests/solmint-pay-webhook.test.ts'
       - '.github/workflows/solmint-pay-webhook-egress-security.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
 
 permissions:
   contents: read
@@ -53,7 +53,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22.22.0'
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
