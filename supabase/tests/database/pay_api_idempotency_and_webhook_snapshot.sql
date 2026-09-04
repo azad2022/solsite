@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(24);
 
 select ok(
   exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'pay_merchants_owner_user_uidx' and indexdef ilike '%unique%'),
@@ -116,10 +116,15 @@ select is(
   'merchant settlement and merchant net remain aligned for customer-paid fees'
 );
 
-select is(
-  (select (merchant_settlement_atomic = 123456) from public.pay_payment_intents where external_order_id='order-1'),
-  false,
-  'merchant settlement is persisted from the canonical server-side snapshot rather than an arbitrary caller value'
+select throws_ok(
+  $$ select public.pay_create_payment_intent(
+    (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
+    'order-invalid', 1000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-INVALID', 100, 'merchant',
+    10000, 1000000, 980000, 'SOLMINT', 'solana', now() + interval '15 minutes', '{}'::jsonb,
+    'idem-invalid', 'hash-invalid', 'payment-intents:create'
+  ) $$,
+  'payment fee invariants do not match canonical calculation',
+  'caller-supplied accounting mismatch is rejected before persistence'
 );
 
 select is(
