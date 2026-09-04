@@ -1,0 +1,65 @@
+name: SolMint Pay — Webhook Egress Security
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/pay-webhook-egress.ts'
+      - 'services/pay-webhook-egress-server.ts'
+      - 'src/pay/services/webhookDelivery.ts'
+      - 'functions/api/internal/pay/webhook-worker.ts'
+      - 'tests/solmint-pay-webhook-egress.test.ts'
+      - 'tests/solmint-pay-webhook.test.ts'
+      - '.github/workflows/solmint-pay-webhook-egress-security.yml'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches:
+      - audit/solmint-pay-next
+    paths:
+      - 'services/pay-webhook-egress.ts'
+      - 'services/pay-webhook-egress-server.ts'
+      - 'src/pay/services/webhookDelivery.ts'
+      - 'functions/api/internal/pay/webhook-worker.ts'
+      - 'tests/solmint-pay-webhook-egress.test.ts'
+      - 'tests/solmint-pay-webhook.test.ts'
+      - '.github/workflows/solmint-pay-webhook-egress-security.yml'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solmint-pay-webhook-egress-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  webhook-egress-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.15'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22.22.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run webhook security tests
+        run: bun test tests/solmint-pay-webhook-egress.test.ts tests/solmint-pay-webhook.test.ts
+
+      - name: Build pinned webhook egress service
+        run: npm run build:pay-webhook-egress
