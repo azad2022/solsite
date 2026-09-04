@@ -1,7 +1,7 @@
 name: SolMint Pay — Baseline Definition Preservation Audit
 
-# This is a stronger companion gate to the baseline+Pay replay. It proves that
-# applying the Pay chain does not mutate pre-existing non-Pay PostgreSQL objects.
+# Strong companion gate to the baseline+Pay replay. It proves that applying the
+# Pay chain does not mutate pre-existing non-Pay PostgreSQL objects.
 # Production is never used as the target.
 
 on:
@@ -20,6 +20,9 @@ permissions:
 concurrency:
   group: solmint-pay-baseline-definition-audit
   cancel-in-progress: false
+
+env:
+  PAY_MIGRATION_COUNT: '48'
 
 jobs:
   audit:
@@ -112,7 +115,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print | sort > artifacts/solmint-pay-baseline-definition/pay-migrations.txt
-          test "$(wc -l < artifacts/solmint-pay-baseline-definition/pay-migrations.txt)" -eq 47
+          test "$(wc -l < artifacts/solmint-pay-baseline-definition/pay-migrations.txt)" -eq "$PAY_MIGRATION_COUNT"
           : > artifacts/solmint-pay-baseline-definition/pay-apply.log
           while IFS= read -r migration; do
             echo "===== APPLY ${migration} =====" | tee -a artifacts/solmint-pay-baseline-definition/pay-apply.log
@@ -128,7 +131,7 @@ jobs:
           psql_exec -AtF '|' -c "select n.nspname,c.relname,c.relkind from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relkind in ('r','p','v','m','f','S') and c.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_relations.txt
           psql_exec -AtF '|' -c "select n.nspname,a.attrelid::regclass::text,a.attname,pg_catalog.format_type(a.atttypid,a.atttypmod),a.attnotnull,coalesce(pg_catalog.pg_get_expr(ad.adbin,ad.adrelid),'') from pg_catalog.pg_attribute a join pg_catalog.pg_class c on c.oid=a.attrelid join pg_catalog.pg_namespace n on n.oid=c.relnamespace left join pg_catalog.pg_attrdef ad on ad.adrelid=a.attrelid and ad.adnum=a.attnum where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' and a.attnum > 0 and not a.attisdropped order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_columns.txt
           psql_exec -AtF '|' -c "select n.nspname,t.relname,c.conname,c.contype,pg_catalog.pg_get_constraintdef(c.oid,true) from pg_catalog.pg_constraint c join pg_catalog.pg_class t on t.oid=c.conrelid join pg_catalog.pg_namespace n on n.oid=t.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and t.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_constraints.txt
-          psql_exec -AtF '|' -c "select schemaname,tablename,indexname,indexdef from pg_catalog.pg_indexes where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' and indexname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_indexes.txt
+          psql_exec -AtF '|' -c "select schemaname,tablename,indexname,indexdef from pg_catalog.pg_indexes where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' and tablename not like 'pay_%' and indexname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_indexes.txt
           psql_exec -AtF '|' -c "select n.nspname,p.proname,pg_catalog.pg_get_function_identity_arguments(p.oid),p.prokind,p.prosecdef,coalesce(array_to_string(p.proconfig,','),''),pg_catalog.pg_get_functiondef(p.oid) from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and p.proname not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/post_functions.txt
           psql_exec -AtF '|' -c "select n.nspname,c.relname,t.tgname,pg_catalog.pg_get_triggerdef(t.oid,true) from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid=t.tgrelid join pg_catalog.pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_triggers.txt
           psql_exec -AtF '|' -c "select schemaname,tablename,policyname,permissive,roles,cmd,coalesce(qual,''),coalesce(with_check,'') from pg_catalog.pg_policies where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_policies.txt
@@ -144,18 +147,16 @@ jobs:
             fi
           done
           if [ "$status" -ne 0 ]; then
-            echo 'Non-Pay production definitions changed after applying Pay migrations.'
-            cat artifacts/solmint-pay-baseline-definition/non-pay-definition-diff.txt
+            echo 'Non-Pay production definitions changed after applying Pay migrations.' >&2
             exit 1
           fi
-          echo 'Non-Pay production definitions preserved exactly under this comparator.'
 
       - name: Verify Pay objects were added
         run: |
           set -Eeuo pipefail
-          count=$(docker exec solmint-pay-definition-postgres psql -U postgres -d postgres -Atqc "select count(*) from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'pay_%';")
+          count="$(docker exec solmint-pay-definition-postgres psql -At -U postgres -d postgres -c "select count(*) from pg_catalog.pg_tables where schemaname='public' and tablename like 'pay_%';")"
           test "$count" -gt 0
-          echo "Pay relation count: $count"
+          echo "Pay table count: $count"
 
       - name: Upload definition audit evidence
         if: always()
