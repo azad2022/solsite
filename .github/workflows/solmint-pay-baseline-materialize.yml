@@ -91,15 +91,17 @@ jobs:
           test "$pay_count" -eq "$PAY_MIGRATION_COUNT"
           active_sql_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | wc -l)"
           test "$active_sql_count" -eq "$CANONICAL_ACTIVE_SQL_COUNT"
+          legacy_active_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' ! -name '*_solmint_pay_*.sql' ! -name '20260829090000_solmint_production_baseline.sql' | wc -l)"
+          test "$legacy_active_count" -eq 0
           archive_count="$(find supabase/migration-archive/legacy-2026-09-03 -maxdepth 1 -type f -name '*.sql' | wc -l)"
-          test "$archive_count" -eq "$LEGACY_MIGRATION_COUNT"
+          test "$archive_count" -ge "$LEGACY_MIGRATION_COUNT"
 
       - name: Commit canonical migration layout
         run: |
           set -Eeuo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add supabase/migrations/20260829090000_solmint_production_baseline.sql supabase/migration-archive/legacy-2026-09-03
+          git add supabase/migrations supabase/migration-archive/legacy-2026-09-03
           git diff --cached --check
           git diff --cached --stat
           if git diff --cached --quiet; then
