@@ -11,8 +11,17 @@ const baseline = path.join(migrationDir, baselineName);
 const [command = 'plan'] = process.argv.slice(2);
 
 function assertCleanGitTree() {
-  const status = execFileSync('git', ['status', '--porcelain'], { cwd: repoRoot, encoding: 'utf8' }).trim();
-  if (status) throw new Error('Refusing activation with an uncommitted working tree.');
+  const status = execFileSync('git', ['status', '--porcelain'], { cwd: repoRoot, encoding: 'utf8' })
+    .trim()
+    .split('\n')
+    .filter(Boolean);
+  const unexpected = status.filter((line) => {
+    const pathText = line.slice(3).trim();
+    return pathText !== path.relative(repoRoot, baseline);
+  });
+  if (unexpected.length) {
+    throw new Error(`Refusing activation with unexpected uncommitted changes:\n${unexpected.join('\n')}`);
+  }
 }
 
 function activeMigrationFiles() {
