@@ -142,17 +142,18 @@ jobs:
           from pathlib import Path
           m=json.loads(Path('scripts/solmint-pay/production-migration-history-manifest.json').read_text())
           sql=['BEGIN;']
-          sql.append('DELETE FROM supabase_migrations.schema_migrations WHERE version IN (')
-          sql.append(','.join("'%s'" % row['version'] for row in m))
-          sql.append(');')
+          versions=','.join("'%s'" % row['version'] for row in m)
+          sql.append('DELETE FROM supabase_migrations.schema_migrations WHERE version IN (' + versions + ');')
           sql.append("INSERT INTO supabase_migrations.schema_migrations(version,name) VALUES ('20260829090000','solmint_production_baseline');")
           sql.append('COMMIT;')
           Path('/tmp/repair-history.sql').write_text('\n'.join(sql)+'\n')
           PY
           docker cp /tmp/repair-history.sql solmint-pay-reconciliation-postgres:/tmp/repair-history.sql
           docker exec solmint-pay-reconciliation-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/repair-history.sql
-          test "$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select count(*) from supabase_migrations.schema_migrations;')" = '1'
-          test "$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c \"select version from supabase_migrations.schema_migrations;\")" = "$BASELINE_VERSION"
+          history_count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select count(*) from supabase_migrations.schema_migrations;')"
+          test "$history_count" = '1'
+          history_version="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select version from supabase_migrations.schema_migrations;')"
+          test "$history_version" = "$BASELINE_VERSION"
 
       - name: Prove history repair caused zero schema drift
         run: |
