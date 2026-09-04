@@ -9,7 +9,7 @@ const migrationDir = path.join(repoRoot, 'supabase/migrations');
 const archiveDir = path.join(repoRoot, 'supabase/migration-archive/legacy-2026-09-03');
 const baselineName = '20260829090000_solmint_production_baseline.sql';
 const baseline = path.join(migrationDir, baselineName);
-const EXPECTED_PAY_MIGRATIONS = 49;
+const EXPECTED_PAY_MIGRATIONS = 50;
 const EXPECTED_LEGACY_MIGRATIONS = 15;
 const [command = 'plan'] = process.argv.slice(2);
 
@@ -20,10 +20,7 @@ function assertCleanGitTree() {
 }
 
 async function listSqlFiles(dir) {
-  return (await readdir(dir, { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.sql'))
-    .map((entry) => entry.name)
-    .sort();
+  return (await readdir(dir, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith('.sql')).map((entry) => entry.name).sort();
 }
 
 async function activeLegacyMigrationFiles() {
@@ -66,9 +63,7 @@ async function main() {
   if (command === 'plan') {
     console.log(`Canonical baseline ready: ${path.relative(repoRoot, baseline)}`);
     console.log(`Legacy files ready for canonicalization: ${activeLegacy.length}`);
-    for (const file of activeLegacy) {
-      console.log(`  ${file} -> ${path.relative(repoRoot, path.join(archiveDir, file))}${archiveSet.has(file) ? ' (existing archive; bytes will be verified)' : ''}`);
-    }
+    for (const file of activeLegacy) console.log(`  ${file} -> ${path.relative(repoRoot, path.join(archiveDir, file))}${archiveSet.has(file) ? ' (existing archive; bytes will be verified)' : ''}`);
     return;
   }
 
