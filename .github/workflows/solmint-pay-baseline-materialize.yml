@@ -74,6 +74,9 @@ jobs:
           other_count="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' ! -name '*_solmint_pay_*.sql' ! -name '20260829090000_solmint_production_baseline.sql' | wc -l)"
           test "$other_count" -gt 0
 
+      - name: Smoke-test canonical activation plan
+        run: node scripts/solmint-pay/activate-canonical-baseline.mjs plan
+
       - name: Archive legacy migrations outside active execution directory
         run: node scripts/solmint-pay/activate-canonical-baseline.mjs apply
 
