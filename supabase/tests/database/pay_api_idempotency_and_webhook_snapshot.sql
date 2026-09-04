@@ -1,6 +1,6 @@
 begin;
 
-select plan(16);
+select plan(20);
 
 select ok(
   exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'pay_merchants_owner_user_uidx' and indexdef ilike '%unique%'),
@@ -70,6 +70,59 @@ select is(
 );
 
 select is(
+  (select merchant_settlement_atomic::text from public.pay_payment_intents where external_order_id='order-1'),
+  '990000',
+  'merchant-fee Payment Intent persists the canonical merchant settlement leg'
+);
+
+select is(
+  (select customer_total_atomic::text from public.pay_payment_intents where external_order_id='order-1'),
+  '1000000',
+  'merchant-fee Payment Intent keeps the customer total at the base amount'
+);
+
+select is(
+  (select public.pay_create_payment_intent(
+    (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
+    'order-2', 1000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-2', 100, 'customer',
+    10000, 1010000, 1000000, 'SOLMINT', 'solana', now() + interval '15 minutes', '{}'::jsonb,
+    'idem-2', 'hash-2-customer', 'payment-intents:create'
+  )->>'state'),
+  'created',
+  'customer-fee Payment Intent also creates successfully'
+);
+
+select is(
+  (select merchant_settlement_atomic::text from public.pay_payment_intents where external_order_id='order-2'),
+  '1000000',
+  'customer-fee Payment Intent settles the merchant for the base amount'
+);
+
+select is(
+  (select customer_total_atomic::text from public.pay_payment_intents where external_order_id='order-2'),
+  '1010000',
+  'customer-fee Payment Intent persists the fee-inclusive customer total'
+);
+
+select is(
+  (select (merchant_settlement_atomic = merchant_net_atomic) from public.pay_payment_intents where external_order_id='order-1'),
+  true,
+  'merchant settlement and merchant net remain aligned for merchant-paid fees'
+);
+
+select is(
+  (select (merchant_settlement_atomic = merchant_net_atomic) from public.pay_payment_intents where external_order_id='order-2'),
+  true,
+  'merchant settlement and merchant net remain aligned for customer-paid fees'
+);
+
+select is(
+  (select (merchant_settlement_atomic = 123456) from public.pay_payment_intents where external_order_id='order-1'),
+  false,
+  'merchant settlement is persisted from the canonical server-side snapshot rather than an arbitrary caller value'
+);
+
+select is(
   (select public.pay_create_payment_intent(
     (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
     'order-1', 1000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-OTHER', 100, 'merchant',
@@ -91,7 +144,7 @@ select is(
   'reusing an idempotency key with different request data is rejected deterministically'
 );
 
-select is((select count(*) from public.pay_payment_intents where merchant_id=(select id from public.pay_merchants where owner_user_id='pay-audit-user')), 1, 'idempotent replay does not create a second payment intent');
+select is((select count(*) from public.pay_payment_intents where merchant_id=(select id from public.pay_merchants where owner_user_id='pay-audit-user')), 2, 'idempotent replay does not create a second payment intent');
 
 select * from finish();
 rollback;
