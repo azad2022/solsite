@@ -85,7 +85,11 @@ jobs:
 
       - name: Run fail-closed reconciliation preflight
         env:
-          SUPABASE_DB_URL: "postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.${{ env.PROJECT_REF }}.supabase.co:5432/postgres"
+          PGHOST: "db.${{ env.PROJECT_REF }}.supabase.co"
+          PGPORT: '5432'
+          PGUSER: 'postgres'
+          PGDATABASE: 'postgres'
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SOLMINT_PAY_PRODUCTION_SCHEMA_SHA256: ${{ env.EXPECTED_SCHEMA_SHA256 }}
           SOLMINT_PAY_PRODUCTION_CONFIRM_REF: ${{ github.sha }}
         run: |
