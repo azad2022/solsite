@@ -8,7 +8,7 @@ const migrationDir = path.join(repoRoot, 'supabase/migrations');
 const archiveDir = path.join(repoRoot, 'supabase/migration-archive/legacy-2026-09-03');
 const baselineName = '20260829090000_solmint_production_baseline.sql';
 const baseline = path.join(migrationDir, baselineName);
-const EXPECTED_PAY_MIGRATIONS = 48;
+const EXPECTED_PAY_MIGRATIONS = 49;
 const [command = 'plan'] = process.argv.slice(2);
 
 function assertCleanGitTree() {
@@ -68,8 +68,9 @@ async function main() {
 
   const archiveSet = new Set(archivedLegacy);
   for (const file of archivedLegacy) {
-    if (!activeLegacy.includes(file)) continue;
-    throw new Error(`Legacy migration exists in both active and archive locations: ${file}`);
+    if (activeLegacy.includes(file)) {
+      throw new Error(`Legacy migration exists in both active and archive locations: ${file}`);
+    }
   }
 
   if (activeLegacy.length === 0) {
