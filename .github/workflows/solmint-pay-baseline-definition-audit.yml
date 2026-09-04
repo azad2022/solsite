@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PAY_MIGRATION_COUNT: '49'
+  PAY_MIGRATION_COUNT: '50'
   PRODUCTION_SCHEMA_SHA256: '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
 
 jobs:
@@ -39,12 +39,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p artifacts/solmint-pay-baseline-definition/input
-          curl --fail --silent --show-error --location \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'X-GitHub-Api-Version: 2022-11-28' \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
-            -o /tmp/production-schema.zip
+          curl --fail --silent --show-error --location -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" -o /tmp/production-schema.zip
           unzip -q /tmp/production-schema.zip -d artifacts/solmint-pay-baseline-definition/input
           test -s artifacts/solmint-pay-baseline-definition/input/production-schema.sql
           test "$(sha256sum artifacts/solmint-pay-baseline-definition/input/production-schema.sql | awk '{print $1}')" = "$PRODUCTION_SCHEMA_SHA256"
@@ -52,13 +47,8 @@ jobs:
       - name: Start PostgreSQL 17
         run: |
           set -Eeuo pipefail
-          docker run -d --name solmint-pay-definition-postgres \
-            -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
-            -p 5432:5432 postgres:17-alpine
-          for i in $(seq 1 60); do
-            docker exec solmint-pay-definition-postgres pg_isready -U postgres -d postgres >/dev/null 2>&1 && break
-            sleep 2
-          done
+          docker run -d --name solmint-pay-definition-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:17-alpine
+          for i in $(seq 1 60); do docker exec solmint-pay-definition-postgres pg_isready -U postgres -d postgres >/dev/null 2>&1 && break; sleep 2; done
           docker exec solmint-pay-definition-postgres pg_isready -U postgres -d postgres
 
       - name: Prepare fixture roles and schema
@@ -70,16 +60,7 @@ jobs:
       - name: Replay Production schema snapshot
         run: |
           set -Eeuo pipefail
-          sed \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' \
-            -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' \
-            -e '/^COMMENT ON EXTENSION "pg_cron"/d' \
-            -e '/^COMMENT ON EXTENSION "pg_net"/d' \
-            -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
-            -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
-            artifacts/solmint-pay-baseline-definition/input/production-schema.sql > /tmp/production-schema.sql
+          sed -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' -e '/^COMMENT ON EXTENSION "pg_cron"/d' -e '/^COMMENT ON EXTENSION "pg_net"/d' -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' -e '/^COMMENT ON EXTENSION "supabase_vault"/d' artifacts/solmint-pay-baseline-definition/input/production-schema.sql > /tmp/production-schema.sql
           docker cp /tmp/production-schema.sql solmint-pay-definition-postgres:/tmp/production-schema.sql
           docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/production-schema.sql > artifacts/solmint-pay-baseline-definition/production-replay.log 2>&1
 
@@ -109,26 +90,30 @@ jobs:
             docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/current-pay-migration.sql 2>&1 | tee -a artifacts/solmint-pay-baseline-definition/pay-apply.log
           done
 
-      - name: Prove non-Pay definitions are unchanged
+      - name: Prove non-Pay definitions and security settings are unchanged
         run: |
           set -Eeuo pipefail
           psql_exec() { docker exec solmint-pay-definition-postgres psql -U postgres -d postgres "$@"; }
-          for name in relations columns constraints indexes functions triggers policies table_grants routine_grants; do
-            case "$name" in
-              relations) sql="select n.nspname,c.relname,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relkind in ('r','p','v','m','f','S') and c.relname not like 'pay_%' order by 1,2,3;";;
-              columns) sql="select n.nspname,a.attrelid::regclass::text,a.attname,pg_catalog.format_type(a.atttypid,a.atttypmod),a.attnotnull,coalesce(pg_catalog.pg_get_expr(ad.adbin,ad.adrelid),'') from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace left join pg_attrdef ad on ad.adrelid=a.attrelid and ad.adnum=a.attnum where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' and a.attnum > 0 and not a.attisdropped order by 1,2,3;";;
-              constraints) sql="select n.nspname,t.relname,c.conname,c.contype,pg_catalog.pg_get_constraintdef(c.oid,true) from pg_constraint c join pg_class t on t.oid=c.conrelid join pg_namespace n on n.oid=t.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and t.relname not like 'pay_%' order by 1,2,3;";;
-              indexes) sql="select schemaname,tablename,indexname,indexdef from pg_indexes where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' and indexname not like 'pay_%' order by 1,2,3;";;
-              functions) sql="select n.nspname,p.proname,pg_get_function_identity_arguments(p.oid),p.prokind,p.prosecdef,coalesce(array_to_string(p.proconfig,','),'') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and p.proname not like 'pay_%' order by 1,2,3,4;";;
-              triggers) sql="select n.nspname,c.relname,t.tgname,pg_get_triggerdef(t.oid,true) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' order by 1,2,3;";;
-              policies) sql="select schemaname,tablename,policyname,permissive,roles,cmd,coalesce(qual,''),coalesce(with_check,'') from pg_policies where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' order by 1,2,3;";;
-              table_grants) sql="select table_schema,table_name,grantee,privilege_type,is_grantable from information_schema.role_table_grants where table_schema not like 'pg_%' and table_schema <> 'information_schema' and table_name not like 'pay_%' order by 1,2,3,4;";;
-              routine_grants) sql="select routine_schema,routine_name,grantee,privilege_type,is_grantable from information_schema.role_routine_grants where routine_schema not like 'pg_%' and routine_schema <> 'information_schema' and routine_name not like 'pay_%' order by 1,2,3,4;";;
-            esac
-            psql_exec -AtF '|' -c "$sql" > "artifacts/solmint-pay-baseline-definition/post_${name}.txt"
-            diff -u "artifacts/solmint-pay-baseline-definition/pre_${name}.txt" "artifacts/solmint-pay-baseline-definition/post_${name}.txt"
-          done
-          count="$(psql_exec -At -c "select count(*) from pg_tables where schemaname='public' and tablename like 'pay_%';")"
+          psql_exec -AtF '|' -c "select n.nspname,c.relname,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relkind in ('r','p','v','m','f','S') and c.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_relations.txt
+          psql_exec -AtF '|' -c "select n.nspname,a.attrelid::regclass::text,a.attname,pg_catalog.format_type(a.atttypid,a.atttypmod),a.attnotnull,coalesce(pg_catalog.pg_get_expr(ad.adbin,ad.adrelid),'') from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace left join pg_attrdef ad on ad.adrelid=a.attrelid and ad.adnum=a.attnum where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' and a.attnum > 0 and not a.attisdropped order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_columns.txt
+          psql_exec -AtF '|' -c "select n.nspname,t.relname,c.conname,c.contype,pg_catalog.pg_get_constraintdef(c.oid,true) from pg_constraint c join pg_class t on t.oid=c.conrelid join pg_namespace n on n.oid=t.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and t.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_constraints.txt
+          psql_exec -AtF '|' -c "select schemaname,tablename,indexname,indexdef from pg_indexes where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' and indexname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_indexes.txt
+          psql_exec -AtF '|' -c "select n.nspname,p.proname,pg_get_function_identity_arguments(p.oid),p.prokind,p.prosecdef,coalesce(array_to_string(p.proconfig,','),'') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and p.proname not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/post_functions.txt
+          psql_exec -AtF '|' -c "select n.nspname,c.relname,t.tgname,pg_get_triggerdef(t.oid,true) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_triggers.txt
+          psql_exec -AtF '|' -c "select schemaname,tablename,policyname,permissive,roles,cmd,coalesce(qual,''),coalesce(with_check,'') from pg_policies where schemaname not like 'pg_%' and schemaname <> 'information_schema' and tablename not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/post_policies.txt
+          psql_exec -AtF '|' -c "select table_schema,table_name,grantee,privilege_type,is_grantable from information_schema.role_table_grants where table_schema not like 'pg_%' and table_schema <> 'information_schema' and table_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/post_table_grants.txt
+          psql_exec -AtF '|' -c "select routine_schema,routine_name,grantee,privilege_type,is_grantable from information_schema.role_routine_grants where routine_schema not like 'pg_%' and routine_schema <> 'information_schema' and routine_name not like 'pay_%' order by 1,2,3,4;" > artifacts/solmint-pay-baseline-definition/post_routine_grants.txt
+          for name in relations columns constraints indexes functions triggers policies table_grants routine_grants; do diff -u "artifacts/solmint-pay-baseline-definition/pre_${name}.txt" "artifacts/solmint-pay-baseline-definition/post_${name}.txt"; done
+          psql_exec -AtF '|' -c "select n.nspname,p.proname,pg_get_function_identity_arguments(p.oid),coalesce(array_to_string(p.proconfig,','),'') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'pay_%' and p.prosecdef order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/pay_security_definers.txt
+          if grep -Ev '\|search_path=""$' artifacts/solmint-pay-baseline-definition/pay_security_definers.txt; then
+            echo 'A Pay SECURITY DEFINER function does not have an empty search_path.' >&2
+            exit 1
+          fi
+
+      - name: Verify Pay objects were added
+        run: |
+          set -Eeuo pipefail
+          count="$(docker exec solmint-pay-definition-postgres psql -At -U postgres -d postgres -c "select count(*) from pg_tables where schemaname='public' and tablename like 'pay_%';")"
           test "$count" -gt 0
           echo "Pay table count: $count"
 
