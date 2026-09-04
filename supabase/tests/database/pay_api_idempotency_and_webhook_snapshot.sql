@@ -1,95 +1,43 @@
 begin;
 
-select plan(14);
+select plan(16);
 
 select ok(
-  exists (
-    select 1 from pg_indexes
-     where schemaname = 'public'
-       and indexname = 'pay_merchants_owner_user_uidx'
-       and indexdef ilike '%unique%'
-  ),
+  exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'pay_merchants_owner_user_uidx' and indexdef ilike '%unique%'),
   'merchant ownership is uniquely constrained per user'
 );
 
 select ok(
-  exists (
-    select 1 from pg_indexes
-     where schemaname = 'public'
-       and indexname = 'pay_idempotency_merchant_scope_key_uidx'
-  ),
+  exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'pay_idempotency_merchant_scope_key_uidx'),
   'payment intent idempotency key is uniquely scoped by merchant and endpoint scope'
 );
 
 select ok(
-  exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_create_payment_intent'
-      and pg_get_functiondef(p.oid) ilike '%on conflict (merchant_id, scope, idempotency_key) do nothing%'
-  ),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_create_payment_intent' and pg_get_functiondef(p.oid) ilike '%on conflict (merchant_id, scope, idempotency_key) do nothing%'),
   'Payment Intent creation acquires idempotency state with conflict-safe insert'
 );
 
 select ok(
-  exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_create_payment_intent'
-      and pg_get_functiondef(p.oid) ilike '%status = ''processing''%'
-      and pg_get_functiondef(p.oid) ilike '%state'', ''in_progress%'
-  ),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_create_payment_intent' and pg_get_functiondef(p.oid) ilike '%status = ''processing''%' and pg_get_functiondef(p.oid) ilike '%state'', ''in_progress%'),
   'concurrent identical requests have an explicit in-progress state'
 );
 
 select ok(
-  exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'pay_create_payment_intent'
-      and pg_get_functiondef(p.oid) ilike '%state'', ''replay%'
-      and pg_get_functiondef(p.oid) ilike '%request_hash%'
-  ),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_create_payment_intent' and pg_get_functiondef(p.oid) ilike '%state'', ''replay%' and pg_get_functiondef(p.oid) ilike '%request_hash%'),
   'completed idempotent requests replay only when request hashes match'
 );
 
-select ok(
-  exists (select 1 from information_schema.columns where table_schema='public' and table_name='pay_webhook_deliveries' and column_name='endpoint_url_snapshot' and is_nullable='NO'),
-  'webhook endpoint is snapshotted and mandatory'
-);
+select ok(exists (select 1 from information_schema.columns where table_schema='public' and table_name='pay_webhook_deliveries' and column_name='endpoint_url_snapshot' and is_nullable='NO'), 'webhook endpoint is snapshotted and mandatory');
+select ok(exists (select 1 from information_schema.columns where table_schema='public' and table_name='pay_webhook_deliveries' and column_name='secret_ciphertext_snapshot'), 'webhook signing secret envelope is snapshotted');
+select ok(exists (select 1 from information_schema.columns where table_schema='public' and table_name='pay_webhook_deliveries' and column_name='secret_key_version_snapshot'), 'webhook secret key version is snapshotted');
 
 select ok(
-  exists (select 1 from information_schema.columns where table_schema='public' and table_name='pay_webhook_deliveries' and column_name='secret_ciphertext_snapshot'),
-  'webhook signing secret envelope is snapshotted'
-);
-
-select ok(
-  exists (select 1 from information_schema.columns where table_schema='public' and table_name='pay_webhook_deliveries' and column_name='secret_key_version_snapshot'),
-  'webhook secret key version is snapshotted'
-);
-
-select ok(
-  exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.proname='pay_enqueue_webhook_deliveries'
-      and pg_get_functiondef(p.oid) ilike '%endpoint_url_snapshot%'
-      and pg_get_functiondef(p.oid) ilike '%secret_ciphertext_snapshot%'
-  ),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_enqueue_webhook_deliveries' and pg_get_functiondef(p.oid) ilike '%endpoint_url_snapshot%' and pg_get_functiondef(p.oid) ilike '%secret_ciphertext_snapshot%'),
   'webhook enqueue copies routing and signing snapshots'
 );
 
 select ok(
-  exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.proname='pay_claim_webhook_deliveries'
-      and pg_get_functiondef(p.oid) ilike '%endpoint_url_snapshot%'
-      and pg_get_functiondef(p.oid) ilike '%secret_ciphertext_snapshot%'
-  ),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_claim_webhook_deliveries' and pg_get_functiondef(p.oid) ilike '%endpoint_url_snapshot%' and pg_get_functiondef(p.oid) ilike '%secret_ciphertext_snapshot%'),
   'webhook claim reads immutable delivery snapshots rather than live webhook routing'
 );
 
@@ -100,10 +48,7 @@ select lives_ok(
   'merchant creation succeeds for the audit fixture'
 );
 
-select ok(
-  (select count(*) from public.pay_merchants where owner_user_id='pay-audit-user') = 1,
-  'merchant creation produces exactly one merchant'
-);
+select ok((select count(*) from public.pay_merchants where owner_user_id='pay-audit-user') = 1, 'merchant creation produces exactly one merchant');
 
 update public.pay_merchants set status='active' where owner_user_id='pay-audit-user';
 
