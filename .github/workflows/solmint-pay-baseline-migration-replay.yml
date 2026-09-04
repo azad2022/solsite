@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PAY_MIGRATION_COUNT: '50'
+  PAY_MIGRATION_COUNT: '51'
   PRODUCTION_SCHEMA_SHA256: '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
 
 jobs:
