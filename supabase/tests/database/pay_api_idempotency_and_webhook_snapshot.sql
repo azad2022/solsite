@@ -48,7 +48,7 @@ select ok(
 );
 
 select ok(
-  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_apply_verified_observation' and pg_get_functiondef(p.oid) ilike '%if v_payment.asset = ''SOL'' then%'),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_apply_verified_observation' and pg_get_functiondef(p.oid) ilike '%if p_asset = ''SOL'' then%'),
   'reconciliation separates native SOL destination semantics from token-account semantics'
 );
 
@@ -141,7 +141,7 @@ select is(
   'reusing an idempotency key with different request data is rejected deterministically'
 );
 
-select is((select count(*) from public.pay_payment_intents where merchant_id=(select id from public.pay_merchants where owner_user_id='pay-audit-user')), 2, 'idempotent replay does not create a second payment intent');
+select is((select count(*)::integer from public.pay_payment_intents where merchant_id=(select id from public.pay_merchants where owner_user_id='pay-audit-user')), 2, 'idempotent replay does not create a second payment intent');
 
 select * from finish();
 rollback;
