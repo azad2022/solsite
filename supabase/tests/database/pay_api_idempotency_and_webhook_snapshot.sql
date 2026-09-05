@@ -29,7 +29,16 @@ select ok(
 );
 
 select ok(
-  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_create_payment_intent' and pg_get_functiondef(p.oid) ilike '%state'', ''replay%'' and pg_get_functiondef(p.oid) ilike '%request_hash%'),
+  exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'pay_create_payment_intent'
+      and pg_get_functiondef(p.oid) ilike '%state%'
+      and pg_get_functiondef(p.oid) ilike '%replay%'
+      and pg_get_functiondef(p.oid) ilike '%request_hash%'
+  ),
   'completed idempotent requests replay only when request hashes match'
 );
 
