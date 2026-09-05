@@ -1,4 +1,5 @@
 name: SolMint Pay Database Security
+# Current-head audit trigger: this workflow must be exercised after security changes.
 
 on:
   pull_request:
