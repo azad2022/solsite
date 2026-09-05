@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PAY_MIGRATION_COUNT: '51'
-  CANONICAL_ACTIVE_SQL_COUNT: '52'
+  PAY_MIGRATION_COUNT: '52'
+  CANONICAL_ACTIVE_SQL_COUNT: '53'
   LEGACY_MIGRATION_COUNT: '15'
 
 jobs:
