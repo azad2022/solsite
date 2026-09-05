@@ -33,7 +33,7 @@ env:
   PAY_MIGRATION_COUNT: '51'
   PRODUCTION_MIGRATION_COUNT: '56'
   SUPABASE_CLI_VERSION: '2.116.0'
-  SUPABASE_DB_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
+  SUPABASE_DB_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable'
 
 jobs:
   rehearse:
@@ -158,7 +158,8 @@ jobs:
           mkdir -p artifacts/reconciliation/cli
           supabase migration list --db-url "$DB_URL" | tee artifacts/reconciliation/cli/history-before-repair.txt
           mapfile -t legacy_versions < <(node - <<'NODE'
-          const manifest = require('./scripts/solmint-pay/production-migration-history-manifest.json');
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync('./scripts/solmint-pay/production-migration-history-manifest.json', 'utf8'));
           for (const row of manifest) console.log(row.version);
           NODE
           )
