@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/solmint-pay-baseline-definition-audit.yml'
       - 'supabase/migrations/*_solmint_pay_*.sql'
+      - 'supabase/migrations/20260829090000_solmint_production_baseline.sql'
 
 permissions:
   contents: read
@@ -37,17 +38,13 @@ jobs:
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
-      - name: Download verified Production schema
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_ARTIFACT_ID: '9907361271'
+      - name: Validate pinned canonical Production baseline
         run: |
           set -Eeuo pipefail
-          mkdir -p artifacts/solmint-pay-baseline-definition/input
-          curl --fail --silent --show-error --location -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" -o /tmp/production-schema.zip
-          unzip -q /tmp/production-schema.zip -d artifacts/solmint-pay-baseline-definition/input
-          test -s artifacts/solmint-pay-baseline-definition/input/production-schema.sql
-          test "$(sha256sum artifacts/solmint-pay-baseline-definition/input/production-schema.sql | awk '{print $1}')" = "$PRODUCTION_SCHEMA_SHA256"
+          baseline='supabase/migrations/20260829090000_solmint_production_baseline.sql'
+          test -s "$baseline"
+          node scripts/solmint-pay/baseline-validate.mjs "$baseline"
+          grep -F "Source snapshot SHA-256: $PRODUCTION_SCHEMA_SHA256" "$baseline" >/dev/null
 
       - name: Start PostgreSQL 17
         run: |
@@ -62,9 +59,10 @@ jobs:
           docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE SCHEMA IF NOT EXISTS extensions;"
           docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END \$\$;"
 
-      - name: Replay Production schema snapshot
+      - name: Replay pinned Production baseline
         run: |
           set -Eeuo pipefail
+          baseline='supabase/migrations/20260829090000_solmint_production_baseline.sql'
           sed -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' \
               -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' \
               -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' \
@@ -74,13 +72,14 @@ jobs:
               -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
               -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
               -e '/^ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";/d' \
-              artifacts/solmint-pay-baseline-definition/input/production-schema.sql > /tmp/production-schema.sql
+              "$baseline" > /tmp/production-schema.sql
           docker cp /tmp/production-schema.sql solmint-pay-definition-postgres:/tmp/production-schema.sql
           docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/production-schema.sql > artifacts/solmint-pay-baseline-definition/production-replay.log 2>&1
 
       - name: Capture non-Pay definitions
         run: |
           set -Eeuo pipefail
+          mkdir -p artifacts/solmint-pay-baseline-definition
           psql_exec() { docker exec solmint-pay-definition-postgres psql -U postgres -d postgres "$@"; }
           psql_exec -AtF '|' -c "select n.nspname,c.relname,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relkind in ('r','p','v','m','f','S') and c.relname not like 'pay_%' order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/pre_relations.txt
           psql_exec -AtF '|' -c "select n.nspname,a.attrelid::regclass::text,a.attname,pg_catalog.format_type(a.atttypid,a.atttypmod),a.attnotnull,coalesce(pg_catalog.pg_get_expr(ad.adbin,ad.adrelid),'') from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace left join pg_attrdef ad on ad.adrelid=a.attrelid and ad.adnum=a.attnum where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relname not like 'pay_%' and a.attnum > 0 and not a.attisdropped order by 1,2,3;" > artifacts/solmint-pay-baseline-definition/pre_columns.txt
