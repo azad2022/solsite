@@ -29,10 +29,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PAY_MIGRATION_COUNT: '54'
-  ACTIVE_SQL_COUNT: '55'
+  PAY_MIGRATION_COUNT: '55'
+  ACTIVE_SQL_COUNT: '56'
   BASELINE_VERSION: '20260829090000'
-  PRODUCTION_HISTORY_COUNT: '55'
+  PRODUCTION_HISTORY_COUNT: '56'
   SOLANA_DEVNET_RPC_URL: 'https://api.devnet.solana.com'
   SUPABASE_CLI_VERSION: '2.116.0'
 
@@ -79,7 +79,7 @@ jobs:
           node scripts/solmint-pay/baseline-validate.mjs "supabase/migrations/${BASELINE_VERSION}_solmint_production_baseline.sql"
           node scripts/solmint-pay/rehearse-migration-history-reconciliation.mjs > /tmp/reconciliation-plan.json
           grep -F '"manifestCount": 56' /tmp/reconciliation-plan.json
-          grep -F '"targetHistoryCount": 55' /tmp/reconciliation-plan.json
+          grep -F '"targetHistoryCount": 56' /tmp/reconciliation-plan.json
       - uses: supabase/setup-cli@v1
         with:
           version: 2.116.0
@@ -110,15 +110,17 @@ jobs:
           case "$SUPABASE_DB_URL" in postgres://*|postgresql://*) ;; *) exit 1 ;; esac
       - run: |
           set -Eeuo pipefail
-          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c 'select count(*) from supabase_migrations.schema_migrations;')" = '55'
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c 'select count(*) from supabase_migrations.schema_migrations;')" = '56'
           test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version='20260829090000';")" = '1'
-          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")" = '54'
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")" = '55'
           test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%';")" -gt 0
       - run: |
           set -Eeuo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_payment_intents;" >/dev/null
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_payment_transactions;" >/dev/null
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_revenue_ledger;" >/dev/null
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_apply_verified_observation' limit 1;" | grep -F 'v_payment.gas_sponsored is distinct from false'
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_apply_verified_observation' limit 1;" | grep -F 'p_fee_payer <> v_merchant_source_authority'
 
   devnet:
     name: Real Solana Devnet E2E
