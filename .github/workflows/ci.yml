@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, production-hardening, seo-stage2-production-hardening, seo-stage3-admin-cms]
+    branches: [main, production-hardening, seo-stage2-production-hardening, seo-stage3-admin-cms, audit/solmint-pay-next]
   pull_request:
     branches: [main, seo-stage2-production-hardening]
 
