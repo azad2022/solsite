@@ -80,7 +80,7 @@ update public.pay_merchants set status='active' where owner_user_id='pay-audit-u
 select is(
   (select public.pay_create_payment_intent(
     (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
-    'order-1', 1000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-1', 100, 'merchant',
+    'order-1', 1000000, 'SOL', null, null, null, 'MERCHANT', '4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi', 100, 'merchant',
     10000, 1000000, 990000, 'SOLMINT', 'solana', now() + interval '15 minutes', '{}'::jsonb,
     'idem-1', 'hash-1', 'payment-intents:create'
   )->>'state'),
@@ -94,7 +94,7 @@ select is((select customer_total_atomic::text from public.pay_payment_intents wh
 select is(
   (select public.pay_create_payment_intent(
     (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
-    'order-2', 1000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-2', 100, 'customer',
+    'order-2', 1000000, 'SOL', null, null, null, 'MERCHANT', '8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR', 100, 'customer',
     10000, 1010000, 1000000, 'SOLMINT', 'solana', now() + interval '15 minutes', '{}'::jsonb,
     'idem-2', 'hash-2-customer', 'payment-intents:create'
   )->>'state'),
@@ -111,7 +111,7 @@ select is((select (merchant_settlement_atomic = merchant_net_atomic) from public
 select throws_ok(
   $$ select public.pay_create_payment_intent(
     (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
-    'order-invalid', 1000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-INVALID', 100, 'merchant',
+    'order-invalid', 1000000, 'SOL', null, null, null, 'MERCHANT', 'CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8', 100, 'merchant',
     10000, 1000000, 980000, 'SOLMINT', 'solana', now() + interval '15 minutes', '{}'::jsonb,
     'idem-invalid', 'hash-invalid', 'payment-intents:create'
   ) $$,
@@ -122,7 +122,7 @@ select throws_ok(
 select is(
   (select public.pay_create_payment_intent(
     (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
-    'order-1', 1000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-OTHER', 100, 'merchant',
+    'order-1', 1000000, 'SOL', null, null, null, 'MERCHANT', 'GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq', 100, 'merchant',
     10000, 1000000, 990000, 'SOLMINT', 'solana', now() + interval '15 minutes', '{}'::jsonb,
     'idem-1', 'hash-1', 'payment-intents:create'
   )->>'state'),
@@ -133,7 +133,7 @@ select is(
 select is(
   (select public.pay_create_payment_intent(
     (select id from public.pay_merchants where owner_user_id='pay-audit-user'),
-    'order-1', 2000000, 'SOL', null, null, null, 'MERCHANT', 'REFERENCE-3', 100, 'merchant',
+    'order-1', 2000000, 'SOL', null, null, null, 'MERCHANT', 'LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY', 100, 'merchant',
     20000, 2000000, 1980000, 'SOLMINT', 'solana', now() + interval '15 minutes', '{}'::jsonb,
     'idem-1', 'hash-2', 'payment-intents:create'
   )->>'state'),
