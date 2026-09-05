@@ -1,0 +1,63 @@
+name: SolMint Pay Security Checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pay/**'
+      - 'tests/solmint-pay-*.test.ts'
+      - 'supabase/migrations/*solmint_pay*.sql'
+      - 'docs/solmint-pay-*.md'
+      - '.github/workflows/solmint-pay-security.yml'
+      - 'functions/api/pay/**'
+      - 'functions/api/internal/pay/**'
+  push:
+    branches:
+      - 'feat/solmint-pay-*'
+      - 'audit/solmint-pay-*'
+    paths:
+      - 'src/pay/**'
+      - 'tests/solmint-pay-*.test.ts'
+      - 'supabase/migrations/*solmint_pay*.sql'
+      - 'docs/solmint-pay-*.md'
+      - '.github/workflows/solmint-pay-security.yml'
+      - 'functions/api/pay/**'
+      - 'functions/api/internal/pay/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solmint-pay-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Repair stale admin source contract
+        run: node scripts/repair-admin-solana-logo.mjs
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run Pay policy and security tests
+        run: bun test tests/solmint-pay-*.test.ts

@@ -1,0 +1,193 @@
+name: SolMint Pay — Release Evidence Gate
+
+# Current production release gate. Exact HEAD only.
+# retrigger: 2026-09-05T18:00Z
+on:
+  push:
+    branches: [audit/solmint-pay-next]
+    paths:
+      - 'src/pay/**'
+      - 'services/pay-*.ts'
+      - 'supabase/**'
+      - 'scripts/solmint-pay/**'
+      - 'tests/**'
+      - '.github/workflows/solmint-pay-release-evidence.yml'
+      - 'package.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pay/**'
+      - 'services/pay-*.ts'
+      - 'supabase/**'
+      - 'scripts/solmint-pay/**'
+      - 'tests/**'
+      - '.github/workflows/solmint-pay-release-evidence.yml'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solmint-pay-release-evidence-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  PAY_MIGRATION_COUNT: '55'
+  ACTIVE_SQL_COUNT: '56'
+  BASELINE_VERSION: '20260829090000'
+  PRODUCTION_HISTORY_COUNT: '56'
+  SOLANA_DEVNET_RPC_URL: 'https://api.devnet.solana.com'
+  SUPABASE_CLI_VERSION: '2.116.0'
+
+jobs:
+  quality:
+    name: Quality / typecheck / build / unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.15'
+      - run: npm install --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: bun test tests/**/*.test.ts
+      - run: bun test tests/solmint-pay-webhook-egress.test.ts tests/solmint-pay-webhook.test.ts
+
+  database:
+    name: Database security / migration replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' | wc -l)" -eq "$PAY_MIGRATION_COUNT"
+          test "$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq "$ACTIVE_SQL_COUNT"
+          test -f "supabase/migrations/${BASELINE_VERSION}_solmint_production_baseline.sql"
+          node scripts/solmint-pay/baseline-validate.mjs "supabase/migrations/${BASELINE_VERSION}_solmint_production_baseline.sql"
+          node scripts/solmint-pay/rehearse-migration-history-reconciliation.mjs > /tmp/reconciliation-plan.json
+          grep -F '"manifestCount": 56' /tmp/reconciliation-plan.json
+          grep -F '"targetHistoryCount": 56' /tmp/reconciliation-plan.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+      - run: |
+          set -Eeuo pipefail
+          test "$(supabase --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)" = "$SUPABASE_CLI_VERSION"
+          supabase db start
+          supabase test db
+          supabase db reset --local
+          supabase test db
+
+  production:
+    name: Production migration / schema verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - run: |
+          set -Eeuo pipefail
+          test -n "$SUPABASE_DB_URL"
+          case "$SUPABASE_DB_URL" in postgres://*|postgresql://*) ;; *) exit 1 ;; esac
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c 'select count(*) from supabase_migrations.schema_migrations;')" = '56'
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version='20260829090000';")" = '1'
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")" = '55'
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%';")" -gt 0
+      - run: |
+          set -Eeuo pipefail
+          fn="$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_apply_verified_observation' limit 1;")"
+          grep -F 'v_payment.gas_sponsored is distinct from false' <<< "$fn"
+          grep -F 'p_fee_payer <> v_merchant_source_authority' <<< "$fn"
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_payment_intents;" >/dev/null
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_payment_transactions;" >/dev/null
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_revenue_ledger;" >/dev/null
+
+  devnet:
+    name: Real Solana Devnet E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.15'
+      - run: npm install --no-audit --no-fund
+      - run: bun add --no-save @solana/web3.js@1.98.4
+      - run: npx tsc -p tsconfig.e2e.json --noEmit
+      - name: Validate funding secret
+        env:
+          DEVNET_FUNDER: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: test -n "$DEVNET_FUNDER"
+      - name: Prepare and fund ephemeral sender
+        env:
+          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          bun - <<'BUN'
+          const { writeFileSync } = require('node:fs');
+          const { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
+          const alpha='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+          const index=new Map([...alpha].map((c,i)=>[c,i]));
+          function decode(s){ if(!s||s.trim()!==s) throw Error('invalid funder secret'); const a=[0]; for(const c of s){const d=index.get(c); if(d===undefined) throw Error('invalid funder secret'); let carry=d; for(let i=0;i<a.length;i++){const n=a[i]*58+carry; a[i]=n&255; carry=Math.floor(n/256);} while(carry){a.push(carry&255); carry=Math.floor(carry/256);}} let z=0; while(z<s.length&&s[z]==='1')z++; const out=new Uint8Array(z+a.length-(a.length>1&&a[a.length-1]===0?1:0)); for(let i=0;i<a.length;i++)out[out.length-1-i]=a[i]; return out; }
+          const c=new Connection(process.env.SOLANA_DEVNET_RPC_URL,{commitment:'finalized',confirmTransactionInitialTimeout:45000});
+          const funder=Keypair.fromSecretKey(decode(process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64));
+          const sender=Keypair.generate();
+          writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json',JSON.stringify(Array.from(sender.secretKey)));
+          const rent=await c.getMinimumBalanceForRentExemption(0); const needed=Number(1000000n+10000n)+rent*2+20000;
+          const balance=await c.getBalance(funder.publicKey,'finalized'); if(balance<needed+500000) throw Error(`Devnet funder balance too low: ${balance}`);
+          const {blockhash}=await c.getLatestBlockhash('finalized');
+          const tx=new Transaction({recentBlockhash:blockhash,feePayer:funder.publicKey}).add(SystemProgram.transfer({fromPubkey:funder.publicKey,toPubkey:sender.publicKey,lamports:Math.max(6000000,needed)}));
+          const sig=await sendAndConfirmTransaction(c,tx,[funder],{commitment:'finalized'}); console.log(`ephemeral sender funded: ${sig}`);
+          const after=await c.getBalance(sender.publicKey,'finalized'); if(after<needed) throw Error(`sender balance too low: ${after}, required: ${needed}`);
+          BUN
+      - name: Run Devnet E2E
+        env:
+          DEVNET_E2E_SENDER_KEYPAIR_PATH: /tmp/solmint-pay-devnet-e2e-keypair.json
+        run: bun run tests/e2e/solmint-pay-devnet.e2e.ts
+      - if: always()
+        run: rm -f /tmp/solmint-pay-devnet-e2e-keypair.json
+
+  release:
+    name: Release decision
+    if: always()
+    needs: [quality, database, production, devnet]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -Eeuo pipefail
+          test "${{ needs.quality.result }}" = success
+          test "${{ needs.database.result }}" = success
+          test "${{ needs.production.result }}" = success
+          test "${{ needs.devnet.result }}" = success
+          echo 'SolMint Pay release evidence: PASS'

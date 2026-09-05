@@ -1,0 +1,186 @@
+name: SolMint Pay Devnet E2E
+
+# Current-head audit marker: this run is release evidence, not a demo.
+on:
+  push:
+    branches:
+      - 'feat/solmint-pay-*'
+      - 'audit/solmint-pay-*'
+    paths:
+      - 'src/pay/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/database/**'
+      - 'tests/e2e/**'
+      - 'tsconfig.e2e.json'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pay/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/database/**'
+      - 'tests/e2e/**'
+      - 'tsconfig.e2e.json'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize runs because they share one isolated Devnet funding wallet.
+  group: solmint-pay-devnet-e2e-funder
+  cancel-in-progress: false
+
+env:
+  SOLANA_DEVNET_RPC_URL: https://api.devnet.solana.com
+
+jobs:
+  devnet-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove checkout matches event commit
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install repository dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install test-only Solana harness dependency
+        run: bun add --no-save @solana/web3.js@1.98.4
+
+      - name: Typecheck Devnet E2E harness
+        run: npx tsc -p tsconfig.e2e.json --noEmit
+
+      - name: Validate CI funding configuration
+        env:
+          DEVNET_E2E_FUNDER_SECRET_KEY_B58: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$DEVNET_E2E_FUNDER_SECRET_KEY_B58" || { echo 'DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.'; exit 1; }
+
+      - name: Generate ephemeral Devnet E2E keypair
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          bun -e "const { Keypair } = require('@solana/web3.js'); const { writeFileSync } = require('node:fs'); writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json', JSON.stringify(Array.from(Keypair.generate().secretKey)));"
+
+      - name: Fund ephemeral sender from dedicated Devnet funding wallet
+        env:
+          DEVNET_E2E_FUNDER_SECRET_KEY_B58: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          bun - <<'BUN'
+          const { readFile } = require('node:fs/promises');
+          const { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
+
+          const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+          const BASE58_INDEX = new Map(Array.from(BASE58_ALPHABET, (char, index) => [char, index]));
+          const decodeBase58 = (value) => {
+            if (!value || value.trim() !== value) throw new Error('Devnet funder secret key is empty or has surrounding whitespace.');
+            const bytes = [0];
+            for (const char of value) {
+              const digit = BASE58_INDEX.get(char);
+              if (digit === undefined) throw new Error('Devnet funder secret key is not valid Base58.');
+              let carry = digit;
+              for (let i = 0; i < bytes.length; i += 1) {
+                const next = bytes[i] * 58 + carry;
+                bytes[i] = next & 255;
+                carry = Math.floor(next / 256);
+              }
+              while (carry > 0) {
+                bytes.push(carry & 255);
+                carry = Math.floor(carry / 256);
+              }
+            }
+            let leadingZeros = 0;
+            while (leadingZeros < value.length && value[leadingZeros] === '1') leadingZeros += 1;
+            const decoded = new Uint8Array(leadingZeros + bytes.length - (bytes.length > 1 && bytes[bytes.length - 1] === 0 ? 1 : 0));
+            for (let i = 0; i < leadingZeros; i += 1) decoded[i] = 0;
+            for (let i = 0; i < bytes.length; i += 1) decoded[decoded.length - 1 - i] = bytes[i];
+            return decoded;
+          };
+
+          const rpcUrl = process.env.SOLANA_DEVNET_RPC_URL;
+          const funderSecretKeyB58 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B58;
+          const senderPath = '/tmp/solmint-pay-devnet-e2e-keypair.json';
+          const fundingLamports = 5_000_000;
+          const minimumBalance = 2_000_000;
+
+          if (!rpcUrl) throw new Error('Devnet RPC URL is required.');
+          if (!funderSecretKeyB58) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B58 is required.');
+
+          const funderSecretKey = decodeBase58(funderSecretKeyB58);
+          if (funderSecretKey.length !== 64) {
+            throw new Error(`Devnet funder secret key must decode to 64 bytes, got ${funderSecretKey.length}.`);
+          }
+
+          const raw = JSON.parse(await readFile(senderPath, 'utf8'));
+          if (!Array.isArray(raw) || raw.length !== 64 || raw.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+            throw new Error('CI Devnet E2E sender keypair file is invalid.');
+          }
+
+          const funder = Keypair.fromSecretKey(funderSecretKey);
+          const sender = Keypair.fromSecretKey(Uint8Array.from(raw));
+          const connection = new Connection(rpcUrl, {
+            commitment: 'finalized',
+            confirmTransactionInitialTimeout: 45_000,
+          });
+
+          const funderBalance = await connection.getBalance(funder.publicKey, 'finalized');
+          const requiredFunderBalance = fundingLamports + 20_000;
+          if (funderBalance < requiredFunderBalance) {
+            throw new Error(`Devnet CI funder is underfunded: ${funderBalance} lamports; required at least ${requiredFunderBalance}.`);
+          }
+
+          const senderBalanceBefore = await connection.getBalance(sender.publicKey, 'finalized');
+          if (senderBalanceBefore < minimumBalance) {
+            const { blockhash } = await connection.getLatestBlockhash('finalized');
+            const transaction = new Transaction({ recentBlockhash: blockhash, feePayer: funder.publicKey }).add(
+              SystemProgram.transfer({
+                fromPubkey: funder.publicKey,
+                toPubkey: sender.publicKey,
+                lamports: fundingLamports,
+              }),
+            );
+            const signature = await sendAndConfirmTransaction(connection, transaction, [funder], {
+              commitment: 'finalized',
+            });
+            console.log(`Funder transfer finalized: ${signature}`);
+          }
+
+          const senderBalanceAfter = await connection.getBalance(sender.publicKey, 'finalized');
+          if (senderBalanceAfter < minimumBalance) {
+            throw new Error(`Devnet E2E sender funding failed. Balance: ${senderBalanceAfter} lamports; required: ${minimumBalance}.`);
+          }
+          console.log(`Ephemeral sender funded: ${sender.publicKey.toBase58()} (${senderBalanceAfter} lamports)`);
+          BUN
+
+      - name: Run real Devnet payment verification
+        env:
+          DEVNET_E2E_SENDER_KEYPAIR_PATH: /tmp/solmint-pay-devnet-e2e-keypair.json
+        run: bun run tests/e2e/solmint-pay-devnet.e2e.ts
+
+      - name: Securely remove ephemeral keypair
+        if: always()
+        run: rm -f /tmp/solmint-pay-devnet-e2e-keypair.json

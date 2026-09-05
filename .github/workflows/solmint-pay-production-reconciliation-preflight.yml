@@ -1,0 +1,141 @@
+name: SolMint Pay — Production Reconciliation Preflight
+
+# READ-ONLY ONLY. This workflow never runs migration repair, db push, DDL, or DML.
+# It exists to prove the live Production state still matches the frozen
+# reconciliation boundary immediately before any separately authorized cutover.
+
+on:
+  workflow_dispatch:
+    inputs:
+      acknowledgement:
+        description: 'Type READ_ONLY_PREFLIGHT to authorize a read-only Production check'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_REF: 'nvopkbiedorfshwbmyhn'
+  EXPECTED_PRODUCTION_HISTORY_COUNT: '56'
+  EXPECTED_PAY_RELATIONS: '0'
+  EXPECTED_PAY_HISTORY_ROWS: '0'
+  EXPECTED_BASELINE_VERSION: '20260829090000'
+  EXPECTED_SCHEMA_SHA256: '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
+  SUPABASE_CLI_VERSION: '2.116.0'
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Require explicit read-only acknowledgement
+        run: |
+          set -Eeuo pipefail
+          test "${{ inputs.acknowledgement }}" = 'READ_ONLY_PREFLIGHT'
+
+      - name: Checkout exact audited commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove checkout matches event commit
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Prove CLI version
+        run: |
+          set -Eeuo pipefail
+          cli_version="$(supabase --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)"
+          test "$cli_version" = "$SUPABASE_CLI_VERSION"
+
+      - name: Require Production database password secret
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+
+      - name: Capture fresh Production schema read-only
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p artifacts/production-preflight
+          pg_dump \
+            --host="db.${PROJECT_REF}.supabase.co" \
+            --port=5432 \
+            --username=postgres \
+            --dbname=postgres \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            > artifacts/production-preflight/production-schema.sql
+          actual_sha="$(sha256sum artifacts/production-preflight/production-schema.sql | awk '{print $1}')"
+          echo "$actual_sha" | tee artifacts/production-preflight/production-schema.sha256
+          test "$actual_sha" = "$EXPECTED_SCHEMA_SHA256"
+
+      - name: Run fail-closed reconciliation preflight
+        env:
+          PGHOST: "db.${{ env.PROJECT_REF }}.supabase.co"
+          PGPORT: '5432'
+          PGUSER: 'postgres'
+          PGDATABASE: 'postgres'
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SOLMINT_PAY_PRODUCTION_SCHEMA_SHA256: ${{ env.EXPECTED_SCHEMA_SHA256 }}
+          SOLMINT_PAY_PRODUCTION_CONFIRM_REF: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/solmint-pay/production-reconciliation-preflight.mjs | tee artifacts/production-preflight/report.json
+
+      - name: Independently verify live history rows
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          psql \
+            --host="db.${PROJECT_REF}.supabase.co" \
+            --port=5432 \
+            --username=postgres \
+            --dbname=postgres \
+            -v ON_ERROR_STOP=1 \
+            -AtF '|' \
+            -c 'select version,name from supabase_migrations.schema_migrations order by version;' \
+            > artifacts/production-preflight/live-history.txt
+          count="$(wc -l < artifacts/production-preflight/live-history.txt)"
+          test "$count" = "$EXPECTED_PRODUCTION_HISTORY_COUNT"
+          if grep -E '(^|\|)20260829090000\|' artifacts/production-preflight/live-history.txt; then
+            echo 'Canonical baseline is already present in Production history; cutover preflight must abort.' >&2
+            exit 1
+          fi
+          if grep -E '^2026083[0-9]{6}\|' artifacts/production-preflight/live-history.txt; then
+            echo 'Pay migration history already exists in Production; cutover preflight must abort.' >&2
+            exit 1
+          fi
+
+      - name: Independently verify Pay objects are absent
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          pay_relations="$(psql --host="db.${PROJECT_REF}.supabase.co" --port=5432 --username=postgres --dbname=postgres -v ON_ERROR_STOP=1 -At -c "select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%';")"
+          test "$pay_relations" = "$EXPECTED_PAY_RELATIONS"
+          pay_history="$(psql --host="db.${PROJECT_REF}.supabase.co" --port=5432 --username=postgres --dbname=postgres -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")"
+          test "$pay_history" = "$EXPECTED_PAY_HISTORY_ROWS"
+
+      - name: Upload preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-production-reconciliation-preflight-${{ github.run_id }}
+          path: artifacts/production-preflight/
+          if-no-files-found: error
+          retention-days: 30

@@ -3,6 +3,14 @@ import { SolanaStatus, UserAccount } from '../types';
 import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search, Activity } from 'lucide-react';
 import { HeaderMarketTicker } from './HeaderMarketTicker';
 
+export const SolanaLogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" {...props}>
+    <path d="M5.2 16.4h12.55c.55 0 .84.67.44 1.04l-1.72 1.58a1.45 1.45 0 0 1-.98.38H2.95c-.55 0-.84-.67-.44-1.04l1.72-1.58c.27-.25.62-.38.97-.38Z" fill="currentColor"/>
+    <path d="M5.2 4.6h12.55c.55 0 .84-.67.44-1.04L16.47 1.98a1.45 1.45 0 0 0-.98-.38H2.95c-.55 0-.84.67-.44 1.04l1.72 1.58c.27.25.62.38.97.38Z" fill="currentColor"/>
+    <path d="M19.8 10.5H7.25c-.55 0-.84.67-.44 1.04l1.72 1.58c.27.25.62.38.98.38h12.55c.55 0 .84-.67.44-1.04l-1.72-1.58a1.45 1.45 0 0 0-.98-.38Z" fill="currentColor"/>
+  </svg>
+);
+
 interface HeaderProps {
   solanaStatus: SolanaStatus;
   refreshStatus: () => void;

@@ -1,0 +1,147 @@
+name: SolMint Pay — Production Schema Replay Equivalence
+
+# Final canonical replay/equivalence gate. Production is never the replay target.
+# The source snapshot is pinned to verified artifact 9907361271.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'audit/solmint-pay-next'
+    paths:
+      - '.github/workflows/solmint-pay-production-schema-replay-equivalence.yml'
+      - 'scripts/solmint-pay/schema-equivalence.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: solmint-pay-production-schema-replay-equivalence
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    name: Replay captured production schema and verify equivalence
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout audited branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download verified production snapshot artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_ARTIFACT_ID: '9907361271'
+        run: |
+          set -Eeuo pipefail
+          mkdir -p artifacts/solmint-pay-replay/input
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
+            -o /tmp/production-schema.zip
+          unzip -q /tmp/production-schema.zip -d artifacts/solmint-pay-replay/input
+          test -s artifacts/solmint-pay-replay/input/production-schema.sql
+          test -s artifacts/solmint-pay-replay/input/production-schema.sha256
+          cd artifacts/solmint-pay-replay/input
+          expected_sha="$(awk '{print $1}' production-schema.sha256)"
+          actual_sha="$(sha256sum production-schema.sql | awk '{print $1}')"
+          test "$expected_sha" = "$actual_sha"
+          echo "Snapshot SHA-256 verified: $actual_sha"
+
+      - name: Start disposable PostgreSQL 17
+        run: |
+          set -Eeuo pipefail
+          docker run -d --name solmint-pay-replay-postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=postgres \
+            -p 5432:5432 \
+            postgres:17-alpine
+          for i in $(seq 1 60); do
+            docker exec solmint-pay-replay-postgres pg_isready -U postgres -d postgres >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker exec solmint-pay-replay-postgres pg_isready -U postgres -d postgres
+
+      - name: Prepare Supabase-compatible roles and schemas
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            "CREATE SCHEMA IF NOT EXISTS extensions;"
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            "DO \$\$ BEGIN
+               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+             END \$\$;"
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            "CREATE PUBLICATION supabase_realtime FOR ALL TABLES;"
+
+      - name: Replay schema snapshot
+        run: |
+          set -Eeuo pipefail
+          sed \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' \
+            -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' \
+            -e '/^COMMENT ON EXTENSION "pg_cron"/d' \
+            -e '/^COMMENT ON EXTENSION "pg_net"/d' \
+            -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' \
+            -e '/^COMMENT ON EXTENSION "supabase_vault"/d' \
+            artifacts/solmint-pay-replay/input/production-schema.sql > /tmp/replay-schema.sql
+          docker cp /tmp/replay-schema.sql solmint-pay-replay-postgres:/tmp/replay-schema.sql
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/replay-schema.sql 2>&1 | tee artifacts/solmint-pay-replay/replay.log
+
+      - name: Verify replayed PostgreSQL catalog and schema dump
+        run: |
+          set -Eeuo pipefail
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc \
+            "select count(*) from pg_catalog.pg_class where relkind in ('r','p','v','m','f');" \
+            > artifacts/solmint-pay-replay/replayed_relation_count.txt
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -AtF '|' -c \
+            "select n.nspname, c.relname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where c.relkind in ('r','p','v','m','f') and n.nspname in ('public','private') order by 1,2;" \
+            > artifacts/solmint-pay-replay/replayed_tables.txt
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -AtF '|' -c \
+            "select schemaname, indexname from pg_catalog.pg_indexes where schemaname in ('public','private') order by 1,2;" \
+            > artifacts/solmint-pay-replay/replayed_indexes.txt
+          docker exec solmint-pay-replay-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -AtF '|' -c \
+            "select n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') order by 1,2,3;" \
+            > artifacts/solmint-pay-replay/replayed_functions.txt
+          docker exec solmint-pay-replay-postgres pg_dump --schema-only --no-owner --no-privileges -U postgres -d postgres \
+            > artifacts/solmint-pay-replay/replayed-schema.sql
+          test -s artifacts/solmint-pay-replay/replayed-schema.sql
+          ! grep -Eiq 'INSERT INTO|COPY .+ FROM stdin;' artifacts/solmint-pay-replay/replayed-schema.sql
+          test -s artifacts/solmint-pay-replay/replayed_tables.txt
+          test -s artifacts/solmint-pay-replay/replayed_indexes.txt
+          test -s artifacts/solmint-pay-replay/replayed_functions.txt
+          sha256sum artifacts/solmint-pay-replay/replayed-schema.sql | tee artifacts/solmint-pay-replay/replayed-schema.sha256
+
+      - name: Produce canonical schema equivalence report
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/solmint-pay/schema-equivalence.py
+
+      - name: Verify Pay objects are not in production snapshot input
+        run: |
+          set -Eeuo pipefail
+          ! grep -Eiq '\b(pay_|solmint_pay|payment_intent|payment)\b' artifacts/solmint-pay-replay/input/production-schema.sql
+
+      - name: Upload replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-schema-replay-${{ github.run_id }}
+          path: artifacts/solmint-pay-replay/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Cleanup disposable database
+        if: always()
+        run: docker rm -f solmint-pay-replay-postgres >/dev/null 2>&1 || true

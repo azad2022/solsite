@@ -1,0 +1,67 @@
+name: SolMint Pay — Finalize Migration Counts (temporary)
+
+on:
+  push:
+    branches:
+      - audit/solmint-pay-next
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: solmint-pay-finalize-counts
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Update exact final migration counts
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          replacements = {
+            '.github/workflows/solmint-pay-baseline-materialize.yml': [("PAY_MIGRATION_COUNT: '52'", "PAY_MIGRATION_COUNT: '54'"), ("CANONICAL_ACTIVE_SQL_COUNT: '53'", "CANONICAL_ACTIVE_SQL_COUNT: '55'")],
+            '.github/workflows/solmint-pay-baseline-migration-replay.yml': [("PAY_MIGRATION_COUNT: '51'", "PAY_MIGRATION_COUNT: '54'")],
+            '.github/workflows/solmint-pay-release-evidence.yml': [("PAY_MIGRATION_COUNT: '52'", "PAY_MIGRATION_COUNT: '54'"), ("ACTIVE_SQL_COUNT: '53'", "ACTIVE_SQL_COUNT: '55'"), ('test "${#expected[@]}" -eq 52', 'test "${#expected[@]}" -eq 54'), ('test "${#proposed[@]}" -eq 52', 'test "${#proposed[@]}" -eq 54'), ("= '53'", "= '55'"), ("= '52'", "= '54'")],
+            '.github/workflows/solmint-pay-migration-history-reconciliation-rehearsal.yml': [("PAY_MIGRATION_COUNT: '52'", "PAY_MIGRATION_COUNT: '54'"), ("test \"$count\" = '53'", "test \"$count\" = '55'")],
+            '.github/workflows/solmint-pay-baseline-definition-audit.yml': [("PAY_MIGRATION_COUNT: '52'", "PAY_MIGRATION_COUNT: '54'")],
+            'scripts/solmint-pay/rehearse-migration-history-reconciliation.mjs': [('expectedPayCount = 52', 'expectedPayCount = 54'), ('exactly 52 Pay migration versions', 'exactly 54 Pay migration versions')],
+          }
+          for path, pairs in replacements.items():
+              p=Path(path)
+              s=p.read_text()
+              for old,new in pairs:
+                  if old not in s:
+                      raise SystemExit(f'expected pattern missing: {path}: {old}')
+                  s=s.replace(old,new)
+              p.write_text(s)
+          PY
+
+      - name: Remove temporary workflow and commit release-state changes
+        run: |
+          set -Eeuo pipefail
+          rm -f .github/workflows/solmint-pay-finalize-counts-once.yml
+          if git diff --quiet; then
+            echo 'No changes produced.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows scripts/solmint-pay/rehearse-migration-history-reconciliation.mjs
+          git commit -m 'chore(pay): align release evidence with 54 Pay migrations'
+          git push origin HEAD:audit/solmint-pay-next
+
+      - name: Dispatch final release evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run solmint-pay-release-evidence.yml --ref audit/solmint-pay-next

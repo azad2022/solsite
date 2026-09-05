@@ -1,0 +1,28 @@
+import { faIR } from './fa-IR';
+
+export const enUS = {
+  ...faIR,
+  productName: 'SolMint Pay',
+  pay: 'Pay',
+  checkout: 'Checkout',
+  merchantDashboard: 'Merchant Dashboard',
+  paymentPending: 'Payment pending',
+  paymentConfirmed: 'Payment confirmed',
+  paymentFailed: 'Payment failed',
+  paymentExpired: 'Payment expired',
+  paymentUnderpaid: 'The received amount is lower than required',
+  paymentOverpaid: 'The received amount is higher than required',
+  feePayerMerchant: 'Merchant pays the fee',
+  feePayerCustomer: 'Customer pays the fee',
+  network: 'Network',
+  amount: 'Amount',
+  total: 'Total',
+  wallet: 'Wallet',
+  continue: 'Continue',
+  cancel: 'Cancel',
+  close: 'Close',
+  language: 'Language',
+  automatic: 'Automatic',
+  noMonthlyFee: 'No monthly fee',
+  poweredBy: 'Powered by SolMint Pay',
+} as const;

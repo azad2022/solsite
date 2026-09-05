@@ -1,0 +1,3 @@
+# Audit-only trigger: keep database-security and migration-rehearsal evidence on the same audited HEAD.
+# Re-run marker 2026-09-05: evidence must be collected from this exact branch HEAD.
+project_id = "solmint-pay-ci"

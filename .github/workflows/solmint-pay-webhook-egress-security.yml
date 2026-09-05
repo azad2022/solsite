@@ -11,7 +11,6 @@ on:
       - 'tests/solmint-pay-webhook*.test.ts'
       - '.github/workflows/solmint-pay-webhook-egress-security.yml'
       - 'package.json'
-      - 'package-lock.json'
   push:
     branches:
       - audit/solmint-pay-next
@@ -23,7 +22,6 @@ on:
       - 'tests/solmint-pay-webhook*.test.ts'
       - '.github/workflows/solmint-pay-webhook-egress-security.yml'
       - 'package.json'
-      - 'package-lock.json'
 
 permissions:
   contents: read
@@ -38,13 +36,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.2.15'
       - uses: actions/setup-node@v4
         with:
           node-version: '22.22.0'
-          cache: 'npm'
       - run: npm install
       - run: bun test tests/solmint-pay-webhook-egress.test.ts tests/solmint-pay-webhook.test.ts
       - run: npm run build:pay-webhook-egress
