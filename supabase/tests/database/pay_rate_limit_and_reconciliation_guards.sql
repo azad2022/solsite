@@ -1,6 +1,6 @@
 begin;
 
-select plan(5);
+select plan(6);
 
 select ok(
   exists (
@@ -56,6 +56,19 @@ select ok(
        and lower(pg_get_functiondef(p.oid)) like '%v_payment.gas_sponsored is distinct from false%'
   ),
   'Verified reconciliation fails closed while sponsored payment binding is not implemented'
+);
+
+select ok(
+  exists (
+    select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname = 'pay_transition_payment'
+       and lower(pg_get_functiondef(p.oid)) like '%v_from = ''ambiguous''%'
+       and lower(pg_get_functiondef(p.oid)) like '%''verifying''%'
+  ),
+  'Ambiguous payments can re-enter verification after a retry-safe evidence refresh'
 );
 
 select * from finish();
