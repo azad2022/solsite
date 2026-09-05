@@ -1,6 +1,6 @@
 begin;
 
-select plan(24);
+select plan(26);
 
 select ok(
   exists (select 1 from pg_indexes where schemaname = 'public' and indexname = 'pay_merchants_owner_user_uidx' and indexdef ilike '%unique%'),
@@ -29,8 +29,18 @@ select ok(
 );
 
 select ok(
-  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_create_payment_intent' and pg_get_functiondef(p.oid) ilike '%state'', ''replay%' and pg_get_functiondef(p.oid) ilike '%request_hash%'),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_create_payment_intent' and pg_get_functiondef(p.oid) ilike '%state'', ''replay%'' and pg_get_functiondef(p.oid) ilike '%request_hash%'),
   'completed idempotent requests replay only when request hashes match'
+);
+
+select ok(
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_apply_verified_observation' and pg_get_functiondef(p.oid) ilike '%destinationauthority%'),
+  'token reconciliation binds settlement to token-account owner authority'
+);
+
+select ok(
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_apply_verified_observation' and pg_get_functiondef(p.oid) ilike '%if v_payment.asset = ''SOL'' then%'),
+  'reconciliation separates native SOL destination semantics from token-account semantics'
 );
 
 select ok(exists (select 1 from information_schema.columns where table_schema='public' and table_name='pay_webhook_deliveries' and column_name='endpoint_url_snapshot' and is_nullable='NO'), 'webhook endpoint is snapshotted and mandatory');
@@ -69,17 +79,8 @@ select is(
   'first idempotent Payment Intent request creates exactly one resource'
 );
 
-select is(
-  (select merchant_settlement_atomic::text from public.pay_payment_intents where external_order_id='order-1'),
-  '990000',
-  'merchant-fee Payment Intent persists the canonical merchant settlement leg'
-);
-
-select is(
-  (select customer_total_atomic::text from public.pay_payment_intents where external_order_id='order-1'),
-  '1000000',
-  'merchant-fee Payment Intent keeps the customer total at the base amount'
-);
+select is((select merchant_settlement_atomic::text from public.pay_payment_intents where external_order_id='order-1'), '990000', 'merchant-fee Payment Intent persists the canonical merchant settlement leg');
+select is((select customer_total_atomic::text from public.pay_payment_intents where external_order_id='order-1'), '1000000', 'merchant-fee Payment Intent keeps the customer total at the base amount');
 
 select is(
   (select public.pay_create_payment_intent(
@@ -92,29 +93,11 @@ select is(
   'customer-fee Payment Intent also creates successfully'
 );
 
-select is(
-  (select merchant_settlement_atomic::text from public.pay_payment_intents where external_order_id='order-2'),
-  '1000000',
-  'customer-fee Payment Intent settles the merchant for the base amount'
-);
+select is((select merchant_settlement_atomic::text from public.pay_payment_intents where external_order_id='order-2'), '1000000', 'customer-fee Payment Intent settles the merchant for the base amount');
+select is((select customer_total_atomic::text from public.pay_payment_intents where external_order_id='order-2'), '1010000', 'customer-fee Payment Intent persists the fee-inclusive customer total');
 
-select is(
-  (select customer_total_atomic::text from public.pay_payment_intents where external_order_id='order-2'),
-  '1010000',
-  'customer-fee Payment Intent persists the fee-inclusive customer total'
-);
-
-select is(
-  (select (merchant_settlement_atomic = merchant_net_atomic) from public.pay_payment_intents where external_order_id='order-1'),
-  true,
-  'merchant settlement and merchant net remain aligned for merchant-paid fees'
-);
-
-select is(
-  (select (merchant_settlement_atomic = merchant_net_atomic) from public.pay_payment_intents where external_order_id='order-2'),
-  true,
-  'merchant settlement and merchant net remain aligned for customer-paid fees'
-);
+select is((select (merchant_settlement_atomic = merchant_net_atomic) from public.pay_payment_intents where external_order_id='order-1'), true, 'merchant settlement and merchant net remain aligned for merchant-paid fees');
+select is((select (merchant_settlement_atomic = merchant_net_atomic) from public.pay_payment_intents where external_order_id='order-2'), true, 'merchant settlement and merchant net remain aligned for customer-paid fees');
 
 select throws_ok(
   $$ select public.pay_create_payment_intent(
