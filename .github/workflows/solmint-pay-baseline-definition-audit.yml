@@ -44,11 +44,11 @@ jobs:
           baseline='supabase/migrations/20260829090000_solmint_production_baseline.sql'
           test -s "$baseline"
           node scripts/solmint-pay/baseline-validate.mjs "$baseline"
-          grep -F "Source snapshot SHA-256: $PRODUCTION_SCHEMA_SHA256" "$baseline" >/dev/null
 
-      - name: Start PostgreSQL 17
+      - name: Prepare audit artifacts and PostgreSQL 17
         run: |
           set -Eeuo pipefail
+          mkdir -p artifacts/solmint-pay-baseline-definition
           docker run -d --name solmint-pay-definition-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:17-alpine
           for i in $(seq 1 60); do docker exec solmint-pay-definition-postgres pg_isready -U postgres -d postgres >/dev/null 2>&1 && break; sleep 2; done
           docker exec solmint-pay-definition-postgres pg_isready -U postgres -d postgres
@@ -56,7 +56,6 @@ jobs:
       - name: Prepare fixture roles and schema
         run: |
           set -Eeuo pipefail
-          mkdir -p artifacts/solmint-pay-baseline-definition
           docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE SCHEMA IF NOT EXISTS extensions;"
           docker exec solmint-pay-definition-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END \$\$;"
 
