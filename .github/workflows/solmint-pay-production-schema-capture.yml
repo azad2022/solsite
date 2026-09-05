@@ -1,13 +1,9 @@
 name: SolMint Pay — Production Schema Capture
 
+# Read-only Production capture is an explicit operator action.
+# It must never run merely because audit code changed on the branch.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'audit/solmint-pay-next'
-    paths:
-      - '.github/workflows/solmint-pay-production-schema-capture.yml'
-      - 'scripts/solmint-pay/capture-production-schema.sh'
 
 permissions:
   contents: read
@@ -22,39 +18,50 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout audited branch
+      - name: Checkout audited commit
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Prove checkout matches event commit
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Validate secret presence without printing it
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "Missing required GitHub Actions secret: SUPABASE_DB_URL" >&2
             exit 1
           fi
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
           version: 2.116.0
+
+      - name: Prove Supabase CLI version
+        run: |
+          set -Eeuo pipefail
+          cli_version="$(supabase --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)"
+          test "$cli_version" = '2.116.0'
 
       - name: Capture schema
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           bash scripts/solmint-pay/capture-production-schema.sh
 
       - name: Validate and fingerprint captured schema
         shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           schema_file="artifacts/solmint-pay-production-schema/production-schema.sql"
           metadata_file="artifacts/solmint-pay-production-schema/production-schema.metadata"
           manifest_file="artifacts/solmint-pay-production-schema/production-schema.sha256"
