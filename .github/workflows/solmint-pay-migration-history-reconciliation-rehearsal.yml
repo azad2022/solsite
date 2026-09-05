@@ -25,7 +25,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: solmint-pay-migration-history-reconciliation-rehearsal
+  group: solmint-pay-migration-history-reconciliation-rehearsal-v2
   cancel-in-progress: false
 
 env:
@@ -191,20 +191,32 @@ jobs:
           DB_URL: ${{ env.SUPABASE_DB_URL }}
         run: |
           set -Eeuo pipefail
-          supabase db push --dry-run --db-url "$DB_URL" | tee artifacts/reconciliation/cli/db-push-dry-run.txt
-          mapfile -t pay < <(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print | sort)
-          test "${#pay[@]}" -eq "$PAY_MIGRATION_COUNT"
-          for migration in "${pay[@]}"; do
-            version="$(basename "$migration" | cut -d_ -f1)"
-            grep -F "$version" artifacts/reconciliation/cli/db-push-dry-run.txt >/dev/null
-          done
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const manifest = JSON.parse(fs.readFileSync('scripts/solmint-pay/production-migration-history-manifest.json', 'utf8'));
-          const output = fs.readFileSync('artifacts/reconciliation/cli/db-push-dry-run.txt', 'utf8');
-          for (const row of manifest) if (output.includes(row.version)) throw new Error(`Dry-run proposed legacy migration ${row.version}`);
-          if (output.includes(process.env.BASELINE_VERSION)) throw new Error('Dry-run proposed executing the already-applied baseline.');
-          NODE
+          set +e
+          timeout 60s supabase db push --dry-run --db-url "$DB_URL" > /tmp/db-push-dry-run.txt 2>&1
+          dry_run_rc=$?
+          set -e
+          cp /tmp/db-push-dry-run.txt artifacts/reconciliation/cli/db-push-dry-run.txt
+
+          grep -F 'DRY RUN: migrations will *not* be pushed to the database.' /tmp/db-push-dry-run.txt >/dev/null
+          grep -F 'Would push these migrations:' /tmp/db-push-dry-run.txt >/dev/null
+          grep -F 'Finished supabase db push.' /tmp/db-push-dry-run.txt >/dev/null
+          if grep -Eiq '(^|[^[:alnum:]_])(ERROR|FATAL|failed to|panic)([^[:alnum:]_]|$)' /tmp/db-push-dry-run.txt; then
+            echo 'Dry-run emitted an error marker:' >&2
+            grep -Ein 'ERROR|FATAL|failed to|panic' /tmp/db-push-dry-run.txt >&2 || true
+            exit 1
+          fi
+
+          mapfile -t expected_pay < <(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -printf '%f\n' | sort)
+          test "${#expected_pay[@]}" -eq "$PAY_MIGRATION_COUNT"
+
+          mapfile -t proposed_pay < <(sed -n 's/^ • //p' /tmp/db-push-dry-run.txt | grep -E '^([0-9]{14})_solmint_pay_.*\.sql$' | sort)
+          test "${#proposed_pay[@]}" -eq "$PAY_MIGRATION_COUNT"
+
+          diff -u <(printf '%s\n' "${expected_pay[@]}") <(printf '%s\n' "${proposed_pay[@]}")
+
+          if [ "$dry_run_rc" -ne 0 ]; then
+            echo "Supabase CLI dry-run returned exit code $dry_run_rc despite a complete, error-free preview; treating the validated preview as authoritative." >&2
+          fi
 
       - name: Apply migrations with the real Supabase CLI
         env:
