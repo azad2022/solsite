@@ -3,7 +3,7 @@ name: SolMint Pay — Migration History Reconciliation Rehearsal
 # Disposable rehearsal only. Production is never a target of this workflow.
 # It proves that migration-history repair changes tracking only, preserves the
 # schema, and that the real Supabase CLI sees/applies exactly the canonical
-# baseline + 51 Pay migrations.
+# baseline + 52 Pay migrations.
 
 on:
   workflow_dispatch:
@@ -30,7 +30,7 @@ concurrency:
 env:
   PRODUCTION_SCHEMA_SHA256: '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5'
   BASELINE_VERSION: '20260829090000'
-  PAY_MIGRATION_COUNT: '51'
+  PAY_MIGRATION_COUNT: '52'
   PRODUCTION_MIGRATION_COUNT: '56'
   SUPABASE_CLI_VERSION: '2.116.0'
   SUPABASE_DB_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/postgres'
@@ -73,7 +73,7 @@ jobs:
           p=json.loads(Path('/tmp/reconciliation-plan.json').read_text())
           assert p['ok'] is True
           assert p['manifestCount'] == 56
-          assert p['targetHistoryCount'] == 52
+          assert p['targetHistoryCount'] == 53
           Path('reconciliation-plan.json').write_text(json.dumps(p, indent=2) + '\n')
           PY
 
@@ -180,7 +180,7 @@ jobs:
           sha256sum artifacts/reconciliation/schema-after-history-repair.sql | tee artifacts/reconciliation/schema-after-history-repair.sha256
           cmp artifacts/reconciliation/schema-before-repair.sql artifacts/reconciliation/schema-after-history-repair.sql
 
-      - name: Verify CLI dry-run proposes exactly 51 Pay migrations
+      - name: Verify CLI dry-run proposes exactly 52 Pay migrations
         env:
           DB_URL: ${{ env.SUPABASE_DB_URL }}
         run: |
@@ -217,14 +217,14 @@ jobs:
           for (const row of manifest) if (output.includes(row.version)) throw new Error(`db push executed legacy migration ${row.version}`);
           NODE
 
-      - name: Verify final migration history is exactly baseline plus 51 Pay migrations
+      - name: Verify final migration history is exactly baseline plus 52 Pay migrations
         env:
           DB_URL: ${{ env.SUPABASE_DB_URL }}
         run: |
           set -Eeuo pipefail
           supabase migration list --db-url "$DB_URL" | tee artifacts/reconciliation/cli/history-final.txt
           count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c 'select count(*) from supabase_migrations.schema_migrations;')"
-          test "$count" = '52'
+          test "$count" = '53'
           baseline_count="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c "select count(*) from supabase_migrations.schema_migrations where version='$BASELINE_VERSION';")"
           test "$baseline_count" = '1'
           pay_history="$(docker exec solmint-pay-reconciliation-postgres psql -At -U postgres -d postgres -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")"
@@ -237,7 +237,7 @@ jobs:
           set -Eeuo pipefail
           docker exec solmint-pay-reconciliation-postgres pg_dump --schema-only --no-owner --no-privileges --exclude-schema=supabase_migrations -U postgres -d postgres > artifacts/reconciliation/schema-after-pay.sql
           sha256sum artifacts/reconciliation/schema-after-pay.sql | tee artifacts/reconciliation/schema-after-pay.sha256
-          echo "Real Supabase CLI reconciliation rehearsal passed: 56 legacy history entries -> baseline -> exactly 51 Pay migrations."
+          echo "Real Supabase CLI reconciliation rehearsal passed: 56 legacy history entries -> baseline -> exactly 52 Pay migrations."
 
       - name: Upload rehearsal evidence
         if: always()
