@@ -2,7 +2,7 @@ name: SolMint Pay — Release Evidence Gate
 
 # Release evidence only. Production is never a target of this workflow.
 # Every assertion is evaluated against the exact commit that triggered the run.
-# Current-head audit marker: 2026-09-05 provenance rerun.
+# Final current-head provenance marker: 2026-09-05.
 on:
   push:
     branches: ['audit/solmint-pay-next']
