@@ -41,6 +41,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -65,10 +67,12 @@ jobs:
         env:
           DEVNET_E2E_FUNDER_SECRET_KEY_B58: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: |
+          set -Eeuo pipefail
           test -n "$DEVNET_E2E_FUNDER_SECRET_KEY_B58" || { echo 'DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.'; exit 1; }
 
       - name: Generate ephemeral Devnet E2E keypair
         run: |
+          set -Eeuo pipefail
           umask 077
           bun -e "const { Keypair } = require('@solana/web3.js'); const { writeFileSync } = require('node:fs'); writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json', JSON.stringify(Array.from(Keypair.generate().secretKey)));"
 
@@ -76,6 +80,7 @@ jobs:
         env:
           DEVNET_E2E_FUNDER_SECRET_KEY_B58: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: |
+          set -Eeuo pipefail
           umask 077
           bun - <<'BUN'
           const { readFile } = require('node:fs/promises');
