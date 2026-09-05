@@ -9,7 +9,7 @@ const migrationDir = path.join(repoRoot, 'supabase/migrations');
 const archiveDir = path.join(repoRoot, 'supabase/migration-archive/legacy-2026-09-03');
 const baselineName = '20260829090000_solmint_production_baseline.sql';
 const baseline = path.join(migrationDir, baselineName);
-const EXPECTED_PAY_MIGRATIONS = 51;
+const EXPECTED_PAY_MIGRATIONS = 52;
 const EXPECTED_LEGACY_MIGRATIONS = 15;
 const [command = 'plan'] = process.argv.slice(2);
 
