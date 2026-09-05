@@ -1,0 +1,33 @@
+name: SolMint Pay — Migration Bundle (temporary)
+
+on:
+  push:
+    branches:
+      - ops/solmint-pay-production-cutover
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Bundle active migrations
+        run: |
+          set -Eeuo pipefail
+          mkdir -p bundle/supabase/migrations
+          find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print0 | sort -z | xargs -0 -I{} cp "{}" bundle/supabase/migrations/
+          find bundle/supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort > bundle/migration-list.txt
+          test "$(wc -l < bundle/migration-list.txt)" -eq 55
+          sha256sum bundle/migration-list.txt > bundle/migration-list.sha256
+          tar -czf solmint-pay-migrations.tar.gz -C bundle .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-migrations-${{ github.sha }}
+          path: solmint-pay-migrations.tar.gz
+          retention-days: 2
