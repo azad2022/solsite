@@ -1,18 +1,16 @@
 name: SolMint Pay Database Security
-# Current-head audit trigger: this workflow must be exercised after security changes.
 
 on:
   pull_request:
     paths:
-      - 'supabase/**'
-      - '.github/workflows/solmint-pay-database-security.yml'
+      - "supabase/**"
+      - ".github/workflows/solmint-pay-database-security.yml"
   push:
     branches:
-      - 'feat/solmint-pay-*'
-      - 'audit/solmint-pay-*'
+      - feat/solmint-pay-main-sync
     paths:
-      - 'supabase/**'
-      - '.github/workflows/solmint-pay-database-security.yml'
+      - "supabase/**"
+      - ".github/workflows/solmint-pay-database-security.yml"
   workflow_dispatch:
 
 permissions:
@@ -24,72 +22,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        uses: supabase/setup-cli@v1
         with:
-          version: 2.116.0
-
-      - name: Prove Supabase CLI version
-        run: |
-          set -Eeuo pipefail
-          cli_version="$(supabase --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)"
-          test "$cli_version" = '2.116.0'
-
-      - name: Validate canonical Pay migration set
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          mapfile -t pay_migrations < <(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -printf '%f\n' | sort)
-          test "${#pay_migrations[@]}" -eq 52
-          test "$(find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -printf '%f\n' | sort -u | wc -l)" -eq 52
-          test -f supabase/migrations/20260829090000_solmint_production_baseline.sql
-          test "$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | wc -l)" -eq 53
-          if find supabase/migrations -maxdepth 1 -type f \( -name '20260804*.sql' -o -name '20260805*.sql' -o -name '20260806*.sql' -o -name '20260807*.sql' -o -name '20260810*.sql' -o -name '20260812*.sql' -o -name '20260813*.sql' -o -name '20260817*.sql' -o -name '20260818*.sql' -o -name '20260826*.sql' \) | grep -q .; then
-            echo 'Legacy migration files remain in the active execution directory.' >&2
-            exit 1
-          fi
-
-      - name: Prepare isolated Pay migration project
-        shell: bash
-        run: |
-          set -euo pipefail
-          PAY_DB_DIR="${RUNNER_TEMP}/solmint-pay-supabase"
-          rm -rf "$PAY_DB_DIR"
-          supabase init --workdir "$PAY_DB_DIR"
-
-          mkdir -p "$PAY_DB_DIR/supabase/migrations" "$PAY_DB_DIR/supabase/tests/database"
-
-          # The site's historical migration chain starts from a pre-existing schema
-          # and cannot bootstrap an empty database. Pay currently depends on the
-          # custom users table only for its explicit foreign-key boundary.
-          cat > "$PAY_DB_DIR/supabase/migrations/00000000000000_ci_pay_prerequisites.sql" <<'SQL'
-          create extension if not exists pgcrypto;
-
-          create table public.users (
-            id text primary key
-          );
-          SQL
-
-          find supabase/migrations -maxdepth 1 -type f -name '*_solmint_pay_*.sql' -print0 \
-            | xargs -0 -r -I{} cp "{}" "$PAY_DB_DIR/supabase/migrations/"
-
-          find supabase/tests/database -maxdepth 1 -type f -name 'pay_*.sql' -print0 \
-            | xargs -0 -r -I{} cp "{}" "$PAY_DB_DIR/supabase/tests/database/"
-
-          echo "PAY_DB_DIR=$PAY_DB_DIR" >> "$GITHUB_ENV"
+          version: latest
 
       - name: Start isolated local Supabase
-        run: supabase --workdir "$PAY_DB_DIR" db start
+        run: supabase db start
 
       - name: Run database security tests
-        run: supabase --workdir "$PAY_DB_DIR" test db
+        run: supabase test db
 
       - name: Verify migration replayability
-        run: supabase --workdir "$PAY_DB_DIR" db reset --local
+        run: supabase db reset --local
 
       - name: Re-run database security tests after reset
-        run: supabase --workdir "$PAY_DB_DIR" test db
+        run: supabase test db

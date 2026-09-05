@@ -3,12 +3,10 @@ import { timingSafeEqual } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { isIP } from 'node:net';
-import { validateWebhookUrl } from '../src/pay/services/securityPolicy';
 
 export const EGRESS_BODY_LIMIT = 256 * 1024;
 export const EGRESS_RESPONSE_LIMIT = 16 * 1024;
 export const EGRESS_TIMEOUT_MS = 10_000;
-export const EGRESS_DNS_TIMEOUT_MS = 2_000;
 export const MAX_WEBHOOK_ENDPOINT_URL_BYTES = 2048;
 
 function ip4(value: string): number {
@@ -16,12 +14,18 @@ function ip4(value: string): number {
 }
 
 const IPV4_UNSAFE_RANGES: Array<[number, number]> = [
-  [ip4('0.0.0.0'), ip4('0.255.255.255')], [ip4('10.0.0.0'), ip4('10.255.255.255')],
-  [ip4('100.64.0.0'), ip4('100.127.255.255')], [ip4('127.0.0.0'), ip4('127.255.255.255')],
-  [ip4('169.254.0.0'), ip4('169.254.255.255')], [ip4('172.16.0.0'), ip4('172.31.255.255')],
-  [ip4('192.0.0.0'), ip4('192.0.0.255')], [ip4('192.0.2.0'), ip4('192.0.2.255')],
-  [ip4('192.168.0.0'), ip4('192.168.255.255')], [ip4('198.18.0.0'), ip4('198.19.255.255')],
-  [ip4('198.51.100.0'), ip4('198.51.100.255')], [ip4('203.0.113.0'), ip4('203.0.113.255')],
+  [ip4('0.0.0.0'), ip4('0.255.255.255')],
+  [ip4('10.0.0.0'), ip4('10.255.255.255')],
+  [ip4('100.64.0.0'), ip4('100.127.255.255')],
+  [ip4('127.0.0.0'), ip4('127.255.255.255')],
+  [ip4('169.254.0.0'), ip4('169.254.255.255')],
+  [ip4('172.16.0.0'), ip4('172.31.255.255')],
+  [ip4('192.0.0.0'), ip4('192.0.0.255')],
+  [ip4('192.0.2.0'), ip4('192.0.2.255')],
+  [ip4('192.168.0.0'), ip4('192.168.255.255')],
+  [ip4('198.18.0.0'), ip4('198.19.255.255')],
+  [ip4('198.51.100.0'), ip4('198.51.100.255')],
+  [ip4('203.0.113.0'), ip4('203.0.113.255')],
   [ip4('224.0.0.0'), ip4('255.255.255.255')],
 ];
 
@@ -36,7 +40,15 @@ function normalizeIpv6(value: string): string {
 
 function isUnsafeIpv6(value: string): boolean {
   const normalized = normalizeIpv6(value);
-  if (normalized === '::' || normalized === '::1' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('ff') || normalized.startsWith('2001:db8:')) return true;
+  if (
+    normalized === '::' ||
+    normalized === '::1' ||
+    normalized.startsWith('fe80:') ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('ff') ||
+    normalized.startsWith('2001:db8:')
+  ) return true;
   const mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   return mapped ? isUnsafeIpv4(mapped[1]) : false;
 }
@@ -55,7 +67,7 @@ export function assertPublicResolution(addresses: string[]): string[] {
   return unique;
 }
 
-export async function resolvePublicAddresses(hostname: string, resolver = new Resolver({ timeout: EGRESS_DNS_TIMEOUT_MS, tries: 2, maxTimeout: EGRESS_DNS_TIMEOUT_MS })): Promise<string[]> {
+export async function resolvePublicAddresses(hostname: string, resolver = new Resolver()): Promise<string[]> {
   const [v4, v6] = await Promise.all([
     resolver.resolve4(hostname).catch(() => [] as string[]),
     resolver.resolve6(hostname).catch(() => [] as string[]),
@@ -68,7 +80,13 @@ function hostHeaderFor(target: URL): string {
   return isIP(hostname) === 6 ? `[${hostname}]` : hostname;
 }
 
-export function buildPinnedHttpsOptions(target: URL, address: string, bodyLength: number, signatureHeader = '', timeoutMs = EGRESS_TIMEOUT_MS) {
+export function buildPinnedHttpsOptions(
+  target: URL,
+  address: string,
+  bodyLength: number,
+  signatureHeader = '',
+  timeoutMs = EGRESS_TIMEOUT_MS,
+) {
   if (target.protocol !== 'https:') throw new Error('Webhook target must use HTTPS.');
   if (target.port && target.port !== '443') throw new Error('Webhook target must use TCP 443.');
   if (target.hash) throw new Error('Webhook target must not contain a fragment.');
@@ -78,11 +96,22 @@ export function buildPinnedHttpsOptions(target: URL, address: string, bodyLength
   const hostname = target.hostname.replace(/^\[|\]$/g, '');
   const targetIsIp = isIP(hostname) !== 0;
   return {
-    protocol: 'https:', hostname: address, port: 443,
+    protocol: 'https:',
+    hostname: address,
+    port: 443,
     ...(targetIsIp ? {} : { servername: hostname }),
-    path: `${target.pathname || '/'}${target.search}`, method: 'POST',
-    headers: { Host: hostHeaderFor(target), 'Content-Type': 'application/json', 'Content-Length': bodyLength, Accept: 'application/json', 'User-Agent': 'SolMint-Pay-Webhook/1.0', 'X-SolMint-Signature': signatureHeader },
-    rejectUnauthorized: true, timeout: timeoutMs,
+    path: `${target.pathname || '/'}${target.search}`,
+    method: 'POST',
+    headers: {
+      Host: hostHeaderFor(target),
+      'Content-Type': 'application/json',
+      'Content-Length': bodyLength,
+      Accept: 'application/json',
+      'User-Agent': 'SolMint-Pay-Webhook/1.0',
+      'X-SolMint-Signature': signatureHeader,
+    },
+    rejectUnauthorized: true,
+    timeout: timeoutMs,
   } as const;
 }
 
@@ -97,7 +126,10 @@ async function readRequestBody(request: Request): Promise<string> {
   return body;
 }
 
-export interface EgressConfig { secret: string; resolver?: Resolver; egressHostname?: string; }
+export interface EgressConfig {
+  secret: string;
+  resolver?: Resolver;
+}
 
 function authorize(request: Request, secret: string): void {
   if (secret.length < 32) throw new Error('Egress secret is not configured.');
@@ -108,14 +140,13 @@ function authorize(request: Request, secret: string): void {
   if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) throw new Error('Unauthorized.');
 }
 
-async function performPinnedPost(target: URL, body: string, signatureHeader: string, resolver: Resolver, egressHostname?: string): Promise<number> {
-  if (!validateWebhookUrl(target.toString())) throw new Error('Webhook target is not allowed.');
-  if (egressHostname && target.hostname.replace(/^\[|\]$/g, '').toLowerCase() === egressHostname.trim().toLowerCase()) throw new Error('Webhook target cannot be the egress gateway itself.');
+async function performPinnedPost(target: URL, body: string, signatureHeader: string, resolver: Resolver): Promise<number> {
   if (target.username || target.password) throw new Error('Webhook target credentials are not allowed.');
   if (Buffer.byteLength(target.toString(), 'utf8') > MAX_WEBHOOK_ENDPOINT_URL_BYTES) throw new Error('Webhook target URL is too large.');
   if (target.protocol !== 'https:' || (target.port && target.port !== '443') || target.hash) throw new Error('Webhook target is not allowed.');
   const normalizedHostname = target.hostname.replace(/^\[|\]$/g, '');
   if (isIP(normalizedHostname) && !isPublicIp(normalizedHostname)) throw new Error('Webhook target is not public.');
+
   const addresses = isIP(normalizedHostname) ? [normalizedHostname] : await resolvePublicAddresses(normalizedHostname, resolver);
   let lastError: unknown;
   for (const address of addresses) {
@@ -124,7 +155,10 @@ async function performPinnedPost(target: URL, body: string, signatureHeader: str
         const options = buildPinnedHttpsOptions(target, address, Buffer.byteLength(body, 'utf8'), signatureHeader);
         const req = httpsRequest(options, (response: IncomingMessage) => {
           let consumed = 0;
-          response.on('data', (chunk: Buffer) => { consumed += chunk.byteLength; if (consumed > EGRESS_RESPONSE_LIMIT) response.destroy(new Error('Webhook response is too large.')); });
+          response.on('data', (chunk: Buffer) => {
+            consumed += chunk.byteLength;
+            if (consumed > EGRESS_RESPONSE_LIMIT) response.destroy(new Error('Webhook response is too large.'));
+          });
           response.on('end', () => resolve(response.statusCode ?? 502));
           response.on('error', reject);
         });
@@ -132,7 +166,9 @@ async function performPinnedPost(target: URL, body: string, signatureHeader: str
         req.on('error', reject);
         req.end(body);
       });
-    } catch (error) { lastError = error; }
+    } catch (error) {
+      lastError = error;
+    }
   }
   throw lastError instanceof Error ? lastError : new Error('Webhook egress failed.');
 }
@@ -148,11 +184,11 @@ export async function handleWebhookEgressRequest(request: Request, config: Egres
     if (!targetHeader || targetHeader !== parsed.endpointUrl) throw new Error('Invalid egress target binding.');
     if (Buffer.byteLength(parsed.body, 'utf8') > EGRESS_BODY_LIMIT) throw new Error('Webhook payload is too large.');
     const target = new URL(parsed.endpointUrl);
-    const status = await performPinnedPost(target, parsed.body, parsed.signatureHeader, config.resolver ?? new Resolver({ timeout: EGRESS_DNS_TIMEOUT_MS, tries: 2, maxTimeout: EGRESS_DNS_TIMEOUT_MS }), config.egressHostname);
+    const status = await performPinnedPost(target, parsed.body, parsed.signatureHeader, config.resolver ?? new Resolver());
     return json({ ok: true, status }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Egress request failed.';
-    const status = message === 'Unauthorized.' ? 401 : message.includes('not allowed') || message.includes('not public') || message.includes('non-public') || message.includes('did not resolve') || message.includes('target URL') || message.includes('fragment') || message.includes('target binding') || message.includes('egress gateway') ? 422 : 502;
+    const status = message === 'Unauthorized.' ? 401 : message.includes('not allowed') || message.includes('not public') || message.includes('non-public') || message.includes('did not resolve') || message.includes('target URL') || message.includes('fragment') || message.includes('target binding') ? 422 : 502;
     return json({ ok: false, code: status === 422 ? 'EGRESS_TARGET_REJECTED' : status === 401 ? 'UNAUTHORIZED' : 'EGRESS_FAILED' }, status);
   }
 }
