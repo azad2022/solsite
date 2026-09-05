@@ -1,0 +1,88 @@
+name: SolMint Pay — Production Cutover (one-shot)
+
+on:
+  push:
+    branches:
+      - ops/solmint-pay-production-cutover
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solmint-pay-production-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: nvopkbiedorfshwbmyhn
+    steps:
+      - name: Checkout exact cutover commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove checkout identity
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Require production credentials
+        run: |
+          set -Eeuo pipefail
+          test -n "$SUPABASE_DB_URL"
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          case "$SUPABASE_DB_URL" in
+            postgres://*|postgresql://*) ;;
+            *) echo 'Refusing: SUPABASE_DB_URL must be a PostgreSQL connection string' >&2; exit 1;;
+          esac
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      - name: Prove current Production migration state
+        run: |
+          set -Eeuo pipefail
+          supabase migration list --db-url "$SUPABASE_DB_URL"
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -AtF '|' -c "select (select count(*) from supabase_migrations.schema_migrations),(select count(*) from supabase_migrations.schema_migrations where version='20260829090000'),(select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000'),(select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%');"
+
+      - name: Preview Pay migrations
+        run: |
+          set -Eeuo pipefail
+          supabase db push --db-url "$SUPABASE_DB_URL" --dry-run --include-all
+
+      - name: Apply Pay migrations
+        run: |
+          set -Eeuo pipefail
+          supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
+
+      - name: Verify Production migration history and Pay schema
+        run: |
+          set -Eeuo pipefail
+          supabase migration list --db-url "$SUPABASE_DB_URL"
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -AtF '|' -c "select (select count(*) from supabase_migrations.schema_migrations),(select count(*) from supabase_migrations.schema_migrations where version='20260829090000'),(select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000'),(select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%');"
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")" -eq 54
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version='20260829090000';")" -eq 1
+          test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%';")" -gt 0
+
+      - name: Record cutover evidence
+        run: |
+          set -Eeuo pipefail
+          mkdir -p artifacts
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -AtF '|' -c "select version,name from supabase_migrations.schema_migrations order by version asc;" > artifacts/migration-history.txt
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -AtF '|' -c "select table_schema,table_name from information_schema.tables where table_schema='public' and table_name like 'pay_%' order by table_name;" > artifacts/pay-relations.txt
+
+      - name: Upload cutover evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-production-cutover-${{ github.sha }}
+          path: artifacts/
+          retention-days: 30
