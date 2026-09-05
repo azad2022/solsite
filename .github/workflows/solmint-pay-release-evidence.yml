@@ -165,7 +165,14 @@ jobs:
           node scripts/solmint-pay/baseline-validate.mjs "$baseline"
           sed -e '/^CREATE EXTENSION IF NOT EXISTS "pg_cron"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_net"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"/d' -e '/^CREATE EXTENSION IF NOT EXISTS "supabase_vault"/d' -e '/^COMMENT ON EXTENSION "pg_cron"/d' -e '/^COMMENT ON EXTENSION "pg_net"/d' -e '/^COMMENT ON EXTENSION "pg_stat_statements"/d' -e '/^COMMENT ON EXTENSION "supabase_vault"/d' "$baseline" > /tmp/baseline.sql
           docker cp /tmp/baseline.sql solmint-pay-release-postgres:/tmp/baseline.sql
+          set +e
           docker exec solmint-pay-release-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f /tmp/baseline.sql > /tmp/baseline-replay.log 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            cat /tmp/baseline-replay.log
+            exit "$rc"
+          fi
       - name: Capture pre-repair semantic schema
         run: |
           set -Eeuo pipefail
