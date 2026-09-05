@@ -1,0 +1,27 @@
+name: SolMint Pay — Workflow Audit (temporary)
+
+on:
+  push:
+    branches:
+      - ops/solmint-pay-production-cutover
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - run: |
+          set -Eeuo pipefail
+          tar -czf solmint-pay-workflows.tar.gz .github/workflows scripts/solmint-pay docs/solmint-pay* src/pay/app/config.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-workflow-audit-${{ github.sha }}
+          path: solmint-pay-workflows.tar.gz
+          retention-days: 2
