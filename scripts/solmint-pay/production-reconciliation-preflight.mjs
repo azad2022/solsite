@@ -19,6 +19,8 @@ const PROJECT_REF = 'nvopkbiedorfshwbmyhn';
 const BASELINE_VERSION = '20260829090000';
 const PAY_FIRST_VERSION = '20260830000000';
 const EXPECTED_PRODUCTION_HISTORY_COUNT = 56;
+const EXPECTED_TARGET_HISTORY_COUNT = 53;
+const EXPECTED_PAY_MIGRATION_COUNT = 52;
 const EXPECTED_PAY_RELATIONS = 0;
 const EXPECTED_PAY_HISTORY_ROWS = 0;
 const EXPECTED_SCHEMA_SHA256 = '553d0f9a34f52ef344471c45398c41780438c0dbeec5d6cc63c912d6a8b223c5';
@@ -105,8 +107,8 @@ process.stdout.write(`${JSON.stringify({
   mode: 'read-only',
   projectRef: PROJECT_REF,
   productionHistoryCount: rows.length,
-  targetHistoryCount: 52,
-  payMigrationCount: 51,
+  targetHistoryCount: EXPECTED_TARGET_HISTORY_COUNT,
+  payMigrationCount: EXPECTED_PAY_MIGRATION_COUNT,
   payRelations,
   payHistoryRows,
   baselinePresent: false,
