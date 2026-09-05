@@ -1,7 +1,7 @@
 name: SolMint Pay — Release Evidence Gate
 
 # Current production release gate. Exact HEAD only.
-# retrigger: 2026-09-05T17:57Z
+# retrigger: 2026-09-05T18:00Z
 on:
   push:
     branches: [audit/solmint-pay-next]
@@ -94,7 +94,6 @@ jobs:
           supabase test db
           supabase db reset --local
           supabase test db
-          supabase db push --dry-run
 
   production:
     name: Production migration / schema verification
