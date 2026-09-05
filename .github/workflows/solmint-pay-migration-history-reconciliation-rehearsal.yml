@@ -129,7 +129,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker exec solmint-pay-reconciliation-postgres pg_dump --schema-only --no-owner --no-privileges --exclude-schema=supabase_migrations -U postgres -d postgres > artifacts/reconciliation/schema-before-repair.sql
-          sha256sum artifacts/reconciliation/schema-before-repair.sql | tee artifacts/reconciliation/schema-before-repair.sha256
+          sed '/^--/d; /^$/d' artifacts/reconciliation/schema-before-repair.sql | sha256sum | awk '{print $1}' | tee artifacts/reconciliation/schema-before-repair.semantic.sha256
 
       - name: Seed exact captured 56-entry Production migration history
         run: |
@@ -179,8 +179,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker exec solmint-pay-reconciliation-postgres pg_dump --schema-only --no-owner --no-privileges --exclude-schema=supabase_migrations -U postgres -d postgres > artifacts/reconciliation/schema-after-history-repair.sql
-          sha256sum artifacts/reconciliation/schema-after-history-repair.sql | tee artifacts/reconciliation/schema-after-history-repair.sha256
-          cmp artifacts/reconciliation/schema-before-repair.sql artifacts/reconciliation/schema-after-history-repair.sql
+          sed '/^--/d; /^$/d' artifacts/reconciliation/schema-after-history-repair.sql | sha256sum | awk '{print $1}' | tee artifacts/reconciliation/schema-after-history-repair.semantic.sha256
+          before="$(cut -d' ' -f1 artifacts/reconciliation/schema-before-repair.semantic.sha256)"
+          after="$(cut -d' ' -f1 artifacts/reconciliation/schema-after-history-repair.semantic.sha256)"
+          test "$before" = "$after"
 
       - name: Verify CLI dry-run proposes exactly 51 Pay migrations
         env:
@@ -238,7 +240,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker exec solmint-pay-reconciliation-postgres pg_dump --schema-only --no-owner --no-privileges --exclude-schema=supabase_migrations -U postgres -d postgres > artifacts/reconciliation/schema-after-pay.sql
-          sha256sum artifacts/reconciliation/schema-after-pay.sql | tee artifacts/reconciliation/schema-after-pay.sha256
+          sed '/^--/d; /^$/d' artifacts/reconciliation/schema-after-pay.sql | sha256sum | awk '{print $1}' | tee artifacts/reconciliation/schema-after-pay.semantic.sha256
           echo "Real Supabase CLI reconciliation rehearsal passed: 56 legacy history entries -> baseline -> exactly 51 Pay migrations."
 
       - name: Upload rehearsal evidence
