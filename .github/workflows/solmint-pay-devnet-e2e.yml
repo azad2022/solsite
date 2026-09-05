@@ -42,7 +42,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
           persist-credentials: false
+
+      - name: Prove checkout matches event commit
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -120,7 +127,7 @@ jobs:
           const minimumBalance = 2_000_000;
 
           if (!rpcUrl) throw new Error('Devnet RPC URL is required.');
-          if (!funderSecretKeyB58) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 secret is required.');
+          if (!funderSecretKeyB58) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B58 is required.');
 
           const funderSecretKey = decodeBase58(funderSecretKeyB58);
           if (funderSecretKey.length !== 64) {
