@@ -1,5 +1,6 @@
 name: SolMint Pay Devnet E2E
 
+# Current-head audit marker: this run is release evidence, not a demo.
 on:
   push:
     branches:
