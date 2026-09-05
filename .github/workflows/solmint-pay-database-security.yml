@@ -23,14 +23,20 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
-          version: latest
+          version: 2.116.0
+
+      - name: Prove Supabase CLI version
+        run: |
+          set -Eeuo pipefail
+          cli_version="$(supabase --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)"
+          test "$cli_version" = '2.116.0'
 
       - name: Prepare isolated Pay migration project
         shell: bash
