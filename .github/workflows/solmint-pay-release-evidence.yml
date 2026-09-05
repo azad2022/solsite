@@ -10,7 +10,6 @@ on:
       - 'tests/**'
       - '.github/workflows/solmint-pay-release-evidence.yml'
       - 'package.json'
-      - 'package-lock.json'
   pull_request:
     branches: [main]
     paths:
@@ -20,7 +19,6 @@ on:
       - 'tests/**'
       - '.github/workflows/solmint-pay-release-evidence.yml'
       - 'package.json'
-      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:
@@ -85,6 +83,7 @@ jobs:
         with:
           version: 2.116.0
       - run: |
+          set -Eeuo pipefail
           test "$(supabase --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)" = "$SUPABASE_CLI_VERSION"
           supabase db start
           supabase test db
@@ -110,7 +109,6 @@ jobs:
           case "$SUPABASE_DB_URL" in postgres://*|postgresql://*) ;; *) exit 1 ;; esac
       - run: |
           set -Eeuo pipefail
-          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -AtF '|' -c "select (select count(*) from supabase_migrations.schema_migrations),(select count(*) from supabase_migrations.schema_migrations where version='20260829090000'),(select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000'),(select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%');"
           test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c 'select count(*) from supabase_migrations.schema_migrations;')" = '55'
           test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version='20260829090000';")" = '1'
           test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from supabase_migrations.schema_migrations where version >= '20260830000000';")" = '54'
@@ -145,15 +143,33 @@ jobs:
         env:
           DEVNET_FUNDER: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: test -n "$DEVNET_FUNDER"
-      - name: Run Devnet E2E
+      - name: Prepare and fund ephemeral sender
         env:
-          DEVNET_E2E_SENDER_KEYPAIR_PATH: /tmp/solmint-pay-devnet-e2e-keypair.json
           DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: |
           set -Eeuo pipefail
           umask 077
-          bun -e "const {Keypair}=require('@solana/web3.js');require('fs').writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json',JSON.stringify(Array.from(Keypair.generate().secretKey)))"
-          bun run tests/e2e/solmint-pay-devnet.e2e.ts
+          bun - <<'BUN'
+          const { writeFileSync } = require('node:fs');
+          const { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
+          const alpha='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+          const index=new Map([...alpha].map((c,i)=>[c,i]));
+          function decode(s){ if(!s||s.trim()!==s) throw Error('invalid funder secret'); const a=[0]; for(const c of s){const d=index.get(c); if(d===undefined) throw Error('invalid funder secret'); let carry=d; for(let i=0;i<a.length;i++){const n=a[i]*58+carry; a[i]=n&255; carry=Math.floor(n/256);} while(carry){a.push(carry&255); carry=Math.floor(carry/256);}} let z=0; while(z<s.length&&s[z]==='1')z++; const out=new Uint8Array(z+a.length-(a.length>1&&a[a.length-1]===0?1:0)); for(let i=0;i<a.length;i++)out[out.length-1-i]=a[i]; return out; }
+          const c=new Connection(process.env.SOLANA_DEVNET_RPC_URL,{commitment:'finalized',confirmTransactionInitialTimeout:45000});
+          const funder=Keypair.fromSecretKey(decode(process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64));
+          const sender=Keypair.generate();
+          writeFileSync('/tmp/solmint-pay-devnet-e2e-keypair.json',JSON.stringify(Array.from(sender.secretKey)));
+          const rent=await c.getMinimumBalanceForRentExemption(0); const needed=Number(1000000n+10000n)+rent*2+20000;
+          const balance=await c.getBalance(funder.publicKey,'finalized'); if(balance<needed+500000) throw Error(`Devnet funder balance too low: ${balance}`);
+          const {blockhash}=await c.getLatestBlockhash('finalized');
+          const tx=new Transaction({recentBlockhash:blockhash,feePayer:funder.publicKey}).add(SystemProgram.transfer({fromPubkey:funder.publicKey,toPubkey:sender.publicKey,lamports:Math.max(6000000,needed)}));
+          const sig=await sendAndConfirmTransaction(c,tx,[funder],{commitment:'finalized'}); console.log(`ephemeral sender funded: ${sig}`);
+          const after=await c.getBalance(sender.publicKey,'finalized'); if(after<needed) throw Error(`sender balance too low: ${after}, required: ${needed}`);
+          BUN
+      - name: Run Devnet E2E
+        env:
+          DEVNET_E2E_SENDER_KEYPAIR_PATH: /tmp/solmint-pay-devnet-e2e-keypair.json
+        run: bun run tests/e2e/solmint-pay-devnet.e2e.ts
       - if: always()
         run: rm -f /tmp/solmint-pay-devnet-e2e-keypair.json
 
