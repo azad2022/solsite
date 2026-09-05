@@ -1,9 +1,10 @@
 name: SolMint Pay — Normalize Audit Release (temporary)
 
 on:
-  push:
+  pull_request_target:
+    types: [synchronize]
     branches:
-      - audit/solmint-pay-next
+      - main
 
 permissions:
   contents: write
@@ -14,12 +15,13 @@ concurrency:
 
 jobs:
   normalize:
+    if: github.event.pull_request.number == 37 && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout audited branch
         uses: actions/checkout@v5
         with:
-          ref: audit/solmint-pay-next
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
           persist-credentials: true
       - name: Normalize final migration counts
