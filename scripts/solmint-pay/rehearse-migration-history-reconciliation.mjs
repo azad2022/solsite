@@ -7,7 +7,7 @@ const manifestPath = path.join(ROOT, 'scripts/solmint-pay/production-migration-h
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 const PAY_GLOB = 'supabase/migrations/*_solmint_pay_*.sql';
 const BASELINE_VERSION = '20260829090000';
-const expectedPayCount = 51;
+const expectedPayCount = 52;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -29,8 +29,8 @@ const plan = {
     'PRECHECK: verify Pay feature remains disabled and no pay_% relations exist in Production.',
     'REPAIR: mark all captured 56 historical versions as reverted; migration repair changes tracking only and executes no SQL.',
     `REPAIR: mark baseline ${BASELINE_VERSION} as applied; this records the already-present Production schema as the canonical baseline and executes no SQL.`,
-    'VERIFY: require remote migration history to equal baseline + exactly 51 Pay migration versions.',
-    'DEPLOY: run db push; because baseline is recorded as applied and the 56 old versions are no longer active history, only the 51 pending Pay migrations may execute.',
+    `VERIFY: require remote migration history to equal baseline + exactly ${expectedPayCount} Pay migration versions.`,
+    `DEPLOY: run db push; because baseline is recorded as applied and the 56 old versions are no longer active history, only the ${expectedPayCount} pending Pay migrations may execute.`,
     'POSTCHECK: verify schema invariants, Pay objects, security-definer search_path, RLS/grants, and migration history.',
   ],
   guardrails: [
@@ -52,7 +52,7 @@ console.log(JSON.stringify({
   mode: 'rehearsal-plan',
   manifestCount: manifest.length,
   targetHistoryCount: expectedPayCount + 1,
-  targetHistory: [BASELINE_VERSION, '<51 Pay migration versions>'],
+  targetHistory: [BASELINE_VERSION, `<${expectedPayCount} Pay migration versions>`],
   repairCommands,
   baselineApply,
   payGlob: PAY_GLOB,
