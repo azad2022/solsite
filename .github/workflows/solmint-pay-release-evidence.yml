@@ -7,6 +7,7 @@ on:
       - 'src/pay/**'
       - 'services/pay-*.ts'
       - 'supabase/**'
+      - 'scripts/solmint-pay/**'
       - 'tests/**'
       - '.github/workflows/solmint-pay-release-evidence.yml'
       - 'package.json'
@@ -16,6 +17,7 @@ on:
       - 'src/pay/**'
       - 'services/pay-*.ts'
       - 'supabase/**'
+      - 'scripts/solmint-pay/**'
       - 'tests/**'
       - '.github/workflows/solmint-pay-release-evidence.yml'
       - 'package.json'
@@ -116,11 +118,12 @@ jobs:
           test "$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from information_schema.tables where table_schema='public' and table_name like 'pay_%';")" -gt 0
       - run: |
           set -Eeuo pipefail
+          fn="$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_apply_verified_observation' limit 1;")"
+          grep -F 'v_payment.gas_sponsored is distinct from false' <<< "$fn"
+          grep -F 'p_fee_payer <> v_merchant_source_authority' <<< "$fn"
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_payment_intents;" >/dev/null
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_payment_transactions;" >/dev/null
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select count(*) from public.pay_revenue_ledger;" >/dev/null
-          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_apply_verified_observation' limit 1;" | grep -F 'v_payment.gas_sponsored is distinct from false'
-          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -At -c "select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pay_apply_verified_observation' limit 1;" | grep -F 'p_fee_payer <> v_merchant_source_authority'
 
   devnet:
     name: Real Solana Devnet E2E
