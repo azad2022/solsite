@@ -1,5 +1,6 @@
 name: SolMint Pay — Migration History Reconciliation Rehearsal
 
+# Current-head audit trigger: rerun the full disposable rehearsal after every reconciliation-tool change.
 # Disposable rehearsal only. Production is never a target of this workflow.
 # It proves that migration-history repair changes tracking only, preserves the
 # schema, and that the real Supabase CLI sees/applies exactly the canonical
