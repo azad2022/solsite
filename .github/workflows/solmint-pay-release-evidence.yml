@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: solmint-pay-release-evidence
+  group: solmint-pay-release-evidence-${{ github.sha }}
   cancel-in-progress: false
 
 env:
@@ -58,6 +58,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run build
       - run: bun test tests/**/*.test.ts
+      - run: bun test tests/solmint-pay-webhook-egress.test.ts tests/solmint-pay-webhook.test.ts
 
   database:
     name: Database security / migration replay
@@ -151,7 +152,7 @@ jobs:
           umask 077
           bun - <<'BUN'
           const { writeFileSync } = require('node:fs');
-          const { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
+          const { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
           const alpha='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
           const index=new Map([...alpha].map((c,i)=>[c,i]));
           function decode(s){ if(!s||s.trim()!==s) throw Error('invalid funder secret'); const a=[0]; for(const c of s){const d=index.get(c); if(d===undefined) throw Error('invalid funder secret'); let carry=d; for(let i=0;i<a.length;i++){const n=a[i]*58+carry; a[i]=n&255; carry=Math.floor(n/256);} while(carry){a.push(carry&255); carry=Math.floor(carry/256);}} let z=0; while(z<s.length&&s[z]==='1')z++; const out=new Uint8Array(z+a.length-(a.length>1&&a[a.length-1]===0?1:0)); for(let i=0;i<a.length;i++)out[out.length-1-i]=a[i]; return out; }
