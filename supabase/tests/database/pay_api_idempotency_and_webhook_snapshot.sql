@@ -66,7 +66,7 @@ select ok(
   'webhook claim reads immutable delivery snapshots rather than live webhook routing'
 );
 
-insert into public.users(id) values ('pay-audit-user') on conflict do nothing;
+insert into public.users(id, username, email) values ('pay-audit-user', 'pay-audit-user', 'pay-audit@example.invalid') on conflict do nothing;
 
 select lives_ok(
   $$ select public.pay_create_merchant('pay-audit-user', 'Audit Merchant', 'pay-audit-merchant') $$,
