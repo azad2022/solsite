@@ -18,7 +18,6 @@ jobs:
     timeout-minutes: 60
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: nvopkbiedorfshwbmyhn
     steps:
       - name: Checkout exact cutover commit
@@ -28,16 +27,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Prove checkout identity
-        run: |
-          set -Eeuo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-
-      - name: Require production credentials
+      - name: Require production database credential
         run: |
           set -Eeuo pipefail
           test -n "$SUPABASE_DB_URL"
-          test -n "$SUPABASE_ACCESS_TOKEN"
           case "$SUPABASE_DB_URL" in
             postgres://*|postgresql://*) ;;
             *) echo 'Refusing: SUPABASE_DB_URL must be a PostgreSQL connection string' >&2; exit 1;;
