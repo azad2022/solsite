@@ -48,7 +48,7 @@ select ok(
 );
 
 select ok(
-  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_apply_verified_observation' and pg_get_functiondef(p.oid) ilike '%if v_payment.asset = ''SOL'' then%'),
+  exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'pay_apply_verified_observation' and pg_get_functiondef(p.oid) ilike '%if p_asset = ''SOL'' then%'),
   'reconciliation separates native SOL destination semantics from token-account semantics'
 );
 
@@ -66,7 +66,7 @@ select ok(
   'webhook claim reads immutable delivery snapshots rather than live webhook routing'
 );
 
-insert into public.users(id, username) values ('pay-audit-user', 'pay-audit-user') on conflict do nothing;
+insert into public.users(id, username, full_name, email) values ('pay-audit-user', 'pay-audit-user', 'Pay Audit User', 'pay-audit@example.invalid') on conflict do nothing;
 
 select lives_ok(
   $$ select public.pay_create_merchant('pay-audit-user', 'Audit Merchant', 'pay-audit-merchant') $$,
