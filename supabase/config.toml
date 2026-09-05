@@ -1,1 +1,2 @@
+# Audit-only trigger: keep database-security and migration-rehearsal evidence on the same audited HEAD.
 project_id = "solmint-pay-ci"
