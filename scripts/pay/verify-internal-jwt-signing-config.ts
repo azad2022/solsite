@@ -16,6 +16,8 @@ type JwksKey = {
   kid?: string;
   alg?: string;
   kty?: string;
+  crv?: string;
+  use?: string;
   key_ops?: string[];
 };
 
@@ -23,6 +25,17 @@ type Jwks = { keys?: JwksKey[] };
 type OidcConfiguration = {
   issuer?: string;
   jwks_uri?: string;
+};
+
+export type LiveJwtTrustEvidence = {
+  status: "verified";
+  supabaseUrl: string;
+  issuer: string;
+  jwksUri: string;
+  algorithm: SupportedAlgorithm;
+  kid: string;
+  audience: string;
+  audienceVerification: "explicit-config-only";
 };
 
 function required(name: keyof Env, value: string | undefined): string {
@@ -34,6 +47,17 @@ function required(name: keyof Env, value: string | undefined): string {
 
 function normalizeUrl(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function requireHttpsUrl(name: string, value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid HTTPS URL.`);
+  }
+  if (parsed.protocol !== "https:") throw new Error(`${name} must use HTTPS.`);
+  return normalizeUrl(parsed.toString());
 }
 
 async function readEnv(): Promise<Env> {
@@ -64,28 +88,52 @@ async function readEnv(): Promise<Env> {
   return env;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { accept: "application/json" } });
+async function fetchJson<T>(url: string, fetchImpl: typeof fetch): Promise<T> {
+  const response = await fetchImpl(url, { headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`Supabase discovery request failed: HTTP ${response.status} ${response.statusText}`);
   return (await response.json()) as T;
 }
 
-async function main(): Promise<void> {
-  const env = await readEnv();
-  const supabaseUrl = normalizeUrl(required("SUPABASE_URL", env.SUPABASE_URL));
-  const algorithm = required("SUPABASE_INTERNAL_JWT_ALGORITHM", env.SUPABASE_INTERNAL_JWT_ALGORITHM);
-  const keyId = required("SUPABASE_INTERNAL_JWT_KEY_ID", env.SUPABASE_INTERNAL_JWT_KEY_ID);
-  const configuredIssuer = normalizeUrl(required("SUPABASE_INTERNAL_JWT_ISSUER", env.SUPABASE_INTERNAL_JWT_ISSUER));
-  const audience = required("SUPABASE_INTERNAL_JWT_AUDIENCE", env.SUPABASE_INTERNAL_JWT_AUDIENCE);
+function parseConfiguredAlgorithm(value: string): SupportedAlgorithm {
+  if (!REQUIRED_ALGORITHMS.includes(value as SupportedAlgorithm)) {
+    throw new Error(`SUPABASE_INTERNAL_JWT_ALGORITHM must be ES256 or RS256; received ${value}.`);
+  }
+  return value as SupportedAlgorithm;
+}
 
-  if (!REQUIRED_ALGORITHMS.includes(algorithm as SupportedAlgorithm)) {
-    throw new Error(`SUPABASE_INTERNAL_JWT_ALGORITHM must be ES256 or RS256; received ${algorithm}.`);
+function assertLiveJwksKey(algorithm: SupportedAlgorithm, key: JwksKey): void {
+  if (key.alg !== algorithm) {
+    throw new Error(`Algorithm mismatch for configured kid: configured=${algorithm}, live=${key.alg || "<missing>"}.`);
   }
 
+  if (key.use && key.use !== "sig") {
+    throw new Error(`Live key is not advertised for signatures: use=${key.use}.`);
+  }
+
+  if (key.key_ops && !key.key_ops.includes("verify")) {
+    throw new Error("Live key is not advertised for signature verification.");
+  }
+
+  if (algorithm === "ES256" && (key.kty !== "EC" || key.crv !== "P-256")) {
+    throw new Error(`Live ES256 key must be EC/P-256; received kty=${key.kty || "<missing>"}, crv=${key.crv || "<missing>"}.`);
+  }
+
+  if (algorithm === "RS256" && key.kty !== "RSA") {
+    throw new Error(`Live RS256 key must be RSA; received kty=${key.kty || "<missing>"}.`);
+  }
+}
+
+export async function verifyLiveJwtTrust(env: Env, fetchImpl: typeof fetch = fetch): Promise<LiveJwtTrustEvidence> {
+  const supabaseUrl = requireHttpsUrl("SUPABASE_URL", required("SUPABASE_URL", env.SUPABASE_URL));
+  const algorithm = parseConfiguredAlgorithm(required("SUPABASE_INTERNAL_JWT_ALGORITHM", env.SUPABASE_INTERNAL_JWT_ALGORITHM));
+  const keyId = required("SUPABASE_INTERNAL_JWT_KEY_ID", env.SUPABASE_INTERNAL_JWT_KEY_ID);
+  const configuredIssuer = requireHttpsUrl("SUPABASE_INTERNAL_JWT_ISSUER", required("SUPABASE_INTERNAL_JWT_ISSUER", env.SUPABASE_INTERNAL_JWT_ISSUER));
+  const audience = required("SUPABASE_INTERNAL_JWT_AUDIENCE", env.SUPABASE_INTERNAL_JWT_AUDIENCE);
+
   const discoveryUrl = `${supabaseUrl}/auth/v1/.well-known/openid-configuration`;
-  const discovery = await fetchJson<OidcConfiguration>(discoveryUrl);
-  const liveIssuer = normalizeUrl(required("live OIDC issuer", discovery.issuer));
-  const jwksUri = required("live OIDC jwks_uri", discovery.jwks_uri);
+  const discovery = await fetchJson<OidcConfiguration>(discoveryUrl, fetchImpl);
+  const liveIssuer = requireHttpsUrl("live OIDC issuer", required("live OIDC issuer", discovery.issuer));
+  const jwksUri = requireHttpsUrl("live OIDC jwks_uri", required("live OIDC jwks_uri", discovery.jwks_uri));
 
   if (liveIssuer !== configuredIssuer) {
     throw new Error(`Issuer mismatch: configured=${configuredIssuer}, live=${liveIssuer}.`);
@@ -96,26 +144,24 @@ async function main(): Promise<void> {
     throw new Error(`Unexpected JWKS URI: live=${jwksUri}, expected=${expectedJwksUri}.`);
   }
 
-  const jwks = await fetchJson<Jwks>(jwksUri);
+  const jwks = await fetchJson<Jwks>(jwksUri, fetchImpl);
   const keys = Array.isArray(jwks.keys) ? jwks.keys : [];
-  const matchingKey = keys.find((key) => key.kid === keyId);
+  const matchingKeys = keys.filter((key) => key.kid === keyId);
 
-  if (!matchingKey) {
+  if (matchingKeys.length === 0) {
     const available = keys.map((key) => key.kid || "<missing-kid>").join(", ") || "<none>";
     throw new Error(`Configured kid ${keyId} is not present in live JWKS. Available kids: ${available}.`);
   }
 
-  if (matchingKey.alg !== algorithm) {
-    throw new Error(`Algorithm mismatch for kid ${keyId}: configured=${algorithm}, live=${matchingKey.alg || "<missing>"}.`);
+  if (matchingKeys.length !== 1) {
+    throw new Error(`Configured kid ${keyId} is ambiguous in live JWKS (${matchingKeys.length} matching keys).`);
   }
 
-  if (matchingKey.key_ops && !matchingKey.key_ops.includes("verify")) {
-    throw new Error(`Live key ${keyId} is not advertised for signature verification.`);
-  }
+  assertLiveJwksKey(algorithm, matchingKeys[0]);
 
   // Audience is deliberately not inferred from discovery metadata. The configured value
   // must remain explicit until it is confirmed against the live verifier configuration.
-  console.log(JSON.stringify({
+  return {
     status: "verified",
     supabaseUrl,
     issuer: liveIssuer,
@@ -124,7 +170,12 @@ async function main(): Promise<void> {
     kid: keyId,
     audience,
     audienceVerification: "explicit-config-only",
-  }, null, 2));
+  };
+}
+
+async function main(): Promise<void> {
+  const evidence = await verifyLiveJwtTrust(await readEnv());
+  console.log(JSON.stringify(evidence, null, 2));
 }
 
 main().catch((error: unknown) => {
