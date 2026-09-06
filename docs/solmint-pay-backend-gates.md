@@ -8,16 +8,16 @@ Live inspection of `pg_policies` returned no policies for the `pay_*` tables. RL
 
 Before exposing merchant-scoped Pay endpoints, the backend/database layer must provide and validate the intended policy or an equivalent non-browser data-access boundary. The public Checkout Payment Intent endpoint is deliberately limited to a server-side, ID-based snapshot and must not become a substitute for merchant-scoped dashboard authorization.
 
-## Gate B — Pay mutation routine hardening — BLOCKED
+## Gate B — Pay mutation routine hardening — PASS
 
-The live security advisor reports mutable `search_path` on:
+The four Pay routines previously flagged for mutable `search_path` were hardened in the live database and the exact remediation is now persisted in the repository migration chain:
 
 - `pay_reject_mutation`
 - `pay_reject_merchant_ledger_mutation`
 - `pay_insert_merchant_principal_entry`
 - `pay_skip_duplicate_payment_transfer`
 
-These routines must be hardened before they are reachable through any browser-accessible path. Current evidence does not show them as `SECURITY DEFINER`; the finding is specifically that their `search_path` is not pinned.
+Live verification confirms `search_path=public`, `anon` execution is revoked, `authenticated` execution is revoked, and `service_role` retains execution. These routines are not `SECURITY DEFINER`; this gate is specifically about search-path hardening and PostgREST execution exposure.
 
 ## Gate C — production HTTP contract — PARTIALLY RELEASED
 
@@ -57,4 +57,4 @@ The live Pay database currently contains zero Payment Intent rows. Therefore a s
 
 ## Current decision
 
-The frontend may consume the released read contract, but `/pay` must remain an unreleased feature until Gates A, B, C operational verification, D, and F are green. No mock Payment Intent should be inserted into the production database merely to make E2E appear successful.
+The frontend may consume the released read contract, but `/pay` must remain an unreleased feature until Gates A, C operational verification, D, and F are green. No mock Payment Intent should be inserted into the production database merely to make E2E appear successful.
