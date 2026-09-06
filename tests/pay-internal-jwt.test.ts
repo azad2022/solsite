@@ -185,7 +185,7 @@ test('rejects unsafe internal user identities', async () => {
   await assert.rejects(() => mintPayInternalJwt(env, 'x'.repeat(257), 1_700_000_000), /user id is invalid/);
 });
 
-test('verifies live issuer, JWKS endpoint, key id, algorithm and key usage', async () => {
+test('reports live signing trust but keeps activation blocked until audience is verified', async () => {
   const env = makeTrustEnv('ES256');
   const fetchImpl = makeFetch({
     'https://example.test/auth/v1/.well-known/openid-configuration': {
@@ -199,14 +199,15 @@ test('verifies live issuer, JWKS endpoint, key id, algorithm and key usage', asy
 
   const evidence = await verifyLiveJwtTrust(env, fetchImpl);
   assert.deepEqual(evidence, {
-    status: 'verified',
+    status: 'blocked',
     supabaseUrl: 'https://example.test',
     issuer: 'https://example.test/auth/v1',
     jwksUri: 'https://example.test/auth/v1/.well-known/jwks.json',
     algorithm: 'ES256',
     kid: 'pay-live-kid',
     audience: 'authenticated',
-    audienceVerification: 'explicit-config-only',
+    audienceVerification: 'not-verifiable-from-public-discovery',
+    blocker: 'live-audience-not-exposed-by-oidc-discovery',
   });
 });
 
