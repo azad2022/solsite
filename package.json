@@ -11,8 +11,9 @@
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts"
+    "lint": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && tsc --noEmit",
+    "test": "tsx --test tests/**/*.test.ts",
+    "pay:verify-jwt-config": "tsx scripts/pay/verify-internal-jwt-signing-config.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
