@@ -1,6 +1,6 @@
 create schema if not exists better_auth;
 
-create table if not exists better_auth.user (
+create table if not exists better_auth."user" (
   id text primary key,
   name text not null,
   email text not null unique,
@@ -14,7 +14,7 @@ create table if not exists better_auth.user (
 
 create table if not exists better_auth.session (
   id text primary key,
-  user_id text not null references better_auth.user(id) on delete cascade,
+  user_id text not null references better_auth."user"(id) on delete cascade,
   token text not null unique,
   expires_at timestamptz not null,
   ip_address text,
@@ -30,7 +30,7 @@ create index if not exists better_auth_session_expires_at_idx
 
 create table if not exists better_auth.account (
   id text primary key,
-  user_id text not null references better_auth.user(id) on delete cascade,
+  user_id text not null references better_auth."user"(id) on delete cascade,
   account_id text not null,
   provider_id text not null,
   access_token text,
@@ -85,9 +85,9 @@ begin
 end;
 $$;
 
-drop trigger if exists user_set_updated_at on better_auth.user;
+drop trigger if exists user_set_updated_at on better_auth."user";
 create trigger user_set_updated_at
-before update on better_auth.user
+before update on better_auth."user"
 for each row execute function better_auth.set_updated_at();
 
 drop trigger if exists session_set_updated_at on better_auth.session;
