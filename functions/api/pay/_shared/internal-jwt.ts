@@ -4,6 +4,7 @@ export const PAY_INTERNAL_JWT_ROLE = 'authenticated' as const;
 export const PAY_INTERNAL_JWT_CLAIM = 'solmint_user_id' as const;
 export const PAY_INTERNAL_JWT_ALGORITHMS = ['ES256', 'RS256'] as const;
 export const PAY_INTERNAL_JWT_DEFAULT_TTL_SECONDS = 60;
+export const PAY_INTERNAL_JWT_MIN_TTL_SECONDS = 30;
 export const PAY_INTERNAL_JWT_MAX_TTL_SECONDS = 300;
 
 type SupportedAlgorithm = (typeof PAY_INTERNAL_JWT_ALGORITHMS)[number];
@@ -21,7 +22,7 @@ export interface PayInternalJwtEnv {
 interface JwtHeader {
   alg: SupportedAlgorithm;
   typ: 'JWT';
-  kid?: string;
+  kid: string;
 }
 
 interface JwtPayload {
@@ -50,7 +51,8 @@ function pemToDer(pem: string): ArrayBuffer {
     .replace('-----BEGIN PRIVATE KEY-----', '')
     .replace('-----END PRIVATE KEY-----', '')
     .replace(/\s+/g, '');
-  if (!body || !/^[A-Za-z0-9+/]+={0,2}$/.test(body)) {
+
+  if (!body || body.length % 4 === 1 || !/^[A-Za-z0-9+/]+={0,2}$/.test(body)) {
     throw new Error('SUPABASE_INTERNAL_JWT_PRIVATE_KEY contains invalid base64 data.');
   }
 
@@ -78,8 +80,8 @@ function requireNonEmpty(name: string, value: string | undefined): string {
 function parseTtl(env: PayInternalJwtEnv): number {
   const raw = env.SUPABASE_INTERNAL_JWT_TTL_SECONDS?.trim() || String(PAY_INTERNAL_JWT_DEFAULT_TTL_SECONDS);
   const ttl = Number(raw);
-  if (!Number.isInteger(ttl) || ttl < 30 || ttl > PAY_INTERNAL_JWT_MAX_TTL_SECONDS) {
-    throw new Error(`SUPABASE_INTERNAL_JWT_TTL_SECONDS must be an integer between 30 and ${PAY_INTERNAL_JWT_MAX_TTL_SECONDS}.`);
+  if (!Number.isInteger(ttl) || ttl < PAY_INTERNAL_JWT_MIN_TTL_SECONDS || ttl > PAY_INTERNAL_JWT_MAX_TTL_SECONDS) {
+    throw new Error(`SUPABASE_INTERNAL_JWT_TTL_SECONDS must be an integer between ${PAY_INTERNAL_JWT_MIN_TTL_SECONDS} and ${PAY_INTERNAL_JWT_MAX_TTL_SECONDS}.`);
   }
   return ttl;
 }
@@ -110,12 +112,13 @@ function assertSafeUserId(userId: string): string {
 
 export function validatePayInternalJwtConfig(env: PayInternalJwtEnv): void {
   requireNonEmpty('SUPABASE_URL', env.SUPABASE_URL);
-  requireNonEmpty('SUPABASE_INTERNAL_JWT_PRIVATE_KEY', env.SUPABASE_INTERNAL_JWT_PRIVATE_KEY);
+  const privateKey = requireNonEmpty('SUPABASE_INTERNAL_JWT_PRIVATE_KEY', env.SUPABASE_INTERNAL_JWT_PRIVATE_KEY);
   parseAlgorithm(env);
   requireNonEmpty('SUPABASE_INTERNAL_JWT_KEY_ID', env.SUPABASE_INTERNAL_JWT_KEY_ID);
   requireNonEmpty('SUPABASE_INTERNAL_JWT_ISSUER', env.SUPABASE_INTERNAL_JWT_ISSUER);
   requireNonEmpty('SUPABASE_INTERNAL_JWT_AUDIENCE', env.SUPABASE_INTERNAL_JWT_AUDIENCE);
   parseTtl(env);
+  pemToDer(privateKey);
 }
 
 export async function mintPayInternalJwt(env: PayInternalJwtEnv, userId: string, nowSeconds = Math.floor(Date.now() / 1000)): Promise<string> {
