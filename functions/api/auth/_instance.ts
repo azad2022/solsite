@@ -37,16 +37,64 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     basePath: '/api/auth',
     trustedOrigins: foundation.trustedOrigins,
     database,
+    user: {
+      modelName: 'user',
+      fields: {
+        emailVerified: 'email_verified',
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
+      },
+    },
+    session: {
+      modelName: 'session',
+      fields: {
+        userId: 'user_id',
+        expiresAt: 'expires_at',
+        ipAddress: 'ip_address',
+        userAgent: 'user_agent',
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
+      },
+    },
     account: {
-      identityStrategy: 'provider-id',
+      modelName: 'account',
+      fields: {
+        userId: 'user_id',
+        accountId: 'account_id',
+        providerId: 'provider_id',
+        accessToken: 'access_token',
+        refreshToken: 'refresh_token',
+        accessTokenExpiresAt: 'access_token_expires_at',
+        refreshTokenExpiresAt: 'refresh_token_expires_at',
+        idToken: 'id_token',
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
+      },
+    },
+    verification: {
+      modelName: 'verification',
+      fields: {
+        expiresAt: 'expires_at',
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
+      },
     },
     emailAndPassword: {
       enabled: true,
+      revokeSessionsOnPasswordReset: true,
     },
     plugins: [
       username({
         displayUsername: false,
         immutableUsername: true,
+        schema: {
+          user: {
+            fields: {
+              username: 'username',
+              displayUsername: 'display_username',
+            },
+          },
+        },
       }),
     ],
     ...(socialProviders ? { socialProviders } : {}),
@@ -61,11 +109,18 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     rateLimit: {
       enabled: true,
       storage: 'database',
-      modelName: 'rateLimit',
+      modelName: 'rate_limit',
+      fields: {
+        lastRequest: 'last_request',
+      },
       window: 60,
       max: 100,
       customRules: {
         '/sign-in/email': {
+          window: 60,
+          max: 5,
+        },
+        '/sign-in/username': {
           window: 60,
           max: 5,
         },
