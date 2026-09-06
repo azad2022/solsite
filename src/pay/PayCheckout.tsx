@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, Clock3, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from 'lucide-react';
 import { directionFor, translate } from './i18n';
 import type { PayLocale } from './types';
+import './pay-checkout.css';
 
 interface PayCheckoutProps {
   locale: PayLocale;
