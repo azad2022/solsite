@@ -6,7 +6,7 @@ type BetterAuthCompatibleEnv = Env & {
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
   BETTER_AUTH_TRUSTED_ORIGINS?: string;
-  HYPERDRIVE?: { connectionString?: string };
+  HYPERDRIVE?: { connectionString: string };
 };
 
 async function getBetterAuthUser(request: Request, env: BetterAuthCompatibleEnv) {
