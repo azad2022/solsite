@@ -28,14 +28,15 @@ type OidcConfiguration = {
 };
 
 export type LiveJwtTrustEvidence = {
-  status: "verified";
+  status: "blocked";
   supabaseUrl: string;
   issuer: string;
   jwksUri: string;
   algorithm: SupportedAlgorithm;
   kid: string;
   audience: string;
-  audienceVerification: "explicit-config-only";
+  audienceVerification: "not-verifiable-from-public-discovery";
+  blocker: "live-audience-not-exposed-by-oidc-discovery";
 };
 
 function required(name: keyof Env, value: string | undefined): string {
@@ -159,23 +160,25 @@ export async function verifyLiveJwtTrust(env: Env, fetchImpl: typeof fetch = fet
 
   assertLiveJwksKey(algorithm, matchingKeys[0]);
 
-  // Audience is deliberately not inferred from discovery metadata. The configured value
-  // must remain explicit until it is confirmed against the live verifier configuration.
+  // OIDC discovery and public JWKS do not expose the audience accepted by the live
+  // PostgREST/Supabase JWT verifier. Never infer it from documentation or role semantics.
   return {
-    status: "verified",
+    status: "blocked",
     supabaseUrl,
     issuer: liveIssuer,
     jwksUri,
     algorithm,
     kid: keyId,
     audience,
-    audienceVerification: "explicit-config-only",
+    audienceVerification: "not-verifiable-from-public-discovery",
+    blocker: "live-audience-not-exposed-by-oidc-discovery",
   };
 }
 
 async function main(): Promise<void> {
   const evidence = await verifyLiveJwtTrust(await readEnv());
   console.log(JSON.stringify(evidence, null, 2));
+  throw new Error("JWT trust gate is blocked: the live accepted audience has not been independently verified.");
 }
 
 main().catch((error: unknown) => {
