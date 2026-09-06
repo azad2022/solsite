@@ -8,6 +8,8 @@ Better Auth is the authentication/identity layer only. Solmint application autho
 
 Production Pages Functions use Cloudflare Hyperdrive for PostgreSQL connectivity. Direct PostgreSQL URLs are development/test-only. The Better Auth tables live in the dedicated `better_auth` schema and browser Supabase roles receive no grants on that schema.
 
+The repository currently pins Better Auth to `1.7.2`. Better Auth `1.7.3` is a newer release; do not change the package version without regenerating and validating `bun.lock` in CI. The current `1.7.2` schema intentionally includes the `account.issuer` field required by the 1.7.0–1.7.2 schema contract.
+
 Required production configuration:
 
 - `BETTER_AUTH_SECRET`
@@ -61,17 +63,29 @@ New email/password identities require email verification. Verification and reset
 
 If the email transport is not configured, production activation must stop. Do not deploy a system that accepts registrations while silently making verification impossible.
 
-## Google OAuth
+## Google OAuth and account linking
 
 Client credentials stay server-side. The browser only requests the Better Auth social sign-in endpoint and follows the server-issued authorization URL.
 
-Validate the production origin and exact callback URI in the Google console before the cutover. Test duplicate-account and account-linking behavior explicitly; do not merge identities based only on a matching display name.
+Implicit OAuth account linking is deliberately disabled. A same-email Google sign-in against an existing account must be explicitly linked from an authenticated account-management flow rather than silently attached during login. This avoids treating a provider login as proof that the application should merge identities automatically.
+
+Validate the production origin and exact callback URI in the Google console before the cutover. Test duplicate-account and explicit account-linking behavior.
 
 ## Session policy
 
-The current Better Auth session target is 8 hours with a 1-hour update window. Sessions use the Better Auth server-side database and browser cookies; no bearer token is stored in localStorage or sessionStorage.
+The current Better Auth session target is 8 hours with a 1-hour update window. The primary session cookie is explicitly configured as `__Host-solmint_auth_session` in HTTPS deployments with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`. This is intentionally different from the legacy `__Host-solmint_session` cookie so the dual-stack migration phase cannot accidentally overwrite the old session.
+
+OAuth access/refresh/ID tokens are encrypted by Better Auth before database persistence. No bearer token is stored in localStorage or sessionStorage.
+
+Cookie-cache session storage remains disabled; session validity therefore stays database-backed and revocation is not delayed by a browser cache.
 
 Test logout, expiry, revocation, concurrent sessions, password-reset session revocation, cookie flags, and session fixation before cutover.
+
+## Application session boundary
+
+The legacy `/api/users/me` endpoint is retained only as a compatibility boundary during migration. It first resolves the legacy session and then resolves a Better Auth session plus the identity bridge, returning the application user/role projection. This keeps existing UI consumers functional while the identity backend changes underneath them.
+
+The endpoint must not become an alternative authentication implementation. New authentication state is created and revoked through Better Auth; legacy session creation remains temporary and is retired only after cutover validation.
 
 ## Pay authorization invariant
 
@@ -92,18 +106,19 @@ Required Pay invariants remain:
 
 Recommended order:
 
-1. non-production schema migration
-2. Hyperdrive preview connectivity validation
-3. email transport validation
-4. Google OAuth validation
-5. auth and adversarial tests
-6. controlled legacy migration test with a disposable account
-7. production Better Auth schema migration
-8. production Hyperdrive binding verification
-9. enable new registration/login path
-10. controlled legacy re-authentication/migration
-11. monitor authentication error rate, email delivery failures, OAuth failures, and session creation/revocation
-12. only after stable verification, retire the legacy login path
+1. repair and validate the repository's historical Supabase migration baseline separately from the auth PR;
+2. non-production Better Auth schema migration;
+3. Hyperdrive preview connectivity validation;
+4. email transport validation;
+5. Google OAuth validation;
+6. auth and adversarial tests;
+7. controlled legacy migration test with a disposable account;
+8. production Better Auth schema migration;
+9. production Hyperdrive binding verification;
+10. enable the new registration/login path;
+11. controlled legacy re-authentication/migration;
+12. monitor authentication error rate, email delivery failures, OAuth failures, and session creation/revocation;
+13. only after stable verification, retire legacy login/session endpoints.
 
 ## Rollback
 
