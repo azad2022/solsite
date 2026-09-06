@@ -1,7 +1,9 @@
 export { default as PayApp } from './PayApp';
 export { default as PayCheckout } from './PayCheckout';
+export { default as PayDataStateView } from './DataStateView';
 export * from './types';
 export * from './i18n';
 export * from './routing';
+export * from './route-match';
 export * from './data-state';
 export * from './http';
