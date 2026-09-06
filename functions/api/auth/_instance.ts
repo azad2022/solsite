@@ -47,6 +47,8 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     },
     session: {
       modelName: 'session',
+      expiresIn: 60 * 60 * 8,
+      updateAge: 60 * 60,
       fields: {
         userId: 'user_id',
         expiresAt: 'expires_at',
