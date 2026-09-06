@@ -1,12 +1,16 @@
-import type { PagesFunction } from '@cloudflare/workers-types';
 import { createBetterAuthRuntime, type SolmintBetterAuthRuntimeEnv } from './_instance';
 
-export const onRequest: PagesFunction<SolmintBetterAuthRuntimeEnv> = async (context) => {
+type PagesAuthContext = {
+  request: Request;
+  env: SolmintBetterAuthRuntimeEnv;
+};
+
+export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Response> => {
   let runtime: ReturnType<typeof createBetterAuthRuntime> | null = null;
 
   try {
-    runtime = createBetterAuthRuntime(context.env);
-    return await runtime.auth.handler(context.request);
+    runtime = createBetterAuthRuntime(env);
+    return await runtime.auth.handler(request);
   } catch (error) {
     console.error('Better Auth request failed:', error instanceof Error ? error.message : 'unknown error');
     return new Response(JSON.stringify({
@@ -21,7 +25,7 @@ export const onRequest: PagesFunction<SolmintBetterAuthRuntimeEnv> = async (cont
       },
     });
   } finally {
-    if (runtime && context.env.NODE_ENV !== 'development' && context.env.NODE_ENV !== 'test') {
+    if (runtime && env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') {
       await runtime.database.end().catch((error) => {
         console.warn('Better Auth PostgreSQL pool shutdown failed:', error instanceof Error ? error.message : 'unknown error');
       });
