@@ -41,15 +41,20 @@ function base64UrlEncode(input: Uint8Array | string): string {
 }
 
 function pemToDer(pem: string): ArrayBuffer {
-  const normalized = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\s+/g, '');
-  if (!normalized || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+  const normalized = pem.trim();
+  if (!normalized.startsWith('-----BEGIN PRIVATE KEY-----') || !normalized.endsWith('-----END PRIVATE KEY-----')) {
     throw new Error('SUPABASE_INTERNAL_JWT_PRIVATE_KEY must be a PKCS#8 PEM private key.');
   }
 
-  const binary = atob(normalized);
+  const body = normalized
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s+/g, '');
+  if (!body || !/^[A-Za-z0-9+/]+={0,2}$/.test(body)) {
+    throw new Error('SUPABASE_INTERNAL_JWT_PRIVATE_KEY contains invalid base64 data.');
+  }
+
+  const binary = atob(body);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
