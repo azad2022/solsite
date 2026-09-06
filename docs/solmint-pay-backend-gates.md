@@ -1,14 +1,14 @@
 # SolMint Pay — Backend Exposure Gates
 
-These gates are derived from the live Supabase project and the repository state observed on 2026-09-06.
+These gates are derived from the live Supabase project and repository state observed on 2026-09-06.
 
-## Gate A — RLS / tenant isolation
+## Gate A — RLS / tenant isolation — BLOCKED
 
 Live inspection of `pg_policies` returned no policies for the `pay_*` tables. RLS being enabled is therefore not sufficient evidence for browser-facing merchant isolation.
 
-Before exposing merchant-scoped Pay endpoints, the backend/database layer must provide and validate the intended policy or an equivalent non-browser data-access boundary.
+Before exposing merchant-scoped Pay endpoints, the backend/database layer must provide and validate the intended policy or an equivalent non-browser data-access boundary. The public Checkout Payment Intent endpoint is deliberately limited to a server-side, ID-based snapshot and must not become a substitute for merchant-scoped dashboard authorization.
 
-## Gate B — Pay mutation routine hardening
+## Gate B — Pay mutation routine hardening — BLOCKED
 
 The live security advisor reports mutable `search_path` on:
 
@@ -17,33 +17,44 @@ The live security advisor reports mutable `search_path` on:
 - `pay_insert_merchant_principal_entry`
 - `pay_skip_duplicate_payment_transfer`
 
-These routines must be hardened before they are reachable through any browser-accessible path.
+These routines must be hardened before they are reachable through any browser-accessible path. Current evidence does not show them as `SECURITY DEFINER`; the finding is specifically that their `search_path` is not pinned.
 
-## Gate C — production HTTP contract
+## Gate C — production HTTP contract — PARTIALLY RELEASED
 
-No production Pay HTTP service is currently advertised by the public API catalog on `main`. The frontend therefore must not implement concrete Pay endpoints by inference from SQL function names or table columns.
+A first real Pay read contract now exists in the feature branch:
 
-## Gate D — authoritative lifecycle
+`GET /api/pay/v1/payment-intents/:id`
 
-A production API contract must expose a server-authoritative Payment Intent/payment lifecycle. The frontend must consume that lifecycle and preserve distinctions between submission, detection, verification, confirmation, and completion.
+The contract is published in `public/openapi.json`, advertised by the dynamic and static API catalogs, and routed through `public/_routes.json`. The response is an explicit checkout-safe allowlist; internal accounting fields are not exposed.
 
-## Gate E — financial representation
+This gate remains operationally blocked until deployment validation proves that the endpoint is actually reachable in the target environment with the intended server-only Supabase credential configuration.
 
-Atomic financial values must not be converted to floating-point UI business values in a way that can change their meaning. Any formatting layer must preserve the server-authoritative value and token decimals.
+## Gate D — authoritative lifecycle — PARTIALLY RELEASED
 
-## Gate F — release evidence
+The Payment Intent contract exposes the server-owned `status` and `verificationCommitment`. The Checkout frontend consumes these values verbatim and does not infer success from transaction submission, reference, signature, or webhook delivery.
 
-Before Pay becomes externally usable, validation must cover at minimum:
+The full lifecycle gate remains open until the release evidence proves authoritative detection, verification, confirmation, and completion behavior against real payment observations.
 
-- backend contract tests
-- RLS / tenant-isolation tests
-- authorization tests
-- idempotency tests
-- verification/reconciliation tests
+## Gate E — financial representation — PASSING AT CONTRACT/UI BOUNDARY
+
+Atomic financial values are transported as strings. The frontend performs only decimal-point presentation using integer/string operations; it does not calculate fees, balances, settlement, revenue, eligibility, or payment success.
+
+## Gate F — release evidence — BLOCKED
+
+The following are still mandatory before Pay becomes externally usable:
+
+- CI and production build on the current HEAD
+- RLS / tenant-isolation validation
+- authorization validation for merchant-scoped operations
+- idempotency validation
+- verification/reconciliation validation
 - adversarial payment cases
-- webhook security tests
-- production build
-- frontend integration tests
-- E2E checkout lifecycle tests
+- webhook security validation
+- frontend integration validation
+- a real E2E checkout lifecycle using a controlled non-production Payment Intent fixture
 
-The frontend can proceed in parallel on presentation, state handling, accessibility, routing, and transport boundaries, but must not bypass these gates.
+The live Pay database currently contains zero Payment Intent rows. Therefore a successful live checkout E2E cannot honestly be claimed from the current environment without introducing a controlled test fixture in an appropriate non-production environment.
+
+## Current decision
+
+The frontend may consume the released read contract, but `/pay` must remain an unreleased feature until Gates A, B, C operational verification, D, and F are green. No mock Payment Intent should be inserted into the production database merely to make E2E appear successful.
