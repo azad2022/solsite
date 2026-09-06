@@ -1,11 +1,15 @@
 import { betterAuth } from 'better-auth';
 import { username } from 'better-auth/plugins';
+import { buildPasswordResetEmail, buildVerificationEmail, sendAuthEmail } from './_email';
 import { getBetterAuthFoundationConfig, type BetterAuthEnv } from './_foundation';
 import { createBetterAuthDatabase, type BetterAuthDatabaseEnv } from './_database';
 
 interface BetterAuthRuntimeEnv extends BetterAuthEnv, BetterAuthDatabaseEnv {
+  NODE_ENV?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  RESEND_API_KEY?: string;
+  AUTH_EMAIL_FROM?: string;
 }
 
 function getGoogleProvider(env: BetterAuthRuntimeEnv) {
@@ -84,7 +88,21 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     },
     emailAndPassword: {
       enabled: true,
+      requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url }) => {
+        const email = buildPasswordResetEmail(user.name, url);
+        await sendAuthEmail(env, { to: user.email, ...email });
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        const email = buildVerificationEmail(user.name, url);
+        await sendAuthEmail(env, { to: user.email, ...email });
+      },
     },
     plugins: [
       username({
@@ -94,7 +112,6 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
           user: {
             fields: {
               username: 'username',
-              displayUsername: 'display_username',
             },
           },
         },
@@ -128,6 +145,14 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
           max: 5,
         },
         '/sign-up/email': {
+          window: 60,
+          max: 3,
+        },
+        '/request-password-reset': {
+          window: 60,
+          max: 3,
+        },
+        '/send-verification-email': {
           window: 60,
           max: 3,
         },
