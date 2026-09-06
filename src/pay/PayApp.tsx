@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   BarChart3,
@@ -9,7 +9,6 @@ import {
   CircleDollarSign,
   Code2,
   FileText,
-  Headphones,
   LayoutDashboard,
   LockKeyhole,
   Menu,
@@ -61,7 +60,10 @@ function normalizePath(pathname: string): string {
 }
 
 function sectionFromPath(pathname: string): PaySection {
-  const suffix = normalizePath(pathname).slice(PAY_PREFIX.length).replace(/^\//, '');
+  const normalized = normalizePath(pathname);
+  if (normalized === PAY_PREFIX) return 'overview';
+  if (!normalized.startsWith(`${PAY_PREFIX}/`)) return 'overview';
+  const suffix = normalized.slice(`${PAY_PREFIX}/`.length);
   return SECTION_KEYS.includes(suffix as PaySection) ? suffix as PaySection : 'overview';
 }
 
@@ -105,8 +107,12 @@ export function PayApp(): React.ReactElement {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   };
 
-  const title = useMemo(() => translate(locale, currentSection === 'overview' ? 'overviewTitle' : sectionKeyToTitle(currentSection)), [currentSection, locale]);
-  const description = useMemo(() => translate(locale, currentSection === 'overview' ? 'overviewDescription' : 'sectionDescription'), [currentSection, locale]);
+  const title = currentSection === 'overview'
+    ? translate(locale, 'overviewTitle')
+    : sectionLabel(locale, currentSection);
+  const description = currentSection === 'overview'
+    ? translate(locale, 'overviewDescription')
+    : translate(locale, 'sectionDescription');
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale}>
@@ -214,9 +220,9 @@ export function PayApp(): React.ReactElement {
               <div className="pay-heading-meta" aria-label={translate(locale, 'timeRange')}>
                 <span>{translate(locale, 'timeRange')}</span>
                 <div className="pay-range-control" role="group" aria-label={translate(locale, 'timeRange')}>
-                  <button type="button" className="is-active">{translate(locale, 'today')}</button>
-                  <button type="button" disabled>{translate(locale, 'sevenDays')}</button>
-                  <button type="button" disabled>{translate(locale, 'thirtyDays')}</button>
+                  <button type="button" className="is-active" aria-pressed="true">{translate(locale, 'today')}</button>
+                  <button type="button" disabled aria-disabled="true">{translate(locale, 'sevenDays')}</button>
+                  <button type="button" disabled aria-disabled="true">{translate(locale, 'thirtyDays')}</button>
                 </div>
               </div>
             </div>
@@ -307,10 +313,6 @@ function TruthCard({ icon, title, value }: { icon: React.ReactNode; title: strin
       </div>
     </article>
   );
-}
-
-function sectionKeyToTitle(section: PaySection): 'overviewTitle' | 'sectionDescription' {
-  return section === 'overview' ? 'overviewTitle' : 'sectionDescription';
 }
 
 function localeLabel(locale: PayLocale): string {
