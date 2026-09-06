@@ -1,5 +1,13 @@
 import { createBetterAuthRuntime } from './_instance';
-import { findUser, upgradePasswordHash, verifyPassword, type Env } from './_shared';
+import {
+  checkLoginRateLimit,
+  clearLoginRateLimit,
+  findUser,
+  recordFailedLogin,
+  upgradePasswordHash,
+  verifyPassword,
+  type Env,
+} from './_shared';
 
 interface MigrationEnv extends Env {
   NODE_ENV?: string;
@@ -36,8 +44,14 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
   const email = body.email?.trim().toLowerCase() || '';
   if (!username || !password || !EMAIL_RE.test(email) || email.length > 320) return genericResponse();
 
+  const allowed = await checkLoginRateLimit(env, request, username).catch(() => false);
+  if (!allowed) return genericResponse();
+
   const legacyUser = await findUser(env, username).catch(() => null);
-  if (!legacyUser || legacyUser.is_active === false) return genericResponse();
+  if (!legacyUser || legacyUser.is_active === false) {
+    await recordFailedLogin(env, request, username).catch(() => {});
+    return genericResponse();
+  }
 
   let passwordResult: Awaited<ReturnType<typeof verifyPassword>>;
   try {
@@ -45,7 +59,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
   } catch {
     passwordResult = { valid: false };
   }
-  if (!passwordResult.valid) return genericResponse();
+  if (!passwordResult.valid) {
+    await recordFailedLogin(env, request, username).catch(() => {});
+    return genericResponse();
+  }
+  await clearLoginRateLimit(env, request, username).catch(() => {});
   if (passwordResult.upgradedHash) await upgradePasswordHash(env, legacyUser.id, passwordResult.upgradedHash).catch(() => {});
 
   const runtime = createBetterAuthRuntime(env);
