@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
 import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './types';
-import { normalizePayPath, pathForPaySection, sectionFromPayPath, PAY_PREFIX } from './routing';
+import { checkoutIntentIdFromPath, isPayCheckoutPath, normalizePayPath, pathForPaySection, sectionFromPayPath } from './routing';
 import PayCheckout from './PayCheckout';
 import './pay.css';
 
@@ -20,21 +20,13 @@ function localeFromNavigator(): PayLocale {
   return normalizePayLocale(navigator.language);
 }
 
-function checkoutIntentIdFromPath(pathname: string): string | undefined {
-  const normalized = normalizePayPath(pathname);
-  if (normalized === '/pay/checkout') return undefined;
-  if (!normalized.startsWith('/pay/checkout/')) return undefined;
-  const value = normalized.slice('/pay/checkout/'.length);
-  return value || undefined;
-}
-
 export function PayApp(): React.ReactElement {
   const [locale, setLocale] = useState<PayLocale>(localeFromNavigator);
-  const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || PAY_PREFIX));
+  const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const direction = directionFor(locale);
-  const isCheckout = currentPath === '/pay/checkout' || currentPath.startsWith('/pay/checkout/');
+  const isCheckout = isPayCheckoutPath(currentPath);
   const currentSection = sectionFromPayPath(currentPath);
 
   useEffect(() => {
@@ -44,7 +36,7 @@ export function PayApp(): React.ReactElement {
   }, [locale, direction]);
 
   useEffect(() => {
-    const onPopState = () => setCurrentPath(normalizePayPath(window.location.pathname || PAY_PREFIX));
+    const onPopState = () => setCurrentPath(normalizePayPath(window.location.pathname || '/pay'));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -55,12 +47,6 @@ export function PayApp(): React.ReactElement {
     setCurrentPath(target);
     setMobileNavOpen(false);
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  };
-
-  const navigateToCheckout = () => {
-    const target = `${PAY_PREFIX}/checkout`;
-    if (normalizePayPath(window.location.pathname) !== target) window.history.pushState({}, '', target);
-    setCurrentPath(target);
   };
 
   if (isCheckout) {
@@ -115,7 +101,6 @@ export function PayApp(): React.ReactElement {
             </div>
 
             <div className="pay-topbar-actions">
-              <button type="button" className="pay-icon-button" onClick={navigateToCheckout} aria-label={translate(locale, 'checkout')} title={translate(locale, 'checkout')}><ArrowUpRight size={18} /></button>
               <div className="pay-language-control" aria-label={translate(locale, 'language')}>
                 {PAY_LOCALES.map(item => <button key={item} type="button" className={item === locale ? 'is-active' : ''} onClick={() => setLocale(item)} aria-pressed={item === locale}>{item === 'fa-IR' ? 'FA' : item === 'en-US' ? 'EN' : item.toUpperCase()}</button>)}
               </div>
