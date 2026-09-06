@@ -92,7 +92,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
         const email = buildPasswordResetEmail(user.name, url);
-        void sendAuthEmail(env, { to: user.email, ...email }).catch(() => {});
+        await sendAuthEmail(env, { to: user.email, ...email });
       },
     },
     emailVerification: {
@@ -101,7 +101,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
         const email = buildVerificationEmail(user.name, url);
-        void sendAuthEmail(env, { to: user.email, ...email }).catch(() => {});
+        await sendAuthEmail(env, { to: user.email, ...email });
       },
     },
     plugins: [
