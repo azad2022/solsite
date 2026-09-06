@@ -8,7 +8,7 @@ Frontend branch: `feat/solmint-pay-frontend-foundation`
 
 This document records the current evidence boundary between the Pay frontend and the real backend/database. It is deliberately **not** an HTTP API specification.
 
-The frontend must consume a production-enabled backend contract when one exists. Until then, this document prevents accidental invention of endpoints, response fields, or financial business rules.
+The frontend must consume a production-enabled backend contract when one exists. This baseline records only contracts that have been explicitly implemented and validated; it must not be used to infer undocumented endpoints or financial business rules.
 
 ## Evidence observed
 
@@ -16,16 +16,21 @@ The frontend must consume a production-enabled backend contract when one exists.
 
 - Pay has an independent `src/pay` boundary.
 - Routing supports `/pay`, Pay sections, and `/pay/checkout/:intentId`.
-- Locale support exists for `fa-IR`, `en-US`, `ar`, and `ru`.
+- Locale support exists for `fa-IR`, `en-US`, `ar`, and `ru` with real RTL/LTR direction handling.
 - A reusable Pay HTTP transport exists at `src/pay/http.ts`.
-- The transport only permits same-origin `/api/...` paths and does not define Pay business endpoints.
+- The transport only permits same-origin `/api/...` paths.
 - A reusable Pay data-state model exists for `idle`, `loading`, `ready`, `empty`, `error`, `unauthorized`, `forbidden`, `stale`, and `retryable`.
+- The typed Payment Intent service validates the released response shape before the Checkout UI consumes it.
 
-### Public HTTP surface on `main`
+### Released Pay HTTP surface on the feature branch
 
-The repository currently exposes public content APIs under `/api/v1/*`. The public API catalog currently advertises articles, Solana status, token tools, market context, and wallet analysis. No production Pay HTTP service is advertised there.
+The branch explicitly implements:
 
-Therefore the Pay frontend must not add a real `/api/pay/*` service client until the backend contract is explicitly production-enabled.
+`GET /api/pay/v1/payment-intents/:id`
+
+The endpoint is documented in `public/openapi.json`, advertised by the API catalogs, and routed through `public/_routes.json`. It uses a server-only Supabase credential and returns an explicit checkout-safe allowlist.
+
+Merchant-scoped dashboard APIs, mutations, refunds, webhook configuration, and other Pay services remain intentionally unreleased until their backend contracts are independently proven.
 
 ## Database source of truth
 
@@ -79,7 +84,7 @@ The authoritative database row contains, among other fields:
 - `status`
 - `verification_commitment`
 
-These values must remain server-authoritative. The frontend must not reconstruct or recalculate them as business truth.
+These values remain server-authoritative. The frontend does not reconstruct financial truth from other observations.
 
 ## Verification evidence
 
@@ -99,26 +104,24 @@ These values must remain server-authoritative. The frontend must not reconstruct
 - token mint/program/decimals
 - rejection reason
 
-The frontend must never infer `paid`, `confirmed`, `finalized`, or `verified` from a submitted signature alone.
+The frontend never treats a submitted signature, reference, or webhook delivery as payment success.
 
 ## Security evidence from live Supabase
 
-The current live database reported no RLS policies for the `pay_*` tables through `pg_policies`. RLS status therefore cannot be treated as equivalent to a verified merchant-isolation policy set.
+The current live database has no RLS policies for the `pay_*` tables through `pg_policies`. Therefore merchant isolation for future authenticated browser-facing operations is **not yet proven**.
 
-The live security advisor also reports mutable `search_path` configuration on these Pay routines:
+The four Pay routines previously flagged for mutable `search_path` were hardened on the live project and the same remediation is now persisted in the repository migration chain. Live verification confirms `search_path=public`, no `anon`/`authenticated` execution, and retained `service_role` execution.
 
-- `pay_reject_mutation`
-- `pay_reject_merchant_ledger_mutation`
-- `pay_insert_merchant_principal_entry`
-- `pay_skip_duplicate_payment_transfer`
-
-These are backend/security findings and must be remediated in the correct database/backend layer before sensitive Pay HTTP operations are exposed.
+The Supabase security advisor still reports unrelated pre-existing warnings on `pg_net` and several CMS/category helper functions. They are outside this Pay contract boundary and must not be mistaken for Pay-specific resolution.
 
 ## Frontend integration gates
 
-The following are intentionally blocked until the backend contract is production-ready:
+Currently released:
 
-1. Payment Intent fetch service
+1. Payment Intent public read snapshot
+
+Currently blocked pending backend contracts and release evidence:
+
 2. Merchant dashboard data service
 3. Transaction list/detail service
 4. Merchant management mutations
@@ -131,7 +134,7 @@ The following are intentionally blocked until the backend contract is production
 
 ## Required contract release evidence
 
-Before a Pay service is added to the frontend, the backend must provide:
+Every additional Pay service must provide before frontend integration:
 
 - production endpoint and HTTP method
 - authentication requirements
@@ -148,4 +151,6 @@ Before a Pay service is added to the frontend, the backend must provide:
 - security/RLS validation
 - production deployment evidence
 
-Once these are available, `src/pay/http.ts` can receive concrete service methods without changing the transport boundary.
+## Current decision
+
+The Payment Intent read contract is integrated at the frontend boundary. Pay remains unreleased for production use until RLS/tenant isolation, production deployment validation, complete lifecycle evidence, current CI, and a controlled non-production E2E checkout are green.
