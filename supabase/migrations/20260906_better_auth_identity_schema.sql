@@ -33,6 +33,7 @@ create table if not exists better_auth.account (
   user_id text not null references better_auth."user"(id) on delete cascade,
   account_id text not null,
   provider_id text not null,
+  issuer text not null,
   access_token text,
   refresh_token text,
   access_token_expires_at timestamptz,
@@ -42,11 +43,13 @@ create table if not exists better_auth.account (
   password text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (provider_id, account_id)
+  unique (issuer, account_id)
 );
 
 create index if not exists better_auth_account_user_id_idx
   on better_auth.account(user_id);
+create index if not exists better_auth_account_provider_id_idx
+  on better_auth.account(provider_id);
 
 create table if not exists better_auth.verification (
   id text primary key,
