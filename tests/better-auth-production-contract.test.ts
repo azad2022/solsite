@@ -21,6 +21,33 @@ test('Better Auth database boundary is isolated and production fail-closed', () 
   assert.match(source, /search_path=better_auth,public/);
 });
 
+test('Better Auth account schema matches the pinned 1.7.2 identity model', () => {
+  const runtime = read('functions/api/auth/_instance.ts');
+  const schema = read('supabase/migrations/20260906_better_auth_identity_schema.sql');
+  assert.match(schema, /issuer text not null/);
+  assert.match(schema, /unique \(issuer, account_id\)/);
+  assert.match(runtime, /identityStrategy:\s*'provider-id'/);
+  assert.match(runtime, /issuer:\s*'issuer'/);
+  assert.match(runtime, /encryptOAuthTokens:\s*true/);
+});
+
+test('OAuth account linking is explicit rather than implicit', () => {
+  const source = read('functions/api/auth/_instance.ts');
+  assert.match(source, /accountLinking:\s*\{/);
+  assert.match(source, /enabled:\s*true/);
+  assert.match(source, /disableImplicitLinking:\s*true/);
+  assert.match(source, /allowDifferentEmails:\s*false/);
+});
+
+test('Better Auth session cookie is secure and isolated from the legacy cookie', () => {
+  const source = read('functions/api/auth/_instance.ts');
+  assert.match(source, /__Host-solmint_auth_session/);
+  assert.match(source, /sameSite:\s*'strict'/);
+  assert.match(source, /httpOnly:\s*true/);
+  assert.match(source, /secure:\s*secureCookies/);
+  assert.doesNotMatch(source, /__Host-solmint_session/);
+});
+
 test('Better Auth identity schema is not browser-writable', () => {
   const source = read('supabase/migrations/20260906_better_auth_identity_schema.sql');
   assert.match(source, /create schema if not exists better_auth/);
