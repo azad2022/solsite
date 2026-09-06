@@ -2,7 +2,15 @@
 
 This directory is the dedicated frontend boundary for SolMint Pay.
 
-## Authoritative documents
+## Canonical frontend engineering instruction
+
+The complete frontend architecture, UX, security, i18n, responsive, accessibility, testing, integration and release direction is defined in:
+
+`docs/solmint-pay-frontend-master-instruction.md`
+
+This document is the canonical frontend engineering guide. Read it before changing Pay UI architecture or behavior.
+
+## Authoritative product and operational documents
 
 Product, economic and security authority:
 
@@ -20,7 +28,7 @@ Documentation is a contract, not implementation evidence. When code, database st
 
 ## Purpose
 
-SolMint Pay is a separate merchant-facing payment product exposed at `/pay` while remaining intentionally separate from the existing SolMint content, tools, and wallet UI.
+SolMint Pay is a separate merchant-facing payment product exposed at `/pay` while remaining intentionally separate from the existing Solmint content, tools, and wallet UI.
 
 The public route is intentionally disabled until the project release gates pass.
 
@@ -54,10 +62,10 @@ Security / FAQ / Status information
 ```text
 src/pay/
 ├── app/            Application bootstrap and feature flags
-├── assets/         SolMint Pay-only SVGs and imagery
+├── assets/         Solmint Pay-only SVGs and imagery
 ├── components/     Shared Pay design-system components
 ├── features/       Merchant, payments, checkout, invoices, referrals, webhooks, analytics, developer
-├── i18n/           Locale registry and translation catalogs
+├── i18n/            Locale registry and translation catalogs
 ├── layouts/        Public, merchant, checkout and developer layouts
 ├── pages/          Route-level Pay pages
 ├── services/       API/domain service boundaries
