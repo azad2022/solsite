@@ -26,23 +26,17 @@ function getGoogleProvider(env: BetterAuthRuntimeEnv) {
   };
 }
 
-/**
- * Build the Better Auth instance for one Pages Function request.
- *
- * The request-scoped construction is intentional: the PostgreSQL connection
- * comes from the Cloudflare Hyperdrive binding, whose lifecycle is managed by
- * the Workers platform rather than by a long-lived Node process.
- */
-export function createBetterAuth(env: BetterAuthRuntimeEnv) {
+export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
   const foundation = getBetterAuthFoundationConfig(env);
   const socialProviders = getGoogleProvider(env);
+  const database = createBetterAuthDatabase(env);
 
-  return betterAuth({
+  const auth = betterAuth({
     secret: foundation.secret,
     baseURL: foundation.baseURL,
     basePath: '/api/auth',
     trustedOrigins: foundation.trustedOrigins,
-    database: createBetterAuthDatabase(env),
+    database,
     account: {
       identityStrategy: 'provider-id',
     },
@@ -82,7 +76,13 @@ export function createBetterAuth(env: BetterAuthRuntimeEnv) {
       },
     },
   });
+
+  return { auth, database };
+}
+
+export function createBetterAuth(env: BetterAuthRuntimeEnv) {
+  return createBetterAuthRuntime(env).auth;
 }
 
 export type SolmintBetterAuth = ReturnType<typeof createBetterAuth>;
-export type SolmintBetterAuthEnv = BetterAuthRuntimeEnv;
+export type SolmintBetterAuthRuntimeEnv = BetterAuthRuntimeEnv;
