@@ -23,18 +23,11 @@ type PaymentIntentRow = {
   status: string;
   expires_at: string;
   customer_total_atomic: string | number;
-  merchant_net_atomic: string | number;
-  fee_recipient: string;
   network: string;
-  merchant_settlement_atomic: string | number;
   verification_commitment: string;
 };
 
-type MerchantRow = {
-  id: string;
-  business_name: string;
-  status: string;
-};
+type MerchantRow = { id: string; business_name: string; status: string };
 
 const PUBLIC_STATUS = new Set([
   'created', 'pending', 'detected', 'verifying', 'confirmed', 'completed',
@@ -45,15 +38,12 @@ const PUBLIC_STATUS = new Set([
 const PAYMENT_INTENT_SELECT = [
   'id', 'merchant_id', 'amount_atomic', 'asset', 'token_mint', 'token_program',
   'token_decimals', 'recipient', 'reference', 'fee_bps', 'fee_payer', 'fee_atomic',
-  'gas_sponsored', 'status', 'expires_at', 'customer_total_atomic', 'merchant_net_atomic',
-  'fee_recipient', 'network', 'merchant_settlement_atomic', 'verification_commitment'
+  'gas_sponsored', 'status', 'expires_at', 'customer_total_atomic', 'network',
+  'verification_commitment'
 ].join(',');
 
 async function supabaseGet<T>(base: string, headers: Record<string, string>, query: string): Promise<T[]> {
-  const response = await fetch(`${base}/rest/v1/${query}`, {
-    method: 'GET',
-    headers: { ...headers, 'Cache-Control': 'no-store' }
-  });
+  const response = await fetch(`${base}/rest/v1/${query}`, { method: 'GET', headers: { ...headers, 'Cache-Control': 'no-store' } });
   if (!response.ok) throw new Error(`Supabase request failed with ${response.status}`);
   return await response.json() as T[];
 }
@@ -62,14 +52,9 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function atomic(value: string | number): string {
-  return String(value);
-}
+function atomic(value: string | number): string { return String(value); }
 
-export const onRequestOptions = async ({ request }: { request: Request }) => {
-  const options = handleOptions(request);
-  return options || new Response(null, { status: 204 });
-};
+export const onRequestOptions = async ({ request }: { request: Request }) => handleOptions(request) || new Response(null, { status: 204 });
 
 export const onRequestGet = async ({ request, env, params }: { request: Request; env: Env; params: { id?: string } }) => {
   const options = handleOptions(request);
@@ -79,42 +64,24 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
   if (!isUuid(id)) return error(request, 'PAYMENT_INTENT_ID_INVALID', 'Payment Intent ID is invalid.', 400);
 
   let supabase;
-  try {
-    supabase = supabaseSecret(env);
-  } catch {
-    return error(request, 'PAYMENT_SERVICE_MISCONFIGURED', 'Payment service is not configured.', 503);
-  }
+  try { supabase = supabaseSecret(env); } catch { return error(request, 'PAYMENT_SERVICE_MISCONFIGURED', 'Payment service is not configured.', 503); }
 
   try {
-    const paymentRows = await supabaseGet<PaymentIntentRow>(
-      supabase.base,
-      supabase.headers,
-      `pay_payment_intents?select=${PAYMENT_INTENT_SELECT}&id=eq.${encodeURIComponent(id)}&limit=1`
-    );
-
+    const paymentRows = await supabaseGet<PaymentIntentRow>(supabase.base, supabase.headers, `pay_payment_intents?select=${PAYMENT_INTENT_SELECT}&id=eq.${encodeURIComponent(id)}&limit=1`);
     const payment = paymentRows[0];
     if (!payment) return error(request, 'PAYMENT_INTENT_NOT_FOUND', 'Payment Intent was not found.', 404);
     if (!PUBLIC_STATUS.has(payment.status)) return error(request, 'PAYMENT_INTENT_STATE_INVALID', 'Payment Intent state is invalid.', 500);
 
-    const merchantRows = await supabaseGet<MerchantRow>(
-      supabase.base,
-      supabase.headers,
-      `pay_merchants?select=id,business_name,status&id=eq.${encodeURIComponent(payment.merchant_id)}&limit=1`
-    );
+    const merchantRows = await supabaseGet<MerchantRow>(supabase.base, supabase.headers, `pay_merchants?select=id,business_name,status&id=eq.${encodeURIComponent(payment.merchant_id)}&limit=1`);
     const merchant = merchantRows[0];
-    if (!merchant || merchant.status !== 'active') {
-      return error(request, 'MERCHANT_UNAVAILABLE', 'Merchant is not available for checkout.', 404);
-    }
+    if (!merchant || merchant.status !== 'active') return error(request, 'MERCHANT_UNAVAILABLE', 'Merchant is not available for checkout.', 404);
 
     return json(request, {
       success: true,
       apiVersion: 'v1',
       data: {
         id: payment.id,
-        merchant: {
-          id: merchant.id,
-          businessName: merchant.business_name
-        },
+        merchant: { id: merchant.id, businessName: merchant.business_name },
         amountAtomic: atomic(payment.amount_atomic),
         asset: payment.asset,
         tokenMint: payment.token_mint,
@@ -129,10 +96,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
         status: payment.status,
         expiresAt: payment.expires_at,
         customerTotalAtomic: atomic(payment.customer_total_atomic),
-        merchantNetAtomic: atomic(payment.merchant_net_atomic),
-        feeRecipient: payment.fee_recipient,
         network: payment.network,
-        merchantSettlementAtomic: atomic(payment.merchant_settlement_atomic),
         verificationCommitment: payment.verification_commitment
       }
     }, 200, 'no-store');
