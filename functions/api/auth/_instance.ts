@@ -34,6 +34,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
   const foundation = getBetterAuthFoundationConfig(env);
   const socialProviders = getGoogleProvider(env);
   const database = createBetterAuthDatabase(env);
+  const secureCookies = foundation.baseURL.startsWith('https://');
 
   const auth = betterAuth({
     secret: foundation.secret,
@@ -65,10 +66,17 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     account: {
       identityStrategy: 'provider-id',
       modelName: 'account',
+      accountLinking: {
+        enabled: true,
+        disableImplicitLinking: true,
+        allowDifferentEmails: false,
+      },
+      encryptOAuthTokens: true,
       fields: {
         userId: 'user_id',
         accountId: 'account_id',
         providerId: 'provider_id',
+        issuer: 'issuer',
         accessToken: 'access_token',
         refreshToken: 'refresh_token',
         accessTokenExpiresAt: 'access_token_expires_at',
@@ -124,6 +132,18 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       },
       database: {
         joins: true,
+      },
+      useSecureCookies: secureCookies,
+      cookies: {
+        session_token: {
+          name: secureCookies ? '__Host-solmint_auth_session' : 'solmint_auth_session',
+          attributes: {
+            httpOnly: true,
+            secure: secureCookies,
+            sameSite: 'strict',
+            path: '/',
+          },
+        },
       },
     },
     rateLimit: {
