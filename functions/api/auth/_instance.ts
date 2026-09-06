@@ -92,7 +92,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
         const email = buildPasswordResetEmail(user.name, url);
-        await sendAuthEmail(env, { to: user.email, ...email });
+        void sendAuthEmail(env, { to: user.email, ...email }).catch(() => {});
       },
     },
     emailVerification: {
@@ -101,7 +101,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
         const email = buildVerificationEmail(user.name, url);
-        await sendAuthEmail(env, { to: user.email, ...email });
+        void sendAuthEmail(env, { to: user.email, ...email }).catch(() => {});
       },
     },
     plugins: [
@@ -136,26 +136,11 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       window: 60,
       max: 100,
       customRules: {
-        '/sign-in/email': {
-          window: 60,
-          max: 5,
-        },
-        '/sign-in/username': {
-          window: 60,
-          max: 5,
-        },
-        '/sign-up/email': {
-          window: 60,
-          max: 3,
-        },
-        '/request-password-reset': {
-          window: 60,
-          max: 3,
-        },
-        '/send-verification-email': {
-          window: 60,
-          max: 3,
-        },
+        '/sign-in/email': { window: 60, max: 5 },
+        '/sign-in/username': { window: 60, max: 5 },
+        '/sign-up/email': { window: 60, max: 3 },
+        '/request-password-reset': { window: 60, max: 3 },
+        '/send-verification-email': { window: 60, max: 3 },
       },
     },
   });
