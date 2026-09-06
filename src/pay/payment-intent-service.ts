@@ -22,10 +22,7 @@ export interface PayPaymentIntent {
   readonly status: PayPaymentStatus;
   readonly expiresAt: string;
   readonly customerTotalAtomic: string;
-  readonly merchantNetAtomic: string;
-  readonly feeRecipient: string;
   readonly network: string;
-  readonly merchantSettlementAtomic: string;
   readonly verificationCommitment: 'confirmed' | 'finalized';
 }
 
@@ -58,7 +55,7 @@ function nullableString(value: unknown, name: string): string | null {
 
 function requiredInteger(value: unknown, name: string): number {
   if (!Number.isInteger(value)) throw new TypeError(`Invalid Pay contract field: ${name}`);
-  return value;
+  return value as number;
 }
 
 function requiredBoolean(value: unknown, name: string): boolean {
@@ -103,10 +100,7 @@ function parsePaymentIntent(payload: unknown): PayPaymentIntent {
     status: status as PayPaymentStatus,
     expiresAt: requiredString(data.expiresAt, 'expiresAt'),
     customerTotalAtomic: requiredString(data.customerTotalAtomic, 'customerTotalAtomic'),
-    merchantNetAtomic: requiredString(data.merchantNetAtomic, 'merchantNetAtomic'),
-    feeRecipient: requiredString(data.feeRecipient, 'feeRecipient'),
     network: requiredString(data.network, 'network'),
-    merchantSettlementAtomic: requiredString(data.merchantSettlementAtomic, 'merchantSettlementAtomic'),
     verificationCommitment: commitment,
   };
 }
