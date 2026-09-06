@@ -16,6 +16,12 @@ function toPem(key: Buffer): string {
   return `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----`;
 }
 
+function toArrayBuffer(value: Buffer): ArrayBuffer {
+  const copy = new ArrayBuffer(value.byteLength);
+  new Uint8Array(copy).set(value);
+  return copy;
+}
+
 function decodeBase64Url(value: string): Buffer {
   const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4);
   return Buffer.from(padded, 'base64');
@@ -44,7 +50,7 @@ async function assertSignatureVerifies(
 ): Promise<void> {
   const [headerPart, payloadPart, signaturePart] = token.split('.');
   assert.ok(headerPart && payloadPart && signaturePart);
-  const signature = decodeBase64Url(signaturePart);
+  const signature = toArrayBuffer(decodeBase64Url(signaturePart));
   assert.equal(
     await crypto.subtle.verify(algorithm, publicKey, signature, new TextEncoder().encode(`${headerPart}.${payloadPart}`)),
     true,
@@ -94,7 +100,7 @@ test('mints and verifies an ES256 JWT with only the trusted identity claims', as
 
   const publicKey = await crypto.subtle.importKey(
     'spki',
-    privateKey.export({ type: 'spki', format: 'der' }),
+    toArrayBuffer(privateKey.export({ type: 'spki', format: 'der' }) as Buffer),
     { name: 'ECDSA', namedCurve: 'P-256' },
     false,
     ['verify'],
@@ -116,7 +122,7 @@ test('mints and verifies a real RS256 JWT', async () => {
 
   const publicKey = await crypto.subtle.importKey(
     'spki',
-    publicDer,
+    toArrayBuffer(publicDer),
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['verify'],
