@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
 import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './types';
-import { checkoutIntentIdFromPath, isPayCheckoutPath, normalizePayPath, pathForPaySection, sectionFromPayPath } from './routing';
+import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
 import './pay.css';
