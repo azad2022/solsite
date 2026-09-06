@@ -7,6 +7,7 @@ import {
 import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
 import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './types';
 import { checkoutIntentIdFromPath, isPayCheckoutPath, normalizePayPath, pathForPaySection, sectionFromPayPath } from './routing';
+import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
 import './pay.css';
 
@@ -26,8 +27,9 @@ export function PayApp(): React.ReactElement {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const direction = directionFor(locale);
-  const isCheckout = isPayCheckoutPath(currentPath);
-  const currentSection = sectionFromPayPath(currentPath);
+  const route = matchPayRoute(currentPath);
+  const isCheckout = route.kind === 'checkout';
+  const currentSection: PaySection = route.kind === 'dashboard' ? route.section : 'overview';
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -49,8 +51,24 @@ export function PayApp(): React.ReactElement {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   };
 
+  if (route.kind === 'not-found') {
+    return (
+      <div className="solmint-pay" dir={direction} lang={locale}>
+        <main className="pay-not-found" aria-labelledby="pay-not-found-title">
+          <div className="pay-not-found-card">
+            <div className="pay-empty-icon"><LayoutDashboard size={21} /></div>
+            <span className="pay-panel-kicker">{translate(locale, 'dashboard')}</span>
+            <h1 id="pay-not-found-title">{translate(locale, 'noData')}</h1>
+            <p>{translate(locale, 'sectionDescription')}</p>
+            <button type="button" className="pay-primary-action" onClick={() => navigate('overview')}>{translate(locale, 'backToPay')}</button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (isCheckout) {
-    return <PayCheckout locale={locale} intentId={checkoutIntentIdFromPath(currentPath)} onBack={() => navigate('overview')} />;
+    return <PayCheckout locale={locale} intentId={route.kind === 'checkout' ? route.intentId : undefined} onBack={() => navigate('overview')} />;
   }
 
   const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : sectionLabel(locale, currentSection);
