@@ -42,6 +42,7 @@ const SolanaPriceSeoEnhancer = lazy(() => import('./components/SolanaPriceSeoEnh
 const SolanaMarketInsights = lazy(() => import('./components/SolanaMarketInsights').then(m => ({ default: m.SolanaMarketInsights })));
 const AppShowcaseAdminPanel = lazy(() => import('./components/AppShowcaseAdminPanel').then(m => ({ default: m.AppShowcaseAdminPanel })));
 const MemeTickerAdminPanel = lazy(() => import('./components/MemeTickerAdminPanel').then(m => ({ default: m.MemeTickerAdminPanel })));
+const PayApp = lazy(() => import('./pay/PayApp').then(m => ({ default: m.PayApp })));
 
 const normalizePath = (path: string) => { const withoutQuery = (path || '/').split('?')[0].split('#')[0]; const normalized = withoutQuery.replace(/\/+$/, ''); return normalized || '/'; };
 const SuspenseFallback = () => <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-sm"><div className="w-8 h-8 border-2 border-[#14F195] border-t-transparent rounded-full animate-spin" /></div>;
@@ -240,6 +241,10 @@ export default function App() {
   const openAdminModal = () => setIsAdminModalOpen(true);
   const isPrivilegedAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.username === 'admin';
   const scrollToFeatures = () => { if (currentPath !== '/') { handleNavigate('/'); setTimeout(() => document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }), 150); } else document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }); };
+
+  if (currentPath === '/pay' || currentPath.startsWith('/pay/')) {
+    return <Suspense fallback={<SuspenseFallback />}><PayApp /></Suspense>;
+  }
 
   return <div className="min-h-screen bg-[#08080f] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif] antialiased relative selection:bg-[#9945FF] selection:text-white">
     <Suspense fallback={null}><ParticleCanvas /></Suspense>
