@@ -2,134 +2,90 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Solmint Public API",
-    "version": "1.0.0",
-    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, and wallet analysis. These APIs do not accept seed phrases, private keys, passwords, or signing credentials."
+    "version": "1.1.0",
+    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, wallet analysis, and the public Pay checkout snapshot. These APIs do not accept seed phrases, private keys, passwords, or signing credentials."
   },
   "servers": [{ "url": "https://solmint.ir" }],
   "paths": {
     "/api/health": {
-      "get": {
-        "operationId": "getHealth",
-        "summary": "Public API health",
-        "responses": { "200": { "description": "Service is reachable" } }
-      }
+      "get": { "operationId": "getHealth", "summary": "Public API health", "responses": { "200": { "description": "Service is reachable" } } }
     },
     "/api/articles": {
-      "get": {
-        "operationId": "listPublicArticles",
-        "summary": "List published public articles",
-        "responses": {
-          "200": {
-            "description": "Published articles",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleListResponse" } } }
-          },
-          "502": { "description": "Upstream article service unavailable" },
-          "503": { "description": "Article service temporarily unavailable" }
-        }
-      }
+      "get": { "operationId": "listPublicArticles", "summary": "List published public articles", "responses": { "200": { "description": "Published articles", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleListResponse" } } } }, "502": { "description": "Upstream article service unavailable" }, "503": { "description": "Article service temporarily unavailable" } } }
     },
     "/api/solana/status": {
-      "get": {
-        "operationId": "getSolanaStatus",
-        "summary": "Read current Solana network status data",
-        "responses": {
-          "200": { "description": "Current Solana status payload" }
-        }
-      }
+      "get": { "operationId": "getSolanaStatus", "summary": "Read current Solana network status data", "responses": { "200": { "description": "Current Solana status payload" } } }
     },
     "/api/tools/solana-token": {
-      "get": {
-        "operationId": "inspectSolanaToken",
-        "summary": "Inspect a Solana token mint on-chain",
-        "parameters": [
-          { "$ref": "#/components/parameters/Mint" },
-          { "name": "mode", "in": "query", "required": false, "schema": { "type": "string", "enum": ["token", "extensions"], "default": "token" } }
-        ],
-        "responses": {
-          "200": { "description": "On-chain mint information" },
-          "400": { "description": "Invalid mint address" },
-          "404": { "description": "Mint account not found" },
-          "422": { "description": "Address is not a token mint account" },
-          "502": { "description": "Solana RPC unavailable" }
-        }
-      }
+      "get": { "operationId": "inspectSolanaToken", "summary": "Inspect a Solana token mint on-chain", "parameters": [{ "$ref": "#/components/parameters/Mint" }, { "name": "mode", "in": "query", "required": false, "schema": { "type": "string", "enum": ["token", "extensions"], "default": "token" } }], "responses": { "200": { "description": "On-chain mint information" }, "400": { "description": "Invalid mint address" }, "404": { "description": "Mint account not found" }, "422": { "description": "Address is not a token mint account" }, "502": { "description": "Solana RPC unavailable" } } }
     },
     "/api/tools/token-risk": {
-      "get": {
-        "operationId": "analyzeTokenRisk",
-        "summary": "Return an explainable rule-based token risk profile",
-        "parameters": [{ "$ref": "#/components/parameters/Mint" }],
-        "responses": {
-          "200": { "description": "Combined on-chain and market observations" },
-          "400": { "description": "Invalid mint address" },
-          "503": { "description": "Required upstream data unavailable" }
-        }
-      }
+      "get": { "operationId": "analyzeTokenRisk", "summary": "Return an explainable rule-based token risk profile", "parameters": [{ "$ref": "#/components/parameters/Mint" }], "responses": { "200": { "description": "Combined on-chain and market observations" }, "400": { "description": "Invalid mint address" }, "503": { "description": "Required upstream data unavailable" } } }
     },
     "/api/tools/market-context": {
-      "get": {
-        "operationId": "getMarketContext",
-        "summary": "Get DEX market context for a Solana token mint",
-        "parameters": [{ "$ref": "#/components/parameters/Mint" }],
-        "responses": {
-          "200": { "description": "DEX pair and market observations" },
-          "400": { "description": "Invalid mint address" },
-          "502": { "description": "Market data provider error" },
-          "503": { "description": "Market data provider unavailable" }
-        }
-      }
+      "get": { "operationId": "getMarketContext", "summary": "Get DEX market context for a Solana token mint", "parameters": [{ "$ref": "#/components/parameters/Mint" }], "responses": { "200": { "description": "DEX pair and market observations" }, "400": { "description": "Invalid mint address" }, "502": { "description": "Market data provider error" }, "503": { "description": "Market data provider unavailable" } } }
     },
     "/api/wallet/analyze": {
+      "get": { "operationId": "analyzePublicSolanaWallet", "summary": "Read-only analysis of a public Solana wallet address", "parameters": [{ "$ref": "#/components/parameters/Address" }], "responses": { "200": { "description": "Observed wallet balances, tokens, activity, and source availability" }, "400": { "description": "Invalid Solana public address" }, "502": { "description": "Upstream data provider error" }, "503": { "description": "Solana data temporarily unavailable" } } }
+    },
+    "/api/pay/v1/payment-intents/{id}": {
       "get": {
-        "operationId": "analyzePublicSolanaWallet",
-        "summary": "Read-only analysis of a public Solana wallet address",
-        "parameters": [{ "$ref": "#/components/parameters/Address" }],
+        "operationId": "getPayPaymentIntent",
+        "summary": "Read the authoritative public checkout snapshot for a Payment Intent",
+        "description": "Returns only the server-owned checkout fields required to render a Payment Intent. The response does not assert payment success merely because a transaction was submitted; payment status remains authoritative on the server.",
+        "parameters": [{ "$ref": "#/components/parameters/PaymentIntentId" }],
         "responses": {
-          "200": { "description": "Observed wallet balances, tokens, activity, and source availability" },
-          "400": { "description": "Invalid Solana public address" },
-          "502": { "description": "Upstream data provider error" },
-          "503": { "description": "Solana data temporarily unavailable" }
+          "200": { "description": "Authoritative Payment Intent checkout snapshot", "headers": { "X-Request-Id": { "$ref": "#/components/headers/XRequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentIntentResponse" } } } },
+          "400": { "description": "Invalid Payment Intent ID" },
+          "404": { "description": "Payment Intent not found or merchant unavailable" },
+          "502": { "description": "Payment service read failed" },
+          "503": { "description": "Payment service is misconfigured" }
         }
       }
     }
   },
   "components": {
     "parameters": {
-      "Mint": {
-        "name": "mint",
-        "in": "query",
-        "required": true,
-        "description": "A Solana token Mint address (Base58, 32-44 characters).",
-        "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
-      },
-      "Address": {
-        "name": "address",
-        "in": "query",
-        "required": true,
-        "description": "A public Solana wallet address. Never send seed phrases or private keys.",
-        "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
-      }
+      "Mint": { "name": "mint", "in": "query", "required": true, "description": "A Solana token Mint address (Base58, 32-44 characters).", "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" } },
+      "Address": { "name": "address", "in": "query", "required": true, "description": "A public Solana wallet address. Never send seed phrases or private keys.", "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" } },
+      "PaymentIntentId": { "name": "id", "in": "path", "required": true, "description": "Payment Intent UUID.", "schema": { "type": "string", "format": "uuid" } }
+    },
+    "headers": {
+      "XRequestId": { "description": "Optional upstream request correlation identifier when supplied by the platform.", "schema": { "type": "string", "maxLength": 128 } }
     },
     "schemas": {
-      "ArticleListResponse": {
+      "ArticleListResponse": { "type": "object", "required": ["success", "articles"], "properties": { "success": { "type": "boolean" }, "articles": { "type": "array", "items": { "$ref": "#/components/schemas/Article" } } } },
+      "Article": { "type": "object", "required": ["id", "title", "slug", "category", "summary"], "properties": { "id": { "type": "string" }, "title": { "type": "string" }, "slug": { "type": "string" }, "category": { "type": "string" }, "tags": { "type": "array", "items": { "type": "string" } }, "summary": { "type": "string" }, "publishedAt": { "type": "string", "format": "date-time" } } },
+      "PaymentIntentResponse": {
         "type": "object",
-        "required": ["success", "articles"],
+        "required": ["success", "apiVersion", "data"],
         "properties": {
-          "success": { "type": "boolean" },
-          "articles": { "type": "array", "items": { "$ref": "#/components/schemas/Article" } }
-        }
-      },
-      "Article": {
-        "type": "object",
-        "required": ["id", "title", "slug", "category", "summary"],
-        "properties": {
-          "id": { "type": "string" },
-          "title": { "type": "string" },
-          "slug": { "type": "string" },
-          "category": { "type": "string" },
-          "tags": { "type": "array", "items": { "type": "string" } },
-          "summary": { "type": "string" },
-          "publishedAt": { "type": "string", "format": "date-time" }
+          "success": { "const": true },
+          "apiVersion": { "const": "v1" },
+          "data": {
+            "type": "object",
+            "required": ["id", "merchant", "amountAtomic", "asset", "tokenMint", "tokenProgram", "tokenDecimals", "recipient", "reference", "feeBps", "feePayer", "feeAtomic", "gasSponsored", "status", "expiresAt", "customerTotalAtomic", "network", "verificationCommitment"],
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "merchant": { "type": "object", "required": ["id", "businessName"], "properties": { "id": { "type": "string", "format": "uuid" }, "businessName": { "type": "string", "minLength": 1 } } },
+              "amountAtomic": { "type": "string", "pattern": "^[0-9]+$" },
+              "asset": { "type": "string", "enum": ["SOL", "USDC", "USDT"] },
+              "tokenMint": { "type": ["string", "null"] },
+              "tokenProgram": { "type": ["string", "null"] },
+              "tokenDecimals": { "type": ["integer", "null"], "minimum": 0, "maximum": 255 },
+              "recipient": { "type": "string", "minLength": 32, "maxLength": 44 },
+              "reference": { "type": "string", "minLength": 32, "maxLength": 44 },
+              "feeBps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+              "feePayer": { "type": "string", "enum": ["merchant", "customer"] },
+              "feeAtomic": { "type": "string", "pattern": "^[0-9]+$" },
+              "gasSponsored": { "type": "boolean" },
+              "status": { "type": "string", "enum": ["created", "pending", "detected", "verifying", "confirmed", "completed", "expired", "underpaid", "overpaid", "wrong_token", "wrong_recipient", "duplicate", "ambiguous", "failed", "refunded"] },
+              "expiresAt": { "type": "string", "format": "date-time" },
+              "customerTotalAtomic": { "type": "string", "pattern": "^[0-9]+$" },
+              "network": { "type": "string", "const": "solana" },
+              "verificationCommitment": { "type": "string", "enum": ["confirmed", "finalized"] }
+            }
+          }
         }
       }
     }
