@@ -19,7 +19,7 @@ app.post('/internal/pay/webhook-egress', async (req, res) => {
         else if (Array.isArray(value)) headers.set(key, value.join(', '));
         return headers;
       }, new Headers()),
-      body: Buffer.isBuffer(req.body) ? req.body.toString('utf8') : undefined,
+      body: Buffer.isBuffer(req.body) ? req.body : undefined,
     });
     const response = await handleWebhookEgressRequest(request, { secret });
     res.status(response.status);
