@@ -9,6 +9,7 @@ import {
   PAY_INTERNAL_JWT_ROLE,
   PAY_INTERNAL_JWT_MAX_TTL_SECONDS,
   validatePayInternalJwtConfig,
+  verifyLiveJwtTrust,
 } from '../functions/api/pay/_shared/internal-jwt.ts';
 
 function toPem(key: Buffer): string {
@@ -40,6 +41,27 @@ function makeEnv(algorithm: 'ES256' | 'RS256', privateKey: Buffer, ttl?: string)
     SUPABASE_INTERNAL_JWT_ISSUER: 'https://issuer.example.test',
     SUPABASE_INTERNAL_JWT_AUDIENCE: 'authenticated',
     ...(ttl === undefined ? {} : { SUPABASE_INTERNAL_JWT_TTL_SECONDS: ttl }),
+  };
+}
+
+function makeTrustEnv(algorithm: 'ES256' | 'RS256' = 'ES256') {
+  return {
+    SUPABASE_URL: 'https://example.test',
+    SUPABASE_INTERNAL_JWT_ALGORITHM: algorithm,
+    SUPABASE_INTERNAL_JWT_KEY_ID: 'pay-live-kid',
+    SUPABASE_INTERNAL_JWT_ISSUER: 'https://example.test/auth/v1',
+    SUPABASE_INTERNAL_JWT_AUDIENCE: 'authenticated',
+  };
+}
+
+function makeFetch(responses: Record<string, unknown>): typeof fetch {
+  return async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (!(url in responses)) throw new Error(`Unexpected fetch URL: ${url}`);
+    return new Response(JSON.stringify(responses[url]), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
   };
 }
 
@@ -161,4 +183,61 @@ test('rejects unsafe internal user identities', async () => {
   await assert.rejects(() => mintPayInternalJwt(env, 'line\nbreak', 1_700_000_000), /unsupported characters/);
   await assert.rejects(() => mintPayInternalJwt(env, 'کاربر', 1_700_000_000), /unsupported characters/);
   await assert.rejects(() => mintPayInternalJwt(env, 'x'.repeat(257), 1_700_000_000), /user id is invalid/);
+});
+
+test('verifies live issuer, JWKS endpoint, key id, algorithm and key usage', async () => {
+  const env = makeTrustEnv('ES256');
+  const fetchImpl = makeFetch({
+    'https://example.test/auth/v1/.well-known/openid-configuration': {
+      issuer: 'https://example.test/auth/v1',
+      jwks_uri: 'https://example.test/auth/v1/.well-known/jwks.json',
+    },
+    'https://example.test/auth/v1/.well-known/jwks.json': {
+      keys: [{ kid: 'pay-live-kid', alg: 'ES256', kty: 'EC', crv: 'P-256', use: 'sig', key_ops: ['verify'] }],
+    },
+  });
+
+  const evidence = await verifyLiveJwtTrust(env, fetchImpl);
+  assert.deepEqual(evidence, {
+    status: 'verified',
+    supabaseUrl: 'https://example.test',
+    issuer: 'https://example.test/auth/v1',
+    jwksUri: 'https://example.test/auth/v1/.well-known/jwks.json',
+    algorithm: 'ES256',
+    kid: 'pay-live-kid',
+    audience: 'authenticated',
+    audienceVerification: 'explicit-config-only',
+  });
+});
+
+test('rejects unsafe or ambiguous live signing keys', async () => {
+  const base = {
+    'https://example.test/auth/v1/.well-known/openid-configuration': {
+      issuer: 'https://example.test/auth/v1',
+      jwks_uri: 'https://example.test/auth/v1/.well-known/jwks.json',
+    },
+  };
+
+  await assert.rejects(
+    () => verifyLiveJwtTrust(makeTrustEnv('ES256'), makeFetch({
+      ...base,
+      'https://example.test/auth/v1/.well-known/jwks.json': {
+        keys: [{ kid: 'pay-live-kid', alg: 'ES256', kty: 'EC', crv: 'P-256', use: 'enc', key_ops: ['verify'] }],
+      },
+    })),
+    /not advertised for signatures/,
+  );
+
+  await assert.rejects(
+    () => verifyLiveJwtTrust(makeTrustEnv('ES256'), makeFetch({
+      ...base,
+      'https://example.test/auth/v1/.well-known/jwks.json': {
+        keys: [
+          { kid: 'pay-live-kid', alg: 'ES256', kty: 'EC', crv: 'P-256', use: 'sig', key_ops: ['verify'] },
+          { kid: 'pay-live-kid', alg: 'ES256', kty: 'EC', crv: 'P-256', use: 'sig', key_ops: ['verify'] },
+        ],
+      },
+    })),
+    /ambiguous/,
+  );
 });
