@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Clock3, LockKeyhole, ReceiptText, RefreshCcw, ShieldCheck, WalletCards } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock3, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from 'lucide-react';
 import { checkoutLabel } from './checkout-i18n';
 import { directionFor, translate } from './i18n';
 import { PayHttpError } from './http';
@@ -24,14 +24,18 @@ function dataStateForError(error: unknown): 'error' | 'empty' | 'unauthorized' |
   return 'error';
 }
 
-function formatAtomic(value: string, decimals: number | null): string {
+function presentationDecimals(asset: string, tokenDecimals: number | null): number {
+  if (tokenDecimals !== null) return tokenDecimals;
+  return asset === 'SOL' ? 9 : 0;
+}
+
+function formatAtomic(value: string, decimals: number): string {
   const normalized = value.trim();
   if (!/^\d+$/.test(normalized)) return normalized;
-  const scale = decimals ?? 0;
-  if (scale === 0) return normalized;
-  const padded = normalized.padStart(scale + 1, '0');
-  const whole = padded.slice(0, -scale) || '0';
-  const fraction = padded.slice(-scale).replace(/0+$/, '');
+  if (decimals === 0) return normalized;
+  const padded = normalized.padStart(decimals + 1, '0');
+  const whole = padded.slice(0, -decimals) || '0';
+  const fraction = padded.slice(-decimals).replace(/0+$/, '');
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
@@ -63,13 +67,15 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     } catch (cause) {
       setIntent(null);
       setState(dataStateForError(cause));
-      setErrorMessage(cause instanceof Error && !(cause instanceof PayHttpError) ? cause.message : checkoutLabel(locale, 'loadFailed'));
+      setErrorMessage(checkoutLabel(locale, 'loadFailed'));
     }
   }, [intentId, locale]);
 
   useEffect(() => {
     void loadIntent();
   }, [loadIntent]);
+
+  const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
 
   return (
     <div className="solmint-pay pay-checkout" dir={direction} lang={locale}>
@@ -95,14 +101,14 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
           </div>
 
           {state !== 'ready' ? (
-            <PayDataStateView locale={locale} state={state} message={state === 'error' ? errorMessage : undefined} onRetry={state === 'retryable' ? () => void loadIntent() : undefined} />
+            <PayDataStateView locale={locale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent() : undefined} />
           ) : intent ? (
             <>
               <div className="pay-checkout-status-grid">
                 <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'merchant')}</span><strong>{intent.merchant.businessName}</strong></div></div>
-                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, intent.tokenDecimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, intent.tokenDecimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><CircleDollarSignFallback /><div><span>{checkoutLabel(locale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, intent.tokenDecimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(locale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'intentStatus')}</span><SnapshotValue value={intent.status} /></div></div>
                 <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(locale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
               </div>
@@ -127,10 +133,6 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       </main>
     </div>
   );
-}
-
-function CircleDollarSignFallback(): React.ReactElement {
-  return <span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span>;
 }
 
 export default PayCheckout;
