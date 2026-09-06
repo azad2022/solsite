@@ -39,7 +39,12 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
   const legacyUser = await findUser(env, username).catch(() => null);
   if (!legacyUser || legacyUser.is_active === false) return genericResponse();
 
-  const passwordResult = await verifyPassword(password, legacyUser.password_hash).catch(() => ({ valid: false }));
+  let passwordResult: Awaited<ReturnType<typeof verifyPassword>>;
+  try {
+    passwordResult = await verifyPassword(password, legacyUser.password_hash);
+  } catch {
+    passwordResult = { valid: false };
+  }
   if (!passwordResult.valid) return genericResponse();
   if (passwordResult.upgradedHash) await upgradePasswordHash(env, legacyUser.id, passwordResult.upgradedHash).catch(() => {});
 
