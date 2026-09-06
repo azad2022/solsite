@@ -27,10 +27,12 @@ test('Pay navigation produces canonical section paths', () => {
   assert.equal(pathForPaySection('security'), '/pay/security');
 });
 
-test('Checkout is a separate Pay boundary and preserves an optional intent identifier', () => {
+test('Checkout accepts exactly one optional intent path segment', () => {
   assert.equal(isPayCheckoutPath('/pay/checkout'), true);
   assert.equal(isPayCheckoutPath('/pay/checkout/intent_123'), true);
   assert.equal(checkoutIntentIdFromPath('/pay/checkout'), undefined);
   assert.equal(checkoutIntentIdFromPath('/pay/checkout/intent_123'), 'intent_123');
+  assert.equal(isPayCheckoutPath('/pay/checkout/intent_123/details'), false);
+  assert.equal(checkoutIntentIdFromPath('/pay/checkout/intent_123/details'), undefined);
   assert.equal(isPayCheckoutPath('/pay/transactions'), false);
 });
