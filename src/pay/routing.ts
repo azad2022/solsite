@@ -26,7 +26,9 @@ export function isPaySection(value: string): value is PaySection {
 
 export function isPayCheckoutPath(pathname: string): boolean {
   const normalized = normalizePayPath(pathname);
-  return normalized === PAY_CHECKOUT_PREFIX || normalized.startsWith(`${PAY_CHECKOUT_PREFIX}/`);
+  if (normalized === PAY_CHECKOUT_PREFIX) return true;
+  const suffix = normalized.slice(`${PAY_CHECKOUT_PREFIX}/`.length);
+  return normalized.startsWith(`${PAY_CHECKOUT_PREFIX}/`) && Boolean(suffix) && !suffix.includes('/');
 }
 
 export function checkoutIntentIdFromPath(pathname: string): string | undefined {
