@@ -222,20 +222,39 @@ async function getLegacyAuthenticatedUser(env: Env, request: Request): Promise<A
   return user;
 }
 
+export interface BetterAuthApplicationResolverUser {
+  id: string;
+  applicationUserId: string;
+  username: string;
+  fullName: string;
+  role: string;
+  permissions: unknown[];
+  isActive: true;
+  createdAt: string;
+}
+
+type BetterAuthApplicationResolver = (request: Request, env: Env) => Promise<BetterAuthApplicationResolverUser | null>;
+
 /**
  * Shared application authentication boundary.
  * Better Auth is authoritative whenever a Better Auth session cookie is present.
  * The legacy session is used only when that cookie is absent, allowing controlled
  * user migration without permitting an invalid Better Auth cookie to fall through.
  */
-export async function getAuthenticatedUser(env: Env, request: Request): Promise<AuthUser | null> {
+export async function getAuthenticatedUser(
+  env: Env,
+  request: Request,
+  betterAuthResolver: BetterAuthApplicationResolver = async (resolverRequest, resolverEnv) => {
+    const { getBetterAuthApplicationUser } = await import('./_application-session');
+    return getBetterAuthApplicationUser(resolverRequest, resolverEnv as never);
+  },
+): Promise<AuthUser | null> {
   const cookie = request.headers.get('Cookie') || '';
   const hasBetterAuthCookie = /(?:^|;\s*)(?:__Host-solmint_auth_session|solmint_auth_session)=/.test(cookie);
 
   if (hasBetterAuthCookie) {
     try {
-      const { getBetterAuthApplicationUser } = await import('./_application-session');
-      const user = await getBetterAuthApplicationUser(request, env as never);
+      const user = await betterAuthResolver(request, env);
       if (!user) return null;
       return {
         id: user.applicationUserId,
