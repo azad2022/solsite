@@ -16,6 +16,7 @@ export type BetterAuthApplicationSessionEnv = Env & {
 
 export interface BetterAuthApplicationUser {
   id: string;
+  applicationUserId: string;
   username: string;
   fullName: string;
   role: string;
@@ -83,6 +84,7 @@ export async function getBetterAuthApplicationUser(
 
     return {
       id: String(user.id),
+      applicationUserId: String(applicationUser.application_user_id),
       username: String(applicationUser.username || user.email || user.id),
       fullName: String(applicationUser.full_name || user.name || user.email || 'کاربر سولمینت'),
       role: applicationUser.role || 'user',
