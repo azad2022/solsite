@@ -82,6 +82,7 @@ test('native and legacy Better Auth users are mapped to the application identity
   const usersMe = read('functions/api/users/me.ts');
 
   assert.match(profile, /ApplicationAuthDatabase/);
+  assert.match(profile, /database\.findApplicationUserByUsername\(/);
   assert.match(profile, /database\.createApplicationUser\(/);
   assert.match(profile, /database\.linkIdentity\(/);
   assert.match(profile, /applicationUserId/);
@@ -92,7 +93,10 @@ test('native and legacy Better Auth users are mapped to the application identity
   assert.match(runtime, /provisionApplicationProfile/);
   assert.match(runtime, /x-solmint-legacy-migration/);
   assert.match(runtime, /supplied === secret/);
-  assert.match(migration, /application_user_id = \$1/);
+  assert.match(migration, /findUser\(env, username\)/);
+  assert.match(migration, /verifyPassword\(password, applicationUser\.password_hash\)/);
+  assert.match(migration, /createBetterAuthRuntime\(env\)/);
+  assert.match(migration, /runtime\.auth\.api\.signUpEmail\(/);
   assert.match(migration, /x-solmint-legacy-migration/);
   assert.match(migration, /LEGACY_MIGRATION_SECRET/);
   assert.doesNotMatch(migration, /env\.BETTER_AUTH_SECRET\?\.trim\(\) \|\|/);
