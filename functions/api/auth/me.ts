@@ -22,7 +22,7 @@ async function getBetterAuthApplicationUser(request: Request, env: BetterAuthCom
 
     const user = session.user;
     const result = await runtime.database.query<{
-      legacy_user_id: string | null;
+      application_user_id: string;
       username: string | null;
       full_name: string | null;
       role: string | null;
@@ -30,7 +30,7 @@ async function getBetterAuthApplicationUser(request: Request, env: BetterAuthCom
       is_active: boolean | null;
       created_at: string | null;
     }>(
-      `select l.legacy_user_id,
+      `select l.application_user_id,
               u.username,
               u.full_name,
               u.role,
@@ -38,7 +38,7 @@ async function getBetterAuthApplicationUser(request: Request, env: BetterAuthCom
               u.is_active,
               u.created_at
        from public.auth_identity_links l
-       join public.users u on u.id = l.legacy_user_id
+       join public.users u on u.id = l.application_user_id
        where l.better_auth_user_id = $1
        limit 1`,
       [String(user.id)],
