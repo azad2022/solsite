@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, Chrome, Eye, EyeOff, Loader2, LockKeyhole, MailCheck, ShieldCheck, UserPlus, X } from 'lucide-react';
-import { authClient } from '../utils/authClient';
-import { getPaySessionUser } from '../pay/services/sessionService';
+import { authClient, fetchApplicationUser } from '../utils/authClient';
 import type { UserAccount } from '../types';
 
 interface AdminAuthGateProps {
@@ -14,21 +13,34 @@ type Mode = 'login' | 'register';
 type AuthState = 'idle' | 'loading' | 'verification' | 'error';
 type SafeApplicationUser = Omit<UserAccount, 'passwordHash'>;
 
-function toSafeApplicationUser(user: unknown): SafeApplicationUser | null {
-  if (!user || typeof user !== 'object') return null;
-  const value = user as Record<string, unknown>;
+type ApplicationUserResponse = {
+  success?: boolean;
+  user?: unknown;
+};
+
+async function readApplicationUser(): Promise<SafeApplicationUser | null> {
+  const response = await fetchApplicationUser();
+  const payload = (await response.json().catch(() => null)) as ApplicationUserResponse | null;
+  if (response.status === 401) return null;
+  if (!response.ok || payload?.success !== true || !payload.user || typeof payload.user !== 'object') return null;
+
+  const value = payload.user as Record<string, unknown>;
   if (typeof value.id !== 'string' || !value.id.trim()) return null;
-  const permissions = Array.isArray(value.permissions) ? value.permissions.filter((item): item is string => typeof item === 'string') : undefined;
   const role = typeof value.role === 'string' ? value.role : 'user';
   if (!['superadmin', 'admin', 'editor', 'writer', 'user'].includes(role)) return null;
+
+  const permissions = Array.isArray(value.permissions) && value.permissions.every((item) => typeof item === 'string')
+    ? value.permissions as UserAccount['permissions']
+    : undefined;
+
   return {
     id: value.id,
     username: typeof value.username === 'string' ? value.username : '',
-    fullName: typeof value.name === 'string' ? value.name : typeof value.fullName === 'string' ? value.fullName : typeof value.email === 'string' ? value.email : '',
+    fullName: typeof value.fullName === 'string' ? value.fullName : '',
     role: role as UserAccount['role'],
-    permissions: permissions as UserAccount['permissions'],
+    permissions,
     isActive: value.isActive !== false,
-    createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
+    createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',
   };
 }
 
@@ -73,10 +85,11 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
         : await authClient.signIn.username({ username: value, password });
       if (result.error) throw new Error(result.error.message || 'ورود انجام نشد.');
 
-      const applicationUser = await getPaySessionUser();
-      const safeUser = toSafeApplicationUser(applicationUser);
-      if (!safeUser || safeUser.isActive === false) throw new Error('حساب احراز هویت شد اما پروفایل کاربردی معتبر یا فعال نیست.');
-      setCurrentUser(safeUser as UserAccount);
+      const applicationUser = await readApplicationUser();
+      if (!applicationUser || applicationUser.isActive === false || !applicationUser.createdAt) {
+        throw new Error('احراز هویت انجام شد اما پروفایل کاربردی معتبر یا فعال نیست.');
+      }
+      setCurrentUser(applicationUser as UserAccount);
       onClose();
     } catch (error) {
       setState('error');
