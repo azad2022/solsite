@@ -1,4 +1,5 @@
 import { Article, UserAccount, ArticleComment, DeepSeekAiSettings, ChatbotSettings, DownloadLinks } from '../types';
+import { authClient, fetchApplicationUser } from './authClient';
 
 export interface CmsSettings {
   deepseek: DeepSeekAiSettings;
@@ -33,6 +34,16 @@ async function safeFetchJson<T = any>(res: Response): Promise<{ ok: boolean; sta
   }
 }
 
+async function applicationUser(): Promise<UserAccount | undefined> {
+  try {
+    const response = await fetchApplicationUser();
+    const payload = await response.json().catch(() => null) as { success?: boolean; user?: UserAccount } | null;
+    return response.ok && payload?.success === true && payload.user ? payload.user : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function fetchCmsSettingsFromApi(): Promise<CmsSettings | null> {
   try {
     const res = await fetch('/api/cms/settings', authFetchInit());
@@ -49,59 +60,72 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
   } catch (err) { console.warn('Error saving CMS settings from API:', err); return false; }
 }
 
-export async function registerUserApi(payload: { username: string; fullName: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
+export async function registerUserApi(payload: { username: string; fullName: string; email?: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount; requiresEmailVerification?: boolean }> {
+  const email = payload.email?.trim().toLowerCase();
+  if (!email || !payload.password) {
+    return { success: false, message: 'ایمیل و رمز عبور برای ثبت‌نام الزامی است.' };
+  }
+
   try {
-    const res = await fetch('/api/users/register', authFetchInit({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }));
-    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount }>(res);
-    if (data) return { success: data.success === true, message: data.message || (res.ok ? 'ثبت‌نام انجام شد.' : 'ثبت‌نام در سرور انجام نشد.'), user: data.user };
-    return { success: false, message: `خطا در ثبت حساب روی سرور (کد ${status || 'شبکه'}). ثبت‌نام محلی مجاز نیست.` };
+    const { data, error } = await authClient.signUp.email({
+      email,
+      name: payload.fullName.trim(),
+      password: payload.password,
+      username: payload.username.trim(),
+    });
+
+    if (error) {
+      return { success: false, message: error.message || 'ثبت‌نام انجام نشد.' };
+    }
+
+    // Email verification is required by the server configuration; a successful
+    // sign-up must not be presented as an authenticated browser session.
+    const user = data?.user ? await applicationUser() : undefined;
+    if (user) return { success: true, message: 'ثبت‌نام انجام شد.', user };
+    return {
+      success: true,
+      message: 'حساب ساخته شد. لینک تأیید ایمیل برای شما ارسال شد؛ پس از تأیید، وارد حساب شوید.',
+      requiresEmailVerification: true,
+    };
   } catch (err) {
-    console.warn('Error calling /api/users/register:', err);
-    return { success: false, message: 'ارتباط با سرور ثبت‌نام برقرار نشد.' };
+    console.warn('Error calling Better Auth sign-up:', err);
+    return { success: false, message: 'ارتباط با سرویس احراز هویت برقرار نشد.' };
   }
 }
 
-/** Server is authoritative. Authentication state is never synthesized in the browser. */
+/** Better Auth is authoritative. Browser code never synthesizes an authenticated user. */
 export async function loginUserApi(payload: { username?: string; password?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }> {
+  const identifier = (payload.username || '').trim();
+  const password = (payload.password || payload.passcode || '').trim();
+  if (!identifier || !password) return { success: false, message: 'نام کاربری/ایمیل و رمز عبور الزامی است.' };
+
   try {
-    const res = await fetch('/api/users/login', authFetchInit({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: payload.username, password: payload.password || payload.passcode })
-    }));
-    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }>(res);
+    const result = identifier.includes('@')
+      ? await authClient.signIn.email({ email: identifier.toLowerCase(), password })
+      : await authClient.signIn.username({ username: identifier, password });
 
-    if (data?.success && data.user) {
-      return {
-        success: true,
-        user: data.user,
-        isSuperAdmin: data.isSuperAdmin === true,
-        requestId: data.requestId,
-        message: data.message
-      };
-    }
+    if (result.error) return { success: false, isSuperAdmin: false, message: result.error.message || 'ورود انجام نشد.' };
 
+    const user = await applicationUser();
+    if (!user) return { success: false, isSuperAdmin: false, message: 'نشست احراز هویت ایجاد شد اما پروفایل کاربردی قابل دریافت نیست.' };
     return {
-      success: false,
-      user: undefined,
-      isSuperAdmin: false,
-      requestId: data?.requestId,
-      message: data?.message || (status >= 500
-        ? 'سرویس احراز هویت در دسترس نیست.'
-        : 'نام کاربری یا رمز عبور اشتباه است.')
+      success: true,
+      user,
+      isSuperAdmin: user.role === 'superadmin',
     };
   } catch (err) {
-    console.warn('Error calling /api/users/login:', err);
-    return {
-      success: false,
-      user: undefined,
-      isSuperAdmin: false,
-      message: 'ارتباط با سرور احراز هویت برقرار نشد.'
-    };
+    console.warn('Error calling Better Auth sign-in:', err);
+    return { success: false, isSuperAdmin: false, message: 'ارتباط با سرویس احراز هویت برقرار نشد.' };
+  }
+}
+
+export async function logoutUserApi(): Promise<boolean> {
+  try {
+    const { error } = await authClient.signOut();
+    return !error;
+  } catch (err) {
+    console.warn('Error calling Better Auth sign-out:', err);
+    return false;
   }
 }
 
