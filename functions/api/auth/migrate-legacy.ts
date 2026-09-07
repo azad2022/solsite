@@ -22,6 +22,8 @@ interface MigrationEnv extends Env {
   GOOGLE_CLIENT_SECRET?: string;
   RESEND_API_KEY?: string;
   AUTH_EMAIL_FROM?: string;
+  LEGACY_MIGRATION_ENABLED?: string;
+  LEGACY_MIGRATION_SECRET?: string;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,6 +35,10 @@ function genericResponse(): Response {
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: MigrationEnv }) => {
   if (request.method !== 'POST') return Response.json({ ok: false }, { status: 405 });
+
+  const migrationEnabled = env.LEGACY_MIGRATION_ENABLED?.trim().toLowerCase() === 'true';
+  const migrationSecret = env.LEGACY_MIGRATION_SECRET?.trim() || '';
+  if (!migrationEnabled || !migrationSecret) return genericResponse();
 
   let body: { username?: string; password?: string; email?: string };
   try {
@@ -83,7 +89,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
         password,
         username: applicationUser.username,
       },
-      headers: new Headers({ 'x-solmint-legacy-migration': env.BETTER_AUTH_SECRET?.trim() || '' }),
+      headers: new Headers({ 'x-solmint-legacy-migration': migrationSecret }),
     }) as unknown as { user?: { id?: string } | null };
 
     if (!result.user?.id) return genericResponse();
