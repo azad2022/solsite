@@ -1,6 +1,6 @@
 # SolMint production deployment uses Cloudflare Pages Functions for edge authentication.
 # The Node/Express server remains a separate Node runtime and is not deployed as a Worker.
-name = "solmint"
+name = "solsite"
 compatibility_date = "2026-08-10"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "./dist"
