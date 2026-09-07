@@ -15,7 +15,9 @@ interface MigrationEnv extends Env {
   BETTER_AUTH_URL?: string;
   BETTER_AUTH_TRUSTED_ORIGINS?: string;
   BETTER_AUTH_DATABASE_URL?: string;
-  HYPERDRIVE?: { connectionString: string };
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_SECRET_KEY?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   RESEND_API_KEY?: string;
@@ -68,17 +70,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
 
   const runtime = createBetterAuthRuntime(env);
   try {
-    const existingLink = await runtime.database.query(
-      'select better_auth_user_id from public.auth_identity_links where application_user_id = $1 limit 1',
-      [applicationUser.id],
-    );
-    if (existingLink.rows.length > 0) return genericResponse();
+    const existingLink = await runtime.application.findIdentityByApplicationUserId(applicationUser.id);
+    if (existingLink) return genericResponse();
 
-    const existingEmail = await runtime.database.query(
-      'select id from better_auth."user" where email = $1 limit 1',
-      [email],
-    );
-    if (existingEmail.rows.length > 0) return genericResponse();
+    const existingEmail = await runtime.application.findBetterAuthIdentityByEmail(email);
+    if (existingEmail) return genericResponse();
 
     const result = await runtime.auth.api.signUpEmail({
       body: {
@@ -91,13 +87,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
     }) as unknown as { user?: { id?: string } | null };
 
     if (!result.user?.id) return genericResponse();
-    // The Better Auth user-create hook owns the application identity bridge.
     return genericResponse();
   } catch {
     return genericResponse();
   } finally {
-    if (env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') {
-      await runtime.database.end().catch(() => {});
-    }
+    await runtime.close().catch(() => {});
   }
 };
