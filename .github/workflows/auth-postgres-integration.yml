@@ -1,12 +1,16 @@
 name: Authentication PostgreSQL integration
 
 on:
+  push:
+    branches:
+      - feat/auth-better-auth-postgres-runtime
   pull_request:
     branches: [main]
     paths:
       - 'functions/api/auth/**'
       - 'supabase/migrations/20260906_auth_identity_bridge.sql'
       - 'supabase/migrations/20260906_better_auth_identity_schema.sql'
+      - 'supabase/migrations/20260907_auth_identity_application_fk.sql'
       - 'tests/auth/**'
       - 'package.json'
       - 'bun.lock'
@@ -57,7 +61,7 @@ jobs:
           create role authenticated nologin;
 
           create table public.users (
-            id text not null,
+            id text not null primary key,
             username text not null,
             full_name text not null,
             password_hash text not null,
@@ -74,6 +78,7 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260906_auth_identity_bridge.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260906_better_auth_identity_schema.sql
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260907_auth_identity_application_fk.sql
 
       - name: Run Better Auth PostgreSQL integration
         run: bunx tsx --test tests/auth/better-auth-postgres.integration.test.ts
