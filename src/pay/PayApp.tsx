@@ -12,7 +12,7 @@ import PayCheckout from './PayCheckout';
 import './pay.css';
 
 const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
-  overview: LayoutDashboard, transactions: ReceiptText, merchants: Store, customers: Users, invoices: FileText,
+  overview: LayoutDashboard, dashboard: LayoutDashboard, transactions: ReceiptText, merchants: Store, customers: Users, invoices: FileText,
   referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck,
 };
 
