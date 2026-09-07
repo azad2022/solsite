@@ -3,7 +3,7 @@ import { createAdapterFactory } from 'better-auth/adapters';
 const RPC_NAME = 'solmint_better_auth_adapter';
 
 type SupabaseRpcClient = {
-  rpc: (fn: string, args: Record<string, unknown>) => Promise<{
+  rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{
     data: unknown;
     error: { message?: string; details?: string; hint?: string } | null;
   }>;
@@ -47,9 +47,6 @@ export const createSupabaseBetterAuthAdapter = (config: SupabaseBetterAuthAdapte
     config: {
       adapterId: 'solmint-supabase-http',
       adapterName: 'Solmint Supabase HTTP Adapter',
-      // Supabase JSON transport returns PostgreSQL timestamps as strings. Keep
-      // Better Auth's adapter date normalization enabled by reporting that the
-      // underlying store does not expose native Date values through this API.
       supportsJSON: true,
       supportsDates: false,
       supportsBooleans: true,
@@ -59,28 +56,31 @@ export const createSupabaseBetterAuthAdapter = (config: SupabaseBetterAuthAdapte
       debugLogs: false,
     },
     adapter: () => ({
-      create: async ({ model, data }) =>
-        (await callRpc(config.client, 'create', { model, data })) as Record<string, unknown>,
-      update: async ({ model, where, update }) =>
-        ((await callRpc(config.client, 'update', { model, where, data: update })) as Record<string, unknown> | null) ?? null,
-      updateMany: async ({ model, where, update }) =>
+      create: async <T extends Record<string, any>>({ model, data }: { model: string; data: T }) =>
+        (await callRpc(config.client, 'create', { model, data })) as T,
+      update: async <T extends Record<string, any>>({ model, where, update }: { model: string; where: any[]; update: Partial<T> }) =>
+        (((await callRpc(config.client, 'update', { model, where, data: update })) as T | null) ?? null),
+      updateMany: async ({ model, where, update }: { model: string; where: any[]; update: Record<string, unknown> }) =>
         Number(await callRpc(config.client, 'update_many', { model, where, data: update })),
-      delete: async ({ model, where }) => { await callRpc(config.client, 'delete', { model, where }); },
-      deleteMany: async ({ model, where }) => Number(await callRpc(config.client, 'delete_many', { model, where })),
-      findOne: async ({ model, where }) =>
-        ((await callRpc(config.client, 'find_one', { model, where })) as Record<string, unknown> | null) ?? null,
-      findMany: async ({ model, where, limit, offset, sortBy }) =>
-        ((await callRpc(config.client, 'find_many', {
+      delete: async ({ model, where }: { model: string; where: any[] }) => {
+        await callRpc(config.client, 'delete', { model, where });
+      },
+      deleteMany: async ({ model, where }: { model: string; where: any[] }) =>
+        Number(await callRpc(config.client, 'delete_many', { model, where })),
+      findOne: async <T extends Record<string, any>>({ model, where }: { model: string; where: any[] }) =>
+        (((await callRpc(config.client, 'find_one', { model, where })) as T | null) ?? null),
+      findMany: async <T extends Record<string, any>>({ model, where, limit, offset, sortBy }: { model: string; where: any[]; limit?: number; offset?: number; sortBy?: { field: string; direction: 'asc' | 'desc' } }) =>
+        (((await callRpc(config.client, 'find_many', {
           model,
           where,
           limit,
           offset,
           sort: sortBy ? { field: sortBy.field, direction: sortBy.direction } : null,
-        })) as Record<string, unknown>[]) ?? [],
-      count: async ({ model, where }) => Number(await callRpc(config.client, 'count', { model, where })),
-      incrementOne: async ({ model, where, increment, set }) =>
-        ((await callRpc(config.client, 'increment_one', { model, where, increment, set })) as Record<string, unknown> | null) ?? null,
-      consumeOne: async ({ model, where }) =>
-        ((await callRpc(config.client, 'consume_one', { model, where })) as Record<string, unknown> | null) ?? null,
+        })) as T[]) ?? []),
+      count: async ({ model, where }: { model: string; where: any[] }) => Number(await callRpc(config.client, 'count', { model, where })),
+      incrementOne: async <T extends Record<string, any>>({ model, where, increment, set }: { model: string; where: any[]; increment: Record<string, number>; set: Record<string, unknown> }) =>
+        (((await callRpc(config.client, 'increment_one', { model, where, increment, set })) as T | null) ?? null),
+      consumeOne: async <T extends Record<string, any>>({ model, where }: { model: string; where: any[] }) =>
+        (((await callRpc(config.client, 'consume_one', { model, where })) as T | null) ?? null),
     }),
   });
