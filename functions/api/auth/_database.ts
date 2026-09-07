@@ -38,7 +38,7 @@ export interface ApplicationAuthDatabase {
 }
 
 export interface BetterAuthDatabaseHandle {
-  adapter: AdapterFactory | Pool;
+  adapter: AdapterFactory<any> | Pool;
   application: ApplicationAuthDatabase;
   close(): Promise<void>;
 }
@@ -137,7 +137,7 @@ function createSupabaseApplicationDatabase(client: SupabaseClient): ApplicationA
       const { data, error } = await client.rpc('solmint_better_auth_adapter', {
         p_operation: 'find_one', p_model: 'user', p_data: {}, p_where: [{ field: 'email', value: email, operator: 'eq' }],
         p_limit: 1, p_offset: 0, p_sort: null, p_increment: {}, p_set: {},
-      });
+      }) as unknown as { data: unknown; error: { message?: string; details?: string; hint?: string } | null };
       if (error) throw error;
       const record = data as { id?: string } | null;
       return record?.id ? { id: record.id } : null;
