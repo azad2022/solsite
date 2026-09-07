@@ -52,7 +52,7 @@ The migration intentionally does not alter or rename `public.users`, `public.aut
 
 Historical `public.users` records do not currently contain email addresses. A legacy account therefore cannot be silently converted into a Better Auth email identity without an additional trusted email value.
 
-The controlled migration endpoint is `POST /api/auth/migrate-legacy` and accepts a legacy username/password plus the user's chosen email. It verifies the existing password hash using the current compatibility logic and asks Better Auth to create the new identity through a server-only migration header. The Better Auth user-create provisioning hook then resolves the existing application user and creates the identity bridge. Existing Pay identifiers remain unchanged.
+The controlled migration endpoint is `POST /api/auth/migrate-legacy` and accepts a legacy username/password plus the user's chosen email. It verifies the existing password hash using the current compatibility logic and asks Better Auth to create the new identity through a server-only migration header authenticated with the existing `BETTER_AUTH_SECRET`; the secret is never supplied by the browser. The Better Auth user-create provisioning hook then resolves the existing application user and creates the identity bridge. Existing Pay identifiers remain unchanged.
 
 The migration endpoint returns a generic `202` response for invalid, unknown, inactive, duplicate, or successful migration requests to avoid user enumeration.
 
@@ -85,6 +85,8 @@ Validate the production origin and exact callback URI in the Google console befo
 ## Session policy
 
 The current Better Auth session target is 8 hours with a 1-hour update window. The primary session cookie is explicitly configured as `__Host-solmint_auth_session` in HTTPS deployments with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`. This is intentionally different from the legacy `__Host-solmint_session` cookie so the dual-stack migration phase cannot accidentally overwrite the old session.
+
+Signup auto-session creation is disabled. With email verification required, new email/password registration does not create a usable session before verification; the migration endpoint therefore cannot accidentally leave a newly created authenticated session behind.
 
 OAuth access/refresh/ID tokens are encrypted by Better Auth before database persistence. No bearer token is stored in localStorage or sessionStorage.
 
