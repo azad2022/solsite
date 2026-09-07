@@ -1,10 +1,8 @@
 import { getAuthenticatedUser } from '../../../auth/_shared';
 import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../_shared/runtime';
+import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../_shared/identity';
 
-interface PayEnv {
-  SUPABASE_URL?: string;
-  SUPABASE_SECRET_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
+interface PayEnv extends PayIdentityEnv {
   PAY_API_ENABLED?: string;
   PAY_APP_ORIGIN?: string;
 }
@@ -50,9 +48,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const body = await readJsonBody(request);
     const businessName = typeof body.businessName === 'string' ? body.businessName.trim() : '';
     const slug = typeof body.slug === 'string' ? body.slug.trim().toLowerCase() : '';
-    if (!validBusinessName(businessName) || !validSlug(slug)) {
-      return payJson({ code: 'INVALID_MERCHANT_INPUT', message: 'businessName or slug is invalid.' }, 400, id);
-    }
+    if (!validBusinessName(businessName) || !validSlug(slug)) return payJson({ code: 'INVALID_MERCHANT_INPUT', message: 'businessName or slug is invalid.' }, 400, id);
 
     const existing = await loadMerchant(env, user.id);
     if (existing) return payJson({ merchant: existing, created: false }, 200, id);
@@ -83,11 +79,19 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
   const id = makePayRequestId();
   if (!payFeatureEnabled(env)) return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, id);
   try {
-    const user = await getAuthenticatedUser(env, request);
-    if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, id);
-    const merchant = await loadMerchant(env, user.id);
-    return payJson({ merchant }, 200, id);
-  } catch {
+    const identity = await resolvePayIdentity(request, env);
+    const response = await supabaseRequestAsIdentity(
+      env,
+      identity.accessToken,
+      `/rest/v1/pay_merchants?select=id,owner_user_id,business_name,slug,status,created_at,updated_at&owner_user_id=eq.${encodeURIComponent(identity.user.applicationUserId)}&limit=1`,
+    );
+    const rows = await response.json() as MerchantRow[];
+    return payJson({ merchant: rows[0] || null }, 200, id);
+  } catch (error) {
+    if (error instanceof PayRuntimeError) {
+      return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, id);
+    }
+    console.error(JSON.stringify({ scope: 'pay:merchant-get', requestId: id, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
     return payJson({ code: 'MERCHANT_LOOKUP_FAILED', message: 'Unable to load merchant configuration.' }, 503, id);
   }
 };

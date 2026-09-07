@@ -28,7 +28,7 @@ test('verification requires finalized commitment, reference, exact settlement, t
     reference: 'REFERENCE', requiredCommitment: 'finalized' as const,
   };
   const observed = {
-    signature: 'SIGNATURE', success: true, commitment: 'finalized' as const, feePayer: 'CUSTOMER', referenceMatched: true,
+    signature: 'SIGNATURE', success: true, commitment: 'finalized' as const, feePayer: 'CUSTOMER_AUTH', referenceMatched: true,
     transfers: [
       { role: 'other' as const, source: 'CUSTOMER', sourceAuthority: 'CUSTOMER_AUTH', destination: 'MERCHANT_ATA', destinationAuthority: 'MERCHANT', asset: 'USDC' as const, tokenMint: 'USDC_MINT', tokenProgram: 'spl-token' as const, tokenDecimals: 6, amountAtomic: '99000000', instructionIndex: 0 },
       { role: 'other' as const, source: 'CUSTOMER', sourceAuthority: 'CUSTOMER_AUTH', destination: 'SOLMINT_ATA', destinationAuthority: 'SOLMINT', asset: 'USDC' as const, tokenMint: 'USDC_MINT', tokenProgram: 'spl-token' as const, tokenDecimals: 6, amountAtomic: '1000000', instructionIndex: 1 },
