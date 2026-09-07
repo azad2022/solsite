@@ -17,21 +17,14 @@ export interface ModerationComment extends ArticleComment {
   createdAtIso?: string | null;
 }
 
-const authFetchInit = (init: RequestInit = {}): RequestInit => ({
-  ...init,
-  credentials: 'include',
-  headers: { ...(init.headers || {}) },
-  cache: init.cache || 'no-store'
-});
+const authFetchInit = (init: RequestInit = {}): RequestInit => ({ ...init, credentials: 'include', headers: { ...(init.headers || {}) }, cache: init.cache || 'no-store' });
 
 async function safeFetchJson<T = any>(res: Response): Promise<{ ok: boolean; status: number; data: T | null }> {
   try {
     const text = await res.text();
     if (!text || !text.trim()) return { ok: res.ok, status: res.status, data: null };
     return { ok: res.ok, status: res.status, data: JSON.parse(text) as T };
-  } catch {
-    return { ok: res.ok, status: res.status, data: null };
-  }
+  } catch { return { ok: res.ok, status: res.status, data: null }; }
 }
 
 async function applicationUser(): Promise<UserAccount | undefined> {
@@ -39,9 +32,7 @@ async function applicationUser(): Promise<UserAccount | undefined> {
     const response = await fetchApplicationUser();
     const payload = await response.json().catch(() => null) as { success?: boolean; user?: UserAccount } | null;
     return response.ok && payload?.success === true && payload.user ? payload.user : undefined;
-  } catch {
-    return undefined;
-  }
+  } catch { return undefined; }
 }
 
 export async function fetchCmsSettingsFromApi(): Promise<CmsSettings | null> {
@@ -62,31 +53,13 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
 
 export async function registerUserApi(payload: { username: string; fullName: string; email?: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount; requiresEmailVerification?: boolean }> {
   const email = payload.email?.trim().toLowerCase();
-  if (!email || !payload.password) {
-    return { success: false, message: 'ایمیل و رمز عبور برای ثبت‌نام الزامی است.' };
-  }
-
+  if (!email || !payload.password) return { success: false, message: 'ایمیل و رمز عبور برای ثبت‌نام الزامی است.' };
   try {
-    const { data, error } = await authClient.signUp.email({
-      email,
-      name: payload.fullName.trim(),
-      password: payload.password,
-      username: payload.username.trim(),
-    });
-
-    if (error) {
-      return { success: false, message: error.message || 'ثبت‌نام انجام نشد.' };
-    }
-
-    // Email verification is required by the server configuration; a successful
-    // sign-up must not be presented as an authenticated browser session.
+    const { data, error } = await authClient.signUp.email({ email, name: payload.fullName.trim(), password: payload.password, username: payload.username.trim() });
+    if (error) return { success: false, message: error.message || 'ثبت‌نام انجام نشد.' };
     const user = data?.user ? await applicationUser() : undefined;
     if (user) return { success: true, message: 'ثبت‌نام انجام شد.', user };
-    return {
-      success: true,
-      message: 'حساب ساخته شد. لینک تأیید ایمیل برای شما ارسال شد؛ پس از تأیید، وارد حساب شوید.',
-      requiresEmailVerification: true,
-    };
+    return { success: true, message: 'حساب ساخته شد. لینک تأیید ایمیل برای شما ارسال شد؛ پس از تأیید، وارد حساب شوید.', requiresEmailVerification: true };
   } catch (err) {
     console.warn('Error calling Better Auth sign-up:', err);
     return { success: false, message: 'ارتباط با سرویس احراز هویت برقرار نشد.' };
@@ -98,21 +71,14 @@ export async function loginUserApi(payload: { username?: string; password?: stri
   const identifier = (payload.username || '').trim();
   const password = (payload.password || payload.passcode || '').trim();
   if (!identifier || !password) return { success: false, message: 'نام کاربری/ایمیل و رمز عبور الزامی است.' };
-
   try {
     const result = identifier.includes('@')
       ? await authClient.signIn.email({ email: identifier.toLowerCase(), password })
       : await authClient.signIn.username({ username: identifier, password });
-
     if (result.error) return { success: false, isSuperAdmin: false, message: result.error.message || 'ورود انجام نشد.' };
-
     const user = await applicationUser();
     if (!user) return { success: false, isSuperAdmin: false, message: 'نشست احراز هویت ایجاد شد اما پروفایل کاربردی قابل دریافت نیست.' };
-    return {
-      success: true,
-      user,
-      isSuperAdmin: user.role === 'superadmin',
-    };
+    return { success: true, user, isSuperAdmin: user.role === 'superadmin' };
   } catch (err) {
     console.warn('Error calling Better Auth sign-in:', err);
     return { success: false, isSuperAdmin: false, message: 'ارتباط با سرویس احراز هویت برقرار نشد.' };
@@ -121,7 +87,7 @@ export async function loginUserApi(payload: { username?: string; password?: stri
 
 export async function logoutUserApi(): Promise<boolean> {
   try {
-    const { error } = await authClient.signOut();
+    const { error } = await authClient.signOut({});
     return !error;
   } catch (err) {
     console.warn('Error calling Better Auth sign-out:', err);
@@ -167,9 +133,7 @@ export async function fetchCommentsForAdminApi(): Promise<{ success: boolean; co
     const { data, status } = await safeFetchJson<{ success?: boolean; comments?: ModerationComment[]; message?: string }>(res);
     if (data) return { success: !!data.success, comments: Array.isArray(data.comments) ? data.comments : [], message: data.message };
     return { success: false, comments: [], message: `خطا در دریافت دیدگاه‌ها (کد ${status})` };
-  } catch (err: any) {
-    return { success: false, comments: [], message: err?.message || 'خطا در دریافت دیدگاه‌ها.' };
-  }
+  } catch (err: any) { return { success: false, comments: [], message: err?.message || 'خطا در دریافت دیدگاه‌ها.' }; }
 }
 
 export async function approveCommentApi(commentId: string, approved: boolean): Promise<{ success: boolean; message?: string }> {
@@ -177,9 +141,7 @@ export async function approveCommentApi(commentId: string, approved: boolean): P
     const res = await fetch('/api/comments/approve', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commentId, approved }) }));
     const { data } = await safeFetchJson<{ success?: boolean; message?: string }>(res);
     return { success: res.ok && !!data?.success, message: data?.message };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'خطا در تغییر وضعیت دیدگاه.' };
-  }
+  } catch (err: any) { return { success: false, message: err?.message || 'خطا در تغییر وضعیت دیدگاه.' }; }
 }
 
 export async function deleteCommentApi(commentId: string): Promise<boolean> {
