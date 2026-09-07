@@ -47,8 +47,8 @@ export function normalizePayLocale(input?: string | null): PayLocale {
   const value = (input ?? '').trim().toLowerCase();
   if (value === 'fa' || value === 'fa-ir') return 'fa-IR';
   if (value === 'en' || value === 'en-us' || value === 'en-gb') return 'en-US';
-  if (value === 'ar') return 'ar';
-  if (value === 'ru') return 'ru';
+  if (value === 'ar' || value.startsWith('ar-')) return 'ar';
+  if (value === 'ru' || value.startsWith('ru-')) return 'ru';
   return DEFAULT_PAY_LOCALE;
 }
 
