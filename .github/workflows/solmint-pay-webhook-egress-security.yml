@@ -13,8 +13,7 @@ on:
       - 'package.json'
       - 'bun.lock'
   push:
-    branches:
-      - audit/solmint-pay-next
+    branches: [main]
     paths:
       - 'services/pay-webhook-egress.ts'
       - 'services/pay-webhook-egress-server.ts'
