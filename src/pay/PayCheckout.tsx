@@ -8,11 +8,7 @@ import PayDataStateView from './DataStateView';
 import type { PayLocale } from './types';
 import './pay-checkout.css';
 
-interface PayCheckoutProps {
-  locale: PayLocale;
-  intentId?: string;
-  onBack: () => void;
-}
+interface PayCheckoutProps { locale: PayLocale; intentId?: string; onBack: () => void; }
 
 function dataStateForError(error: unknown): 'error' | 'empty' | 'unauthorized' | 'forbidden' | 'retryable' {
   if (error instanceof PayHttpError) {
@@ -25,8 +21,7 @@ function dataStateForError(error: unknown): 'error' | 'empty' | 'unauthorized' |
 }
 
 function presentationDecimals(asset: string, tokenDecimals: number | null): number {
-  if (tokenDecimals !== null) return tokenDecimals;
-  return asset === 'SOL' ? 9 : 0;
+  return tokenDecimals ?? (asset === 'SOL' ? 9 : 0);
 }
 
 function formatAtomic(value: string, decimals: number): string {
@@ -39,17 +34,11 @@ function formatAtomic(value: string, decimals: number): string {
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
-function SnapshotValue({ value }: { value: string }): React.ReactElement {
-  return <code className="pay-checkout-snapshot-value">{value}</code>;
-}
+function SnapshotValue({ value }: { value: string }): React.ReactElement { return <code className="pay-checkout-snapshot-value">{value}</code>; }
 
 const NON_TERMINAL_STATUSES: ReadonlySet<PayPaymentStatus> = new Set([
   'created', 'pending', 'detected', 'verifying', 'confirmed', 'underpaid', 'overpaid', 'ambiguous',
 ]);
-
-function statusDescriptionKey(status: PayPaymentStatus): 'paymentState' | 'paymentConfirmed' {
-  return status === 'completed' ? 'paymentConfirmed' : 'paymentState';
-}
 
 export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): React.ReactElement {
   const direction = directionFor(locale);
@@ -59,6 +48,8 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const mountedRef = useRef(true);
+  const currentIntentId = intent?.id;
+  const currentStatus = intent?.status;
 
   const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
@@ -77,13 +68,13 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       setState('ready');
     } catch (cause) {
       if (!mountedRef.current) return;
-      if (showLoading || !intent) {
+      if (showLoading) {
         setIntent(null);
         setState(dataStateForError(cause));
         setErrorMessage(checkoutLabel(locale, 'loadFailed'));
       }
     }
-  }, [intent, intentId, locale]);
+  }, [intentId, locale]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -92,19 +83,18 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   }, [loadIntent]);
 
   useEffect(() => {
-    if (!intent || !NON_TERMINAL_STATUSES.has(intent.status)) return;
+    if (!currentIntentId || !currentStatus || !NON_TERMINAL_STATUSES.has(currentStatus)) return;
 
     const timer = window.setInterval(() => {
       setIsRefreshing(true);
-      void payPaymentIntentService.get(intent.id)
+      void payPaymentIntentService.get(currentIntentId)
         .then(value => {
           if (!mountedRef.current) return;
           setIntent(value);
           setState('ready');
         })
         .catch(() => {
-          // Keep the last authoritative snapshot when a refresh temporarily fails.
-          // A stale snapshot is preferable to manufacturing a payment result locally.
+          // Retain the last authoritative snapshot on transient refresh errors.
         })
         .finally(() => {
           if (mountedRef.current) setIsRefreshing(false);
@@ -112,7 +102,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     }, 5000);
 
     return () => window.clearInterval(timer);
-  }, [intent]);
+  }, [currentIntentId, currentStatus]);
 
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
   const isCompleted = intent?.status === 'completed';
@@ -120,26 +110,13 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   return (
     <div className="solmint-pay pay-checkout" dir={direction} lang={locale}>
       <header className="pay-checkout-header">
-        <div className="pay-checkout-brand">
-          <div className="pay-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div>
-          <div className="pay-brand-copy"><strong>{translate(locale, 'brand')}</strong><span>{translate(locale, 'eyebrow')}</span></div>
-        </div>
+        <div className="pay-checkout-brand"><div className="pay-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div><div className="pay-brand-copy"><strong>{translate(locale, 'brand')}</strong><span>{translate(locale, 'eyebrow')}</span></div></div>
         <div className="pay-checkout-trust"><LockKeyhole size={16} /> {translate(locale, 'checkoutSecure')}</div>
       </header>
-
       <main className="pay-checkout-main">
         <button type="button" className="pay-checkout-back" onClick={onBack}><BackIcon size={17} />{translate(locale, 'backToPay')}</button>
-
         <section className="pay-checkout-card" aria-labelledby="pay-checkout-title">
-          <div className="pay-checkout-card-header">
-            <div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div>
-            <div>
-              <span className="pay-panel-kicker">{translate(locale, 'checkout')}</span>
-              <h1 id="pay-checkout-title">{intent ? intent.merchant.businessName : translate(locale, 'checkoutWaitingTitle')}</h1>
-              <p>{translate(locale, 'checkoutWaitingDescription')}</p>
-            </div>
-          </div>
-
+          <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(locale, 'checkout')}</span><h1 id="pay-checkout-title">{intent ? intent.merchant.businessName : translate(locale, 'checkoutWaitingTitle')}</h1><p>{translate(locale, 'checkoutWaitingDescription')}</p></div></div>
           {state !== 'ready' ? (
             <PayDataStateView locale={locale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent(true) : undefined} />
           ) : intent ? (
@@ -152,9 +129,8 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                 <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'intentStatus')}</span><SnapshotValue value={intent.status} /></div></div>
                 <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(locale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
               </div>
-
               <div className="pay-checkout-notice">
-                <strong>{translate(locale, isCompleted ? statusDescriptionKey(intent.status) : 'checkoutSnapshot')}</strong>
+                <strong>{translate(locale, isCompleted ? 'paymentConfirmed' : 'checkoutSnapshot')}</strong>
                 <p>{translate(locale, 'checkoutSnapshotDescription')}</p>
                 <div className="pay-checkout-status-grid">
                   <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'asset')}</span><SnapshotValue value={intent.asset} /></div></div>
@@ -168,7 +144,6 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
               {isRefreshing ? <div className="pay-checkout-refresh" role="status" aria-live="polite"><RefreshCcw size={15} /> {translate(locale, 'verification')}</div> : null}
             </>
           ) : null}
-
           {intentId ? <code className="pay-checkout-intent-id">{intentId}</code> : <span>{translate(locale, 'checkoutIntentMissing')}</span>}
         </section>
       </main>
