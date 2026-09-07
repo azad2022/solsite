@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { Pool } from 'pg';
 import { onRequestGet, onRequestPost } from '../../functions/api/users/sessions';
 import { createBetterAuthRuntime } from '../../functions/api/auth/_instance';
 
@@ -19,7 +20,7 @@ const env: TestEnv | null = databaseUrl
   : null;
 
 const runtime = env ? createBetterAuthRuntime(env) : null;
-const db = runtime?.database;
+const db = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 
 function cookieFrom(response: Response): string {
   const setCookie = response.headers.get('set-cookie');
@@ -28,12 +29,13 @@ function cookieFrom(response: Response): string {
 }
 
 test.after(async () => {
+  if (runtime) await runtime.close();
   if (db) await db.end();
 });
 
 test(
   'session management lists safe metadata only and revokes one non-current session',
-  { skip: !runtime || !env },
+  { skip: !runtime || !env || !db },
   async () => {
     assert.ok(runtime && env && db);
 
@@ -113,14 +115,14 @@ test(
 
       const revokedSession = await runtime.auth.handler(
         new Request(`${baseURL}/api/auth/get-session`, {
-          headers: { cookie: firstCookie, origin: baseURL },
+          headers: { cookie: firstCookie },
         }),
       );
       assert.equal(await revokedSession.json(), null);
 
       const remainingSession = await runtime.auth.handler(
         new Request(`${baseURL}/api/auth/get-session`, {
-          headers: { cookie: secondCookie, origin: baseURL },
+          headers: { cookie: secondCookie },
         }),
       );
       assert.equal(remainingSession.status, 200);
