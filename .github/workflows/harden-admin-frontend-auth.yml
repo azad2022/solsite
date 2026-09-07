@@ -22,4 +22,27 @@ jobs:
         run: |
           node --check scripts/harden-admin-frontend-auth.mjs
           node --check scripts/harden-admin-frontend-v2.mjs
-          ! grep -R -n -E "hashPasscode\(|DEFAULT_PASSCODE_HASH|solmint_admin_passcode|solmint_admin_pass_hash|solmint_admin_session|solmint_current_user|passwordHash: passHash|passwordHash: activeHash" src/components/AdminCmsModal.tsx src/App.tsx
+          node <<'NODE'
+          const fs = require('node:fs');
+          const files = ['src/components/AdminCmsModal.tsx', 'src/App.tsx'];
+          const forbidden = [
+            'hashPasscode(',
+            'DEFAULT_PASSCODE_HASH',
+            'solmint_admin_passcode',
+            'solmint_admin_pass_hash',
+            'solmint_admin_session',
+            'solmint_current_user',
+            'passwordHash: passHash',
+            'passwordHash: activeHash'
+          ];
+          const hits = [];
+          for (const file of files) {
+            const source = fs.readFileSync(file, 'utf8');
+            for (const token of forbidden) if (source.includes(token)) hits.push(`${file}: ${token}`);
+          }
+          if (hits.length) {
+            console.error('Frontend authentication hardening violations:\n' + hits.join('\n'));
+            process.exit(1);
+          }
+          console.log('Frontend authentication hardening verification passed.');
+          NODE
