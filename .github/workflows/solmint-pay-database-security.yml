@@ -4,14 +4,14 @@ on:
   pull_request:
     paths:
       - "supabase/migrations/**"
-      - "supabase/tests/pay_identity_rls.sql"
+      - "supabase/tests/**"
       - ".github/workflows/solmint-pay-database-security.yml"
   push:
     branches:
       - feat/solmint-pay-main-sync
     paths:
       - "supabase/migrations/**"
-      - "supabase/tests/pay_identity_rls.sql"
+      - "supabase/tests/**"
       - ".github/workflows/solmint-pay-database-security.yml"
   workflow_dispatch:
 
@@ -52,4 +52,4 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
           PGDATABASE: solmint_pay_security
-        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_identity_rls.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_identity_rls_security.sql
