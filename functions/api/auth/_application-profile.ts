@@ -55,21 +55,21 @@ export async function provisionApplicationProfile(
     const existingLink = await database.query<{ better_auth_user_id: string }>(
       `select better_auth_user_id
        from public.auth_identity_links
-       where legacy_user_id = $1
+       where application_user_id = $1
        limit 1`,
       [applicationUser.id],
     );
 
     if (existingLink.rows.length > 0 && existingLink.rows[0].better_auth_user_id !== user.id) {
-      throw new Error('Legacy application identity is already linked to another Better Auth identity.');
+      throw new Error('Application identity is already linked to another Better Auth identity.');
     }
 
     await database.query(
       `insert into public.auth_identity_links
-        (better_auth_user_id, legacy_user_id, source)
+        (better_auth_user_id, application_user_id, source)
        values ($1, $2, 'legacy-migration')
        on conflict (better_auth_user_id) do update
-       set legacy_user_id = excluded.legacy_user_id,
+       set application_user_id = excluded.application_user_id,
            source = excluded.source,
            updated_at = now()`,
       [user.id, applicationUser.id],
@@ -91,7 +91,7 @@ export async function provisionApplicationProfile(
 
     await database.query(
       `insert into public.auth_identity_links
-        (better_auth_user_id, legacy_user_id, source)
+        (better_auth_user_id, application_user_id, source)
        values ($1, $2, 'native')`,
       [user.id, applicationUserId],
     );
