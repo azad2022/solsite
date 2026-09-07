@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { provisionApplicationProfile } from '../../functions/api/auth/_application-profile';
+import type { ApplicationAuthDatabase } from '../../functions/api/auth/_database';
 
 class FakeDatabase {
   public users = new Map<string, { id: string; username: string; full_name: string; role: string; permissions: unknown; is_active: boolean; created_at: string }>();
@@ -57,6 +58,8 @@ class FakeDatabase {
   }
 }
 
+const asApplicationDatabase = (database: FakeDatabase) => database as unknown as ApplicationAuthDatabase;
+
 const baseUser = {
   email: 'new@example.com',
   name: 'New User',
@@ -65,7 +68,7 @@ const baseUser = {
 
 test('native Better Auth user provisions a user and native bridge', async () => {
   const database = new FakeDatabase();
-  const result = await provisionApplicationProfile(database, {
+  const result = await provisionApplicationProfile(asApplicationDatabase(database), {
     id: 'ba-native-1',
     username: 'new_user',
     ...baseUser,
@@ -90,7 +93,7 @@ test('existing application user is reused for legacy migration', async () => {
     created_at: '2026-08-01T00:00:00.000Z',
   });
 
-  const result = await provisionApplicationProfile(database, {
+  const result = await provisionApplicationProfile(asApplicationDatabase(database), {
     id: 'ba-legacy-1',
     username: 'legacy_user',
     email: 'legacy@example.com',
@@ -122,7 +125,7 @@ test('an application identity already linked to another Better Auth user is reje
   });
 
   await assert.rejects(
-    () => provisionApplicationProfile(database, {
+    () => provisionApplicationProfile(asApplicationDatabase(database), {
       id: 'ba-attacker',
       username: 'conflict_user',
       email: 'attacker@example.com',
