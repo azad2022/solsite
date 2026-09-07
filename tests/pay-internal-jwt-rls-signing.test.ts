@@ -70,5 +70,15 @@ for (const algorithm of ['ES256', 'RS256'] as const) {
 
 test('rejects missing or unsafe production configuration', () => {
   assert.throws(() => validatePayInternalJwtConfig({}), /SUPABASE_URL/);
-  assert.throws(() => validatePayInternalJwtConfig({ SUPABASE_URL: 'https://example.supabase.co', SUPABASE_INTERNAL_JWT_PRIVATE_KEY: 'not-pem', SUPABASE_INTERNAL_JWT_ALGORITHM: 'HS256', SUPABASE_INTERNAL_JWT_KEY_ID: 'kid', SUPABASE_INTERNAL_JWT_ISSUER: 'iss', SUPABASE_INTERNAL_JWT_AUDIENCE: 'aud' }), /ES256 or RS256/);
+  assert.throws(
+    () => validatePayInternalJwtConfig({
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_INTERNAL_JWT_PRIVATE_KEY: 'not-pem',
+      SUPABASE_INTERNAL_JWT_ALGORITHM: 'HS256',
+      SUPABASE_INTERNAL_JWT_KEY_ID: 'kid',
+      SUPABASE_INTERNAL_JWT_ISSUER: 'iss',
+      SUPABASE_INTERNAL_JWT_AUDIENCE: 'aud',
+    }),
+    /SUPABASE_INTERNAL_JWT_PRIVATE_KEY|SUPABASE_INTERNAL_JWT_ALGORITHM/,
+  );
 });
