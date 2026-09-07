@@ -62,9 +62,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Se
     console.error('Session list error:', error instanceof Error ? error.message : String(error));
     return jsonResponse({ success: false, code: 'SESSION_LIST_FAILED', message: 'دریافت نشست‌های فعال ناموفق بود.' }, 503);
   } finally {
-    if (env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') {
-      await runtime.database.end().catch(() => {});
-    }
+    await runtime.close();
   }
 };
 
@@ -92,12 +90,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
       return jsonResponse({ success: false, code: 'SESSION_ID_INVALID', message: 'شناسه نشست معتبر نیست.' }, 400);
     }
 
-    const target = await runtime.database.query<{ token: string; user_id: string }>(
-      'select token, user_id from better_auth.session where id = $1 and user_id = $2 and expires_at > now() limit 1',
-      [sessionId, String(session.user.id)],
-    );
-    const targetSession = target.rows[0];
-    if (!targetSession) {
+    const sessionToken = await runtime.application.findBetterAuthSessionToken(sessionId, String(session.user.id));
+    if (!sessionToken) {
       return jsonResponse({ success: false, code: 'SESSION_NOT_FOUND', message: 'نشست مورد نظر یافت نشد.' }, 404);
     }
 
@@ -107,7 +101,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
     }
 
     await runtime.auth.api.revokeSession({
-      body: { token: targetSession.token },
+      body: { token: sessionToken },
       headers: request.headers,
     });
 
@@ -116,8 +110,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
     console.error('Session revoke error:', error instanceof Error ? error.message : String(error));
     return jsonResponse({ success: false, code: 'SESSION_REVOKE_FAILED', message: 'لغو نشست ناموفق بود.' }, 503);
   } finally {
-    if (env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') {
-      await runtime.database.end().catch(() => {});
-    }
+    await runtime.close();
   }
 };
