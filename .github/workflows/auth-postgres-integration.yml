@@ -77,3 +77,6 @@ jobs:
 
       - name: Run Better Auth PostgreSQL integration
         run: bunx tsx --test tests/auth/better-auth-postgres.integration.test.ts
+
+      - name: Run Better Auth security E2E
+        run: bunx tsx --test tests/auth/better-auth-security.e2e.test.ts
