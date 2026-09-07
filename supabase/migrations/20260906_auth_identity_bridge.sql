@@ -1,7 +1,10 @@
 begin;
 
 create table if not exists public.auth_identity_links (
-  better_auth_user_id text primary key references better_auth."user"(id) on delete cascade,
+  -- The FK is attached by the Better Auth schema migration after better_auth."user"
+  -- exists. Keeping this migration independently replayable avoids a filename-order
+  -- dependency between the two 20260906 migrations.
+  better_auth_user_id text primary key,
   legacy_user_id text unique,
   source text not null check (source in ('native', 'legacy-migration')),
   created_at timestamptz not null default now(),
@@ -29,7 +32,7 @@ for each row execute function public.auth_identity_links_set_updated_at();
 
 -- legacy_user_id is intentionally not an FK: the repository does not contain the
 -- historical public.users DDL, while production already owns that table. The server
--- migration endpoint validates the legacy identity before creating the bridge row.
+-- migration/provisioning path validates the legacy identity before creating the row.
 alter table public.auth_identity_links enable row level security;
 revoke all on table public.auth_identity_links from public, anon, authenticated;
 revoke all on function public.auth_identity_links_set_updated_at() from public, anon, authenticated;
