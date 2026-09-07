@@ -82,8 +82,10 @@ test('native and legacy Better Auth users are mapped to the application identity
   assert.match(runtime, /databaseHooks:\s*\{/);
   assert.match(runtime, /provisionApplicationProfile/);
   assert.match(runtime, /x-solmint-legacy-migration/);
+  assert.match(runtime, /supplied === secret/);
   assert.match(migration, /application_user_id = \$1/);
   assert.match(migration, /x-solmint-legacy-migration/);
+  assert.match(migration, /env\.BETTER_AUTH_SECRET/);
   assert.doesNotMatch(migration, /insert into public\.auth_identity_links/);
   assert.match(me, /join public\.users u on u\.id = l\.application_user_id/);
   assert.match(usersMe, /join public\.users u on u\.id = l\.application_user_id/);
