@@ -67,8 +67,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
     }
     const current = await getSettings(env);
     const incoming = body.settings;
-    const newAdminPasscode = typeof incoming.security?.adminPasscode === 'string' ? incoming.security.adminPasscode.trim() : '';
-    if (newAdminPasscode && newAdminPasscode.length < 8) return jsonResponse({ success: false, message: 'رمز عبور مدیر باید حداقل ۸ کاراکتر باشد.' }, 400);
+    if (Object.prototype.hasOwnProperty.call(incoming.security || {}, 'adminPasscode')) {
+      return jsonResponse({ success: false, message: 'مدیریت رمز مدیر از طریق این endpoint غیرفعال شده است؛ از Better Auth استفاده کنید.' }, 400);
+    }
 
     const updated = {
       ...current,
@@ -88,14 +89,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: S
       body: JSON.stringify({ id: 'main_settings', settings_json: updated, updated_at: new Date().toISOString() })
     });
     if (!settingsResponse.ok) throw new Error(await settingsResponse.text());
-
-    // The legacy admin passcode is no longer an authentication mechanism.
-    // Keep the stored value removed; role changes/password administration belong to
-    // the Better Auth + application identity path and are not handled here.
-    if (newAdminPasscode) {
-      return jsonResponse({ success: false, message: 'تغییر رمز مدیر از طریق این endpoint دیگر مجاز نیست؛ از مدیریت هویت Better Auth استفاده کنید.' }, 400);
-    }
-
     return jsonResponse({ success: true, settings: updated, message: 'تنظیمات با موفقیت در Supabase ذخیره شد.' });
   } catch (error) {
     console.error('CMS settings POST failed:', error instanceof Error ? error.message : String(error));
