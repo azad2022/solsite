@@ -25,7 +25,7 @@ test('shared authentication boundary maps Better Auth identity to the applicatio
     headers: { Cookie: '__Host-solmint_auth_session=opaque-session' },
   });
 
-  const user = await getAuthenticatedUser({ NODE_ENV: 'test' }, request, resolver);
+  const user = await getAuthenticatedUser({}, request, resolver);
 
   assert.deepEqual(user, {
     id: 'usr-123',
@@ -44,7 +44,7 @@ test('shared authentication boundary fails closed when a Better Auth cookie is i
     headers: { Cookie: '__Host-solmint_auth_session=invalid' },
   });
 
-  const user = await getAuthenticatedUser({ NODE_ENV: 'test' }, request, async () => null);
+  const user = await getAuthenticatedUser({}, request, async () => null);
 
   assert.equal(user, null);
 });
