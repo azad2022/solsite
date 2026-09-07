@@ -3,6 +3,7 @@
 -- It intentionally creates only the relations required by the production RLS bridge,
 -- then applies the exact production migration and exercises it as role authenticated.
 
+create role anon;
 create role authenticated;
 grant usage on schema public to authenticated;
 
@@ -130,8 +131,6 @@ alter table public.pay_gas_ledger enable row level security;
 \set bridge_migration 'supabase/migrations/20260907214733_solmint_pay_identity_rls_bridge.sql'
 \i :bridge_migration
 
--- Privilege boundary: authenticated is read-only on the intended safe models
--- and has no access to server-mediated sensitive models in this fixture.
 create table public.pay_webhooks (id uuid primary key);
 create table public.pay_api_keys (id uuid primary key);
 revoke all on public.pay_webhooks, public.pay_api_keys from authenticated;
@@ -142,8 +141,6 @@ select set_config('request.jwt.claims', '{"solmint_user_id":"user-a"}', true);
 
 create temporary table visible_merchants as
 select id from public.pay_merchants order by id;
-
-\gset
 
 DO $$
 begin
