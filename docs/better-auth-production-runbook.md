@@ -39,11 +39,12 @@ The repository deliberately does not contain or invent a Hyperdrive identifier.
 Never apply the Better Auth migration directly to production as the first validation step.
 
 1. Take the normal Supabase backup/snapshot required by the deployment process.
-2. Apply `supabase/migrations/20260906_better_auth_identity_schema.sql` to an isolated non-production database.
-3. Apply `supabase/migrations/20260906_auth_identity_bridge.sql` after the Better Auth schema migration.
-4. Verify schema ownership, indexes, triggers, RLS state, and absence of browser grants.
-5. Run authentication E2E and adversarial tests.
-6. Only then schedule the production migration in a controlled deployment window.
+2. Validate the repository's historical Supabase migration baseline on disposable PostgreSQL independently from this auth PR.
+3. Apply `supabase/migrations/20260906_auth_identity_bridge.sql` to an isolated non-production database. This migration creates the bridge without an FK so its short historical filename cannot depend on a later Better Auth table.
+4. Apply `supabase/migrations/20260906_better_auth_identity_schema.sql`; this creates the `better_auth` schema and core tables, then attaches the `auth_identity_links.better_auth_user_id` FK.
+5. Verify schema ownership, indexes, triggers, RLS state, the bridge FK, and absence of browser grants.
+6. Run authentication E2E and adversarial tests.
+7. Only then schedule the production migration in a controlled deployment window.
 
 The migration intentionally does not alter or rename `public.users`, `public.auth_sessions`, or Pay tables.
 
@@ -51,11 +52,21 @@ The migration intentionally does not alter or rename `public.users`, `public.aut
 
 Historical `public.users` records do not currently contain email addresses. A legacy account therefore cannot be silently converted into a Better Auth email identity without an additional trusted email value.
 
-The controlled migration endpoint is `POST /api/auth/migrate-legacy` and accepts a legacy username/password plus the user's chosen email. It verifies the existing password hash using the current compatibility logic, creates the Better Auth identity, and writes an identity bridge row. Existing Pay identifiers remain unchanged.
+The controlled migration endpoint is `POST /api/auth/migrate-legacy` and accepts a legacy username/password plus the user's chosen email. It verifies the existing password hash using the current compatibility logic and asks Better Auth to create the new identity through a server-only migration header. The Better Auth user-create provisioning hook then resolves the existing application user and creates the identity bridge. Existing Pay identifiers remain unchanged.
 
 The migration endpoint returns a generic `202` response for invalid, unknown, inactive, duplicate, or successful migration requests to avoid user enumeration.
 
 Do not bulk-copy legacy password hashes into Better Auth. Do not migrate old session tokens. The safer cutover is controlled re-authentication; old sessions can be invalidated during the final cutover after the new identity path has passed E2E validation.
+
+## Native application identity provisioning
+
+Every new Better Auth user must have a Solmint application user before the identity is considered usable by domain code. Provisioning is performed server-side from the Better Auth user-create lifecycle.
+
+For native email/OAuth sign-up, a new `public.users` row is created explicitly with role `user`, empty permissions, and an unusable legacy-password marker. The application does not copy the Better Auth password hash into `public.users`; Better Auth remains the password authority.
+
+For a controlled legacy migration, the existing `public.users` row is reused and the bridge records `source = 'legacy-migration'`. Native registration is blocked from reusing an existing legacy username before the Better Auth user is created.
+
+If application-profile provisioning fails after Better Auth user creation, the runtime performs compensating deletion of the just-created Better Auth user so an orphan authentication identity is not silently left behind.
 
 ## Email verification and password reset
 
@@ -107,13 +118,13 @@ Required Pay invariants remain:
 Recommended order:
 
 1. repair and validate the repository's historical Supabase migration baseline separately from the auth PR;
-2. non-production Better Auth schema migration;
+2. non-production Better Auth bridge/schema migration;
 3. Hyperdrive preview connectivity validation;
 4. email transport validation;
 5. Google OAuth validation;
 6. auth and adversarial tests;
 7. controlled legacy migration test with a disposable account;
-8. production Better Auth schema migration;
+8. production Better Auth bridge/schema migration;
 9. production Hyperdrive binding verification;
 10. enable the new registration/login path;
 11. controlled legacy re-authentication/migration;
