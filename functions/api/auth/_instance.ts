@@ -49,7 +49,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     basePath: '/api/auth',
     trustedOrigins: foundation.trustedOrigins,
     disabledPaths: ['/is-username-available'],
-    database,
+    database: database.adapter,
     user: {
       modelName: 'user',
       fields: {
@@ -140,7 +140,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         ipAddressHeaders: ['cf-connecting-ip'],
       },
       database: {
-        joins: true,
+        joins: false,
       },
       useSecureCookies: secureCookies,
       cookies: {
@@ -166,12 +166,8 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         const requestedUsername = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
         if (!requestedUsername) return;
 
-        const existing = await database.query<{ id: string }>(
-          `select id from public.users where lower(username) = lower($1) limit 1`,
-          [requestedUsername],
-        );
-
-        if (existing.rows.length > 0 && !isLegacyMigration) {
+        const existing = await database.application.findApplicationUserByUsername(requestedUsername);
+        if (existing && !isLegacyMigration) {
           throw new APIError('CONFLICT', { message: 'This username is already in use.' });
         }
       }),
@@ -181,10 +177,8 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         create: {
           after: async (user) => {
             try {
-              const record = user as typeof user & {
-                username?: string | null;
-              };
-              await provisionApplicationProfile(database, {
+              const record = user as typeof user & { username?: string | null };
+              await provisionApplicationProfile(database.application, {
                 id: String(record.id),
                 email: String(record.email),
                 name: String(record.name),
@@ -192,7 +186,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                 createdAt: record.createdAt,
               });
             } catch (error) {
-              await database.query('delete from better_auth."user" where id = $1', [String(user.id)]).catch(() => {});
+              await database.application.deleteApplicationUser(String(user.id)).catch(() => {});
               throw error;
             }
           },
@@ -218,7 +212,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     },
   });
 
-  return { auth, database };
+  return { auth, database: database.adapter, application: database.application, close: database.close };
 }
 
 export function createBetterAuth(env: BetterAuthRuntimeEnv) {
