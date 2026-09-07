@@ -1,37 +1,87 @@
-import { describe, expect, it, vi } from 'vitest';
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { mapBetterAuthUserToApplicationUser } from '../../functions/api/auth/_application-session';
 
-vi.mock('../../functions/api/auth/_instance', () => ({
-  createBetterAuthRuntime: () => ({
-    auth: { api: { getSession: vi.fn() } },
-    database: { query: vi.fn(), end: vi.fn().mockResolvedValue(undefined) },
-  }),
-}));
+test('Better Auth application mapping preserves the Better Auth identity id and maps the application user id', () => {
+  const result = mapBetterAuthUserToApplicationUser(
+    {
+      id: 'ba-user-1',
+      email: 'u@example.com',
+      name: 'U',
+      createdAt: '2026-09-07T00:00:00.000Z',
+    },
+    {
+      application_user_id: 'usr-1',
+      username: 'user1',
+      full_name: 'User One',
+      role: 'user',
+      permissions: [],
+      is_active: true,
+      created_at: '2026-09-07T00:00:00.000Z',
+    },
+  );
 
-import { getBetterAuthApplicationUser } from '../../functions/api/auth/_application-session';
-
-describe('Better Auth application session boundary', () => {
-  it('returns null when Better Auth has no session', async () => {
-    const { createBetterAuthRuntime } = await import('../../functions/api/auth/_instance');
-    const runtime = createBetterAuthRuntime({ NODE_ENV: 'test' } as never) as any;
-    runtime.auth.api.getSession.mockResolvedValue(null);
-    expect(await getBetterAuthApplicationUser(new Request('https://solmint.ir/'), { NODE_ENV: 'test' } as never)).toBeNull();
+  assert.deepEqual(result, {
+    id: 'ba-user-1',
+    applicationUserId: 'usr-1',
+    username: 'user1',
+    fullName: 'User One',
+    role: 'user',
+    permissions: [],
+    isActive: true,
+    createdAt: '2026-09-07T00:00:00.000Z',
   });
+});
 
-  it('maps a Better Auth identity only through the server-side identity bridge', async () => {
-    const { createBetterAuthRuntime } = await import('../../functions/api/auth/_instance');
-    const runtime = createBetterAuthRuntime({ NODE_ENV: 'test' } as never) as any;
-    runtime.auth.api.getSession.mockResolvedValue({ user: { id: 'ba-user-1', email: 'u@example.com', name: 'U', createdAt: new Date().toISOString() } });
-    runtime.database.query.mockResolvedValue({ rows: [{ application_user_id: 'usr-1', username: 'user1', full_name: 'User One', role: 'user', permissions: [], is_active: true, created_at: new Date().toISOString() }] });
-    const result = await getBetterAuthApplicationUser(new Request('https://solmint.ir/'), { NODE_ENV: 'test' } as never);
-    expect(result).toMatchObject({ id: 'ba-user-1', username: 'user1', role: 'user', isActive: true });
-    expect(runtime.database.query).toHaveBeenCalledTimes(1);
-  });
+test('Better Auth application mapping rejects inactive application users', () => {
+  const result = mapBetterAuthUserToApplicationUser(
+    {
+      id: 'ba-user-2',
+      email: 'u2@example.com',
+      name: 'U2',
+      createdAt: '2026-09-07T00:00:00.000Z',
+    },
+    {
+      application_user_id: 'usr-2',
+      username: 'user2',
+      full_name: 'User Two',
+      role: 'admin',
+      permissions: [],
+      is_active: false,
+      created_at: '2026-09-07T00:00:00.000Z',
+    },
+  );
 
-  it('fails closed for inactive application users', async () => {
-    const { createBetterAuthRuntime } = await import('../../functions/api/auth/_instance');
-    const runtime = createBetterAuthRuntime({ NODE_ENV: 'test' } as never) as any;
-    runtime.auth.api.getSession.mockResolvedValue({ user: { id: 'ba-user-2', email: 'u2@example.com', name: 'U2', createdAt: new Date().toISOString() } });
-    runtime.database.query.mockResolvedValue({ rows: [{ application_user_id: 'usr-2', username: 'user2', full_name: 'User Two', role: 'admin', permissions: [], is_active: false, created_at: new Date().toISOString() }] });
-    expect(await getBetterAuthApplicationUser(new Request('https://solmint.ir/'), { NODE_ENV: 'test' } as never)).toBeNull();
+  assert.equal(result, null);
+});
+
+test('Better Auth application mapping falls back to verified Better Auth identity fields only for missing profile fields', () => {
+  const result = mapBetterAuthUserToApplicationUser(
+    {
+      id: 'ba-user-3',
+      email: 'u3@example.com',
+      name: 'User Three',
+      createdAt: '2026-09-07T00:00:00.000Z',
+    },
+    {
+      application_user_id: 'usr-3',
+      username: null,
+      full_name: null,
+      role: null,
+      permissions: { unexpected: true },
+      is_active: true,
+      created_at: null,
+    },
+  );
+
+  assert.deepEqual(result, {
+    id: 'ba-user-3',
+    applicationUserId: 'usr-3',
+    username: 'u3@example.com',
+    fullName: 'User Three',
+    role: 'user',
+    permissions: [],
+    isActive: true,
+    createdAt: '2026-09-07T00:00:00.000Z',
   });
 });
