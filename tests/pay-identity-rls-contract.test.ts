@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const identityPath = path.join(root, 'functions/api/pay/_shared/identity.ts');
-const migrationPath = path.join(root, 'supabase/migrations/20260908000000_solmint_pay_identity_rls_bridge.sql');
+const migrationPath = path.join(root, 'supabase/migrations/20260907214733_solmint_pay_identity_rls_bridge.sql');
 const merchantPath = path.join(root, 'functions/api/pay/v1/merchants/index.ts');
 
 function read(file: string): string { return fs.readFileSync(file, 'utf8'); }
