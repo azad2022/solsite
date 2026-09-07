@@ -1,20 +1,17 @@
+import { getBetterAuthApplicationUser, getBetterAuthSessionToken } from '../auth/_application-session';
+import type { Env } from '../auth/_shared';
+import { jsonResponse } from '../auth/_shared';
+
 const ARTICLE_FUNCTION_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co/functions/v1/article-publish-api';
-const SESSION_COOKIE = '__Host-solmint_session';
 
-function getSessionToken(request: Request): string {
-  const cookie = request.headers.get('Cookie') || '';
-  const match = cookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
-  return match ? decodeURIComponent(match[1]) : '';
+function canManageArticles(user: Awaited<ReturnType<typeof getBetterAuthApplicationUser>>): boolean {
+  if (!user) return false;
+  const role = String(user.role || '').toLowerCase();
+  const permissions = Array.isArray(user.permissions) ? user.permissions.map(String) : [];
+  return role === 'superadmin' || role === 'admin' || permissions.includes('articles') || permissions.includes('editor');
 }
-
 function json(body: unknown, status = 200) {
-  return Response.json(body, {
-    status,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Content-Type': 'application/json; charset=utf-8'
-    }
-  });
+  return jsonResponse(body, status, { 'Cache-Control': 'no-store, no-cache, must-revalidate' });
 }
 
 export const onRequestOptions = async () => new Response(null, {
@@ -27,19 +24,23 @@ export const onRequestOptions = async () => new Response(null, {
   }
 });
 
-export const onRequestDelete = async ({ request, params }: { request: Request; params: { id?: string } }) => {
-  const sessionToken = getSessionToken(request);
-  if (!sessionToken) {
-    return json({ success: false, code: 'SESSION_REQUIRED', message: 'نشست مدیریت معتبر نیست. لطفاً دوباره وارد شوید.' }, 401);
-  }
+export const onRequestDelete = async ({ request, env, params }: { request: Request; env: Env; params: { id?: string } }) => {
+  const actor = await getBetterAuthApplicationUser(request, env);
+  if (!actor) return json({ success: false, code: 'ARTICLE_AUTH_REQUIRED', message: 'نشست مدیریت مقاله معتبر نیست.' }, 401);
+  if (!canManageArticles(actor)) return json({ success: false, code: 'ARTICLE_FORBIDDEN', message: 'این حساب مجوز حذف مقاله را ندارد.' }, 403);
 
+  const sessionToken = getBetterAuthSessionToken(request);
+  if (!sessionToken) return json({ success: false, code: 'BETTER_AUTH_SESSION_REQUIRED', message: 'نشست Better Auth در درخواست موجود نیست.' }, 401);
   const id = String(params?.id || '').trim();
   if (!id) return json({ success: false, code: 'ARTICLE_ID_MISSING', message: 'شناسه مقاله مشخص نشده است.' }, 400);
 
   try {
     const response = await fetch(`${ARTICLE_FUNCTION_URL}/${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: { 'x-solmint-session-token': sessionToken }
+      headers: {
+        'x-solmint-better-auth-session': sessionToken,
+        'x-solmint-auth-source': 'better-auth'
+      }
     });
     const text = await response.text();
     return new Response(text, {
@@ -50,7 +51,7 @@ export const onRequestDelete = async ({ request, params }: { request: Request; p
       }
     });
   } catch (error) {
-    console.error('Article delete proxy failed:', error);
+    console.error('Article delete proxy failed:', error instanceof Error ? error.message : String(error));
     return json({ success: false, code: 'ARTICLE_DELETE_PROXY_FAILED', message: 'ارتباط با سرویس حذف مقاله برقرار نشد.' }, 502);
   }
 };
