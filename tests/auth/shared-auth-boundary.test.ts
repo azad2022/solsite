@@ -52,3 +52,17 @@ test('shared authentication boundary fails closed when a Better Auth cookie is i
 
   assert.equal(user, null);
 });
+
+test('shared authentication boundary does not fall through to legacy auth when Better Auth cookie is present', async () => {
+  const request = new Request('https://solmint.ir/api/test', {
+    headers: { Cookie: '__Host-solmint_auth_session=invalid; __Host-solmint_session=legacy-session' },
+  });
+
+  const user = await getAuthenticatedUser(
+    { NODE_ENV: 'test' },
+    request,
+    async () => null,
+  );
+
+  assert.equal(user, null);
+});
