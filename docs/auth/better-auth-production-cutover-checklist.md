@@ -13,10 +13,12 @@
 - [ ] Better Auth security E2E is green.
 - [ ] Production build is green.
 - [ ] Cloudflare Pages non-production deployment is validated with the real Pages Functions runtime.
-- [ ] A non-production Hyperdrive binding points to the intended PostgreSQL environment.
+- [ ] Supabase HTTPS transport is validated from the deployed Pages Function using the server-only credential.
 - [ ] `BETTER_AUTH_SECRET` is provisioned as a server-only secret and is at least 32 characters.
 - [ ] `BETTER_AUTH_URL=https://solmint.ir` is configured.
 - [ ] `BETTER_AUTH_TRUSTED_ORIGINS` contains only exact production origins.
+- [ ] `SUPABASE_URL` points to the intended production project.
+- [ ] `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` is provisioned server-side and is never exposed to Vite/client code.
 - [ ] `RESEND_API_KEY` and `AUTH_EMAIL_FROM` are provisioned server-side before enabling registration or password reset in production.
 - [ ] Google OAuth client ID/secret are provisioned server-side and the production redirect URI is registered at Google.
 
@@ -34,7 +36,8 @@ Before migrating users:
 2. Verify the current `public.users` population and dependencies.
 3. Verify that each legacy user can map to exactly one application profile.
 4. Resolve duplicate usernames before migration; do not silently merge unrelated accounts.
-5. Decide whether legacy sessions will be invalidated. The default safe path is invalidation and controlled re-authentication.
+5. Rehearse every auth migration on the disposable/staging database first.
+6. Decide whether legacy sessions will be invalidated. The default safe path is invalidation and controlled re-authentication.
 
 ## 3. Legacy password migration
 
@@ -101,16 +104,16 @@ A client-supplied `merchant_id`, `payment_id`, or equivalent identifier is never
 
 ## 9. Cloudflare activation
 
-Cloudflare Pages must supply the `HYPERDRIVE` binding in the deployed environment. The repository intentionally contains no fabricated Hyperdrive ID.
+Cloudflare Pages does not need a Hyperdrive binding for the Better Auth request path.
 
-The production deployment must be validated with the real Pages Functions handler at `/api/auth/*`, not only with Node.js tests.
+The production deployment must be validated with the real Pages Functions handler at `/api/auth/*` and `/api/users/me`, not only with Node.js tests.
 
-`wrangler.toml` already enables Node compatibility for the Pages deployment. Cloudflare documents `pg` as the recommended driver for Hyperdrive-backed PostgreSQL and requires Node compatibility for database drivers.
+Production must provide the server-only Supabase environment values required by `createBetterAuthDatabase`; client-side `VITE_*` values must never contain a service credential.
 
 ## 10. Go / no-go
 
 **GO** only when every precondition above is green and the live non-production deployment has successfully exercised registration, login, logout, session retrieval, revocation, verification, reset, Google OAuth, and abuse controls through the actual Cloudflare Pages Functions path.
 
-**NO-GO** if email transport, Hyperdrive binding, OAuth credentials, migration mapping, or Pay authorization validation is incomplete.
+**NO-GO** if email transport, Supabase server credential, OAuth credentials, migration mapping, or Pay authorization validation is incomplete.
 
 A green authentication test suite is not permission to modify Pay authorization or RLS.
