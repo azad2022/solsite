@@ -18,7 +18,7 @@ const runtime = databaseUrl
 const db = runtime?.database;
 
 test.after(async () => {
-  if (db) await db.end();
+  if (runtime) await runtime.close();
 });
 
 test(
@@ -367,7 +367,7 @@ test(
       assert.notEqual(callback.status, 200);
       assert.ok(!callback.headers.get('set-cookie'), 'forged OAuth state must not establish a session cookie');
     } finally {
-      if (oauthRuntime.database !== db) await oauthRuntime.database.end();
+      await oauthRuntime.close();
     }
   },
 );
