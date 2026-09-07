@@ -1,8 +1,9 @@
-import { getAuthenticatedUser, type Env, jsonResponse } from '../auth/_shared';
+import { getBetterAuthApplicationUser, getBetterAuthSessionToken } from '../auth/_application-session';
+import type { Env } from '../auth/_shared';
+import { jsonResponse } from '../auth/_shared';
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const ARTICLE_FUNCTION_URL = `${DEFAULT_URL}/functions/v1/article-publish-api`;
-const SESSION_COOKIE = '__Host-solmint_session';
 
 function db(env: Env) {
   const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
@@ -10,16 +11,14 @@ function db(env: Env) {
   const base = (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, '');
   return { base, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } };
 }
-function getSessionToken(request: Request): string {
-  const cookie = request.headers.get('Cookie') || '';
-  const match = cookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
-  return match ? decodeURIComponent(match[1]) : '';
-}
-function canManageArticles(user: any): boolean {
+function canManageArticles(user: Awaited<ReturnType<typeof getBetterAuthApplicationUser>>): boolean {
   if (!user) return false;
   const role = String(user.role || '').toLowerCase();
-  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+  const permissions = Array.isArray(user.permissions) ? user.permissions.map(String) : [];
   return role === 'superadmin' || role === 'admin' || permissions.includes('articles') || permissions.includes('editor');
+}
+function authResponse(user: Awaited<ReturnType<typeof getBetterAuthApplicationUser>>) {
+  return jsonResponse({ success: false, code: user ? 'ARTICLE_FORBIDDEN' : 'ARTICLE_AUTH_REQUIRED', message: user ? 'این حساب مجوز مدیریت مقالات را ندارد.' : 'نشست مدیریت مقاله معتبر نیست.' }, user ? 403 : 401);
 }
 
 function normalizeArticle(item: any) {
@@ -48,13 +47,12 @@ function normalizeArticle(item: any) {
     isDraft: Boolean(item?.isDraft ?? item?.is_draft)
   };
 }
-
 function normalizeArticles(items: unknown) { return Array.isArray(items) ? items.map(normalizeArticle).filter((item: any) => item.id && item.slug) : []; }
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: Env }) => {
   try {
     const { base, headers } = db(env);
-    const actor = await getAuthenticatedUser(env, request);
+    const actor = await getBetterAuthApplicationUser(request, env);
     if (canManageArticles(actor)) {
       const response = await fetch(`${base}/rest/v1/articles?select=*&order=created_at.desc`, { headers });
       const text = await response.text();
@@ -67,23 +65,33 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
     if (!response.ok) { console.error('Public article list failed:', response.status, text.slice(0, 500)); return jsonResponse({ success: false, code: 'PUBLIC_ARTICLE_LIST_FAILED', message: 'دریافت فهرست مقالات ناموفق بود.' }, 502); }
     return jsonResponse({ success: true, articles: normalizeArticles(text ? JSON.parse(text) : []) });
   } catch (error) {
-    console.error('Article list error:', error);
+    console.error('Article list error:', error instanceof Error ? error.message : String(error));
     return jsonResponse({ success: false, code: 'ARTICLE_LIST_SERVER_ERROR', message: 'ارتباط با دیتابیس مقالات برقرار نشد.' }, 503);
   }
 };
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   try {
-    const actor = await getAuthenticatedUser(env, request);
-    if (!canManageArticles(actor)) return jsonResponse({ success: false, code: 'ARTICLE_AUTH_REQUIRED', message: 'دسترسی مدیریت مقالات معتبر نیست.' }, 401);
-    const sessionToken = getSessionToken(request);
-    if (!sessionToken) return jsonResponse({ success: false, code: 'SESSION_REQUIRED', message: 'نشست مدیریت معتبر نیست. لطفاً دوباره وارد شوید.' }, 401);
+    const actor = await getBetterAuthApplicationUser(request, env);
+    if (!canManageArticles(actor)) return authResponse(actor);
+
+    const sessionToken = getBetterAuthSessionToken(request);
+    if (!sessionToken) return jsonResponse({ success: false, code: 'BETTER_AUTH_SESSION_REQUIRED', message: 'نشست Better Auth در درخواست موجود نیست.' }, 401);
+
     const body = await request.text();
-    const response = await fetch(ARTICLE_FUNCTION_URL, { method: 'POST', headers: { 'Content-Type': request.headers.get('Content-Type') || 'application/json', 'x-solmint-session-token': sessionToken }, body });
+    const response = await fetch(ARTICLE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': request.headers.get('Content-Type') || 'application/json',
+        'x-solmint-better-auth-session': sessionToken,
+        'x-solmint-auth-source': 'better-auth'
+      },
+      body
+    });
     const text = await response.text();
     return new Response(text, { status: response.status, headers: { 'Content-Type': response.headers.get('Content-Type') || 'application/json; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' } });
   } catch (error) {
-    console.error('Admin article save proxy failed:', error);
+    console.error('Admin article save proxy failed:', error instanceof Error ? error.message : String(error));
     return jsonResponse({ success: false, code: 'ARTICLE_SAVE_PROXY_FAILED', message: 'ارتباط با سرویس انتشار مقاله برقرار نشد.' }, 502);
   }
 };
