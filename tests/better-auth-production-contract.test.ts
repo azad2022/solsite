@@ -55,14 +55,37 @@ test('Better Auth identity schema is not browser-writable', () => {
   assert.match(source, /revoke all on all tables in schema better_auth from public/);
 });
 
-test('legacy identity bridge is server-only and supports controlled migration', () => {
+test('identity bridge is replayable before Better Auth schema and receives its FK afterwards', () => {
   const bridge = read('supabase/migrations/20260906_auth_identity_bridge.sql');
+  const schema = read('supabase/migrations/20260906_better_auth_identity_schema.sql');
+  assert.match(bridge, /better_auth_user_id text primary key/);
+  assert.doesNotMatch(bridge, /references better_auth\.\\"user\\"/);
+  assert.match(schema, /auth_identity_links_better_auth_user_id_fkey/);
+  assert.match(schema, /foreign key \(better_auth_user_id\)/);
+});
+
+test('native and legacy Better Auth users are mapped to the application identity boundary', () => {
+  const profile = read('functions/api/auth/_application-profile.ts');
+  const runtime = read('functions/api/auth/_instance.ts');
   const migration = read('functions/api/auth/migrate-legacy.ts');
-  assert.match(bridge, /auth_identity_links/);
-  assert.match(bridge, /alter table public\.auth_identity_links enable row level security/);
-  assert.match(bridge, /revoke all on table public\.auth_identity_links/);
-  assert.match(migration, /status: 202/);
-  assert.match(migration, /source.*legacy-migration/);
+
+  assert.match(profile, /insert into public\.users/);
+  assert.match(profile, /insert into public\.auth_identity_links/);
+  assert.match(profile, /source = 'legacy-migration'/);
+  assert.match(profile, /source = 'native'/);
+  assert.match(profile, /better-auth-only\$/);
+  assert.match(runtime, /databaseHooks:\s*\{/);
+  assert.match(runtime, /provisionApplicationProfile/);
+  assert.match(runtime, /x-solmint-legacy-migration/);
+  assert.match(migration, /x-solmint-legacy-migration/);
+  assert.doesNotMatch(migration, /insert into public\.auth_identity_links/);
+});
+
+test('native signup cannot reuse a legacy application username', () => {
+  const source = read('functions/api/auth/_instance.ts');
+  assert.match(source, /ctx\.path !== '\/sign-up\/email'/);
+  assert.match(source, /lower\(username\) = lower\(\$1\)/);
+  assert.match(source, /APIError\('CONFLICT'/);
 });
 
 test('Google OAuth credentials remain server-only', () => {
