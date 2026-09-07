@@ -87,7 +87,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
         password,
         username: applicationUser.username,
       },
-      headers: new Headers({ 'x-solmint-legacy-migration': '1' }),
+      headers: new Headers({ 'x-solmint-legacy-migration': env.BETTER_AUTH_SECRET?.trim() || '' }),
     }) as unknown as { user?: { id?: string } | null };
 
     if (!result.user?.id) return genericResponse();
