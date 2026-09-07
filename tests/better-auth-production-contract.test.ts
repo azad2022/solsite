@@ -76,9 +76,10 @@ test('identity bridge preserves both identity-side and application-side lifecycl
 
 test('native and legacy Better Auth users are mapped to the application identity boundary', () => {
   const profile = read('functions/api/auth/_application-profile.ts');
+  const session = read('functions/api/auth/_application-session.ts');
+  const database = read('functions/api/auth/_database.ts');
   const runtime = read('functions/api/auth/_instance.ts');
   const migration = read('functions/api/auth/migrate-legacy.ts');
-  const me = read('functions/api/auth/me.ts');
   const usersMe = read('functions/api/users/me.ts');
 
   assert.match(profile, /ApplicationAuthDatabase/);
@@ -89,6 +90,10 @@ test('native and legacy Better Auth users are mapped to the application identity
   assert.match(profile, /legacy-migration/);
   assert.match(profile, /native/);
   assert.match(profile, /better-auth-only\$/);
+  assert.match(session, /findIdentityByBetterAuthUserId\(/);
+  assert.match(session, /applicationUserId/);
+  assert.match(database, /join public\.users u on u\.id = l\.application_user_id/);
+  assert.match(database, /users!inner\(id,username,full_name,role,permissions,is_active,created_at\)/);
   assert.match(runtime, /databaseHooks:\s*\{/);
   assert.match(runtime, /provisionApplicationProfile/);
   assert.match(runtime, /x-solmint-legacy-migration/);
@@ -101,8 +106,6 @@ test('native and legacy Better Auth users are mapped to the application identity
   assert.match(migration, /LEGACY_MIGRATION_SECRET/);
   assert.doesNotMatch(migration, /env\.BETTER_AUTH_SECRET\?\.trim\(\) \|\|/);
   assert.doesNotMatch(migration, /insert into public\.auth_identity_links/);
-  assert.match(me, /join public\.users u on u\.id = l\.application_user_id/);
-  assert.match(usersMe, /join public\.users u on u\.id = l\.application_user_id/);
   assert.doesNotMatch(usersMe, /legacy_user_id/);
   assert.match(read('functions/api/auth/_instance.ts'), /LEGACY_MIGRATION_ENABLED/);
   assert.match(read('.env.example'), /LEGACY_MIGRATION_ENABLED=/);
