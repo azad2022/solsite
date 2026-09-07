@@ -18,6 +18,11 @@ type MembershipRow = {
   status: string;
 };
 
+type PayMerchantAuthorizationDeps = {
+  getApplicationUser?: typeof getBetterAuthApplicationUser;
+  fetchImpl?: typeof fetch;
+};
+
 function supabaseServerConfig(env: BetterAuthApplicationSessionEnv): { base: string; headers: Record<string, string> } | null {
   const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
   const url = env.SUPABASE_URL;
@@ -40,6 +45,7 @@ async function findActiveMembership(
   config: { base: string; headers: Record<string, string> },
   merchantId: string,
   applicationUserId: string,
+  fetchImpl: typeof fetch,
 ): Promise<MembershipRow | null> {
   const params = new URLSearchParams({
     select: 'merchant_id,user_id,role,status',
@@ -49,7 +55,7 @@ async function findActiveMembership(
     limit: '1',
   });
 
-  const response = await fetch(`${config.base}/rest/v1/pay_merchant_members?${params.toString()}`, {
+  const response = await fetchImpl(`${config.base}/rest/v1/pay_merchant_members?${params.toString()}`, {
     method: 'GET',
     headers: { ...config.headers, 'Cache-Control': 'no-store' },
   });
@@ -69,17 +75,19 @@ export async function authorizePayMerchant(
   request: Request,
   env: BetterAuthApplicationSessionEnv,
   merchantId: string,
+  dependencies: PayMerchantAuthorizationDeps = {},
 ): Promise<{ ok: true; value: PayMerchantAuthorization } | PayMerchantAuthorizationFailure> {
   if (!isUuid(merchantId)) return { ok: false, status: 404, code: 'PAY_MERCHANT_NOT_FOUND' };
 
-  const user = await getBetterAuthApplicationUser(request, env);
+  const getApplicationUser = dependencies.getApplicationUser ?? getBetterAuthApplicationUser;
+  const user = await getApplicationUser(request, env);
   if (!user) return { ok: false, status: 401, code: 'PAY_AUTH_REQUIRED' };
 
   const config = supabaseServerConfig(env);
   if (!config) return { ok: false, status: 503, code: 'PAY_AUTH_MISCONFIGURED' };
 
   try {
-    const membership = await findActiveMembership(config, merchantId, user.applicationUserId);
+    const membership = await findActiveMembership(config, merchantId, user.applicationUserId, dependencies.fetchImpl ?? fetch);
     if (!membership) return { ok: false, status: 403, code: 'PAY_MERCHANT_FORBIDDEN' };
 
     return {
