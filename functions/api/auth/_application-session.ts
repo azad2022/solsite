@@ -25,6 +25,22 @@ export interface BetterAuthApplicationUser {
 }
 
 /**
+ * Extract the Better Auth session bearer from the server-only cookie.
+ * This value must never be sent to browser storage or logged.
+ */
+export function getBetterAuthSessionToken(request: Request): string | null {
+  const cookieHeader = request.headers.get('Cookie') || '';
+  const match = cookieHeader.match(/(?:^|;\s*)__Host-solmint_auth_session=([^;]+)/);
+  if (!match) return null;
+  try {
+    const value = decodeURIComponent(match[1]).trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Authentication boundary for application routes.
  * Better Auth owns identity/session state; public.users remains authoritative for
  * application profile, role, permissions, and active status.
