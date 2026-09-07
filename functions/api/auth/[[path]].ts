@@ -25,9 +25,9 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
       },
     });
   } finally {
-    if (runtime && env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') {
-      await runtime.database.end().catch((error) => {
-        console.warn('Better Auth PostgreSQL pool shutdown failed:', error instanceof Error ? error.message : 'unknown error');
+    if (runtime) {
+      await runtime.close().catch((error) => {
+        console.warn('Better Auth runtime cleanup failed:', error instanceof Error ? error.message : 'unknown error');
       });
     }
   }
