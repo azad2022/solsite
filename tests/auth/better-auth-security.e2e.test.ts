@@ -98,8 +98,10 @@ test(
         }),
       );
 
+      const knownWrongPasswordBody = (await knownWrongPassword.json()) as { code?: string };
+      const unknownUserBody = (await unknownUser.json()) as { code?: string };
       assert.equal(knownWrongPassword.status, unknownUser.status);
-      assert.equal((await knownWrongPassword.json()).code, (await unknownUser.json()).code);
+      assert.equal(knownWrongPasswordBody.code, unknownUserBody.code);
       assert.equal(knownWrongPassword.headers.get('set-cookie'), null);
       assert.equal(unknownUser.headers.get('set-cookie'), null);
     } finally {
@@ -220,14 +222,22 @@ test(
 
       const revokedSession = await runtime.auth.handler(
         new Request(`${baseURL}/api/auth/get-session`, {
-          headers: { cookie: firstCookie, origin: baseURL },
+          headers: {
+            cookie: firstCookie,
+            origin: baseURL,
+            'cf-connecting-ip': '198.51.100.37',
+          },
         }),
       );
       assert.equal(await revokedSession.json(), null);
 
       const remainingSession = await runtime.auth.handler(
         new Request(`${baseURL}/api/auth/get-session`, {
-          headers: { cookie: secondCookie, origin: baseURL },
+          headers: {
+            cookie: secondCookie,
+            origin: baseURL,
+            'cf-connecting-ip': '198.51.100.38',
+          },
         }),
       );
       assert.equal(remainingSession.status, 200);
@@ -355,7 +365,7 @@ test(
       );
 
       assert.notEqual(callback.status, 200);
-      assert.equal(callback.headers.get('set-cookie')?.includes('__Host-solmint_auth_session'), false);
+      assert.ok(!callback.headers.get('set-cookie'), 'forged OAuth state must not establish a session cookie');
     } finally {
       if (oauthRuntime.database !== db) await oauthRuntime.database.end();
     }
