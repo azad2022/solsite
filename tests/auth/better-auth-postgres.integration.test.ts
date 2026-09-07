@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Pool } from 'pg';
 import { createBetterAuthRuntime } from '../../functions/api/auth/_instance';
+import { onRequest as betterAuthPagesHandler } from '../../functions/api/auth/[[path]]';
 
 const databaseUrl = process.env.BETTER_AUTH_DATABASE_URL;
 const secret = process.env.BETTER_AUTH_SECRET ?? 'test-secret-'.padEnd(32, 'x');
@@ -143,5 +144,34 @@ test(
       await pool.end();
       await runtime.database.end();
     }
+  },
+);
+
+test(
+  'Pages Functions auth handler uses the production Hyperdrive transport boundary',
+  { skip: !databaseUrl },
+  async () => {
+    if (!databaseUrl) return;
+
+    const productionURL = 'https://auth.example.test';
+    const response = await betterAuthPagesHandler({
+      request: new Request(`${productionURL}/api/auth/get-session`, {
+        method: 'GET',
+        headers: {
+          origin: productionURL,
+          'cf-connecting-ip': '198.51.100.23',
+        },
+      }),
+      env: {
+        NODE_ENV: 'production',
+        BETTER_AUTH_SECRET: secret,
+        BETTER_AUTH_URL: productionURL,
+        HYPERDRIVE: { connectionString: databaseUrl },
+      },
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type')?.includes('application/json'), true);
+    assert.equal(await response.json(), null);
   },
 );
