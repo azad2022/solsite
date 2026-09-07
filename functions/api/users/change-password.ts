@@ -47,8 +47,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: B
     console.error('Password change error:', error instanceof Error ? error.message : String(error));
     return jsonResponse({ success: false, message: 'تغییر رمز عبور انجام نشد.' }, 503);
   } finally {
-    if (runtime && env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') {
-      await runtime.database.end().catch(() => {});
-    }
+    if (runtime) await runtime.close();
   }
 };
