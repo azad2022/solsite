@@ -2,6 +2,9 @@ import { scrypt as nodeScrypt } from 'node:crypto';
 
 export interface Env {
   SUPABASE_URL?: string;
+  VITE_SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_SECRET_KEY?: string;
   AUTH_RATE_LIMIT_SECRET?: string;
