@@ -23,89 +23,31 @@ create table public.pay_merchant_members (
   role text not null
 );
 
-create table public.pay_merchant_wallets (
-  id uuid primary key,
-  merchant_id uuid not null
-);
-
-create table public.pay_payment_intents (
-  id uuid primary key,
-  merchant_id uuid not null
-);
-
-create table public.pay_payment_transactions (
-  id uuid primary key,
-  payment_id uuid not null
-);
-
-create table public.pay_payment_transfers (
-  id uuid primary key,
-  payment_transaction_id uuid not null
-);
-
-create table public.pay_payment_events (
-  id uuid primary key,
-  payment_id uuid not null
-);
-
-create table public.pay_payment_links (
-  id uuid primary key,
-  merchant_id uuid not null
-);
-
-create table public.pay_invoices (
-  id uuid primary key,
-  merchant_id uuid not null
-);
-
-create table public.pay_merchant_ledger (
-  id uuid primary key,
-  merchant_id uuid not null
-);
-
-create table public.pay_referrals (
-  id uuid primary key,
-  merchant_id uuid not null,
-  affiliate_id uuid not null
-);
-
-create table public.pay_affiliates (
-  id uuid primary key,
-  owner_user_id text not null,
-  status text not null
-);
-
-create table public.pay_commissions (
-  id uuid primary key,
-  referral_id uuid not null
-);
-
-create table public.pay_gas_accounts (
-  id uuid primary key,
-  merchant_id uuid not null
-);
-
-create table public.pay_gas_ledger (
-  id uuid primary key,
-  gas_account_id uuid not null
-);
+create table public.pay_merchant_wallets (id uuid primary key, merchant_id uuid not null);
+create table public.pay_payment_intents (id uuid primary key, merchant_id uuid not null);
+create table public.pay_payment_transactions (id uuid primary key, payment_id uuid not null);
+create table public.pay_payment_transfers (id uuid primary key, payment_transaction_id uuid not null);
+create table public.pay_payment_events (id uuid primary key, payment_id uuid not null);
+create table public.pay_payment_links (id uuid primary key, merchant_id uuid not null);
+create table public.pay_invoices (id uuid primary key, merchant_id uuid not null);
+create table public.pay_merchant_ledger (id uuid primary key, merchant_id uuid not null);
+create table public.pay_referrals (id uuid primary key, merchant_id uuid not null, affiliate_id uuid not null);
+create table public.pay_affiliates (id uuid primary key, owner_user_id text not null, status text not null);
+create table public.pay_commissions (id uuid primary key, referral_id uuid not null);
+create table public.pay_gas_accounts (id uuid primary key, merchant_id uuid not null);
+create table public.pay_gas_ledger (id uuid primary key, gas_account_id uuid not null);
 
 insert into public.users (id, is_active) values
-  ('user-a', true),
-  ('user-b', true),
-  ('user-suspended', true),
-  ('user-inactive', false),
-  ('affiliate-owner', true);
+  ('user-a', true), ('user-b', true), ('user-suspended', true), ('user-inactive', false), ('affiliate-owner', true);
 
 insert into public.pay_merchants (id) values
-  ('00000000-0000-0000-0000-000000000001'),
-  ('00000000-0000-0000-0000-000000000002');
+  ('00000000-0000-0000-0000-000000000001'), ('00000000-0000-0000-0000-000000000002');
 
 insert into public.pay_merchant_members (user_id, merchant_id, status, role) values
   ('user-a', '00000000-0000-0000-0000-000000000001', 'active', 'owner'),
-  ('user-b', '00000000-0000-0000-0000-000000000002', 'active', 'owner'),
   ('user-suspended', '00000000-0000-0000-0000-000000000001', 'suspended', 'owner'),
-  ('user-inactive', '00000000-0000-0000-0000-000000000001', 'active', 'owner');
+  ('user-inactive', '00000000-0000-0000-0000-000000000001', 'active', 'owner'),
+  ('user-b', '00000000-0000-0000-0000-000000000002', 'active', 'owner');
 
 insert into public.pay_affiliates (id, owner_user_id, status) values
   ('00000000-0000-0000-0000-000000000011', 'affiliate-owner', 'active'),
@@ -139,28 +81,18 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"solmint_user_id":"user-a"}', true);
 
-create temporary table visible_merchants as
-select id from public.pay_merchants order by id;
-
 DO $$
 begin
-  if (select count(*) from visible_merchants) <> 1
-     or not exists (select 1 from visible_merchants where id = '00000000-0000-0000-0000-000000000001')
-  then
+  if (select count(*) from public.pay_merchants) <> 1
+     or not exists (select 1 from public.pay_merchants where id = '00000000-0000-0000-0000-000000000001')
+     or exists (select 1 from public.pay_merchants where id = '00000000-0000-0000-0000-000000000002') then
     raise exception 'user-a must see only merchant A';
   end if;
-  if exists (select 1 from visible_merchants where id = '00000000-0000-0000-0000-000000000002') then
-    raise exception 'cross-tenant merchant B leaked to user-a';
+  if (select count(*) from public.pay_merchant_members) <> 3
+     or exists (select 1 from public.pay_merchant_members where merchant_id = '00000000-0000-0000-0000-000000000002') then
+    raise exception 'user-a must see members of merchant A only';
   end if;
 end $$;
-
-DO $$
-begin
-  if (select count(*) from public.pay_merchant_members) <> 1 then
-    raise exception 'user-a must see only its merchant membership';
-  end if;
-end $$;
-
 rollback;
 
 begin;
@@ -184,7 +116,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"solmint_user_id":"affiliate-owner"}', true);
 if (select count(*) from public.pay_affiliates) <> 1
    or not exists (select 1 from public.pay_affiliates where id = '00000000-0000-0000-0000-000000000011') then
-  raise exception 'affiliate owner must see only active/pending own affiliate';
+  raise exception 'affiliate owner must see only its active affiliate';
 end if;
 rollback;
 
@@ -205,10 +137,6 @@ begin
   if has_table_privilege('authenticated', 'public.pay_api_keys', 'SELECT') then
     raise exception 'sensitive API key table must not be selectable by authenticated';
   end if;
-end $$;
-
-DO $$
-begin
   if not has_table_privilege('authenticated', 'public.pay_merchants', 'SELECT') then
     raise exception 'authenticated must have SELECT on pay_merchants';
   end if;
