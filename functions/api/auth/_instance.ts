@@ -98,6 +98,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     },
     emailAndPassword: {
       enabled: true,
+      autoSignIn: false,
       requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
