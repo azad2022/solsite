@@ -33,7 +33,10 @@ create table if not exists better_auth.account (
   user_id text not null references better_auth."user"(id) on delete cascade,
   account_id text not null,
   provider_id text not null,
-  issuer text not null,
+  -- Better Auth 1.7.0-1.7.2 introduced issuer but stopped writing it for new rows.
+  -- Keep it nullable and retain the composite uniqueness semantics; the 1.7.3
+  -- release removes the requirement entirely.
+  issuer text,
   access_token text,
   refresh_token text,
   access_token_expires_at timestamptz,
