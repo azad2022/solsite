@@ -66,7 +66,7 @@ export function resolvePayLocale(input?: string | null): PayLocale {
 
 export function sectionLabel(locale: PayLocale, section: PaySection): string {
   const mapping: Record<PaySection, MessageKey> = {
-    overview: 'overview', transactions: 'transactions', merchants: 'merchants', customers: 'customers', invoices: 'invoices', referrals: 'referrals', reports: 'reports', tickets: 'tickets', developer: 'developer', security: 'security', checkout: 'checkout', dashboard: 'dashboard',
+    overview: 'overview', dashboard: 'dashboard', transactions: 'transactions', merchants: 'merchants', customers: 'customers', invoices: 'invoices', referrals: 'referrals', tickets: 'tickets', reports: 'reports', developer: 'developer', security: 'security',
   };
   return translate(locale, mapping[section]);
 }
