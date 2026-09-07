@@ -59,7 +59,7 @@ test('identity bridge is replayable before Better Auth schema and receives its F
   const bridge = read('supabase/migrations/20260906_auth_identity_bridge.sql');
   const schema = read('supabase/migrations/20260906_better_auth_identity_schema.sql');
   assert.match(bridge, /better_auth_user_id text primary key/);
-  assert.doesNotMatch(bridge, /references better_auth\.\\"user\\"/);
+  assert.doesNotMatch(bridge, /references better_auth\.\"user\"/);
   assert.match(schema, /auth_identity_links_better_auth_user_id_fkey/);
   assert.match(schema, /foreign key \(better_auth_user_id\)/);
 });
