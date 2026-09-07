@@ -155,7 +155,8 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         const isLegacyMigration = ctx.headers.get('x-solmint-legacy-migration') === '1';
         if (isLegacyMigration) return;
 
-        const requestedUsername = typeof ctx.body?.username === 'string' ? ctx.body.username.trim().toLowerCase() : '';
+        const body = ctx.body as { username?: unknown } | undefined;
+        const requestedUsername = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
         if (!requestedUsername) return;
 
         const existing = await database.query<{ id: string }>(
@@ -173,17 +174,17 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         create: {
           after: async (user) => {
             try {
+              const record = user as typeof user & {
+                username?: string | null;
+              };
               await provisionApplicationProfile(database, {
-                id: String(user.id),
-                email: String(user.email),
-                name: String(user.name),
-                username: 'username' in user && typeof user.username === 'string' ? user.username : null,
-                createdAt: user.createdAt,
+                id: String(record.id),
+                email: String(record.email),
+                name: String(record.name),
+                username: typeof record.username === 'string' ? record.username : null,
+                createdAt: record.createdAt,
               });
             } catch (error) {
-              // Compensate for a successfully-created Better Auth user when the
-              // application identity cannot be provisioned. This prevents an
-              // authenticated identity from existing without an application user.
               await database.query('delete from better_auth."user" where id = $1', [String(user.id)]).catch(() => {});
               throw error;
             }
