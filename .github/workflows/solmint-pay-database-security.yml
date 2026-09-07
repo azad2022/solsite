@@ -7,8 +7,7 @@ on:
       - "supabase/tests/**"
       - ".github/workflows/solmint-pay-database-security.yml"
   push:
-    branches:
-      - feat/solmint-pay-main-sync
+    branches: [main]
     paths:
       - "supabase/migrations/**"
       - "supabase/tests/**"
