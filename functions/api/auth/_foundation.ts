@@ -92,7 +92,7 @@ function parseTrustedOrigins(env: BetterAuthEnv, baseURL: string): string[] {
 /**
  * Validates the Better Auth identity-boundary configuration before runtime creation.
  * Database transport, session handling and authentication routes are implemented by
- * the runtime layer; production database access remains fail-closed behind Hyperdrive.
+ * the runtime layer; production database access remains fail-closed behind Supabase HTTPS.
  */
 export function getBetterAuthFoundationConfig(env: BetterAuthEnv): BetterAuthFoundationConfig {
   const secret = requireSecret(env);
