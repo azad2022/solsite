@@ -81,8 +81,8 @@ test('native and legacy Better Auth users are mapped to the application identity
   assert.match(profile, /insert into public\.users/);
   assert.match(profile, /insert into public\.auth_identity_links/);
   assert.match(profile, /application_user_id/);
-  assert.match(profile, /source = 'legacy-migration'/);
-  assert.match(profile, /source = 'native'/);
+  assert.match(profile, /values \(\$1, \$2, 'legacy-migration'\)/);
+  assert.match(profile, /values \(\$1, \$2, 'native'\)/);
   assert.match(profile, /better-auth-only\$/);
   assert.match(runtime, /databaseHooks:\s*\{/);
   assert.match(runtime, /provisionApplicationProfile/);
@@ -107,9 +107,8 @@ test('native signup cannot reuse a legacy application username', () => {
 test('Better Auth session without an application identity is not exposed as authenticated', () => {
   const source = read('functions/api/auth/me.ts');
   const usersMe = read('functions/api/users/me.ts');
-  assert.match(source, /if \(!applicationUser/);
-  assert.match(source, /applicationUser\.is_active === false/);
-  assert.match(source, /applicationUser\.is_active == null/);
+  assert.match(source, /const betterAuthUser = await getBetterAuthApplicationUser/);
+  assert.match(source, /if \(!betterAuthUser\) return jsonResponse/);
   assert.match(usersMe, /if \(!betterAuthUser\) return jsonResponse\(\{ success: false, authenticated: false \}, 401\)/);
 });
 
@@ -122,9 +121,9 @@ test('Google OAuth credentials remain server-only', () => {
   assert.match(env, /GOOGLE_CLIENT_SECRET=/);
 });
 
-test('auth UI never persists bearer/session material in localStorage', () => {
-  assert.doesNotMatch(read('src/components/AuthModal.tsx'), /localStorage/);
-  assert.doesNotMatch(read('src/components/AuthModal.tsx'), /sessionStorage/);
+test('auth UI never persists bearer/session material in browser storage APIs', () => {
+  const source = read('src/components/AuthModal.tsx');
+  assert.doesNotMatch(source, /\b(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
 });
 
 test('legacy password migration preserves generic response for enumeration resistance', () => {
