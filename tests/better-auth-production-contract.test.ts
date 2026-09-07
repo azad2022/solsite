@@ -94,11 +94,15 @@ test('native and legacy Better Auth users are mapped to the application identity
   assert.match(runtime, /supplied === secret/);
   assert.match(migration, /application_user_id = \$1/);
   assert.match(migration, /x-solmint-legacy-migration/);
-  assert.match(migration, /env\.BETTER_AUTH_SECRET/);
+  assert.match(migration, /LEGACY_MIGRATION_SECRET/);
+  assert.doesNotMatch(migration, /env\.BETTER_AUTH_SECRET\?\.trim\(\) \|\|/);
   assert.doesNotMatch(migration, /insert into public\.auth_identity_links/);
   assert.match(me, /join public\.users u on u\.id = l\.application_user_id/);
   assert.match(usersMe, /join public\.users u on u\.id = l\.application_user_id/);
   assert.doesNotMatch(usersMe, /legacy_user_id/);
+  assert.match(read('functions/api/auth/_instance.ts'), /LEGACY_MIGRATION_ENABLED/);
+  assert.match(read('.env.example'), /LEGACY_MIGRATION_ENABLED=/);
+  assert.match(read('.env.example'), /LEGACY_MIGRATION_SECRET=/);
 });
 
 test('native signup cannot reuse a legacy application username', () => {
@@ -138,5 +142,7 @@ test('legacy password migration preserves generic response for enumeration resis
   assert.match(source, /اگر اطلاعات حساب درست باشد/);
   assert.match(source, /findUser\(env, username\)/);
   assert.match(source, /verifyPassword\(password, applicationUser\.password_hash\)/);
+  assert.match(source, /LEGACY_MIGRATION_ENABLED/);
+  assert.match(source, /LEGACY_MIGRATION_SECRET/);
   assert.match(read('functions/api/auth/_instance.ts'), /autoSignIn:\s*false/);
 });
