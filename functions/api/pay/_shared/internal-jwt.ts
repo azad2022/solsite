@@ -61,6 +61,13 @@ function requireNonEmpty(name: string, value: string | undefined): string {
   return normalized;
 }
 
+function requirePrivateKey(value: string | undefined): string {
+  const normalized = value?.trim();
+  if (!normalized) throw new Error('SUPABASE_INTERNAL_JWT_PRIVATE_KEY is required for the Pay internal JWT bridge.');
+  pemToDer(normalized);
+  return normalized;
+}
+
 function parseAlgorithm(env: PayInternalJwtEnv): SupportedAlgorithm {
   const value = (env.SUPABASE_INTERNAL_JWT_ALGORITHM || '').trim();
   if (!PAY_INTERNAL_JWT_ALGORITHMS.includes(value as SupportedAlgorithm)) throw new Error('SUPABASE_INTERNAL_JWT_ALGORITHM must be explicitly configured as ES256 or RS256.');
@@ -86,7 +93,7 @@ function getSignAlgorithm(algorithm: SupportedAlgorithm): AlgorithmIdentifier | 
 
 async function importPrivateKey(env: PayInternalJwtEnv): Promise<{ algorithm: SupportedAlgorithm; key: CryptoKey }> {
   const algorithm = parseAlgorithm(env);
-  const pem = requireNonEmpty('SUPABASE_INTERNAL_JWT_PRIVATE_KEY', env.SUPABASE_INTERNAL_JWT_PRIVATE_KEY);
+  const pem = requirePrivateKey(env.SUPABASE_INTERNAL_JWT_PRIVATE_KEY);
   const key = await crypto.subtle.importKey('pkcs8', pemToDer(pem), getImportAlgorithm(algorithm), false, ['sign']);
   return { algorithm, key };
 }
@@ -99,7 +106,7 @@ function assertSafeUserId(userId: string): string {
 
 export function validatePayInternalJwtConfig(env: PayInternalJwtEnv): void {
   requireNonEmpty('SUPABASE_URL', env.SUPABASE_URL);
-  const privateKey = requireNonEmpty('SUPABASE_INTERNAL_JWT_PRIVATE_KEY', env.SUPABASE_INTERNAL_JWT_PRIVATE_KEY);
+  const privateKey = requirePrivateKey(env.SUPABASE_INTERNAL_JWT_PRIVATE_KEY);
   parseAlgorithm(env);
   requireNonEmpty('SUPABASE_INTERNAL_JWT_KEY_ID', env.SUPABASE_INTERNAL_JWT_KEY_ID);
   requireNonEmpty('SUPABASE_INTERNAL_JWT_ISSUER', env.SUPABASE_INTERNAL_JWT_ISSUER);
