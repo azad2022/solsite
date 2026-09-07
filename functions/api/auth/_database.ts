@@ -32,6 +32,7 @@ export interface ApplicationAuthDatabase {
   findIdentityByApplicationUserId(applicationUserId: string): Promise<ApplicationIdentityLinkRow | null>;
   findIdentityByBetterAuthUserId(betterAuthUserId: string): Promise<ApplicationUserRow | null>;
   findBetterAuthIdentityByEmail(email: string): Promise<{ id: string } | null>;
+  findBetterAuthSessionToken(sessionId: string, userId: string): Promise<string | null>;
   createApplicationUser(input: { id: string; username: string; fullName: string; passwordHash: string; createdAt: string }): Promise<void>;
   linkIdentity(input: { betterAuthUserId: string; applicationUserId: string; source: 'native' | 'legacy-migration' }): Promise<void>;
   deleteApplicationUser(applicationUserId: string): Promise<void>;
@@ -89,6 +90,13 @@ function createPgApplicationDatabase(pool: Pool): ApplicationAuthDatabase {
         `select id from better_auth."user" where lower(email) = lower($1) limit 1`, [email]);
       return result.rows[0] ?? null;
     },
+    async findBetterAuthSessionToken(sessionId, userId) {
+      const result = await pool.query<{ token: string }>(
+        `select token from better_auth.session where id = $1 and user_id = $2 and expires_at > now() limit 1`,
+        [sessionId, userId],
+      );
+      return result.rows[0]?.token ?? null;
+    },
     async createApplicationUser(input) {
       await pool.query(
         `insert into public.users (id, username, full_name, password_hash, role, permissions, is_active, created_at)
@@ -141,6 +149,26 @@ function createSupabaseApplicationDatabase(client: SupabaseClient): ApplicationA
       if (error) throw error;
       const record = data as { id?: string } | null;
       return record?.id ? { id: record.id } : null;
+    },
+    async findBetterAuthSessionToken(sessionId, userId) {
+      const { data, error } = await client.rpc('solmint_better_auth_adapter', {
+        p_operation: 'find_one',
+        p_model: 'session',
+        p_data: {},
+        p_where: [
+          { field: 'id', value: sessionId, operator: 'eq' },
+          { field: 'user_id', value: userId, operator: 'eq' },
+          { field: 'expires_at', value: new Date().toISOString(), operator: 'gt' },
+        ],
+        p_limit: 1,
+        p_offset: 0,
+        p_sort: null,
+        p_increment: {},
+        p_set: {},
+      }) as unknown as { data: unknown; error: { message?: string; details?: string; hint?: string } | null };
+      if (error) throw error;
+      const record = data as { token?: string } | null;
+      return record?.token ? String(record.token) : null;
     },
     async createApplicationUser(input) {
       const { error } = await client.from('users').insert({ id: input.id, username: input.username, full_name: input.fullName, password_hash: input.passwordHash, role: 'user', permissions: [], is_active: true, created_at: input.createdAt });
