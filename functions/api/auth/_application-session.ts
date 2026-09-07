@@ -25,6 +25,23 @@ export interface BetterAuthApplicationUser {
   createdAt: string;
 }
 
+type BetterAuthSessionUser = {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  createdAt?: string | Date;
+};
+
+type ApplicationIdentityRow = {
+  application_user_id: string;
+  username: string | null;
+  full_name: string | null;
+  role: string | null;
+  permissions: unknown;
+  is_active: boolean | null;
+  created_at: string | null;
+};
+
 /**
  * Extract the Better Auth session bearer from the server-only cookie.
  * This value must never be sent to browser storage or logged.
@@ -42,6 +59,28 @@ export function getBetterAuthSessionToken(request: Request): string | null {
 }
 
 /**
+ * Pure mapping boundary used by the runtime and unit tests.
+ * Better Auth owns the identity id; application data owns the Solmint profile/authorization fields.
+ */
+export function mapBetterAuthUserToApplicationUser(
+  user: BetterAuthSessionUser,
+  applicationUser: ApplicationIdentityRow | undefined,
+): BetterAuthApplicationUser | null {
+  if (!applicationUser || applicationUser.is_active === false || applicationUser.is_active == null) return null;
+
+  return {
+    id: String(user.id),
+    applicationUserId: String(applicationUser.application_user_id),
+    username: String(applicationUser.username || user.email || user.id),
+    fullName: String(applicationUser.full_name || user.name || user.email || 'کاربر سولمینت'),
+    role: applicationUser.role || 'user',
+    permissions: Array.isArray(applicationUser.permissions) ? applicationUser.permissions : [],
+    isActive: true,
+    createdAt: applicationUser.created_at || new Date(user.createdAt || Date.now()).toISOString(),
+  };
+}
+
+/**
  * Authentication boundary for application routes.
  * Better Auth owns identity/session state; public.users remains authoritative for
  * application profile, role, permissions, and active status.
@@ -55,16 +94,7 @@ export async function getBetterAuthApplicationUser(
     const session = await runtime.auth.api.getSession({ headers: request.headers });
     if (!session?.user) return null;
 
-    const user = session.user;
-    const result = await runtime.database.query<{
-      application_user_id: string;
-      username: string | null;
-      full_name: string | null;
-      role: string | null;
-      permissions: unknown;
-      is_active: boolean | null;
-      created_at: string | null;
-    }>(
+    const result = await runtime.database.query<ApplicationIdentityRow>(
       `select l.application_user_id,
               u.username,
               u.full_name,
@@ -76,22 +106,10 @@ export async function getBetterAuthApplicationUser(
        join public.users u on u.id = l.application_user_id
        where l.better_auth_user_id = $1
        limit 1`,
-      [String(user.id)],
+      [String(session.user.id)],
     );
 
-    const applicationUser = result.rows[0];
-    if (!applicationUser || applicationUser.is_active === false || applicationUser.is_active == null) return null;
-
-    return {
-      id: String(user.id),
-      applicationUserId: String(applicationUser.application_user_id),
-      username: String(applicationUser.username || user.email || user.id),
-      fullName: String(applicationUser.full_name || user.name || user.email || 'کاربر سولمینت'),
-      role: applicationUser.role || 'user',
-      permissions: Array.isArray(applicationUser.permissions) ? applicationUser.permissions : [],
-      isActive: true,
-      createdAt: applicationUser.created_at || new Date(user.createdAt).toISOString(),
-    };
+    return mapBetterAuthUserToApplicationUser(session.user, result.rows[0]);
   } finally {
     if (env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') {
       await runtime.database.end().catch(() => {});
