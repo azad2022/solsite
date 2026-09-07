@@ -102,6 +102,25 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         updatedAt: 'updated_at',
       },
     },
+    emailAndPassword: {
+      enabled: true,
+      autoSignIn: false,
+      requireEmailVerification: true,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url }) => {
+        const email = buildPasswordResetEmail(user.name, url);
+        await sendAuthEmail(env, { to: user.email, ...email });
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        const email = buildVerificationEmail(user.name, url);
+        await sendAuthEmail(env, { to: user.email, ...email });
+      },
+    },
     plugins: [
       username({
         displayUsername: false,
