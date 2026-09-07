@@ -40,7 +40,8 @@ class FakeDatabase {
     }
 
     if (sql.startsWith('insert into public.auth_identity_links')) {
-      const [betterAuthUserId, applicationUserId, source] = values.map(String);
+      const [betterAuthUserId, applicationUserId] = values.map(String);
+      const source = sql.includes("'native'") ? 'native' : 'legacy-migration';
       const duplicateTarget = [...this.links.values()].find((l) => l.application_user_id === applicationUserId && l.better_auth_user_id !== betterAuthUserId);
       if (duplicateTarget) throw new Error('duplicate application identity link');
       this.links.set(betterAuthUserId, { better_auth_user_id: betterAuthUserId, application_user_id: applicationUserId, source });
