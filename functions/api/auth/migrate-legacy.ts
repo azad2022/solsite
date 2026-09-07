@@ -87,17 +87,12 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
         password,
         username: legacyUser.username,
       },
+      headers: new Headers({ 'x-solmint-legacy-migration': '1' }),
     }) as unknown as { user?: { id?: string } | null };
 
-    const betterAuthUserId = result.user?.id ? String(result.user.id) : '';
-    if (!betterAuthUserId) return genericResponse();
-
-    await runtime.database.query(
-      `insert into public.auth_identity_links (better_auth_user_id, legacy_user_id, source)
-       values ($1, $2, 'legacy-migration')`,
-      [betterAuthUserId, legacyUser.id],
-    );
-
+    if (!result.user?.id) return genericResponse();
+    // The Better Auth user-create hook owns the identity bridge creation. The
+    // endpoint intentionally does not write the bridge a second time.
     return genericResponse();
   } catch {
     return genericResponse();
