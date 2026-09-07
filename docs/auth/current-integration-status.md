@@ -12,27 +12,34 @@ Updated: 2026-09-07
 - Controlled legacy-user migration is implemented; it does not perform an automatic production bulk migration.
 - Password reset revokes sessions in the Better Auth flow.
 - Email/password, immutable username support, Google OAuth configuration, trusted origins, Cloudflare client-IP handling, and database-backed rate limiting are implemented.
-- Authentication PostgreSQL integration and security E2E suites have previously completed successfully on this branch; each new HEAD must still pass its own workflow run.
+- Protected user-management routes (`users/index`, `users/update`, `users/delete`) now authenticate through the Better Auth application-session boundary.
+- The legacy `/api/users/register` and `/api/users/login` endpoints are retired and return `410`; they no longer mint legacy sessions.
+- Authentication PostgreSQL integration and security E2E suites exist on the branch; each new HEAD must still pass its own workflow run.
 
 ## Remaining integration blockers
 
-### 1. Protected legacy routes
+### 1. Legacy compatibility window
 
-Some existing management endpoints still authenticate using the legacy `__Host-solmint_session` / `public.auth_sessions` path through `getAuthenticatedUser()`.
-
-They must be migrated to the shared Better Auth application-session boundary before legacy authentication can be retired.
+`getAuthenticatedUser()` still contains a deliberate legacy-session fallback for the controlled migration window. No new login or registration endpoint may create legacy sessions, and protected routes should be migrated away from the fallback before the final cutover.
 
 ### 2. Article publishing handoff
 
-The article publishing proxy still forwards the legacy session token to the Supabase Edge Function using `x-solmint-session-token`.
+The Pages article-management routes authenticate with Better Auth and forward a Better Auth session token over the server-to-server hop using:
 
-No synthetic token bridge should be introduced. The publish path needs an explicit server-side authenticated handoff that preserves the existing authorization boundary.
+- `x-solmint-auth-source: better-auth`
+- `x-solmint-better-auth-session: <Better Auth session token>`
 
-### 3. Production infrastructure validation
+No synthetic legacy-token bridge should be introduced. The separately deployed `article-publish-api` must be upgraded to resolve that Better Auth token with `public.solmint_resolve_better_auth_session(text)` before production activation.
+
+### 3. Media handoff
+
+The Pages media gateway also emits the Better Auth server-to-server handoff. The separately deployed `github-media` Edge Function must be upgraded from its legacy session validator before the media admin path is enabled in production.
+
+### 4. Production infrastructure validation
 
 A real non-production Cloudflare Pages + Hyperdrive deployment must validate Pages Function → PostgreSQL connectivity using the intended secrets and binding. No fabricated Hyperdrive ID is permitted in source control.
 
-### 4. User/session cutover
+### 5. User/session cutover
 
 Before production activation:
 
@@ -42,7 +49,7 @@ Before production activation:
 4. Decide and document legacy-session invalidation; invalidate legacy sessions at cutover if safe session conversion cannot be guaranteed.
 5. Activate Better Auth email delivery and Google OAuth with real server-side credentials.
 6. Run authentication, authorization, and Pay isolation E2E tests.
-7. Retire legacy authentication only after all protected routes have migrated.
+7. Retire the legacy session fallback only after all protected routes and downstream Edge Functions have migrated.
 
 ## Non-goals
 
