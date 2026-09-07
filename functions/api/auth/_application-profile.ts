@@ -1,4 +1,6 @@
-import type { SolmintBetterAuth } from './_instance';
+interface DatabaseClient {
+  query<T = Record<string, unknown>>(text: string, values?: unknown[]): Promise<{ rows: T[] }>;
+}
 
 const UNUSABLE_LEGACY_PASSWORD_PREFIX = 'better-auth-only$';
 
@@ -34,7 +36,7 @@ function unusableLegacyPasswordMarker(): string {
 }
 
 export async function provisionApplicationProfile(
-  database: Pick<SolmintBetterAuth, 'query'>,
+  database: DatabaseClient,
   user: BetterAuthUserRecord,
 ): Promise<{ applicationUserId: string; source: 'native' | 'legacy-migration' }> {
   const username = normalizeApplicationUsername(user);
