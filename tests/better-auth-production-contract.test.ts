@@ -22,10 +22,11 @@ test('Better Auth database boundary is isolated and production fail-closed', () 
   assert.match(source, /search_path=better_auth,public/);
 });
 
-test('Better Auth account schema matches the pinned 1.7.2 identity model', () => {
+test('Better Auth account schema is compatible with the pinned 1.7.2 runtime', () => {
   const runtime = read('functions/api/auth/_instance.ts');
   const schema = read('supabase/migrations/20260906_better_auth_identity_schema.sql');
-  assert.match(schema, /issuer text not null/);
+  assert.match(schema, /issuer text,/);
+  assert.doesNotMatch(schema, /issuer text not null/);
   assert.match(schema, /unique \(issuer, account_id\)/);
   assert.match(runtime, /identityStrategy:\s*'provider-id'/);
   assert.match(runtime, /issuer:\s*'issuer'/);
