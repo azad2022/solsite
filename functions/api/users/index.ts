@@ -1,4 +1,6 @@
-import { getAuthenticatedUser, type Env, jsonResponse } from '../auth/_shared';
+import { getBetterAuthApplicationUser } from '../auth/_application-session';
+import type { Env } from '../auth/_shared';
+import { jsonResponse } from '../auth/_shared';
 
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 
@@ -13,10 +15,11 @@ function db(env: Env) {
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: Env }) => {
   try {
-    const actor = await getAuthenticatedUser(env, request);
-    if (!actor || !['superadmin', 'admin'].includes(String(actor.role))) {
+    const actor = await getBetterAuthApplicationUser(request, env);
+    if (!actor || !actor.isActive || !['superadmin', 'admin'].includes(String(actor.role).toLowerCase())) {
       return jsonResponse({ success: false, message: 'دسترسی مدیر معتبر نیست.' }, 401);
     }
+
     const { base, headers } = db(env);
     const response = await fetch(`${base}/rest/v1/users?select=id,username,full_name,role,permissions,is_active,created_at&order=created_at.desc`, { headers });
     if (!response.ok) throw new Error(`Supabase users query failed: ${response.status}`);
@@ -32,7 +35,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
     }));
     return jsonResponse({ success: true, users });
   } catch (error) {
-    console.error('Admin user list failed:', error);
+    console.error('Admin user list failed:', error instanceof Error ? error.message : String(error));
     return jsonResponse({ success: false, message: 'دریافت فهرست کاربران انجام نشد.' }, 503);
   }
 };
