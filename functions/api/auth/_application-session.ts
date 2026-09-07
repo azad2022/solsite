@@ -31,7 +31,7 @@ export interface BetterAuthApplicationUser {
  */
 export function getBetterAuthSessionToken(request: Request): string | null {
   const cookieHeader = request.headers.get('Cookie') || '';
-  const match = cookieHeader.match(/(?:^|;\s*)__Host-solmint_auth_session=([^;]+)/);
+  const match = cookieHeader.match(/(?:^|;\s*)(?:__Host-solmint_auth_session|solmint_auth_session)=([^;]+)/);
   if (!match) return null;
   try {
     const value = decodeURIComponent(match[1]).trim();
