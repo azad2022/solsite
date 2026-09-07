@@ -69,10 +69,24 @@ export const createSupabaseBetterAuthAdapter = (config: SupabaseBetterAuthAdapte
         Number(await callRpc(config.client, 'delete_many', { model, where })),
       findOne: async <T extends Record<string, any>>({ model, where }: { model: string; where: any[] }) =>
         (((await callRpc(config.client, 'find_one', { model, where })) as T | null) ?? null),
-      findMany: async <T extends Record<string, any>>({ model, where, limit, offset, sortBy }: { model: string; where: any[]; limit?: number; offset?: number; sortBy?: { field: string; direction: 'asc' | 'desc' } }) =>
+      findMany: async <T extends Record<string, any>>({
+        model,
+        where,
+        limit,
+        offset,
+        sortBy,
+      }: {
+        model: string;
+        where?: any[];
+        limit: number;
+        select?: string[];
+        sortBy?: { field: string; direction: 'asc' | 'desc' };
+        offset?: number;
+        join?: unknown;
+      }) =>
         (((await callRpc(config.client, 'find_many', {
           model,
-          where,
+          where: where ?? [],
           limit,
           offset,
           sort: sortBy ? { field: sortBy.field, direction: sortBy.direction } : null,
