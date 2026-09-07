@@ -1,7 +1,11 @@
 import { scrypt as nodeScrypt } from 'node:crypto';
 
 export interface Env {
+  NODE_ENV?: string;
   SUPABASE_URL?: string;
+  VITE_SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_SECRET_KEY?: string;
   AUTH_RATE_LIMIT_SECRET?: string;
@@ -17,13 +21,6 @@ export interface AuthUser {
   created_at: string;
 }
 
-export class SupabaseUpstreamError extends Error {
-  constructor(public readonly status: number, public readonly responseBody: string, message = `Supabase upstream returned HTTP ${status}`) {
-    super(message);
-    this.name = 'SupabaseUpstreamError';
-  }
-}
-
 const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const SESSION_COOKIE = '__Host-solmint_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
@@ -33,6 +30,13 @@ const LOGIN_WINDOW_SECONDS = 15 * 60;
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_BLOCK_SECONDS = 15 * 60;
 const PBKDF2_ITERATIONS = 100000;
+
+export class SupabaseUpstreamError extends Error {
+  constructor(public readonly status: number, public readonly responseBody: string, message = `Supabase upstream returned HTTP ${status}`) {
+    super(message);
+    this.name = 'SupabaseUpstreamError';
+  }
+}
 
 export function jsonResponse(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
   return Response.json(body, { status, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', 'CDN-Cache-Control': 'no-store', ...extraHeaders } });
@@ -201,7 +205,7 @@ export async function createSession(env: Env, user: AuthUser): Promise<string> {
 export function sessionCookie(token: string): string { return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=${SESSION_TTL_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Strict`; }
 export function clearSessionCookie(): string { return `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict`; }
 
-export async function getAuthenticatedUser(env: Env, request: Request): Promise<AuthUser | null> {
+async function getLegacyAuthenticatedUser(env: Env, request: Request): Promise<AuthUser | null> {
   const token = getSessionToken(request);
   if (!token) return null;
   const tokenHash = await sha256(token);
@@ -216,12 +220,59 @@ export async function getAuthenticatedUser(env: Env, request: Request): Promise<
   const user = users[0];
   if (!user || user.is_active === false) return null;
   await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ last_seen_at: new Date().toISOString() }) }).catch(() => console.warn('Session last_seen_at update failed'));
-  const now = Date.now();
-  if (Date.parse(session.expires_at) - now < SESSION_SLIDING_WINDOW_SECONDS * 1000) {
-    const newExpiresAt = new Date(now + SESSION_TTL_SECONDS * 1000).toISOString();
-    await supabaseRequest(env, `/rest/v1/auth_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ expires_at: newExpiresAt }) }).catch(() => console.warn('Session sliding renewal failed'));
-  }
   return user;
+}
+
+export interface BetterAuthApplicationResolverUser {
+  id: string;
+  applicationUserId: string;
+  username: string;
+  fullName: string;
+  role: string;
+  permissions: unknown[];
+  isActive: true;
+  createdAt: string;
+}
+
+type BetterAuthApplicationResolver = (request: Request, env: Env) => Promise<BetterAuthApplicationResolverUser | null>;
+
+/**
+ * Shared application authentication boundary.
+ * Better Auth is authoritative whenever a Better Auth session cookie is present.
+ * The legacy session is used only when that cookie is absent, allowing controlled
+ * user migration without permitting an invalid Better Auth cookie to fall through.
+ */
+export async function getAuthenticatedUser(
+  env: Env,
+  request: Request,
+  betterAuthResolver: BetterAuthApplicationResolver = async (resolverRequest, resolverEnv) => {
+    const { getBetterAuthApplicationUser } = await import('./_application-session');
+    return getBetterAuthApplicationUser(resolverRequest, resolverEnv as never);
+  },
+): Promise<AuthUser | null> {
+  const cookie = request.headers.get('Cookie') || '';
+  const hasBetterAuthCookie = /(?:^|;\s*)(?:__Host-solmint_auth_session|solmint_auth_session)=/.test(cookie);
+
+  if (hasBetterAuthCookie) {
+    try {
+      const user = await betterAuthResolver(request, env);
+      if (!user) return null;
+      return {
+        id: user.applicationUserId,
+        username: user.username,
+        full_name: user.fullName,
+        role: user.role,
+        permissions: user.permissions,
+        is_active: user.isActive,
+        created_at: user.createdAt,
+      };
+    } catch (error) {
+      console.error('Better Auth application-session validation failed:', error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  }
+
+  return getLegacyAuthenticatedUser(env, request);
 }
 
 export async function destroySession(env: Env, request: Request): Promise<void> {
