@@ -29,7 +29,7 @@ test(
 
       assert.equal(response.status, 404);
     } finally {
-      await runtime.database.end();
+      await runtime.close();
     }
   },
 );
