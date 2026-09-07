@@ -56,14 +56,18 @@ test('Better Auth identity schema is not browser-writable', () => {
   assert.match(source, /revoke all on all tables in schema better_auth from public/);
 });
 
-test('identity bridge uses the application identity and defers the Better Auth FK', () => {
+test('identity bridge preserves both identity-side and application-side lifecycle integrity', () => {
   const bridge = read('supabase/migrations/20260906_auth_identity_bridge.sql');
   const schema = read('supabase/migrations/20260906_better_auth_identity_schema.sql');
+  const applicationFk = read('supabase/migrations/20260907_auth_identity_application_fk.sql');
   assert.match(bridge, /better_auth_user_id text primary key/);
   assert.match(bridge, /application_user_id text not null unique/);
   assert.doesNotMatch(bridge, /references better_auth\.\"user\"/);
   assert.match(schema, /auth_identity_links_better_auth_user_id_fkey/);
   assert.match(schema, /foreign key \(better_auth_user_id\)/);
+  assert.match(applicationFk, /auth_identity_links_application_user_id_fkey/);
+  assert.match(applicationFk, /references public\.users\(id\)/);
+  assert.match(applicationFk, /on delete cascade/);
 });
 
 test('native and legacy Better Auth users are mapped to the application identity boundary', () => {
