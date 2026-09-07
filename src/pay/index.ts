@@ -8,5 +8,4 @@ export * from './route-match';
 export * from './data-state';
 export * from './http';
 export * from './payment-intent-service';
-export * from './services/merchantService';
 export * from './services/sessionService';
