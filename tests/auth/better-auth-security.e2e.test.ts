@@ -1,68 +1,62 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Pool } from 'pg';
 import { createBetterAuthRuntime } from '../../functions/api/auth/_instance';
 
 const databaseUrl = process.env.BETTER_AUTH_DATABASE_URL;
 const baseURL = process.env.BETTER_AUTH_URL ?? 'http://localhost:8787';
 const secret = process.env.BETTER_AUTH_SECRET ?? 'test-secret-'.padEnd(32, 'x');
 
-test(
-  'Better Auth rejects cross-origin authentication requests and does not create a session',
-  { skip: !databaseUrl },
-  async () => {
-    if (!databaseUrl) return;
-
-    const pool = new Pool({ connectionString: databaseUrl });
-    const runtime = createBetterAuthRuntime({
+const runtime = databaseUrl
+  ? createBetterAuthRuntime({
       NODE_ENV: 'test',
       BETTER_AUTH_SECRET: secret,
       BETTER_AUTH_URL: baseURL,
       BETTER_AUTH_DATABASE_URL: databaseUrl,
-    });
+    })
+  : null;
 
-    try {
-      const response = await runtime.auth.handler(
-        new Request(`${baseURL}/api/auth/sign-in/email`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            origin: 'https://evil.example',
-            'cf-connecting-ip': '198.51.100.31',
-          },
-          body: JSON.stringify({
-            email: 'nobody@example.test',
-            password: 'not-a-real-password',
-          }),
+const db = runtime?.database;
+
+test.after(async () => {
+  if (db) await db.end();
+});
+
+test(
+  'Better Auth rejects cross-origin authentication requests and does not create a session',
+  { skip: !runtime },
+  async () => {
+    if (!runtime) return;
+
+    const response = await runtime.auth.handler(
+      new Request(`${baseURL}/api/auth/sign-in/email`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://evil.example',
+          'cf-connecting-ip': '198.51.100.31',
+        },
+        body: JSON.stringify({
+          email: 'nobody@example.test',
+          password: 'not-a-real-password',
         }),
-      );
+      }),
+    );
 
-      assert.equal(response.status, 403);
-      assert.equal(response.headers.get('set-cookie'), null);
-    } finally {
-      await pool.end();
-      await runtime.database.end();
-    }
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get('set-cookie'), null);
   },
 );
 
 test(
   'Better Auth does not reveal whether a verified email exists',
-  { skip: !databaseUrl },
+  { skip: !runtime },
   async () => {
-    if (!databaseUrl) return;
+    if (!runtime || !db) return;
 
-    const pool = new Pool({ connectionString: databaseUrl });
-    const runtime = createBetterAuthRuntime({
-      NODE_ENV: 'test',
-      BETTER_AUTH_SECRET: secret,
-      BETTER_AUTH_URL: baseURL,
-      BETTER_AUTH_DATABASE_URL: databaseUrl,
-    });
-
-    const email = `security-enumeration-${Date.now()}@example.test`;
+    const suffix = Date.now();
+    const email = `security-enumeration-${suffix}@example.test`;
     const password = 'A-strong-test-password-123!';
-    const username = `security_enum_${Date.now()}`;
+    const username = `security_enum_${suffix}`;
 
     try {
       const signUp = await runtime.auth.handler(
@@ -78,7 +72,7 @@ test(
       );
       assert.equal(signUp.status, 200);
 
-      await pool.query('update better_auth."user" set email_verified = true where email = $1', [email]);
+      await db.query('update better_auth."user" set email_verified = true where email = $1', [email]);
 
       const knownWrongPassword = await runtime.auth.handler(
         new Request(`${baseURL}/api/auth/sign-in/email`, {
@@ -100,7 +94,7 @@ test(
             origin: baseURL,
             'cf-connecting-ip': '198.51.100.34',
           },
-          body: JSON.stringify({ email: `unknown-${Date.now()}@example.test`, password }),
+          body: JSON.stringify({ email: `unknown-${suffix}@example.test`, password }),
         }),
       );
 
@@ -109,25 +103,18 @@ test(
       assert.equal(knownWrongPassword.headers.get('set-cookie'), null);
       assert.equal(unknownUser.headers.get('set-cookie'), null);
     } finally {
-      await pool.query('delete from better_auth."user" where email = $1', [email]).catch(() => {});
-      await pool.end();
-      await runtime.database.end();
+      await db.query('delete from better_auth."user" where email = $1', [email]).catch(() => {});
     }
   },
 );
 
 test(
   'Better Auth enforces the stricter email sign-in rate limit and exposes retry metadata',
-  { skip: !databaseUrl },
+  { skip: !runtime },
   async () => {
-    if (!databaseUrl) return;
+    if (!runtime || !db) return;
 
-    const runtime = createBetterAuthRuntime({
-      NODE_ENV: 'test',
-      BETTER_AUTH_SECRET: secret,
-      BETTER_AUTH_URL: baseURL,
-      BETTER_AUTH_DATABASE_URL: databaseUrl,
-    });
+    const email = `rate-limit-${Date.now()}@example.test`;
 
     const request = () =>
       runtime.auth.handler(
@@ -138,7 +125,7 @@ test(
             origin: baseURL,
             'cf-connecting-ip': '198.51.100.35',
           },
-          body: JSON.stringify({ email: `rate-limit-${Date.now()}@example.test`, password: 'invalid' }),
+          body: JSON.stringify({ email, password: 'invalid' }),
         }),
       );
 
@@ -152,32 +139,24 @@ test(
       assert.equal(limited.status, 429);
       assert.match(limited.headers.get('x-retry-after') ?? '', /^\d+$/);
     } finally {
-      await runtime.database.query(
+      await db.query(
         'delete from better_auth.rate_limit where key like $1',
         ['198.51.100.35:%'],
       ).catch(() => {});
-      await runtime.database.end();
     }
   },
 );
 
 test(
   'Better Auth issues independent concurrent sessions and revokes only the signed-out session',
-  { skip: !databaseUrl },
+  { skip: !runtime },
   async () => {
-    if (!databaseUrl) return;
+    if (!runtime || !db) return;
 
-    const pool = new Pool({ connectionString: databaseUrl });
-    const runtime = createBetterAuthRuntime({
-      NODE_ENV: 'test',
-      BETTER_AUTH_SECRET: secret,
-      BETTER_AUTH_URL: baseURL,
-      BETTER_AUTH_DATABASE_URL: databaseUrl,
-    });
-
-    const email = `security-session-${Date.now()}@example.test`;
+    const suffix = Date.now();
+    const email = `security-session-${suffix}@example.test`;
     const password = 'A-strong-test-password-123!';
-    const username = `security_session_${Date.now()}`;
+    const username = `security_session_${suffix}`;
 
     try {
       const signUp = await runtime.auth.handler(
@@ -192,7 +171,7 @@ test(
         }),
       );
       assert.equal(signUp.status, 200);
-      await pool.query('update better_auth."user" set email_verified = true where email = $1', [email]);
+      await db.query('update better_auth."user" set email_verified = true where email = $1', [email]);
 
       const signIn = async (ip: string) =>
         runtime.auth.handler(
@@ -221,7 +200,7 @@ test(
       const secondCookie = secondSetCookie!.split(';', 1)[0]!;
       assert.notEqual(firstCookie, secondCookie, 'each authentication must create a distinct session token');
 
-      const sessions = await pool.query<{ count: string }>(
+      const sessions = await db.query<{ count: string }>(
         'select count(*)::text as count from better_auth.session where user_id = (select id from better_auth."user" where email = $1)',
         [email],
       );
@@ -254,26 +233,16 @@ test(
       assert.equal(remainingSession.status, 200);
       assert.equal((await remainingSession.json()).user.email, email);
     } finally {
-      await pool.query('delete from better_auth."user" where email = $1', [email]).catch(() => {});
-      await pool.end();
-      await runtime.database.end();
+      await db.query('delete from better_auth."user" where email = $1', [email]).catch(() => {});
     }
   },
 );
 
 test(
   'Better Auth keeps usernames immutable and rejects duplicate usernames before provisioning',
-  { skip: !databaseUrl },
+  { skip: !runtime },
   async () => {
-    if (!databaseUrl) return;
-
-    const pool = new Pool({ connectionString: databaseUrl });
-    const runtime = createBetterAuthRuntime({
-      NODE_ENV: 'test',
-      BETTER_AUTH_SECRET: secret,
-      BETTER_AUTH_URL: baseURL,
-      BETTER_AUTH_DATABASE_URL: databaseUrl,
-    });
+    if (!runtime || !db) return;
 
     const suffix = Date.now();
     const username = `immutable_${suffix}`;
@@ -300,7 +269,7 @@ test(
       const duplicate = await signUp(secondEmail);
       assert.equal(duplicate.status, 409);
 
-      await pool.query('update better_auth."user" set email_verified = true where email = $1', [firstEmail]);
+      await db.query('update better_auth."user" set email_verified = true where email = $1', [firstEmail]);
       const signIn = await runtime.auth.handler(
         new Request(`${baseURL}/api/auth/sign-in/email`, {
           method: 'POST',
@@ -329,27 +298,27 @@ test(
       );
       assert.equal(updateUsername.status, 400);
 
-      const stored = await pool.query<{ username: string }>(
+      const stored = await db.query<{ username: string }>(
         'select username from better_auth."user" where email = $1',
         [firstEmail],
       );
       assert.equal(stored.rows[0]?.username, username);
     } finally {
-      await pool.query('delete from better_auth."user" where email in ($1, $2)', [firstEmail, secondEmail]).catch(() => {});
-      await pool.end();
-      await runtime.database.end();
+      await db.query(
+        'delete from better_auth."user" where email in ($1, $2)',
+        [firstEmail, secondEmail],
+      ).catch(() => {});
     }
   },
 );
 
 test(
   'Better Auth rejects a forged OAuth callback state before establishing authentication',
-  { skip: !databaseUrl },
+  { skip: !runtime },
   async () => {
     if (!databaseUrl) return;
 
-    const pool = new Pool({ connectionString: databaseUrl });
-    const runtime = createBetterAuthRuntime({
+    const oauthRuntime = createBetterAuthRuntime({
       NODE_ENV: 'test',
       BETTER_AUTH_SECRET: secret,
       BETTER_AUTH_URL: baseURL,
@@ -359,7 +328,7 @@ test(
     });
 
     try {
-      const start = await runtime.auth.handler(
+      const start = await oauthRuntime.auth.handler(
         new Request(`${baseURL}/api/auth/sign-in/social`, {
           method: 'POST',
           headers: {
@@ -375,7 +344,7 @@ test(
       const startBody = (await start.json()) as { url?: string };
       assert.ok(startBody.url);
 
-      const callback = await runtime.auth.handler(
+      const callback = await oauthRuntime.auth.handler(
         new Request(`${baseURL}/api/auth/callback/google?code=fake-code&state=forged-state`, {
           method: 'GET',
           headers: {
@@ -388,8 +357,7 @@ test(
       assert.notEqual(callback.status, 200);
       assert.equal(callback.headers.get('set-cookie')?.includes('__Host-solmint_auth_session'), false);
     } finally {
-      await pool.end();
-      await runtime.database.end();
+      if (oauthRuntime.database !== db) await oauthRuntime.database.end();
     }
   },
 );
