@@ -47,15 +47,15 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
   const allowed = await checkLoginRateLimit(env, request, username).catch(() => false);
   if (!allowed) return genericResponse();
 
-  const legacyUser = await findUser(env, username).catch(() => null);
-  if (!legacyUser || legacyUser.is_active === false) {
+  const applicationUser = await findUser(env, username).catch(() => null);
+  if (!applicationUser || applicationUser.is_active === false) {
     await recordFailedLogin(env, request, username).catch(() => {});
     return genericResponse();
   }
 
   let passwordResult: Awaited<ReturnType<typeof verifyPassword>>;
   try {
-    passwordResult = await verifyPassword(password, legacyUser.password_hash);
+    passwordResult = await verifyPassword(password, applicationUser.password_hash);
   } catch {
     passwordResult = { valid: false };
   }
@@ -64,13 +64,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
     return genericResponse();
   }
   await clearLoginRateLimit(env, request, username).catch(() => {});
-  if (passwordResult.upgradedHash) await upgradePasswordHash(env, legacyUser.id, passwordResult.upgradedHash).catch(() => {});
+  if (passwordResult.upgradedHash) await upgradePasswordHash(env, applicationUser.id, passwordResult.upgradedHash).catch(() => {});
 
   const runtime = createBetterAuthRuntime(env);
   try {
     const existingLink = await runtime.database.query(
-      'select better_auth_user_id from public.auth_identity_links where legacy_user_id = $1 limit 1',
-      [legacyUser.id],
+      'select better_auth_user_id from public.auth_identity_links where application_user_id = $1 limit 1',
+      [applicationUser.id],
     );
     if (existingLink.rows.length > 0) return genericResponse();
 
@@ -83,16 +83,15 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: M
     const result = await runtime.auth.api.signUpEmail({
       body: {
         email,
-        name: legacyUser.full_name,
+        name: applicationUser.full_name,
         password,
-        username: legacyUser.username,
+        username: applicationUser.username,
       },
       headers: new Headers({ 'x-solmint-legacy-migration': '1' }),
     }) as unknown as { user?: { id?: string } | null };
 
     if (!result.user?.id) return genericResponse();
-    // The Better Auth user-create hook owns the identity bridge creation. The
-    // endpoint intentionally does not write the bridge a second time.
+    // The Better Auth user-create hook owns the application identity bridge.
     return genericResponse();
   } catch {
     return genericResponse();
