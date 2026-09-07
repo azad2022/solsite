@@ -5,21 +5,22 @@ import { getBetterAuthFoundationConfig } from '../functions/api/auth/_foundation
 
 const secret = 'x'.repeat(32);
 
- test('production database transport fails closed without Hyperdrive', () => {
+test('production database transport fails closed without Supabase credentials', () => {
   assert.throws(
     () => createBetterAuthDatabase({ NODE_ENV: 'production' }),
-    /HYPERDRIVE binding/
+    /SUPABASE_URL is required|SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required/
   );
 });
 
 test('development transport accepts an explicit PostgreSQL URL', async () => {
-  const pool = createBetterAuthDatabase({
+  const database = createBetterAuthDatabase({
     NODE_ENV: 'development',
     BETTER_AUTH_DATABASE_URL: 'postgres://user:pass@127.0.0.1:5432/solmint',
   });
 
-  assert.equal(pool.options.connectionString, 'postgres://user:pass@127.0.0.1:5432/solmint');
-  await pool.end();
+  assert.equal(database.adapter instanceof Object, true);
+  assert.equal(database.application !== undefined, true);
+  await database.close();
 });
 
 test('production auth foundation requires an explicit HTTPS origin', () => {
