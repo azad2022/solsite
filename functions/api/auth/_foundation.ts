@@ -90,10 +90,9 @@ function parseTrustedOrigins(env: BetterAuthEnv, baseURL: string): string[] {
 }
 
 /**
- * Configuration-only foundation for the future Better Auth instance.
- * This module intentionally does not initialize a database adapter or auth handler.
- * That integration remains blocked until the Cloudflare -> PostgreSQL connectivity
- * path is explicitly selected and validated.
+ * Validates the Better Auth identity-boundary configuration before runtime creation.
+ * Database transport, session handling and authentication routes are implemented by
+ * the runtime layer; production database access remains fail-closed behind Hyperdrive.
  */
 export function getBetterAuthFoundationConfig(env: BetterAuthEnv): BetterAuthFoundationConfig {
   const secret = requireSecret(env);
