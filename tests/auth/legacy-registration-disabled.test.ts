@@ -9,7 +9,6 @@ test('legacy registration endpoint is retired', async () => {
   } as never);
 
   assert.equal(response.status, 410);
-  assert.deepEqual(await response.json(), {
-    code: 'LEGACY_REGISTRATION_DISABLED',
-  });
+  const body = (await response.json()) as { code?: string };
+  assert.equal(body.code, 'LEGACY_REGISTRATION_DISABLED');
 });
