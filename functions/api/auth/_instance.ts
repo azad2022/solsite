@@ -12,6 +12,8 @@ interface BetterAuthRuntimeEnv extends BetterAuthEnv, BetterAuthDatabaseEnv {
   GOOGLE_CLIENT_SECRET?: string;
   RESEND_API_KEY?: string;
   AUTH_EMAIL_FROM?: string;
+  LEGACY_MIGRATION_ENABLED?: string;
+  LEGACY_MIGRATION_SECRET?: string;
 }
 
 function getGoogleProvider(env: BetterAuthRuntimeEnv) {
@@ -32,6 +34,10 @@ function getGoogleProvider(env: BetterAuthRuntimeEnv) {
   };
 }
 
+function isLegacyMigrationEnabled(env: BetterAuthRuntimeEnv): boolean {
+  return env.LEGACY_MIGRATION_ENABLED?.trim().toLowerCase() === 'true';
+}
+
 function isAuthorizedLegacyMigrationHeader(headers: Headers, secret: string): boolean {
   const supplied = headers.get('x-solmint-legacy-migration');
   return Boolean(supplied) && supplied === secret;
@@ -42,6 +48,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
   const socialProviders = getGoogleProvider(env);
   const database = createBetterAuthDatabase(env);
   const secureCookies = foundation.baseURL.startsWith('https://');
+  const legacyMigrationSecret = env.LEGACY_MIGRATION_SECRET?.trim() || '';
 
   const auth = betterAuth({
     secret: foundation.secret,
@@ -159,8 +166,10 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== '/sign-up/email') return;
 
-        const migrationSecret = foundation.secret;
-        const isLegacyMigration = isAuthorizedLegacyMigrationHeader(ctx.headers, migrationSecret);
+        const isLegacyMigration =
+          isLegacyMigrationEnabled(env) &&
+          legacyMigrationSecret.length > 0 &&
+          isAuthorizedLegacyMigrationHeader(ctx.headers, legacyMigrationSecret);
 
         const body = ctx.body as { username?: unknown } | undefined;
         const requestedUsername = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
