@@ -1,7 +1,7 @@
-import { getBetterAuthApplicationUser } from './_application-session';
-import { getAuthenticatedUser, jsonResponse, toSafeUser, type Env } from './_shared';
+import { getBetterAuthApplicationUser, type BetterAuthApplicationSessionEnv } from './_application-session';
+import { getAuthenticatedUser, jsonResponse, toSafeUser } from './_shared';
 
-export const onRequestGet = async ({ request, env }: { request: Request; env: Env & Record<string, unknown> }) => {
+export const onRequestGet = async ({ request, env }: { request: Request; env: BetterAuthApplicationSessionEnv }) => {
   try {
     // Compatibility during controlled migration: legacy sessions remain readable,
     // but new Better Auth sessions are resolved through the single application boundary.
