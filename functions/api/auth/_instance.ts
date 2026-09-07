@@ -1,6 +1,8 @@
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { betterAuth } from 'better-auth';
 import { username } from 'better-auth/plugins';
 import { buildPasswordResetEmail, buildVerificationEmail, sendAuthEmail } from './_email';
+import { provisionApplicationProfile } from './_application-profile';
 import { getBetterAuthFoundationConfig, type BetterAuthEnv } from './_foundation';
 import { createBetterAuthDatabase, type BetterAuthDatabaseEnv } from './_database';
 
@@ -142,6 +144,49 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
             secure: secureCookies,
             sameSite: 'strict',
             path: '/',
+          },
+        },
+      },
+    },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-up/email') return;
+
+        const isLegacyMigration = ctx.headers.get('x-solmint-legacy-migration') === '1';
+        if (isLegacyMigration) return;
+
+        const requestedUsername = typeof ctx.body?.username === 'string' ? ctx.body.username.trim().toLowerCase() : '';
+        if (!requestedUsername) return;
+
+        const existing = await database.query<{ id: string }>(
+          `select id from public.users where lower(username) = lower($1) limit 1`,
+          [requestedUsername],
+        );
+
+        if (existing.rows.length > 0) {
+          throw new APIError('CONFLICT', { message: 'This username is already in use.' });
+        }
+      }),
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            try {
+              await provisionApplicationProfile(database, {
+                id: String(user.id),
+                email: String(user.email),
+                name: String(user.name),
+                username: 'username' in user && typeof user.username === 'string' ? user.username : null,
+                createdAt: user.createdAt,
+              });
+            } catch (error) {
+              // Compensate for a successfully-created Better Auth user when the
+              // application identity cannot be provisioned. This prevents an
+              // authenticated identity from existing without an application user.
+              await database.query('delete from better_auth."user" where id = $1', [String(user.id)]).catch(() => {});
+              throw error;
+            }
           },
         },
       },
