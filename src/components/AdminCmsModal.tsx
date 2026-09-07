@@ -1,6 +1,6 @@
 import React, { type ComponentProps } from 'react';
 import { AdminAuthGate } from './AdminAuthGate';
-import LegacyAdminCmsModal from './LegacyAdminCmsModal';
+import { AdminCmsModal as LegacyAdminCmsModal } from './LegacyAdminCmsModal';
 
 type AdminCmsModalProps = ComponentProps<typeof LegacyAdminCmsModal>;
 
