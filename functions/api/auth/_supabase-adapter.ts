@@ -18,11 +18,7 @@ function raiseRpcError(error: { message?: string; details?: string; hint?: strin
   throw new Error(`Better Auth Supabase adapter RPC failed${message ? `: ${message}` : ''}`);
 }
 
-async function callRpc(
-  client: SupabaseRpcClient,
-  operation: string,
-  input: Record<string, unknown> = {},
-): Promise<unknown> {
+async function callRpc(client: SupabaseRpcClient, operation: string, input: Record<string, unknown> = {}): Promise<unknown> {
   const { data, error } = await client.rpc(RPC_NAME, {
     p_operation: operation,
     p_model: input.model ?? null,
@@ -34,7 +30,6 @@ async function callRpc(
     p_increment: input.increment ?? {},
     p_set: input.set ?? {},
   });
-
   if (error) raiseRpcError(error);
   return data;
 }
@@ -42,21 +37,21 @@ async function callRpc(
 /**
  * Better Auth database adapter for Cloudflare Pages Functions.
  *
- * Production never opens a TCP connection to PostgreSQL. Instead, the adapter
- * calls one allow-listed SECURITY DEFINER RPC exposed by Supabase PostgREST.
- * The RPC itself owns all SQL against the private `better_auth` schema.
- *
- * This preserves Better Auth's server-side persistence without requiring a
- * Cloudflare Hyperdrive binding while keeping the auth tables inaccessible to
- * anon/authenticated Supabase clients.
+ * Production uses Supabase PostgREST over HTTPS instead of opening a TCP
+ * connection from the Pages runtime. The RPC is private to service_role and
+ * allow-lists the Better Auth models, while Better Auth remains the owner of
+ * identity/session semantics.
  */
 export const createSupabaseBetterAuthAdapter = (config: SupabaseBetterAuthAdapterConfig) =>
   createAdapterFactory({
     config: {
       adapterId: 'solmint-supabase-http',
       adapterName: 'Solmint Supabase HTTP Adapter',
+      // Supabase JSON transport returns PostgreSQL timestamps as strings. Keep
+      // Better Auth's adapter date normalization enabled by reporting that the
+      // underlying store does not expose native Date values through this API.
       supportsJSON: true,
-      supportsDates: true,
+      supportsDates: false,
       supportsBooleans: true,
       supportsArrays: true,
       supportsNumericIds: false,
@@ -66,23 +61,14 @@ export const createSupabaseBetterAuthAdapter = (config: SupabaseBetterAuthAdapte
     adapter: () => ({
       create: async ({ model, data }) =>
         (await callRpc(config.client, 'create', { model, data })) as Record<string, unknown>,
-
       update: async ({ model, where, update }) =>
         ((await callRpc(config.client, 'update', { model, where, data: update })) as Record<string, unknown> | null) ?? null,
-
       updateMany: async ({ model, where, update }) =>
         Number(await callRpc(config.client, 'update_many', { model, where, data: update })),
-
-      delete: async ({ model, where }) => {
-        await callRpc(config.client, 'delete', { model, where });
-      },
-
-      deleteMany: async ({ model, where }) =>
-        Number(await callRpc(config.client, 'delete_many', { model, where })),
-
+      delete: async ({ model, where }) => { await callRpc(config.client, 'delete', { model, where }); },
+      deleteMany: async ({ model, where }) => Number(await callRpc(config.client, 'delete_many', { model, where })),
       findOne: async ({ model, where }) =>
         ((await callRpc(config.client, 'find_one', { model, where })) as Record<string, unknown> | null) ?? null,
-
       findMany: async ({ model, where, limit, offset, sortBy }) =>
         ((await callRpc(config.client, 'find_many', {
           model,
@@ -91,17 +77,9 @@ export const createSupabaseBetterAuthAdapter = (config: SupabaseBetterAuthAdapte
           offset,
           sort: sortBy ? { field: sortBy.field, direction: sortBy.direction } : null,
         })) as Record<string, unknown>[]) ?? [],
-
       count: async ({ model, where }) => Number(await callRpc(config.client, 'count', { model, where })),
-
       incrementOne: async ({ model, where, increment, set }) =>
-        ((await callRpc(config.client, 'increment_one', {
-          model,
-          where,
-          increment,
-          set,
-        })) as Record<string, unknown> | null) ?? null,
-
+        ((await callRpc(config.client, 'increment_one', { model, where, increment, set })) as Record<string, unknown> | null) ?? null,
       consumeOne: async ({ model, where }) =>
         ((await callRpc(config.client, 'consume_one', { model, where })) as Record<string, unknown> | null) ?? null,
     }),
