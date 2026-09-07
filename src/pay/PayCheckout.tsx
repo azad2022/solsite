@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Clock3, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Clock3, LockKeyhole, ReceiptText, RefreshCcw, ShieldCheck, WalletCards } from 'lucide-react';
 import { checkoutLabel } from './checkout-i18n';
 import { directionFor, translate } from './i18n';
 import { PayHttpError } from './http';
-import { payPaymentIntentService, type PayPaymentIntent } from './payment-intent-service';
+import { payPaymentIntentService, type PayPaymentIntent, type PayPaymentStatus } from './payment-intent-service';
 import PayDataStateView from './DataStateView';
 import type { PayLocale } from './types';
 import './pay-checkout.css';
@@ -43,14 +43,24 @@ function SnapshotValue({ value }: { value: string }): React.ReactElement {
   return <code className="pay-checkout-snapshot-value">{value}</code>;
 }
 
+const NON_TERMINAL_STATUSES: ReadonlySet<PayPaymentStatus> = new Set([
+  'created', 'pending', 'detected', 'verifying', 'confirmed', 'underpaid', 'overpaid', 'ambiguous',
+]);
+
+function statusDescriptionKey(status: PayPaymentStatus): 'paymentState' | 'paymentConfirmed' {
+  return status === 'completed' ? 'paymentConfirmed' : 'paymentState';
+}
+
 export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): React.ReactElement {
   const direction = directionFor(locale);
   const BackIcon = direction === 'rtl' ? ArrowRight : ArrowLeft;
   const [intent, setIntent] = useState<PayPaymentIntent | null>(null);
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'unauthorized' | 'forbidden' | 'retryable'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const mountedRef = useRef(true);
 
-  const loadIntent = useCallback(async () => {
+  const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
       setIntent(null);
       setState('empty');
@@ -58,24 +68,54 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       return;
     }
 
-    setState('loading');
+    if (showLoading) setState('loading');
     setErrorMessage(undefined);
     try {
       const value = await payPaymentIntentService.get(intentId);
+      if (!mountedRef.current) return;
       setIntent(value);
       setState('ready');
     } catch (cause) {
-      setIntent(null);
-      setState(dataStateForError(cause));
-      setErrorMessage(checkoutLabel(locale, 'loadFailed'));
+      if (!mountedRef.current) return;
+      if (showLoading || !intent) {
+        setIntent(null);
+        setState(dataStateForError(cause));
+        setErrorMessage(checkoutLabel(locale, 'loadFailed'));
+      }
     }
-  }, [intentId, locale]);
+  }, [intent, intentId, locale]);
 
   useEffect(() => {
-    void loadIntent();
+    mountedRef.current = true;
+    void loadIntent(true);
+    return () => { mountedRef.current = false; };
   }, [loadIntent]);
 
+  useEffect(() => {
+    if (!intent || !NON_TERMINAL_STATUSES.has(intent.status)) return;
+
+    const timer = window.setInterval(() => {
+      setIsRefreshing(true);
+      void payPaymentIntentService.get(intent.id)
+        .then(value => {
+          if (!mountedRef.current) return;
+          setIntent(value);
+          setState('ready');
+        })
+        .catch(() => {
+          // Keep the last authoritative snapshot when a refresh temporarily fails.
+          // A stale snapshot is preferable to manufacturing a payment result locally.
+        })
+        .finally(() => {
+          if (mountedRef.current) setIsRefreshing(false);
+        });
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [intent]);
+
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
+  const isCompleted = intent?.status === 'completed';
 
   return (
     <div className="solmint-pay pay-checkout" dir={direction} lang={locale}>
@@ -101,7 +141,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
           </div>
 
           {state !== 'ready' ? (
-            <PayDataStateView locale={locale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent() : undefined} />
+            <PayDataStateView locale={locale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent(true) : undefined} />
           ) : intent ? (
             <>
               <div className="pay-checkout-status-grid">
@@ -114,7 +154,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
               </div>
 
               <div className="pay-checkout-notice">
-                <strong>{translate(locale, 'checkoutSnapshot')}</strong>
+                <strong>{translate(locale, isCompleted ? statusDescriptionKey(intent.status) : 'checkoutSnapshot')}</strong>
                 <p>{translate(locale, 'checkoutSnapshotDescription')}</p>
                 <div className="pay-checkout-status-grid">
                   <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'asset')}</span><SnapshotValue value={intent.asset} /></div></div>
@@ -125,6 +165,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                   <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'commitment')}</span><SnapshotValue value={intent.verificationCommitment} /></div></div>
                 </div>
               </div>
+              {isRefreshing ? <div className="pay-checkout-refresh" role="status" aria-live="polite"><RefreshCcw size={15} /> {translate(locale, 'verification')}</div> : null}
             </>
           ) : null}
 
