@@ -19,6 +19,7 @@
     "/api/v1",
     "/api/v1/*",
     "/api/wallet/*",
+    "/api/pay/*",
     "/solana-price",
     "/solana-token",
     "/solana-wallet",

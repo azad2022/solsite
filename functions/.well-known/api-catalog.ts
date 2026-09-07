@@ -44,6 +44,12 @@ const catalog = {
       'service-doc': [link(`${DOCS}#wallet-analyze`, 'text/html')],
       status: [link(HEALTH, 'application/json')],
     },
+    {
+      anchor: `${SITE}/api/pay/v1/payment-intents`,
+      'service-desc': [link(OPENAPI, 'application/vnd.oai.openapi+json;version=3.1')],
+      'service-doc': [link(`${DOCS}#pay-payment-intent`, 'text/html')],
+      status: [link(HEALTH, 'application/json')],
+    },
   ],
 };
 

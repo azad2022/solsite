@@ -36,8 +36,8 @@ export type ArticlePublic = {
 
 export type RelatedArticle = Pick<ArticlePublic, 'id' | 'title' | 'slug' | 'summary' | 'coverImage' | 'category' | 'publishedAt'>;
 
-export function supabase(env: Env) {
-  const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
+function supabaseConfig(env: Env, allowAnon = true) {
+  const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || (allowAnon ? (env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY) : undefined);
   if (!key) throw new Error('Supabase API configuration is missing.');
   const base = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
   return {
@@ -48,6 +48,14 @@ export function supabase(env: Env) {
       Accept: 'application/json'
     }
   };
+}
+
+export function supabase(env: Env) {
+  return supabaseConfig(env, true);
+}
+
+export function supabaseSecret(env: Env) {
+  return supabaseConfig(env, false);
 }
 
 export function corsHeaders(request: Request): Record<string, string> {
