@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { Pool } from 'pg';
 import { createBetterAuthRuntime } from '../../functions/api/auth/_instance';
 
 const databaseUrl = process.env.BETTER_AUTH_DATABASE_URL;
@@ -15,10 +16,11 @@ const runtime = databaseUrl
     })
   : null;
 
-const db = runtime?.database;
+const db = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 
 test.after(async () => {
   if (runtime) await runtime.close();
+  if (db) await db.end();
 });
 
 test(
