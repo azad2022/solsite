@@ -7,6 +7,7 @@ const read = (path: string) => readFileSync(path, 'utf8');
 test('Better Auth runtime enforces verified email and password recovery', () => {
   const source = read('functions/api/auth/_instance.ts');
   assert.match(source, /requireEmailVerification:\s*true/);
+  assert.match(source, /autoSignIn:\s*false/);
   assert.match(source, /revokeSessionsOnPasswordReset:\s*true/);
   assert.match(source, /sendResetPassword:/);
   assert.match(source, /sendVerificationEmail:/);
@@ -120,4 +121,5 @@ test('legacy password migration preserves generic response for enumeration resis
   assert.match(source, /اگر اطلاعات حساب درست باشد/);
   assert.match(source, /findUser\(env, username\)/);
   assert.match(source, /verifyPassword\(password, applicationUser\.password_hash\)/);
+  assert.match(read('functions/api/auth/_instance.ts'), /autoSignIn:\s*false/);
 });
