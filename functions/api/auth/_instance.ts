@@ -32,6 +32,11 @@ function getGoogleProvider(env: BetterAuthRuntimeEnv) {
   };
 }
 
+function isAuthorizedLegacyMigrationHeader(headers: Headers, secret: string): boolean {
+  const supplied = headers.get('x-solmint-legacy-migration');
+  return Boolean(supplied) && supplied === secret;
+}
+
 export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
   const foundation = getBetterAuthFoundationConfig(env);
   const socialProviders = getGoogleProvider(env);
@@ -153,8 +158,8 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== '/sign-up/email') return;
 
-        const isLegacyMigration = ctx.headers.get('x-solmint-legacy-migration') === '1';
-        if (isLegacyMigration) return;
+        const migrationSecret = foundation.secret;
+        const isLegacyMigration = isAuthorizedLegacyMigrationHeader(ctx.headers, migrationSecret);
 
         const body = ctx.body as { username?: unknown } | undefined;
         const requestedUsername = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
@@ -165,7 +170,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
           [requestedUsername],
         );
 
-        if (existing.rows.length > 0) {
+        if (existing.rows.length > 0 && !isLegacyMigration) {
           throw new APIError('CONFLICT', { message: 'This username is already in use.' });
         }
       }),
