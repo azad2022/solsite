@@ -11,7 +11,9 @@ on:
       - 'supabase/migrations/20260906_auth_identity_bridge.sql'
       - 'supabase/migrations/20260906_better_auth_identity_schema.sql'
       - 'supabase/migrations/20260907_auth_identity_application_fk.sql'
+      - 'supabase/migrations/20260907_better_auth_server_handoff.sql'
       - 'tests/auth/**'
+      - 'tests/better-auth-production-contract.test.ts'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/auth-postgres-integration.yml'
@@ -56,13 +58,14 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          psql -h 127.0.0.1 -U postgres -d solmint_auth_test <<'SQL'
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test <<'SQL'
           create role anon nologin;
           create role authenticated nologin;
+          create role service_role nologin;
 
           create table public.users (
             id text not null primary key,
-            username text not null,
+            username text not null unique,
             full_name text not null,
             password_hash text not null,
             role text default 'admin',
@@ -72,16 +75,20 @@ jobs:
           );
           SQL
 
-      - name: Apply Better Auth migrations only
+      - name: Apply Better Auth migrations
         env:
           PGPASSWORD: postgres
         run: |
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260906_auth_identity_bridge.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260906_better_auth_identity_schema.sql
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260907_auth_identity_application_fk.sql
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260907_better_auth_server_handoff.sql
 
       - name: Run Better Auth PostgreSQL integration
         run: bunx tsx --test tests/auth/better-auth-postgres.integration.test.ts
 
       - name: Run Better Auth security E2E
         run: bunx tsx --test tests/auth/better-auth-security.e2e.test.ts
+
+      - name: Run Better Auth production contract tests
+        run: bunx tsx --test tests/better-auth-production-contract.test.ts
