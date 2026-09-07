@@ -51,22 +51,23 @@ export async function saveCmsSettingsToApi(settings: Partial<CmsSettings>): Prom
   } catch (err) { console.warn('Error saving CMS settings from API:', err); return false; }
 }
 
-export async function registerUserApi(payload: { username: string; fullName: string; email?: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount; requiresEmailVerification?: boolean }> {
-  const email = payload.email?.trim().toLowerCase();
-  if (!email || !payload.password) return { success: false, message: 'ایمیل و رمز عبور برای ثبت‌نام الزامی است.' };
+export async function registerUserApi(payload: { username: string; fullName: string; password?: string; role?: string; permissions?: string[]; isActive?: boolean }): Promise<{ success: boolean; message: string; user?: UserAccount }> {
   try {
-    const { data, error } = await authClient.signUp.email({ email, name: payload.fullName.trim(), password: payload.password, username: payload.username.trim() });
-    if (error) return { success: false, message: error.message || 'ثبت‌نام انجام نشد.' };
-    const user = data?.user ? await applicationUser() : undefined;
-    if (user) return { success: true, message: 'ثبت‌نام انجام شد.', user };
-    return { success: true, message: 'حساب ساخته شد. لینک تأیید ایمیل برای شما ارسال شد؛ پس از تأیید، وارد حساب شوید.', requiresEmailVerification: true };
+    const res = await fetch('/api/users/register', authFetchInit({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }));
+    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount }>(res);
+    if (data) return { success: data.success === true, message: data.message || (res.ok ? 'ثبت‌نام انجام شد.' : 'ثبت‌نام در سرور انجام نشد.'), user: data.user };
+    return { success: false, message: `خطا در ثبت حساب روی سرور (کد ${status || 'شبکه'}). ثبت‌نام محلی مجاز نیست.` };
   } catch (err) {
-    console.warn('Error calling Better Auth sign-up:', err);
-    return { success: false, message: 'ارتباط با سرویس احراز هویت برقرار نشد.' };
+    console.warn('Error calling /api/users/register:', err);
+    return { success: false, message: 'ارتباط با سرور ثبت‌نام برقرار نشد.' };
   }
 }
 
-/** Better Auth is authoritative. Browser code never synthesizes an authenticated user. */
+/** Better Auth is authoritative for the browser login entry point. */
 export async function loginUserApi(payload: { username?: string; password?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }> {
   const identifier = (payload.username || '').trim();
   const password = (payload.password || payload.passcode || '').trim();
