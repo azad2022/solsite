@@ -31,7 +31,7 @@ async function getBetterAuthUser(request: Request, env: BetterAuthCompatibleEnv)
     const legacyUserId = link.rows[0]?.legacy_user_id ? String(link.rows[0].legacy_user_id) : null;
     const legacyUser = legacyUserId ? await findUserById(env, legacyUserId) : null;
 
-    if (legacyUser && legacyUser.is_active === false) return null;
+    if (legacyUser && !Boolean(legacyUser.is_active)) return null;
 
     return {
       id: String(user.id),
