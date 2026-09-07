@@ -72,6 +72,27 @@ create table if not exists better_auth.rate_limit (
   last_request bigint not null
 );
 
+-- Complete the identity bridge FK only after both sides exist. The bridge migration
+-- intentionally creates the table without this dependency so migration replay is
+-- deterministic despite its historical short timestamp-based filename.
+do $$
+begin
+  if to_regclass('public.auth_identity_links') is not null
+     and not exists (
+       select 1
+       from pg_constraint
+       where conname = 'auth_identity_links_better_auth_user_id_fkey'
+         and conrelid = 'public.auth_identity_links'::regclass
+     ) then
+    alter table public.auth_identity_links
+      add constraint auth_identity_links_better_auth_user_id_fkey
+      foreign key (better_auth_user_id)
+      references better_auth."user"(id)
+      on delete cascade;
+  end if;
+end
+$$;
+
 -- Better Auth owns these tables through the server-side PostgreSQL connection.
 -- They are never exposed to Supabase anon/authenticated clients.
 revoke all on schema better_auth from public;
