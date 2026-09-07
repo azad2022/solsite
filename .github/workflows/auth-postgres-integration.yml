@@ -1,0 +1,79 @@
+name: Authentication PostgreSQL integration
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'functions/api/auth/**'
+      - 'supabase/migrations/20260906_auth_identity_bridge.sql'
+      - 'supabase/migrations/20260906_better_auth_identity_schema.sql'
+      - 'tests/auth/**'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/auth-postgres-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: solmint_auth_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d solmint_auth_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      BETTER_AUTH_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/solmint_auth_test
+      BETTER_AUTH_SECRET: ci-integration-secret-which-is-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:8787
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Bootstrap application identity compatibility surface
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d solmint_auth_test <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+
+          create table public.users (
+            id text not null,
+            username text not null,
+            full_name text not null,
+            password_hash text not null,
+            role text default 'admin',
+            permissions jsonb default '[]'::jsonb,
+            is_active boolean default true,
+            created_at timestamptz default now()
+          );
+          SQL
+
+      - name: Apply Better Auth migrations only
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260906_auth_identity_bridge.sql
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d solmint_auth_test -f supabase/migrations/20260906_better_auth_identity_schema.sql
+
+      - name: Run Better Auth PostgreSQL integration
+        run: bunx tsx --test tests/auth/better-auth-postgres.integration.test.ts
