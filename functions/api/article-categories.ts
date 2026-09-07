@@ -1,9 +1,23 @@
-type Env = { SUPABASE_URL?: string; VITE_SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string; VITE_SUPABASE_ANON_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; SUPABASE_SECRET_KEY?: string; ADMIN_PASSCODE?: string };
-type PagesContext = { request: Request; env: Env; params?: Record<string, string | string[] | undefined> };
+import { getBetterAuthApplicationUser } from './auth/_application-session';
+import type { Env } from './auth/_shared';
+
+type PagesContext = { request: Request; env: CategoryEnv; params?: Record<string, string | string[] | undefined> };
+type CategoryEnv = Env & {
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  NODE_ENV?: string;
+  BETTER_AUTH_SECRET?: string;
+  BETTER_AUTH_URL?: string;
+  BETTER_AUTH_TRUSTED_ORIGINS?: string;
+  BETTER_AUTH_DATABASE_URL?: string;
+  HYPERDRIVE?: { connectionString: string };
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  RESEND_API_KEY?: string;
+  AUTH_EMAIL_FROM?: string;
+};
 type Category = { id: string; name: string; slug: string; description?: string; seo_title?: string; seo_description?: string; parent_id?: string | null; sort_order?: number; is_active?: boolean; default_media_asset_id?: string | null; default_media_url?: string | null; created_at?: string; updated_at?: string };
 
 const fallbackUrl = 'https://nvopkbiedorfshwbmyhn.supabase.co';
-const fallbackAnon = 'sb_publishable_XaeRMCeIhR7-Zwq6YhdkVw_cOwO9OLt';
 const FALLBACK_CATEGORIES: Category[] = [
   { id: 'cat-solana', name: 'آموزش سولانا', slug: 'solana', sort_order: 10, is_active: true },
   { id: 'cat-web3', name: 'توسعه وب۳', slug: 'web3-development', sort_order: 20, is_active: true },
@@ -16,16 +30,15 @@ const FALLBACK_CATEGORIES: Category[] = [
   { id: 'cat-wallet', name: 'کیف پول سولانا', slug: 'solana-wallet', sort_order: 90, is_active: true }
 ];
 
-const envValue = (env: Env, key: keyof Env, fallback = '') => String(env[key] || fallback).trim();
+const envValue = (env: CategoryEnv, key: keyof CategoryEnv, fallback = '') => String(env[key] || fallback).trim();
 const json = (data: unknown, status = 200, extraHeaders: Record<string, string> = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=UTF-8', 'Cache-Control': 'no-store', ...extraHeaders } });
-const suppliedPasscode = (request: Request) => (request.headers.get('x-admin-passcode') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '').trim();
-const supabaseUrl = (env: Env) => envValue(env, 'SUPABASE_URL', envValue(env, 'VITE_SUPABASE_URL', fallbackUrl)).replace(/\/$/, '');
-const readKey = (env: Env) => envValue(env, 'SUPABASE_ANON_KEY', envValue(env, 'VITE_SUPABASE_ANON_KEY', fallbackAnon));
-const writeKey = (env: Env) => envValue(env, 'SUPABASE_SECRET_KEY', envValue(env, 'SUPABASE_SERVICE_ROLE_KEY'));
+const supabaseUrl = (env: CategoryEnv) => envValue(env, 'SUPABASE_URL', envValue(env, 'VITE_SUPABASE_URL', fallbackUrl)).replace(/\/$/, '');
+const readKey = (env: CategoryEnv) => envValue(env, 'SUPABASE_ANON_KEY', envValue(env, 'VITE_SUPABASE_ANON_KEY', ''));
+const writeKey = (env: CategoryEnv) => envValue(env, 'SUPABASE_SECRET_KEY', envValue(env, 'SUPABASE_SERVICE_ROLE_KEY'));
 
-async function db(env: Env, path: string, init: RequestInit = {}, requirePrivilegedWrite = false) {
-  const key = requirePrivilegedWrite ? writeKey(env) : readKey(env);
-  if (requirePrivilegedWrite && !key) throw new Error('SUPABASE_SECRET_KEY یا SUPABASE_SERVICE_ROLE_KEY در محیط production تنظیم نشده است.');
+async function db(env: CategoryEnv, path: string, init: RequestInit = {}, requirePrivilegedWrite = false) {
+  const key = requirePrivilegedWrite ? writeKey(env) : (readKey(env) || writeKey(env));
+  if (!key) throw new Error(requirePrivilegedWrite ? 'SUPABASE_SECRET_KEY یا SUPABASE_SERVICE_ROLE_KEY در محیط production تنظیم نشده است.' : 'Supabase server key is not configured.');
   const headers = new Headers(init.headers);
   headers.set('apikey', key);
   headers.set('Authorization', `Bearer ${key}`);
@@ -37,29 +50,15 @@ async function db(env: Env, path: string, init: RequestInit = {}, requirePrivile
   finally { clearTimeout(timeout); }
 }
 
-async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
+async function adminAuthorized(request: Request, env: CategoryEnv): Promise<boolean> {
   try {
-    const { getAuthenticatedUser } = await import('./auth/_shared');
-    const user = await getAuthenticatedUser(env as any, request);
-    if (user && user.is_active !== false) {
-      const permissions = Array.isArray(user.permissions) ? user.permissions.map(String) : [];
-      if (user.role === 'admin' || user.role === 'superadmin' || permissions.includes('articles')) return true;
-    }
+    const user = await getBetterAuthApplicationUser(request, env);
+    if (!user) return false;
+    const permissions = Array.isArray(user.permissions) ? user.permissions.map(String) : [];
+    return user.role === 'admin' || user.role === 'superadmin' || permissions.includes('articles');
   } catch {
-    // Fall through to the existing passcode authorization path.
+    return false;
   }
-  const supplied = suppliedPasscode(request);
-  if (!supplied) return false;
-  const configured = envValue(env, 'ADMIN_PASSCODE');
-  if (configured) return supplied === configured;
-  if (!writeKey(env)) return false;
-  try {
-    const response = await db(env, 'cms_settings?id=eq.main_settings&select=settings_json&limit=1');
-    if (!response.ok) return false;
-    const rows = await response.json().catch(() => []);
-    const expected = rows?.[0]?.settings_json?.security?.adminPasscode;
-    return Boolean(expected && supplied === String(expected).trim());
-  } catch { return false; }
 }
 
 function cleanCategory(input: any): Category { return { id: String(input.id || `cat-${crypto.randomUUID()}`), name: String(input.name || '').trim(), slug: String(input.slug || '').trim().toLowerCase(), description: String(input.description || '').trim(), seo_title: String(input.seo_title || '').trim(), seo_description: String(input.seo_description || '').trim(), parent_id: input.parent_id ? String(input.parent_id) : null, sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : 100, is_active: input.is_active !== false, default_media_asset_id: input.default_media_asset_id ? String(input.default_media_asset_id).trim() : null, default_media_url: input.default_media_url ? String(input.default_media_url).trim() : null }; }
@@ -71,6 +70,8 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
   try {
     if (method === 'GET') {
       const includeInactive = new URL(request.url).searchParams.get('includeInactive') === 'true';
+      // Inactive categories are administrative data; public callers may only read active rows.
+      if (includeInactive && !(await adminAuthorized(request, env))) return json({ success: false, message: 'دسترسی به دسته‌بندی‌های غیرفعال مجاز نیست.' }, 403);
       const query = includeInactive ? 'select=*&order=sort_order.asc,name.asc' : 'select=*&is_active=eq.true&order=sort_order.asc,name.asc';
       try {
         const response = await db(env, `article_categories?${query}`);
@@ -78,10 +79,12 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
         if (!response.ok) return json({ success: true, categories: FALLBACK_CATEGORIES.filter(c => includeInactive || c.is_active), degraded: true, warning: 'Supabase دسته‌بندی‌ها را در دسترس قرار نداد.' }, 200, { 'X-Category-Source': 'fallback' });
         return json({ success: true, categories: Array.isArray(data) ? data : [], degraded: false }, 200, { 'X-Category-Source': 'supabase' });
       } catch {
-        return json({ success: true, categories: FALLBACK_CATEGORIES.filter(c => includeInactive || c.is_active), degraded: true, warning: 'اتصال به Supabase برای دسته‌بندی‌ها برقرار نشد؛ دسته‌های پایه بارگذاری شدند.' }, 200, { 'X-Category-Source': 'fallback' });
+        if (includeInactive) return json({ success: false, message: 'دریافت دسته‌بندی‌های مدیریتی از Supabase ناموفق بود.' }, 503);
+        return json({ success: true, categories: FALLBACK_CATEGORIES.filter(c => c.is_active), degraded: true, warning: 'اتصال به Supabase برای دسته‌بندی‌ها برقرار نشد؛ دسته‌های پایه بارگذاری شدند.' }, 200, { 'X-Category-Source': 'fallback' });
       }
     }
-    if (!(await adminAuthorized(request, env))) return json({ success: false, message: 'دسترسی مدیریت دسته‌بندی‌ها غیرمجاز است.' }, 401);
+
+    if (!(await adminAuthorized(request, env))) return json({ success: false, message: 'دسترسی مدیریت دسته‌بندی‌ها غیرمجاز است.' }, 403);
 
     if (method === 'POST') {
       const newCategory = cleanCategory(await request.json()); const validationError = validate(newCategory); if (validationError) return json({ success: false, message: validationError }, 400);
@@ -134,5 +137,5 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
       return json({ success: true, message: 'دسته‌بندی با موفقیت حذف شد.' });
     }
     return json({ success: false, message: 'متد درخواست پشتیبانی نمی‌شود.' }, 405);
-  } catch (error: any) { return json({ success: false, message: error?.message || 'خطای غیرمنتظره در سرویس دسته‌بندی‌ها.' }, 500); }
+  } catch (error: any) { console.error('Article categories endpoint failed:', error instanceof Error ? error.message : String(error)); return json({ success: false, message: 'خطای غیرمنتظره در سرویس دسته‌بندی‌ها.' }, 500); }
 };
