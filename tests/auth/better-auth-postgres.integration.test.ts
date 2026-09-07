@@ -39,8 +39,9 @@ test(
           body: JSON.stringify({ email, password, name: 'Integration User', username }),
         }),
       );
+      const signUpBody = await signUpResponse.text();
 
-      assert.equal(signUpResponse.status, 200);
+      assert.equal(signUpResponse.status, 200, `sign-up failed: ${signUpBody}`);
 
       const userResult = await pool.query<{
         id: string;
