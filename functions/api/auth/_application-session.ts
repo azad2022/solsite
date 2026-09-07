@@ -1,7 +1,7 @@
 import { createBetterAuthRuntime } from './_instance';
 import type { Env } from './_shared';
 
-type BetterAuthApplicationSessionEnv = Env & {
+export type BetterAuthApplicationSessionEnv = Env & {
   NODE_ENV?: string;
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
