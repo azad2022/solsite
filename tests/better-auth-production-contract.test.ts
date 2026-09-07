@@ -15,9 +15,12 @@ test('Better Auth runtime enforces verified email and password recovery', () => 
   assert.match(source, /sendOnSignIn:\s*true/);
 });
 
-test('Better Auth database boundary is isolated and production fail-closed', () => {
+test('Better Auth database boundary uses Supabase HTTPS in production and fails closed without credentials', () => {
   const source = read('functions/api/auth/_database.ts');
-  assert.match(source, /HYPERDRIVE/);
+  assert.match(source, /createSupabaseBetterAuthAdapter/);
+  assert.match(source, /SUPABASE_URL is required/);
+  assert.match(source, /SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required/);
+  assert.doesNotMatch(source, /HYPERDRIVE/);
   assert.match(source, /development\/test/);
   assert.match(source, /search_path=better_auth,public/);
 });
