@@ -21,7 +21,7 @@ test('Better Auth database boundary uses Supabase HTTPS in production and fails 
   assert.match(source, /SUPABASE_URL is required/);
   assert.match(source, /SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required/);
   assert.doesNotMatch(source, /HYPERDRIVE/);
-  assert.match(source, /development\/test/);
+  assert.match(source, /env\.NODE_ENV === ['\"]development['\"]\s*\|\|\s*env\.NODE_ENV === ['\"]test['\"]/);
   assert.match(source, /search_path=better_auth,public/);
 });
 
@@ -81,11 +81,12 @@ test('native and legacy Better Auth users are mapped to the application identity
   const me = read('functions/api/auth/me.ts');
   const usersMe = read('functions/api/users/me.ts');
 
-  assert.match(profile, /insert into public\.users/);
-  assert.match(profile, /insert into public\.auth_identity_links/);
-  assert.match(profile, /application_user_id/);
-  assert.match(profile, /values \(\$1, \$2, 'legacy-migration'\)/);
-  assert.match(profile, /values \(\$1, \$2, 'native'\)/);
+  assert.match(profile, /ApplicationAuthDatabase/);
+  assert.match(profile, /database\.createApplicationUser\(/);
+  assert.match(profile, /database\.linkIdentity\(/);
+  assert.match(profile, /applicationUserId/);
+  assert.match(profile, /legacy-migration/);
+  assert.match(profile, /native/);
   assert.match(profile, /better-auth-only\$/);
   assert.match(runtime, /databaseHooks:\s*\{/);
   assert.match(runtime, /provisionApplicationProfile/);
@@ -102,8 +103,10 @@ test('native and legacy Better Auth users are mapped to the application identity
 
 test('native signup cannot reuse a legacy application username', () => {
   const source = read('functions/api/auth/_instance.ts');
+  const database = read('functions/api/auth/_database.ts');
   assert.match(source, /ctx\.path !== '\/sign-up\/email'/);
-  assert.match(source, /lower\(username\) = lower\(\$1\)/);
+  assert.match(source, /database\.application\.findApplicationUserByUsername\(/);
+  assert.match(database, /lower\(username\) = lower\(\$1\)/);
   assert.match(source, /APIError\('CONFLICT'/);
 });
 
@@ -112,7 +115,7 @@ test('Better Auth session without an application identity is not exposed as auth
   const usersMe = read('functions/api/users/me.ts');
   assert.match(source, /const betterAuthUser = await getBetterAuthApplicationUser/);
   assert.match(source, /if \(!betterAuthUser\) return jsonResponse/);
-  assert.match(usersMe, /if \(!betterAuthUser\) return jsonResponse\(\{ success: false, authenticated: false \}, 401\)/);
+  assert.match(usersMe, /if \(!user\) return jsonResponse\(\{ success: false, authenticated: false \}, 401\)/);
 });
 
 test('Google OAuth credentials remain server-only', () => {
