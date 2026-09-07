@@ -9,8 +9,6 @@ import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './ty
 import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
-import PayDataStateView from './DataStateView';
-import { payMerchantService, PayHttpError, type PayMerchantSummary } from './services/merchantService';
 import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
 import './pay.css';
 
@@ -20,21 +18,10 @@ const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; str
 };
 
 type SessionState = 'loading' | 'authenticated' | 'anonymous' | 'error';
-type MerchantState = 'idle' | 'loading' | 'ready' | 'empty' | 'unauthorized' | 'forbidden' | 'retryable' | 'error';
 
 function localeFromNavigator(): PayLocale {
   if (typeof navigator === 'undefined') return DEFAULT_PAY_LOCALE;
   return normalizePayLocale(navigator.language);
-}
-
-function merchantStateForError(error: unknown): Exclude<MerchantState, 'idle' | 'loading' | 'ready'> {
-  if (error instanceof PayHttpError) {
-    if (error.status === 401) return 'unauthorized';
-    if (error.status === 403) return 'forbidden';
-    if (error.status === 404) return 'empty';
-    if (error.status === 408 || error.status === 429 || error.status >= 500) return 'retryable';
-  }
-  return 'error';
 }
 
 export function PayApp(): React.ReactElement {
@@ -44,22 +31,15 @@ export function PayApp(): React.ReactElement {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sessionState, setSessionState] = useState<SessionState>('loading');
   const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(null);
-  const [merchantState, setMerchantState] = useState<MerchantState>('idle');
-  const [merchant, setMerchant] = useState<PayMerchantSummary | null>(null);
   const direction = directionFor(locale);
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
   const currentSection: PaySection = route.kind === 'dashboard' ? route.section : 'overview';
 
   useEffect(() => {
-    const previousLang = document.documentElement.lang;
-    const previousDir = document.documentElement.dir;
     document.documentElement.lang = locale;
     document.documentElement.dir = direction;
-    return () => {
-      document.documentElement.lang = previousLang || 'fa-IR';
-      document.documentElement.dir = previousDir || 'rtl';
-    };
+    return () => { document.documentElement.lang = 'fa-IR'; document.documentElement.dir = 'rtl'; };
   }, [locale, direction]);
 
   useEffect(() => {
@@ -68,30 +48,10 @@ export function PayApp(): React.ReactElement {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  const loadMerchant = async () => {
-    if (!sessionUser) {
-      setMerchant(null);
-      setMerchantState('idle');
-      return;
-    }
-
-    setMerchantState('loading');
-    try {
-      const value = await payMerchantService.getCurrent();
-      setMerchant(value);
-      setMerchantState(value ? 'ready' : 'empty');
-    } catch (error) {
-      setMerchant(null);
-      setMerchantState(merchantStateForError(error));
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
     setSessionState('loading');
     setSessionUser(null);
-    setMerchant(null);
-    setMerchantState('idle');
 
     void getPaySessionUser().then(user => {
       if (cancelled) return;
@@ -104,11 +64,6 @@ export function PayApp(): React.ReactElement {
 
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (sessionState !== 'authenticated' || !sessionUser) return;
-    void loadMerchant();
-  }, [sessionState, sessionUser]);
 
   const navigate = (section: PaySection) => {
     const target = pathForPaySection(section);
@@ -143,7 +98,7 @@ export function PayApp(): React.ReactElement {
   const accountTitle = sessionState === 'authenticated'
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
-  const accountSubtitle = sessionState === 'authenticated' ? (merchant?.businessName || translate(locale, 'dashboard')) : translate(locale, 'notConnected');
+  const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale}>
@@ -194,7 +149,7 @@ export function PayApp(): React.ReactElement {
                 {PAY_LOCALES.map(item => <button key={item} type="button" className={item === locale ? 'is-active' : ''} onClick={() => setLocale(item)} aria-pressed={item === locale}>{item === 'fa-IR' ? 'FA' : item === 'en-US' ? 'EN' : item.toUpperCase()}</button>)}
               </div>
               <button type="button" className="pay-icon-button" aria-label={translate(locale, 'profile')} title={translate(locale, 'profile')}><Bell size={18} /></button>
-              <div className="pay-account-chip" title={accountSubtitle}>
+              <div className="pay-account-chip" title={sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected')}>
                 <span className="pay-account-avatar" aria-hidden="true"><CircleDollarSign size={17} /></span>
                 <span className="pay-account-copy"><strong>{accountTitle}</strong><small>{accountSubtitle}</small></span>
               </div>
@@ -211,7 +166,7 @@ export function PayApp(): React.ReactElement {
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
-                <div><span className="pay-card-kicker">{translate(locale, 'dashboard')}</span><h2 id="pay-empty-title">{currentSection === 'overview' && merchant ? merchant.businessName : translate(locale, currentSection === 'overview' ? 'emptyTitle' : 'noData')}</h2><p>{currentSection === 'overview' && merchant ? translate(locale, 'serverTruthValue') : currentSection === 'overview' ? translate(locale, 'emptyDescription') : translate(locale, 'sectionDescription')}</p></div>
+                <div><span className="pay-card-kicker">{translate(locale, 'dashboard')}</span><h2 id="pay-empty-title">{translate(locale, currentSection === 'overview' ? 'emptyTitle' : 'noData')}</h2><p>{currentSection === 'overview' ? translate(locale, 'emptyDescription') : translate(locale, 'sectionDescription')}</p></div>
                 <div className="pay-hero-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div>
               </div>
             </section>
@@ -222,43 +177,11 @@ export function PayApp(): React.ReactElement {
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
                 <TruthCard icon={<CircleDollarSign size={18} />} title={translate(locale, 'financialState')} value={translate(locale, 'financialStateValue')} />
               </section>
-
               <section className="pay-operational-grid">
-                <div className="pay-panel pay-panel-lg">
-                  <div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'merchants')}</span><h2>{translate(locale, 'overviewTitle')}</h2></div><span className="pay-panel-chip"><ShieldCheck size={15} /> {translate(locale, 'serverTruthValue')}</span></div>
-                  {sessionState === 'loading' || merchantState === 'loading' ? (
-                    <PayDataStateView locale={locale} state="loading" />
-                  ) : sessionState === 'anonymous' || sessionState === 'error' ? (
-                    <PayDataStateView locale={locale} state="unauthorized" message={translate(locale, 'notConnected')} />
-                  ) : merchantState === 'empty' ? (
-                    <PayDataStateView locale={locale} state="empty" />
-                  ) : merchantState === 'forbidden' ? (
-                    <PayDataStateView locale={locale} state="forbidden" />
-                  ) : merchantState === 'retryable' ? (
-                    <PayDataStateView locale={locale} state="retryable" onRetry={() => void loadMerchant()} />
-                  ) : merchantState === 'error' ? (
-                    <PayDataStateView locale={locale} state="error" />
-                  ) : (
-                    <div className="pay-empty-surface"><div className="pay-empty-icon"><Store size={21} /></div><div><strong>{merchant?.businessName || translate(locale, 'noData')}</strong><p>{merchant ? merchant.status : translate(locale, 'readOnlyFoundation')}</p></div></div>
-                  )}
-                </div>
-                <div className="pay-panel">
-                  <div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'secureBoundary')}</span><h2>{translate(locale, 'financialState')}</h2></div><ArrowUpRight size={17} /></div>
-                  <div className="pay-security-note"><div className="pay-security-note-icon"><LockKeyhole size={18} /></div><p>{translate(locale, 'readOnlyFoundation')}</p></div>
-                </div>
+                <div className="pay-panel pay-panel-lg"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'dashboard')}</span><h2>{translate(locale, 'overviewTitle')}</h2></div><span className="pay-panel-chip"><ShieldCheck size={15} /> {translate(locale, 'serverTruthValue')}</span></div><div className="pay-empty-surface"><div className="pay-empty-icon"><LayoutDashboard size={21} /></div><div><strong>{translate(locale, 'noData')}</strong><p>{translate(locale, 'readOnlyFoundation')}</p></div></div></div>
+                <div className="pay-panel"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'secureBoundary')}</span><h2>{translate(locale, 'financialState')}</h2></div><ArrowUpRight size={17} /></div><div className="pay-security-note"><div className="pay-security-note-icon"><LockKeyhole size={18} /></div><p>{translate(locale, 'apiPending')}</p></div></div>
               </section>
-            </> : currentSection === 'merchants' ? (
-              <section className="pay-panel pay-section-empty">
-                <div className="pay-section-empty-icon"><Store size={22} /></div>
-                <div>
-                  <h2>{merchant?.businessName || sectionLabel(locale, currentSection)}</h2>
-                  <p>{merchant ? merchant.status : translate(locale, 'sectionDescription')}</p>
-                  {merchantState === 'retryable' ? <button type="button" className="pay-collapse-button" onClick={() => void loadMerchant()}><span>{translate(locale, 'operational')}</span></button> : null}
-                </div>
-              </section>
-            ) : (
-              <section className="pay-panel pay-section-empty"><div className="pay-section-empty-icon">{React.createElement(SECTION_ICONS[currentSection], { size: 22 })}</div><div><h2>{sectionLabel(locale, currentSection)}</h2><p>{translate(locale, 'sectionDescription')}</p><span>{translate(locale, 'readOnlyFoundation')}</span></div></section>
-            )}
+            </> : <section className="pay-panel pay-section-empty"><div className="pay-section-empty-icon">{React.createElement(SECTION_ICONS[currentSection], { size: 22 })}</div><div><h2>{sectionLabel(locale, currentSection)}</h2><p>{translate(locale, 'sectionDescription')}</p><span>{translate(locale, 'readOnlyFoundation')}</span></div></section>}
           </main>
           <footer className="pay-footer"><span>{translate(locale, 'footer')}</span><span>{translate(locale, 'secureBoundary')}</span></footer>
         </section>
