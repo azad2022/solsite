@@ -11,7 +11,7 @@ test('Better Auth application mapping preserves the Better Auth identity id and 
       createdAt: '2026-09-07T00:00:00.000Z',
     },
     {
-      application_user_id: 'usr-1',
+      id: 'usr-1',
       username: 'user1',
       full_name: 'User One',
       role: 'user',
@@ -42,7 +42,7 @@ test('Better Auth application mapping rejects inactive application users', () =>
       createdAt: '2026-09-07T00:00:00.000Z',
     },
     {
-      application_user_id: 'usr-2',
+      id: 'usr-2',
       username: 'user2',
       full_name: 'User Two',
       role: 'admin',
@@ -64,7 +64,7 @@ test('Better Auth application mapping falls back to verified Better Auth identit
       createdAt: '2026-09-07T00:00:00.000Z',
     },
     {
-      application_user_id: 'usr-3',
+      id: 'usr-3',
       username: null,
       full_name: null,
       role: null,
