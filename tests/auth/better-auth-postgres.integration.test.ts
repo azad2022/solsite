@@ -143,17 +143,14 @@ test(
     } finally {
       await pool.query('delete from better_auth."user" where email = $1', [email]).catch(() => {});
       await pool.end();
-      await runtime.database.end();
+      await runtime.close();
     }
   },
 );
 
 test(
-  'Pages Functions auth handler uses the production Hyperdrive transport boundary',
-  { skip: !databaseUrl },
+  'Pages Functions auth handler fails closed when the production database transport is not configured',
   async () => {
-    if (!databaseUrl) return;
-
     const productionURL = 'https://auth.example.test';
     const response = await betterAuthPagesHandler({
       request: new Request(`${productionURL}/api/auth/get-session`, {
@@ -167,12 +164,14 @@ test(
         NODE_ENV: 'production',
         BETTER_AUTH_SECRET: secret,
         BETTER_AUTH_URL: productionURL,
-        HYPERDRIVE: { connectionString: databaseUrl },
       },
     });
 
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get('content-type')?.includes('application/json'), true);
-    assert.equal(await response.json(), null);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await response.json(), {
+      success: false,
+      error: 'AUTH_SERVICE_UNAVAILABLE',
+    });
   },
 );
