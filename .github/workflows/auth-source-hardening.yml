@@ -3,13 +3,14 @@ name: Auth Source Hardening
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  harden-auth-source:
-    if: ${{ !contains(github.event.head_commit.message, '[auth-hardening]') }}
+  verify-auth-source:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,20 +23,9 @@ jobs:
         with:
           node-version: 22
 
-      - name: Apply authentication hardening
+      - name: Verify authentication hardening source
         run: |
-          node scripts/harden-admin-frontend-v2.mjs
-          node scripts/final-auth-cleanup.mjs
-          node scripts/harden-server-auth-v2.mjs
-
-      - name: Commit hardened source
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- server.ts src/components/AdminCmsModal.tsx src/App.tsx; then
-            echo "Authentication source already hardened."
-            exit 0
-          fi
-          git add server.ts src/components/AdminCmsModal.tsx src/App.tsx
-          git commit -m "security: harden authentication source [auth-hardening]"
-          git push
+          node --check scripts/harden-admin-frontend-v2.mjs
+          node --check scripts/final-auth-cleanup.mjs
+          node --check scripts/harden-server-auth-v2.mjs
+          ! grep -R -n -E "hashPasscode\(|DEFAULT_PASSCODE_HASH|solmint_admin_passcode|solmint_admin_pass_hash|solmint_admin_session|solmint_current_user|passwordHash: passHash|passwordHash: activeHash" src/components/AdminCmsModal.tsx src/App.tsx server.ts
