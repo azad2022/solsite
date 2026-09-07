@@ -70,9 +70,10 @@ test('native Better Auth user provisions a user and native bridge', async () => 
     ...baseUser,
   });
 
-  assert.equal(result.source, 'native');
+  assert.equal(result.applicationUserId.startsWith('usr-'), true);
   assert.equal(database.users.size, 1);
   assert.equal(database.links.size, 1);
+  assert.equal(database.links.get('ba-native-1')?.application_user_id, result.applicationUserId);
   assert.equal(database.links.get('ba-native-1')?.source, 'native');
 });
 
@@ -96,7 +97,7 @@ test('existing application user is reused for legacy migration', async () => {
     createdAt: new Date('2026-09-07T00:00:00.000Z'),
   });
 
-  assert.deepEqual(result, { applicationUserId: 'usr-legacy-1', source: 'legacy-migration' });
+  assert.equal(result.applicationUserId, 'usr-legacy-1');
   assert.equal(database.users.size, 1);
   assert.equal(database.links.get('ba-legacy-1')?.application_user_id, 'usr-legacy-1');
   assert.equal(database.links.get('ba-legacy-1')?.source, 'legacy-migration');
