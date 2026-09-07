@@ -71,6 +71,7 @@ test('native and legacy Better Auth users are mapped to the application identity
   const runtime = read('functions/api/auth/_instance.ts');
   const migration = read('functions/api/auth/migrate-legacy.ts');
   const me = read('functions/api/auth/me.ts');
+  const usersMe = read('functions/api/users/me.ts');
 
   assert.match(profile, /insert into public\.users/);
   assert.match(profile, /insert into public\.auth_identity_links/);
@@ -85,6 +86,8 @@ test('native and legacy Better Auth users are mapped to the application identity
   assert.match(migration, /x-solmint-legacy-migration/);
   assert.doesNotMatch(migration, /insert into public\.auth_identity_links/);
   assert.match(me, /join public\.users u on u\.id = l\.application_user_id/);
+  assert.match(usersMe, /join public\.users u on u\.id = l\.application_user_id/);
+  assert.doesNotMatch(usersMe, /legacy_user_id/);
 });
 
 test('native signup cannot reuse a legacy application username', () => {
@@ -96,9 +99,11 @@ test('native signup cannot reuse a legacy application username', () => {
 
 test('Better Auth session without an application identity is not exposed as authenticated', () => {
   const source = read('functions/api/auth/me.ts');
+  const usersMe = read('functions/api/users/me.ts');
   assert.match(source, /if \(!applicationUser/);
   assert.match(source, /applicationUser\.is_active === false/);
   assert.match(source, /applicationUser\.is_active == null/);
+  assert.match(usersMe, /if \(!betterAuthUser\) return jsonResponse\(\{ success: false, authenticated: false \}, 401\)/);
 });
 
 test('Google OAuth credentials remain server-only', () => {
