@@ -117,6 +117,7 @@ export async function reconcilePayment(
   provider: SolanaPaymentProvider,
   repository: ReconciliationRepository,
   payment: ReconciliationPayment,
+  signature?: string,
 ): Promise<ReconciliationResult> {
   if (new Date(payment.expiresAt).getTime() <= Date.now()) {
     const outcome = await repository.expirePayment(payment.id);
@@ -140,7 +141,7 @@ export async function reconcilePayment(
     verification = await verifyPayment(
       provider,
       expectedFromPayment(payment),
-      undefined,
+      signature,
       knownSignatures,
       { createdAt: payment.createdAt, expiresAt: payment.expiresAt },
     );
