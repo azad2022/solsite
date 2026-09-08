@@ -1,1 +1,0 @@
-Implemented Pay merchant onboarding UI using existing production endpoints. No production test fixtures or client-side private keys are used.
