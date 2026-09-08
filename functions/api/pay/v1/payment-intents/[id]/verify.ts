@@ -250,7 +250,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     }
 
     if (row.status === 'created') {
-      const advanced = await rpcJson<{ ok?: boolean; reason?: string }>(env, 'pay_transition_payment', {
+      const advanced = await rpcJson<{ ok?: boolean }>(env, 'pay_transition_payment', {
         p_payment_id: paymentId,
         p_to_status: 'pending',
         p_reason: 'customer_verification_requested',
@@ -272,7 +272,8 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
       return payJson({ data: { paymentId, status: row.status, outcome: 'not_detected', signature } }, 200, requestId);
     }
 
-    const status = result.outcome === 'confirmed' ? 'confirmed' : result.outcome === 'underpaid' || result.outcome === 'overpaid' || result.outcome === 'ambiguous' ? result.outcome : row.status;
+    const authoritativeStatuses: ReadonlySet<PaymentStatus> = new Set(['confirmed', 'underpaid', 'overpaid', 'ambiguous', 'failed', 'wrong_recipient', 'expired', 'refunded', 'completed']);
+    const status = authoritativeStatuses.has(result.outcome as PaymentStatus) ? result.outcome as PaymentStatus : row.status;
     const transactionSignature = result.verification?.candidate?.signature || signature;
     return payJson({
       data: {
