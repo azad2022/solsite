@@ -164,7 +164,7 @@ export function PayApp(): React.ReactElement {
               <div className="pay-heading-meta" aria-label={translate(locale, 'timeRange')}><span>{translate(locale, 'timeRange')}</span><div className="pay-range-control" role="group" aria-label={translate(locale, 'timeRange')}><button type="button" className="is-active" aria-pressed="true">{translate(locale, 'today')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'sevenDays')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'thirtyDays')}</button></div></div>
             </div>
 
-            {showMerchantOnboarding ? <PayMerchantOnboarding /> : null}
+            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} /> : null}
 
             {!showMerchantOnboarding && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
