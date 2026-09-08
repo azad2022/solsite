@@ -9,6 +9,7 @@ import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './ty
 import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
+import PayMerchantOnboarding from './components/PayMerchantOnboarding';
 import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
 import './pay.css';
 
@@ -99,6 +100,7 @@ export function PayApp(): React.ReactElement {
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
   const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
+  const showMerchantOnboarding = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants');
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale}>
@@ -162,16 +164,18 @@ export function PayApp(): React.ReactElement {
               <div className="pay-heading-meta" aria-label={translate(locale, 'timeRange')}><span>{translate(locale, 'timeRange')}</span><div className="pay-range-control" role="group" aria-label={translate(locale, 'timeRange')}><button type="button" className="is-active" aria-pressed="true">{translate(locale, 'today')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'sevenDays')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'thirtyDays')}</button></div></div>
             </div>
 
-            <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} /> : null}
+
+            {!showMerchantOnboarding && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
                 <div><span className="pay-card-kicker">{translate(locale, 'dashboard')}</span><h2 id="pay-empty-title">{translate(locale, currentSection === 'overview' ? 'emptyTitle' : 'noData')}</h2><p>{currentSection === 'overview' ? translate(locale, 'emptyDescription') : translate(locale, 'sectionDescription')}</p></div>
                 <div className="pay-hero-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div>
               </div>
-            </section>
+            </section>}
 
-            {currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
@@ -182,6 +186,7 @@ export function PayApp(): React.ReactElement {
                 <div className="pay-panel"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'secureBoundary')}</span><h2>{translate(locale, 'financialState')}</h2></div><ArrowUpRight size={17} /></div><div className="pay-security-note"><div className="pay-security-note-icon"><LockKeyhole size={18} /></div><p>{translate(locale, 'apiPending')}</p></div></div>
               </section>
             </> : <section className="pay-panel pay-section-empty"><div className="pay-section-empty-icon">{React.createElement(SECTION_ICONS[currentSection], { size: 22 })}</div><div><h2>{sectionLabel(locale, currentSection)}</h2><p>{translate(locale, 'sectionDescription')}</p><span>{translate(locale, 'readOnlyFoundation')}</span></div></section>}
+            </>}
           </main>
           <footer className="pay-footer"><span>{translate(locale, 'footer')}</span><span>{translate(locale, 'secureBoundary')}</span></footer>
         </section>
