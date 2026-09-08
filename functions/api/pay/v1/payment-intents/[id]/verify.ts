@@ -128,7 +128,7 @@ function createRepository(env: PayEnv, requestId: string): ReconciliationReposit
     },
 
     async prepareVerification(paymentId) {
-      const result = await rpcJson<{ ok?: boolean; from?: PaymentStatus; to?: PaymentStatus }>(env, 'pay_transition_payment', {
+      const result = await rpcJson<{ ok?: boolean }>(env, 'pay_transition_payment', {
         p_payment_id: paymentId,
         p_to_status: 'pending',
         p_reason: 'verification_retry',
@@ -156,7 +156,7 @@ function createRepository(env: PayEnv, requestId: string): ReconciliationReposit
     },
 
     async recordOutcome(paymentId, status, reason) {
-      const result = await rpcJson<{ ok?: boolean; from?: PaymentStatus; to?: PaymentStatus }>(env, 'pay_transition_payment', {
+      const result = await rpcJson<{ ok?: boolean }>(env, 'pay_transition_payment', {
         p_payment_id: paymentId,
         p_to_status: status,
         p_reason: reason,
@@ -179,7 +179,7 @@ function createRepository(env: PayEnv, requestId: string): ReconciliationReposit
         destinationAuthority: transfer.destinationAuthority,
         instructionIndex: transfer.instructionIndex,
       }));
-      const result = await rpcJson<{ ok?: boolean; reason?: string; status?: PaymentStatus; transaction_id?: string }>(env, 'pay_apply_verified_observation', {
+      const result = await rpcJson<{ ok?: boolean; reason?: string; status?: PaymentStatus }>(env, 'pay_apply_verified_observation', {
         p_payment_id: input.payment.id,
         p_signature: input.observation.signature,
         p_slot: input.observation.slot ?? null,
@@ -206,7 +206,7 @@ function createRepository(env: PayEnv, requestId: string): ReconciliationReposit
     },
 
     async expirePayment(paymentId) {
-      const result = await rpcJson<{ ok?: boolean; to?: PaymentStatus }>(env, 'pay_transition_payment', {
+      const result = await rpcJson<{ ok?: boolean }>(env, 'pay_transition_payment', {
         p_payment_id: paymentId,
         p_to_status: 'expired',
         p_reason: 'intent_expired',
@@ -249,16 +249,24 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
       return payJson({ data: { paymentId, status: row.status, outcome: 'duplicate', signature } }, 200, requestId);
     }
 
+    if (row.status === 'created') {
+      const advanced = await rpcJson<{ ok?: boolean; reason?: string }>(env, 'pay_transition_payment', {
+        p_payment_id: paymentId,
+        p_to_status: 'pending',
+        p_reason: 'customer_verification_requested',
+        p_request_id: requestId,
+      });
+      if (advanced.ok !== true) return payJson({ code: 'PAYMENT_STATE_STALE', message: 'Payment state changed before verification. Please refresh and try again.' }, 409, requestId);
+      row.status = 'pending';
+    }
+
     const provider = createSolanaRpcProvider(
       env,
       { USDC: env.PAY_USDC_MINT?.trim(), USDT: env.PAY_USDT_MINT?.trim() },
     );
     const payment = mapPayment(row);
     const repository = createRepository(env, requestId);
-    const result = await reconcilePayment(provider, {
-      ...repository,
-      loadKnownSignatures: async (id) => repository.loadKnownSignatures(id),
-    }, payment);
+    const result = await reconcilePayment(provider, repository, payment, signature);
 
     if (result.outcome === 'no_match') {
       return payJson({ data: { paymentId, status: row.status, outcome: 'not_detected', signature } }, 200, requestId);
