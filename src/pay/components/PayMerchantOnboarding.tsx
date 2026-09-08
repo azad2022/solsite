@@ -82,7 +82,9 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
     setStage('challenge');
     try {
       const connection = await provider.connect();
-      const connectedAddress = connection?.publicKey?.toBase58?.() || provider.publicKey?.toBase58?.() || '';
+      const connectionAddress = connection && typeof connection === 'object' ? connection.publicKey?.toBase58?.() : '';
+      const providerAddress = provider.publicKey?.toBase58?.() || '';
+      const connectedAddress = connectionAddress || providerAddress || '';
       if (!connectedAddress) throw new Error(t(locale, 'walletAddressMissing'));
       setWalletAddress(connectedAddress);
       const issued = await issueWalletChallenge(activeMerchant.id, connectedAddress);
