@@ -1,0 +1,1 @@
+Merchant onboarding frontend integration is isolated to the Pay boundary and uses the existing production endpoints for merchant creation and wallet ownership proof. No production fixture data is created.
