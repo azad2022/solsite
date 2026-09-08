@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle2, Copy, KeyRound, Loader2, ShieldCheck, Wallet, XCircle } from 'lucide-react';
 import { createMyMerchant, getMyMerchant, issueWalletChallenge, verifyWalletChallenge, type PayMerchant } from '../services/merchantOnboardingService';
 import { encodeBase58 } from '../services/base58';
+import './pay-merchant-onboarding.css';
 
 interface SolanaProvider {
   isPhantom?: boolean;
