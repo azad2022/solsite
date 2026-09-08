@@ -32,9 +32,10 @@ export async function verifyPayment(
   knownSignatures: ReadonlySet<string> = new Set(),
   window?: { createdAt: string; expiresAt: string },
 ): Promise<PaymentVerificationDecision> {
+  const discovered = await provider.findTransactionsByReference(expected.reference, expected.requiredCommitment, window);
   const observations = signature
-    ? [await provider.getTransaction(signature, expected.requiredCommitment)]
-    : await provider.findTransactionsByReference(expected.reference, expected.requiredCommitment, window);
+    ? discovered.filter((observation) => observation.signature === signature)
+    : discovered;
 
   const checked = new Set<string>();
   const checks: VerificationCheck[] = [];
