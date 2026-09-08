@@ -2,27 +2,29 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PayHttpError } from '../src/pay/http';
 
-test('Pay onboarding transport remains same-origin', async () => {
-  const calls: Array<{ path: string; init?: RequestInit }> = [];
-  const fetchImpl = async (path: string, init?: RequestInit) => {
-    calls.push({ path, init });
+test('merchant onboarding service parses the real merchant envelope', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
     return new Response(JSON.stringify({ success: true, merchant: {
       id: 'merchant-1', owner_user_id: 'user-1', business_name: 'Test Store', slug: 'test-store', status: 'pending', created_at: '2026-09-08T00:00:00Z', updated_at: '2026-09-08T00:00:00Z',
     }}), { status: 200, headers: { 'content-type': 'application/json' } });
-  };
+  }) as typeof fetch;
 
-  const { createMyMerchant } = await import('../src/pay/services/merchantOnboardingService');
-  const module = await import('../src/pay/http');
-  const original = module.defaultPayHttpClient;
-  void original;
-  assert.equal(typeof createMyMerchant, 'function');
-  assert.deepEqual(calls, []);
-
-  const client = new module.PayHttpClient({ fetchImpl });
-  const payload = await client.request<{ success: boolean }>('/api/pay/v1/merchants', { method: 'GET' });
-  assert.equal(payload.success, true);
-  assert.equal(calls[0]?.path, '/api/pay/v1/merchants');
-  assert.equal(calls[0]?.init?.credentials, 'include');
+  try {
+    const { createMyMerchant } = await import('../src/pay/services/merchantOnboardingService');
+    const merchant = await createMyMerchant({ businessName: 'Test Store', slug: 'test-store' });
+    assert.equal(merchant.id, 'merchant-1');
+    assert.equal(merchant.ownerUserId, 'user-1');
+    assert.equal(merchant.status, 'pending');
+    assert.equal(calls[0]?.url, '/api/pay/v1/merchants');
+    assert.equal(calls[0]?.init?.method, 'POST');
+    assert.equal(calls[0]?.init?.credentials, 'include');
+    assert.equal(calls[0]?.init?.body, JSON.stringify({ businessName: 'Test Store', slug: 'test-store' }));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('Pay HTTP rejects cross-origin and scheme URLs', async () => {
