@@ -11,17 +11,6 @@ import './pay-checkout.css';
 
 interface PayCheckoutProps { locale: PayLocale; intentId?: string; onBack: () => void; }
 
-interface WalletPublicKeyLike { toBase58?: () => string; }
-interface WalletProvider {
-  publicKey?: WalletPublicKeyLike | null;
-  connect: () => Promise<{ publicKey?: WalletPublicKeyLike } | void>;
-  disconnect?: () => Promise<void>;
-}
-
-declare global {
-  interface Window { solana?: WalletProvider; }
-}
-
 function dataStateForError(error: unknown): 'error' | 'empty' | 'unauthorized' | 'forbidden' | 'retryable' {
   if (error instanceof PayHttpError) {
     if (error.status === 401) return 'unauthorized';
@@ -196,16 +185,16 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
         setVerificationState('failed');
         setVerificationMessage(checkoutLabel(locale, 'verificationFailed'));
       }
-    } catch (cause) {
+    } catch {
       if (!mountedRef.current) return;
       setVerificationState('failed');
-      setVerificationMessage(cause instanceof PayHttpError && cause.status === 429 ? checkoutLabel(locale, 'verificationFailed') : checkoutLabel(locale, 'verificationFailed'));
+      setVerificationMessage(checkoutLabel(locale, 'verificationFailed'));
     }
   };
 
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
   const isCompleted = intent?.status === 'completed' || intent?.status === 'confirmed';
-  const actionDisabled = !intent || ['expired', 'completed', 'refunded'].includes(intent.status) || verificationState === 'submitting';
+  const actionDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
 
   return (
     <div className="solmint-pay pay-checkout" dir={direction} lang={locale}>
