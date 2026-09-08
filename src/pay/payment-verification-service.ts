@@ -41,16 +41,22 @@ function parseResult(payload: unknown, paymentId: string, signature: string): Pa
   }
   if (!STATUSES.has(data.status as PayPaymentStatus)) throw new TypeError('Invalid Pay verification status.');
   if (!SOLANA_SIGNATURE.test(data.signature) || data.signature !== signature) throw new TypeError('Invalid Pay verification signature.');
-  const checked = data.checkedSignatures;
-  if (checked !== undefined && (!Array.isArray(checked) || checked.some((item) => typeof item !== 'string' || !SOLANA_SIGNATURE.test(item)))) {
-    throw new TypeError('Invalid Pay verification checkedSignatures.');
+
+  const checkedRaw = data.checkedSignatures;
+  let checkedSignatures: string[] = [];
+  if (checkedRaw !== undefined) {
+    if (!Array.isArray(checkedRaw) || checkedRaw.some((item) => typeof item !== 'string' || !SOLANA_SIGNATURE.test(item))) {
+      throw new TypeError('Invalid Pay verification checkedSignatures.');
+    }
+    checkedSignatures = checkedRaw;
   }
+
   return {
     paymentId,
     status: data.status as PayPaymentStatus,
     outcome: data.outcome,
     signature: data.signature,
-    checkedSignatures: checked ?? [],
+    checkedSignatures,
   };
 }
 
