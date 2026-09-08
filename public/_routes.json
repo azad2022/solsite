@@ -16,6 +16,7 @@
     "/api/market/*",
     "/api/tools/*",
     "/api/users/*",
+    "/api/auth/*",
     "/api/v1",
     "/api/v1/*",
     "/api/wallet/*",
