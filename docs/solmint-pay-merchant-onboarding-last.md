@@ -1,0 +1,1 @@
+Pay merchant onboarding integration uses existing production backend contracts; release remains gated on verified wallet ownership and payment lifecycle evidence.
