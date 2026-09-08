@@ -1,4 +1,4 @@
-import { defaultPayHttpClient } from '../http';
+import { defaultPayHttpClient, type PayHttpClient } from '../http';
 
 export interface PayMerchant {
   id: string;
@@ -55,14 +55,17 @@ function parseMerchant(value: unknown): PayMerchant {
   };
 }
 
-export async function getMyMerchant(): Promise<PayMerchant | null> {
-  const payload = await defaultPayHttpClient.request<MerchantEnvelope>('/api/pay/v1/merchants');
+export async function getMyMerchant(client: PayHttpClient = defaultPayHttpClient): Promise<PayMerchant | null> {
+  const payload = await client.request<MerchantEnvelope>('/api/pay/v1/merchants');
   if (payload.success !== true || payload.merchant == null) return null;
   return parseMerchant(payload.merchant);
 }
 
-export async function createMyMerchant(input: { businessName: string; slug: string }): Promise<PayMerchant> {
-  const payload = await defaultPayHttpClient.request<MerchantEnvelope>('/api/pay/v1/merchants', {
+export async function createMyMerchant(
+  input: { businessName: string; slug: string },
+  client: PayHttpClient = defaultPayHttpClient,
+): Promise<PayMerchant> {
+  const payload = await client.request<MerchantEnvelope>('/api/pay/v1/merchants', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -80,8 +83,8 @@ function parseChallenge(value: unknown): { id: string; message: string; walletAd
   return { id: row.id, message: row.message, walletAddress: row.walletAddress, expiresAt: row.expiresAt };
 }
 
-export async function issueWalletChallenge(merchantId: string, walletAddress: string) {
-  const payload = await defaultPayHttpClient.request<ChallengeEnvelope>(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges`, {
+export async function issueWalletChallenge(merchantId: string, walletAddress: string, client: PayHttpClient = defaultPayHttpClient) {
+  const payload = await client.request<ChallengeEnvelope>(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ walletAddress }),
@@ -90,8 +93,14 @@ export async function issueWalletChallenge(merchantId: string, walletAddress: st
   return parseChallenge(payload.challenge);
 }
 
-export async function verifyWalletChallenge(merchantId: string, challengeId: string, walletAddress: string, signature: string): Promise<VerifyEnvelope> {
-  const payload = await defaultPayHttpClient.request<VerifyEnvelope>(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges/${encodeURIComponent(challengeId)}`, {
+export async function verifyWalletChallenge(
+  merchantId: string,
+  challengeId: string,
+  walletAddress: string,
+  signature: string,
+  client: PayHttpClient = defaultPayHttpClient,
+): Promise<VerifyEnvelope> {
+  const payload = await client.request<VerifyEnvelope>(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges/${encodeURIComponent(challengeId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ walletAddress, signature }),
