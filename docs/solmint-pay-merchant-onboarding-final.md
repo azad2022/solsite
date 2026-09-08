@@ -1,0 +1,1 @@
+Onboarding integration is implemented in the Pay boundary using the existing merchant creation and wallet ownership proof contracts. No production fixture data is created.
