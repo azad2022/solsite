@@ -9,12 +9,15 @@ import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './ty
 import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
+import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
 import './pay.css';
 
 const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
   overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, customers: Users, invoices: FileText,
   referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck,
 };
+
+type SessionState = 'loading' | 'authenticated' | 'anonymous' | 'error';
 
 function localeFromNavigator(): PayLocale {
   if (typeof navigator === 'undefined') return DEFAULT_PAY_LOCALE;
@@ -26,6 +29,8 @@ export function PayApp(): React.ReactElement {
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sessionState, setSessionState] = useState<SessionState>('loading');
+  const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(null);
   const direction = directionFor(locale);
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
@@ -41,6 +46,23 @@ export function PayApp(): React.ReactElement {
     const onPopState = () => setCurrentPath(normalizePayPath(window.location.pathname || '/pay'));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSessionState('loading');
+    setSessionUser(null);
+
+    void getPaySessionUser().then(user => {
+      if (cancelled) return;
+      setSessionUser(user);
+      setSessionState(user ? 'authenticated' : 'anonymous');
+    }).catch(() => {
+      if (cancelled) return;
+      setSessionState('error');
+    });
+
+    return () => { cancelled = true; };
   }, []);
 
   const navigate = (section: PaySection) => {
@@ -73,6 +95,10 @@ export function PayApp(): React.ReactElement {
 
   const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : sectionLabel(locale, currentSection);
   const description = currentSection === 'overview' ? translate(locale, 'overviewDescription') : translate(locale, 'sectionDescription');
+  const accountTitle = sessionState === 'authenticated'
+    ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
+    : translate(locale, 'account');
+  const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale}>
@@ -123,7 +149,10 @@ export function PayApp(): React.ReactElement {
                 {PAY_LOCALES.map(item => <button key={item} type="button" className={item === locale ? 'is-active' : ''} onClick={() => setLocale(item)} aria-pressed={item === locale}>{item === 'fa-IR' ? 'FA' : item === 'en-US' ? 'EN' : item.toUpperCase()}</button>)}
               </div>
               <button type="button" className="pay-icon-button" aria-label={translate(locale, 'profile')} title={translate(locale, 'profile')}><Bell size={18} /></button>
-              <div className="pay-account-chip" title={translate(locale, 'notConnected')}><span className="pay-account-avatar" aria-hidden="true"><CircleDollarSign size={17} /></span><span className="pay-account-copy"><strong>{translate(locale, 'account')}</strong><small>{translate(locale, 'notConnected')}</small></span></div>
+              <div className="pay-account-chip" title={sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected')}>
+                <span className="pay-account-avatar" aria-hidden="true"><CircleDollarSign size={17} /></span>
+                <span className="pay-account-copy"><strong>{accountTitle}</strong><small>{accountSubtitle}</small></span>
+              </div>
             </div>
           </header>
 

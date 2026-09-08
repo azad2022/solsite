@@ -1,4 +1,5 @@
 import { Article, UserAccount, ArticleComment, DeepSeekAiSettings, ChatbotSettings, DownloadLinks } from '../types';
+import { authClient, fetchApplicationUser } from './authClient';
 
 export interface CmsSettings {
   deepseek: DeepSeekAiSettings;
@@ -16,21 +17,22 @@ export interface ModerationComment extends ArticleComment {
   createdAtIso?: string | null;
 }
 
-const authFetchInit = (init: RequestInit = {}): RequestInit => ({
-  ...init,
-  credentials: 'include',
-  headers: { ...(init.headers || {}) },
-  cache: init.cache || 'no-store'
-});
+const authFetchInit = (init: RequestInit = {}): RequestInit => ({ ...init, credentials: 'include', headers: { ...(init.headers || {}) }, cache: init.cache || 'no-store' });
 
 async function safeFetchJson<T = any>(res: Response): Promise<{ ok: boolean; status: number; data: T | null }> {
   try {
     const text = await res.text();
     if (!text || !text.trim()) return { ok: res.ok, status: res.status, data: null };
     return { ok: res.ok, status: res.status, data: JSON.parse(text) as T };
-  } catch {
-    return { ok: res.ok, status: res.status, data: null };
-  }
+  } catch { return { ok: res.ok, status: res.status, data: null }; }
+}
+
+async function applicationUser(): Promise<UserAccount | undefined> {
+  try {
+    const response = await fetchApplicationUser();
+    const payload = await response.json().catch(() => null) as { success?: boolean; user?: UserAccount } | null;
+    return response.ok && payload?.success === true && payload.user ? payload.user : undefined;
+  } catch { return undefined; }
 }
 
 export async function fetchCmsSettingsFromApi(): Promise<CmsSettings | null> {
@@ -65,43 +67,32 @@ export async function registerUserApi(payload: { username: string; fullName: str
   }
 }
 
-/** Server is authoritative. Authentication state is never synthesized in the browser. */
+/** Better Auth is authoritative for the browser login entry point. */
 export async function loginUserApi(payload: { username?: string; password?: string; passcode?: string }): Promise<{ success: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }> {
+  const identifier = (payload.username || '').trim();
+  const password = (payload.password || payload.passcode || '').trim();
+  if (!identifier || !password) return { success: false, message: 'نام کاربری/ایمیل و رمز عبور الزامی است.' };
   try {
-    const res = await fetch('/api/users/login', authFetchInit({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: payload.username, password: payload.password || payload.passcode })
-    }));
-    const { data, status } = await safeFetchJson<{ success?: boolean; message?: string; user?: UserAccount; isSuperAdmin?: boolean; requestId?: string }>(res);
-
-    if (data?.success && data.user) {
-      return {
-        success: true,
-        user: data.user,
-        isSuperAdmin: data.isSuperAdmin === true,
-        requestId: data.requestId,
-        message: data.message
-      };
-    }
-
-    return {
-      success: false,
-      user: undefined,
-      isSuperAdmin: false,
-      requestId: data?.requestId,
-      message: data?.message || (status >= 500
-        ? 'سرویس احراز هویت در دسترس نیست.'
-        : 'نام کاربری یا رمز عبور اشتباه است.')
-    };
+    const result = identifier.includes('@')
+      ? await authClient.signIn.email({ email: identifier.toLowerCase(), password })
+      : await authClient.signIn.username({ username: identifier, password });
+    if (result.error) return { success: false, isSuperAdmin: false, message: result.error.message || 'ورود انجام نشد.' };
+    const user = await applicationUser();
+    if (!user) return { success: false, isSuperAdmin: false, message: 'نشست احراز هویت ایجاد شد اما پروفایل کاربردی قابل دریافت نیست.' };
+    return { success: true, user, isSuperAdmin: user.role === 'superadmin' };
   } catch (err) {
-    console.warn('Error calling /api/users/login:', err);
-    return {
-      success: false,
-      user: undefined,
-      isSuperAdmin: false,
-      message: 'ارتباط با سرور احراز هویت برقرار نشد.'
-    };
+    console.warn('Error calling Better Auth sign-in:', err);
+    return { success: false, isSuperAdmin: false, message: 'ارتباط با سرویس احراز هویت برقرار نشد.' };
+  }
+}
+
+export async function logoutUserApi(): Promise<boolean> {
+  try {
+    const { error } = await authClient.signOut({});
+    return !error;
+  } catch (err) {
+    console.warn('Error calling Better Auth sign-out:', err);
+    return false;
   }
 }
 
@@ -143,9 +134,7 @@ export async function fetchCommentsForAdminApi(): Promise<{ success: boolean; co
     const { data, status } = await safeFetchJson<{ success?: boolean; comments?: ModerationComment[]; message?: string }>(res);
     if (data) return { success: !!data.success, comments: Array.isArray(data.comments) ? data.comments : [], message: data.message };
     return { success: false, comments: [], message: `خطا در دریافت دیدگاه‌ها (کد ${status})` };
-  } catch (err: any) {
-    return { success: false, comments: [], message: err?.message || 'خطا در دریافت دیدگاه‌ها.' };
-  }
+  } catch (err: any) { return { success: false, comments: [], message: err?.message || 'خطا در دریافت دیدگاه‌ها.' }; }
 }
 
 export async function approveCommentApi(commentId: string, approved: boolean): Promise<{ success: boolean; message?: string }> {
@@ -153,9 +142,7 @@ export async function approveCommentApi(commentId: string, approved: boolean): P
     const res = await fetch('/api/comments/approve', authFetchInit({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commentId, approved }) }));
     const { data } = await safeFetchJson<{ success?: boolean; message?: string }>(res);
     return { success: res.ok && !!data?.success, message: data?.message };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'خطا در تغییر وضعیت دیدگاه.' };
-  }
+  } catch (err: any) { return { success: false, message: err?.message || 'خطا در تغییر وضعیت دیدگاه.' }; }
 }
 
 export async function deleteCommentApi(commentId: string): Promise<boolean> {
