@@ -23,7 +23,7 @@ export interface ReconciliationPayment {
   status: PaymentStatus;
 }
 
-export type ReconciliationOutcomeStatus = 'underpaid' | 'overpaid' | 'ambiguous';
+export type ReconciliationOutcomeStatus = 'underpaid' | 'overpaid' | 'ambiguous' | 'failed' | 'wrong_recipient';
 
 export interface ReconciliationRepository {
   loadKnownSignatures(paymentId: string): Promise<ReadonlySet<string>>;
@@ -40,7 +40,7 @@ export interface ReconciliationRepository {
 
 export interface ReconciliationResult {
   paymentId: string;
-  outcome: 'confirmed' | 'duplicate' | 'expired' | 'no_match' | 'underpaid' | 'overpaid' | 'ambiguous' | 'provider_unavailable' | 'stale';
+  outcome: 'confirmed' | 'duplicate' | 'expired' | 'no_match' | 'underpaid' | 'overpaid' | 'ambiguous' | 'failed' | 'wrong_recipient' | 'provider_unavailable' | 'stale';
   checkedSignatures: readonly string[];
   verification: PaymentVerificationDecision | null;
 }
@@ -110,6 +110,24 @@ async function persistOutcome(
     return await repository.recordOutcome(paymentId, status, reason);
   } catch {
     return 'stale';
+  }
+}
+
+function rejectionStatus(reason: PaymentVerificationDecision['result']['reason']): ReconciliationOutcomeStatus | null {
+  switch (reason) {
+    case 'UNDERPAID': return 'underpaid';
+    case 'OVERPAID': return 'overpaid';
+    case 'MERCHANT_TRANSFER_MISMATCH': return 'wrong_recipient';
+    case 'TRANSACTION_FAILED':
+    case 'FEE_TRANSFER_MISMATCH':
+    case 'AMBIGUOUS_TRANSFER':
+    case 'TOKEN_ACCOUNT_MISMATCH':
+    case 'DESTINATION_COLLISION':
+    case 'SENDER_MISMATCH':
+    case 'SPONSOR_MISMATCH':
+      return 'failed';
+    default:
+      return null;
   }
 }
 
@@ -209,12 +227,12 @@ export async function reconcilePayment(
     }
   }
 
-  if (verification.result.reason === 'UNDERPAID' || verification.result.reason === 'OVERPAID') {
-    const status = verification.result.reason === 'UNDERPAID' ? 'underpaid' : 'overpaid';
-    const persisted = await persistOutcome(repository, payment.id, status, verification.result.reason);
+  const persistedStatus = rejectionStatus(verification.result.reason);
+  if (persistedStatus) {
+    const persisted = await persistOutcome(repository, payment.id, persistedStatus, verification.result.reason);
     return {
       paymentId: payment.id,
-      outcome: persisted === 'stale' ? 'stale' : status,
+      outcome: persisted === 'stale' ? 'stale' : persistedStatus,
       checkedSignatures: verification.checkedSignatures,
       verification,
     };
