@@ -93,6 +93,38 @@ const remaining = forbidden.filter(token => source.includes(token));
 if (remaining.length) throw new Error('Frontend authentication hardening failed: ' + remaining.join(', '));
 writeFileSync(file, source, 'utf8');
 
+// The public AdminCmsModal wrapper is the browser authentication boundary, but
+// the legacy CMS implementation is kept for its existing management surface.
+// Harden that copied source as well, so old browser-side auth paths cannot be
+// reintroduced into a production bundle by the legacy component itself.
+const legacyFile = resolve(process.cwd(), 'src/components/LegacyAdminCmsModal.tsx');
+let legacySource = readFileSync(legacyFile, 'utf8');
+const legacyForbidden = [
+  'hashPasscode(',
+  'DEFAULT_PASSCODE_HASH',
+  'solmint_admin_passcode',
+  'solmint_admin_pass_hash',
+  'solmint_admin_session',
+  'solmint_current_user',
+  'passwordHash: passHash',
+  'passwordHash: activeHash',
+  'setStoredPassHash('
+];
+const legacyRemaining = legacyForbidden.filter(token => legacySource.includes(token));
+if (legacyRemaining.length) throw new Error('Legacy frontend authentication hardening failed: ' + legacyRemaining.join(', '));
+
+if (!legacySource.includes("import { authClient } from '../utils/authClient';")) {
+  legacySource = legacySource.replace(
+    "import { SolanaLogoIcon } from './Header';",
+    "import { SolanaLogoIcon } from './Header';\nimport { authClient } from '../utils/authClient';"
+  );
+}
+legacySource = legacySource.replace(
+  /  const handleLogout = async \(\) => \{[\s\S]*?\n  \};/,
+  `  const handleLogout = async () => {\n    try { await authClient.signOut({}); } catch {}\n    setIsAuthenticated(false);\n    setCurrentUser(null);\n    setLoginIdentifier('');\n    setLoginPassword('');\n  };`
+);
+writeFileSync(legacyFile, legacySource, 'utf8');
+
 const appFile = resolve(process.cwd(), 'src/App.tsx');
 let appSource = readFileSync(appFile, 'utf8');
 appSource = appSource.replace(
@@ -107,4 +139,4 @@ if (!appSource.includes("fetch('/api/users/me'")) {
 }
 writeFileSync(appFile, appSource, 'utf8');
 
-console.log('✓ Frontend authentication, session restoration and registered-user UI hardening passed.');
+console.log('✓ Frontend authentication, legacy auth surface and session restoration hardening passed.');
