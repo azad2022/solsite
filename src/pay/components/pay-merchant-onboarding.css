@@ -1,0 +1,21 @@
+.pay-onboarding-panel{margin-bottom:24px;padding:22px;border:1px solid var(--pay-border);border-radius:18px;background:var(--pay-panel-solid);box-shadow:var(--pay-shadow)}
+.pay-onboarding-panel .pay-panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+.pay-onboarding-panel .pay-panel-heading h2{margin:4px 0 0;font-size:21px;line-height:1.35;letter-spacing:-.02em}
+.pay-onboarding-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pay-onboarding-form label{display:grid;gap:7px}
+.pay-onboarding-form label span{font-size:11px;font-weight:800;color:var(--pay-text-soft)}
+.pay-onboarding-form input{width:100%;height:44px;border:1px solid var(--pay-border);border-radius:12px;background:#fff;color:var(--pay-text);padding:0 12px;font:inherit;font-size:13px;outline:none}
+.pay-onboarding-form input:focus{border-color:rgba(243,77,157,.45);box-shadow:0 0 0 4px rgba(243,77,157,.08)}
+.pay-primary-action,.pay-secondary-action{min-height:44px;padding:0 16px;border-radius:12px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.pay-primary-action{border:1px solid #171923;background:#171923;color:#fff}.pay-primary-action:hover{background:#272936}.pay-primary-action:disabled,.pay-secondary-action:disabled{opacity:.55;cursor:not-allowed}
+.pay-secondary-action{border:1px solid var(--pay-border);background:#fff;color:var(--pay-text-soft)}.pay-secondary-action:hover{border-color:var(--pay-border-strong);color:var(--pay-text)}
+.pay-onboarding-state{display:grid;gap:14px}
+.pay-onboarding-success,.pay-onboarding-wallet{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--pay-border);border-radius:14px;background:#fcfcfe}
+.pay-onboarding-success>svg{color:var(--pay-green);flex:0 0 auto}.pay-onboarding-success div,.pay-onboarding-wallet>div:nth-child(2){min-width:0;display:grid;gap:3px}
+.pay-onboarding-success strong{font-size:13px}.pay-onboarding-success span,.pay-onboarding-success small,.pay-onboarding-wallet span{font-size:10px;color:var(--pay-text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pay-onboarding-wallet-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:rgba(142,105,255,.08);color:var(--pay-purple);flex:0 0 auto}
+.pay-onboarding-wallet .pay-primary-action{margin-inline-start:auto;flex:0 0 auto}
+.pay-onboarding-verified,.pay-onboarding-error{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;border-radius:12px;font-size:11px;line-height:1.7}
+.pay-onboarding-verified{border:1px solid rgba(37,161,127,.18);background:rgba(37,161,127,.07);color:#226f5b}.pay-onboarding-error{border:1px solid rgba(210,65,87,.18);background:rgba(210,65,87,.06);color:#a8384b}.pay-onboarding-verified svg,.pay-onboarding-error svg{flex:0 0 auto;margin-top:2px}
+.pay-onboarding-challenge{margin-top:14px;border:1px solid rgba(142,105,255,.18);border-radius:14px;background:#fbfaff;padding:14px}.pay-onboarding-challenge-head{display:flex;align-items:center;gap:8px;color:var(--pay-text);font-size:11px}.pay-onboarding-challenge-head button{margin-inline-start:auto;border:0;background:transparent;color:var(--pay-text-faint);cursor:pointer}.pay-onboarding-challenge pre{margin:10px 0;max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-word;border-radius:10px;background:#171923;color:#fff;padding:12px;font:11px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}.pay-onboarding-challenge small{display:block;color:var(--pay-text-faint);font-size:9px;line-height:1.7}.pay-onboarding-challenge em{display:block;margin-top:5px;color:var(--pay-green);font-size:9px;font-style:normal;font-weight:800}
+@media (max-width:700px){.pay-onboarding-panel{padding:16px}.pay-onboarding-form{grid-template-columns:1fr}.pay-onboarding-wallet{align-items:flex-start;flex-wrap:wrap}.pay-onboarding-wallet .pay-primary-action{width:100%;margin-inline-start:0}.pay-onboarding-success span{white-space:normal;overflow:visible;text-overflow:clip}}
