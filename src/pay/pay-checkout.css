@@ -19,4 +19,27 @@
 .pay-checkout-notice p { margin: 0; color: var(--pay-text-soft); font-size: 11px; line-height: 1.8; }
 .pay-checkout-notice code,
 .pay-checkout-notice > span { display: block; margin-top: 10px; color: var(--pay-text-faint); font-size: 10px; overflow-wrap: anywhere; }
-@media (max-width: 700px) { .pay-checkout { padding-inline: 12px; } .pay-checkout-header { min-height: 68px; } .pay-checkout-trust { display: none; } .pay-checkout-card-header { padding: 22px 18px; } .pay-checkout-status-grid { grid-template-columns: 1fr; padding: 12px; } .pay-checkout-notice { margin: 0 12px 12px; } }
+.pay-checkout-payment-actions { display: grid; gap: 8px; margin-top: 14px; }
+.pay-checkout-action-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--pay-border); border-radius: 13px; background: #fff; }
+.pay-checkout-action-row > div { min-width: 0; }
+.pay-checkout-action-row span { display: block; margin-bottom: 4px; color: var(--pay-text-faint); font-size: 9px; font-weight: 800; }
+.pay-checkout-action-row strong { display: block; color: var(--pay-text); font-size: 12px; }
+.pay-checkout-action-row button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--pay-border); border-radius: 10px; background: #fff; color: var(--pay-text-soft); cursor: pointer; }
+.pay-checkout-action-row button:hover { color: var(--pay-pink); border-color: rgba(243,77,157,.35); }
+.pay-checkout-wallet-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px; border: 1px solid var(--pay-border); border-radius: 13px; background: #fff; }
+.pay-checkout-wallet-row > div { min-width: 0; }
+.pay-checkout-wallet-row span { display: block; margin-bottom: 4px; color: var(--pay-text-faint); font-size: 9px; font-weight: 800; }
+.pay-checkout-wallet-row strong { display: block; color: var(--pay-text); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.pay-checkout-signature-field { display: grid; gap: 6px; margin-top: 12px; }
+.pay-checkout-signature-field span { color: var(--pay-text-faint); font-size: 9px; font-weight: 800; }
+.pay-checkout-signature-field input { width: 100%; box-sizing: border-box; min-height: 42px; padding: 10px 12px; border: 1px solid var(--pay-border); border-radius: 11px; background: #fff; color: var(--pay-text); font: inherit; font-size: 11px; outline: none; }
+.pay-checkout-signature-field input:focus { border-color: rgba(243,77,157,.55); box-shadow: 0 0 0 3px rgba(243,77,157,.09); }
+.pay-checkout-verification-message { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: 11px; font-size: 10px; line-height: 1.8; }
+.pay-checkout-verification-message.is-idle { color: #147d49; background: rgba(20,125,73,.07); }
+.pay-checkout-verification-message.is-submitting { color: var(--pay-purple); background: rgba(142,105,255,.07); }
+.pay-checkout-verification-message.is-not_detected { color: #8a6410; background: rgba(218,169,38,.08); }
+.pay-checkout-verification-message.is-underpaid,
+.pay-checkout-verification-message.is-overpaid,
+.pay-checkout-verification-message.is-ambiguous,
+.pay-checkout-verification-message.is-failed { color: #a52c4b; background: rgba(207,70,98,.07); }
+@media (max-width: 700px) { .pay-checkout { padding-inline: 12px; } .pay-checkout-header { min-height: 68px; } .pay-checkout-trust { display: none; } .pay-checkout-card-header { padding: 22px 18px; } .pay-checkout-status-grid { grid-template-columns: 1fr; padding: 12px; } .pay-checkout-notice { margin: 0 12px 12px; } .pay-checkout-wallet-row { align-items: stretch; flex-direction: column; } .pay-checkout-action-row { grid-template-columns: minmax(0, 1fr) auto; } }
