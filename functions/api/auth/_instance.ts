@@ -29,6 +29,8 @@ function getGoogleProvider(env: BetterAuthRuntimeEnv) {
     google: {
       clientId,
       clientSecret,
+      redirectURI: 'https://solmint.ir/api/auth/callback/google',
+      prompt: 'select_account' as const,
       requireEmailVerification: true,
     },
   };
@@ -156,7 +158,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
           attributes: {
             httpOnly: true,
             secure: secureCookies,
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/',
           },
         },

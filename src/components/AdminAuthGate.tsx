@@ -18,6 +18,22 @@ type ApplicationUserResponse = {
   user?: unknown;
 };
 
+const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
+  email_not_verified: 'ایمیل حساب Google هنوز توسط سرویس احراز هویت تأیید نشده است.',
+  state_mismatch: 'نشست امنیتی ورود با Google منقضی یا نامعتبر شده است. دوباره تلاش کنید.',
+  state_invalid: 'اطلاعات امنیتی ورود با Google معتبر نیست. دوباره تلاش کنید.',
+  invalid_code: 'کد ورود Google معتبر نیست یا قبلاً استفاده شده است. دوباره تلاش کنید.',
+  invalid_grant: 'مجوز Google منقضی شده است. دوباره تلاش کنید.',
+  account_not_linked: 'این حساب Google به حساب سولمینت شما متصل نیست.',
+  oauth_provider_not_found: 'ارائه‌دهنده Google در سرویس احراز هویت فعال نیست.',
+  email_not_found: 'Google ایمیل معتبری برای این حساب برنگرداند.',
+};
+
+function callbackErrorFromLocation(): string | null {
+  const error = new URLSearchParams(window.location.search).get('error');
+  return error ? CALLBACK_ERROR_MESSAGES[error] || `ورود با Google ناموفق بود (${error}).` : null;
+}
+
 async function readApplicationUser(): Promise<SafeApplicationUser | null> {
   const response = await fetchApplicationUser();
   const payload = (await response.json().catch(() => null)) as ApplicationUserResponse | null;
@@ -57,8 +73,9 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
 
   useEffect(() => {
     if (!isOpen) return;
-    setState('idle');
-    setMessage('');
+    const callbackMessage = callbackErrorFromLocation();
+    setState(callbackMessage ? 'error' : 'idle');
+    setMessage(callbackMessage || '');
   }, [isOpen, mode]);
 
   if (!isOpen) return null;
@@ -101,7 +118,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     setState('loading');
     setMessage('');
     try {
-      const result = await authClient.signIn.social({ provider: 'google', callbackURL: window.location.href });
+      const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
       if (result.error) throw new Error(result.error.message || 'ورود با Google انجام نشد.');
     } catch (error) {
       setState('error');
