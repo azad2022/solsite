@@ -116,20 +116,19 @@ export function useApplicationSession(): {
   return {
     user,
     isPending: session.isPending || applicationPending,
-    error: session.error ?? applicationError,
+    error: session.error instanceof Error ? session.error : applicationError,
   };
 }
 
 export async function signOutAllAuthSessions(): Promise<void> {
-  const operations = [
-    authClient.signOut({}),
-    fetch('/api/auth/logout', {
+  try {
+    await authClient.signOut({});
+  } finally {
+    await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'include',
       cache: 'no-store',
       headers: { Accept: 'application/json' },
-    }),
-  ];
-
-  await Promise.allSettled(operations);
+    }).catch(() => undefined);
+  }
 }
