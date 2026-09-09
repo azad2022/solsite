@@ -9,6 +9,11 @@ export const authClient = createAuthClient({
 
 type SafeApplicationUser = Omit<UserAccount, 'passwordHash'>;
 type ApplicationUserResponse = { success?: boolean; user?: unknown };
+type BetterAuthSessionSnapshot = {
+  data: { user?: { id?: string } } | null;
+  isPending: boolean;
+  error: unknown;
+};
 
 async function parseApplicationUser(response: Response): Promise<SafeApplicationUser | null> {
   const payload = (await response.json().catch(() => null)) as ApplicationUserResponse | null;
@@ -70,7 +75,7 @@ export function useApplicationSession(): {
   isPending: boolean;
   error: Error | null;
 } {
-  const session = authClient.useSession();
+  const session = authClient.useSession() as unknown as BetterAuthSessionSnapshot;
   const [user, setUser] = useState<SafeApplicationUser | null>(null);
   const [applicationPending, setApplicationPending] = useState(true);
   const [applicationError, setApplicationError] = useState<Error | null>(null);
