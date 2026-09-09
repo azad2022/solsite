@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authClient } from '../utils/authClient';
 import { SolanaStatus, UserAccount } from '../types';
 import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search, Activity } from 'lucide-react';
 import { HeaderMarketTicker } from './HeaderMarketTicker';
@@ -10,22 +11,27 @@ interface HeaderProps {
   onNavigate: (path: string) => void;
   openAdminModal: () => void;
   currentUser: UserAccount | null;
-  isAuthenticated: boolean;
-  betterAuthUser: { email: string; name: string } | null;
   onLogout: () => void | Promise<void>;
 }
 
 const navClass = (active: boolean) => `shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${active ? 'bg-white/10 text-white font-bold' : 'text-slate-300 hover:text-white'}`;
 const mobileNavClass = (active: boolean) => `w-full text-right px-4 py-2.5 rounded-xl text-xs font-semibold ${active ? 'bg-[#9945FF]/20 text-[#14F195] border border-[#9945FF]/40' : 'text-slate-300 bg-white/5'}`;
 
-export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdminModal, currentUser, isAuthenticated, betterAuthUser, onLogout }) => {
+type HeaderAuthSession = {
+  data: { user?: { email?: string | null; name?: string | null } } | null;
+  isPending: boolean;
+};
+
+export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdminModal, currentUser, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const handleNav = (path: string) => { setMobileMenuOpen(false); setToolsOpen(false); onNavigate(path); };
   const canManageShowcase = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
   const toolsActive = currentPath.startsWith('/tools/');
   const walletAnalyzerActive = currentPath === '/wallet-analyzer';
-  const displayName = currentUser?.fullName || betterAuthUser?.name || betterAuthUser?.email || 'حساب کاربری';
+  const authSession = authClient.useSession() as unknown as HeaderAuthSession;
+  const isAuthenticated = Boolean(authSession.data?.user);
+  const displayName = currentUser?.fullName || authSession.data?.user?.name || authSession.data?.user?.email || 'حساب کاربری';
 
   return (
     <header className="relative z-40 w-full bg-[#08080f]">
