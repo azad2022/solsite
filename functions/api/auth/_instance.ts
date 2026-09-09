@@ -1,7 +1,7 @@
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { betterAuth } from 'better-auth';
 import { username } from 'better-auth/plugins';
-import { buildPasswordResetEmail, buildVerificationEmail, sendAuthEmail } from './_email';
+import { buildPasswordResetEmail, buildVerificationEmail, resolveAuthEmailLocale, sendAuthEmail } from './_email';
 import { provisionApplicationProfile } from './_application-profile';
 import { getBetterAuthFoundationConfig, type BetterAuthEnv } from './_foundation';
 import { createBetterAuthDatabase, type BetterAuthDatabaseEnv } from './_database';
@@ -45,6 +45,16 @@ function isAuthorizedLegacyMigrationHeader(headers: Headers, secret: string): bo
   return Boolean(supplied) && supplied === secret;
 }
 
+function setEmailVerificationCallback(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set('callbackURL', '/auth/verified');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
   const foundation = getBetterAuthFoundationConfig(env);
   const socialProviders = getGoogleProvider(env);
@@ -58,6 +68,9 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     basePath: '/api/auth',
     trustedOrigins: foundation.trustedOrigins,
     disabledPaths: ['/is-username-available'],
+    onAPIError: {
+      errorURL: '/auth/error',
+    },
     database: database.adapter,
     user: {
       modelName: 'user',
@@ -85,7 +98,8 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       modelName: 'account',
       accountLinking: {
         enabled: true,
-        disableImplicitLinking: true,
+        trustedProviders: ['google'],
+        disableImplicitLinking: false,
         allowDifferentEmails: false,
       },
       encryptOAuthTokens: true,
@@ -116,8 +130,9 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       autoSignIn: false,
       requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
-      sendResetPassword: async ({ user, url }) => {
-        const email = buildPasswordResetEmail(user.name, url);
+      sendResetPassword: async ({ user, url }, request) => {
+        const locale = resolveAuthEmailLocale(request);
+        const email = buildPasswordResetEmail(user.name, url, locale);
         await sendAuthEmail(env, { to: user.email, ...email });
       },
     },
@@ -125,8 +140,10 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       sendOnSignUp: true,
       sendOnSignIn: true,
       autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, url }) => {
-        const email = buildVerificationEmail(user.name, url);
+      sendVerificationEmail: async ({ user, url }, request) => {
+        const locale = resolveAuthEmailLocale(request);
+        const verificationUrl = setEmailVerificationCallback(url);
+        const email = buildVerificationEmail(user.name, verificationUrl, locale);
         await sendAuthEmail(env, { to: user.email, ...email });
       },
     },

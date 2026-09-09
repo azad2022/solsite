@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fa-IR" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>تأیید ایمیل | SolMint</title>
+  <style>
+    :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif;color:#172033;background:#f7f7fb}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 0,#fff 0,#f7f7fb 55%,#f1f2f7 100%)}
+    main{width:min(100%,560px);background:#fff;border:1px solid #ececf3;border-radius:30px;padding:38px 30px;box-shadow:0 24px 80px rgba(28,31,50,.10);text-align:center;position:relative;overflow:hidden}
+    main:before{content:"";position:absolute;inset:0 0 auto;height:5px;background:#ec4899}.logo{width:104px;height:104px;border-radius:24px;object-fit:cover;display:block;margin:0 auto 20px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#db2777}.icon{width:54px;height:54px;border-radius:50%;margin:24px auto 18px;display:grid;place-items:center;background:#ecfdf5;color:#059669;font-size:28px;font-weight:900}.error .icon{background:#fff1f2;color:#e11d48}h1{margin:0;color:#111827;font-size:29px;line-height:1.35}p{margin:14px 0 0;color:#667085;font-size:15px;line-height:1.9}.button{display:inline-block;margin-top:28px;border-radius:15px;padding:13px 24px;background:#ec4899;color:#fff;text-decoration:none;font-weight:800}.code{margin-top:14px;color:#98a2b3;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}footer{margin-top:28px;padding-top:18px;border-top:1px solid #f0f0f4;color:#98a2b3;font-size:11px}@media(max-width:480px){main{padding:32px 21px;border-radius:24px}h1{font-size:25px}.logo{width:88px;height:88px}}
+  </style>
+</head>
+<body>
+<main id="card">
+  <img class="logo" src="/assets/solmint-mascot-solana-coin.webp" alt="SolMint">
+  <div class="eyebrow">SolMint Account</div>
+  <div class="icon" id="statusIcon">✓</div>
+  <h1 id="title">ایمیل شما با موفقیت تأیید شد</h1>
+  <p id="message">حساب SolMint شما فعال است و می‌توانید برای ورود به سایت ادامه دهید.</p>
+  <a class="button" id="action" href="/">ادامه در SolMint</a>
+  <div class="code" id="code"></div>
+  <footer>SolMint · solmint.ir</footer>
+</main>
+<script>
+(function(){
+  const params=new URLSearchParams(location.search);
+  const error=params.get('error');
+  const languages=(navigator.language||'fa-IR').toLowerCase();
+  const locale=languages.startsWith('fa')?'fa':languages.startsWith('ar')?'ar':languages.startsWith('ru')?'ru':'en';
+  const copy={
+    fa:{ok:['ایمیل شما با موفقیت تأیید شد','حساب SolMint شما فعال است و می‌توانید برای ورود به سایت ادامه دهید.','ادامه در SolMint'],
+      err:['تأیید ایمیل انجام نشد','این لینک تأیید معتبر یا قابل استفاده نیست. دوباره برای دریافت لینک تأیید اقدام کنید.','بازگشت به SolMint']},
+    en:{ok:['Your email is verified','Your SolMint account is active. You can continue to the website.','Continue to SolMint'],
+      err:['Email verification failed','This verification link is invalid or can no longer be used. Request a new verification email and try again.','Back to SolMint']},
+    ar:{ok:['تم تأكيد بريدك الإلكتروني بنجاح','حساب SolMint الخاص بك نشط ويمكنك المتابعة إلى الموقع.','المتابعة إلى SolMint'],
+      err:['تعذر تأكيد البريد الإلكتروني','رابط التأكيد غير صالح أو لم يعد متاحاً. اطلب رسالة تأكيد جديدة ثم حاول مرة أخرى.','العودة إلى SolMint']},
+    ru:{ok:['Электронная почта подтверждена','Ваш аккаунт SolMint активирован. Теперь можно продолжить работу на сайте.','Перейти в SolMint'],
+      err:['Не удалось подтвердить почту','Ссылка подтверждения недействительна или срок её действия истёк. Запросите новое письмо и попробуйте снова.','Вернуться в SolMint']}
+  }[locale]||null;
+  const isError=Boolean(error); const strings=copy||(location.pathname?null:null);
+  const ok=strings?.ok||['Email verified','Your SolMint account is active.','Continue to SolMint'];
+  const bad=strings?.err||['Email verification failed','This verification link is invalid or expired.','Back to SolMint'];
+  document.documentElement.lang=locale==='fa'?'fa-IR':locale==='ar'?'ar':locale==='ru'?'ru':'en-US';
+  document.documentElement.dir=(locale==='fa'||locale==='ar')?'rtl':'ltr';
+  const set=isError?bad:ok;
+  document.getElementById('title').textContent=set[0];
+  document.getElementById('message').textContent=set[1];
+  document.getElementById('action').textContent=set[2];
+  if(isError){document.getElementById('card').classList.add('error');document.getElementById('statusIcon').textContent='!';document.getElementById('code').textContent=error?('Error: '+error):'';}
+})();
+</script>
+</body>
+</html>
