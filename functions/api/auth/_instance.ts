@@ -96,6 +96,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     account: {
       identityStrategy: 'provider-id',
       modelName: 'account',
+      storeStateStrategy: 'cookie',
       accountLinking: {
         enabled: true,
         trustedProviders: ['google'],
