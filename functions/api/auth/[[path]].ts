@@ -5,25 +5,71 @@ type PagesAuthContext = {
   env: SolmintBetterAuthRuntimeEnv;
 };
 
+type AuthUnavailableCode =
+  | 'AUTH_CONFIG_MISSING'
+  | 'AUTH_GOOGLE_CONFIG'
+  | 'AUTH_DATABASE_CONFIG'
+  | 'AUTH_RUNTIME_INIT_FAILED'
+  | 'AUTH_REQUEST_FAILED';
+
+function classifyAuthError(error: unknown): AuthUnavailableCode {
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (message.includes('better_auth_secret') || message.includes('better auth secret') || message.includes('better_auth_url') || message.includes('trusted_origins')) {
+    return 'AUTH_CONFIG_MISSING';
+  }
+  if (message.includes('google oauth')) {
+    return 'AUTH_GOOGLE_CONFIG';
+  }
+  if (message.includes('supabase_url') || message.includes('supabase_secret_key') || message.includes('supabase_service_role_key') || message.includes('production auth database transport')) {
+    return 'AUTH_DATABASE_CONFIG';
+  }
+  return 'AUTH_RUNTIME_INIT_FAILED';
+}
+
+function unavailableResponse(code: AuthUnavailableCode, requestId: string): Response {
+  return new Response(JSON.stringify({
+    success: false,
+    error: 'AUTH_SERVICE_UNAVAILABLE',
+    code,
+    requestId,
+  }), {
+    status: 503,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Auth-Error-Code': code,
+      'X-Request-Id': requestId,
+    },
+  });
+}
+
 export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Response> => {
+  const requestId = crypto.randomUUID();
   let runtime: ReturnType<typeof createBetterAuthRuntime> | null = null;
 
   try {
-    runtime = createBetterAuthRuntime(env);
-    return await runtime.auth.handler(request);
-  } catch (error) {
-    console.error('Better Auth request failed:', error instanceof Error ? error.message : 'unknown error');
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'AUTH_SERVICE_UNAVAILABLE',
-    }), {
-      status: 503,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
+    try {
+      runtime = createBetterAuthRuntime(env);
+    } catch (error) {
+      const code = classifyAuthError(error);
+      console.error('Better Auth runtime initialization failed:', {
+        requestId,
+        code,
+        message: error instanceof Error ? error.message : 'unknown error',
+      });
+      return unavailableResponse(code, requestId);
+    }
+
+    try {
+      return await runtime.auth.handler(request);
+    } catch (error) {
+      console.error('Better Auth request failed:', {
+        requestId,
+        message: error instanceof Error ? error.message : 'unknown error',
+      });
+      return unavailableResponse('AUTH_REQUEST_FAILED', requestId);
+    }
   } finally {
     if (runtime) {
       await runtime.close().catch((error) => {
