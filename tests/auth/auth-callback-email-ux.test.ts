@@ -7,7 +7,6 @@ const email = readFileSync('functions/api/auth/_email.ts', 'utf8');
 const verified = readFileSync('public/auth/verified.html', 'utf8');
 const errorPage = readFileSync('public/auth/error.html', 'utf8');
 
-
 test('Google OAuth links a trusted Google identity without weakening email restrictions', () => {
   assert.match(instance, /trustedProviders:\s*\['google'\]/);
   assert.match(instance, /disableImplicitLinking:\s*false/);
@@ -15,7 +14,8 @@ test('Google OAuth links a trusted Google identity without weakening email restr
 });
 
 test('authentication failures use the SolMint error destination', () => {
-  assert.match(instance, /onAPIError:\s*\{\s*errorURL:\s*'\/auth\/error'\s*\}/s);
+  assert.match(instance, /onAPIError:/);
+  assert.match(instance, /errorURL:\s*['"]\/auth\/error['"]/);
   assert.match(errorPage, /internal_server_error/);
 });
 

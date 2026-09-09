@@ -10,7 +10,7 @@ interface HeaderProps {
   onNavigate: (path: string) => void;
   openAdminModal: () => void;
   currentUser: UserAccount | null;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
 }
 
 const navClass = (active: boolean) => `shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer text-inherit decoration-none ${active ? 'bg-white/10 text-white font-bold' : 'text-slate-300 hover:text-white'}`;
@@ -61,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
               {currentUser ? <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-1.5 text-xs text-slate-200">
                 {canManageShowcase && <button onClick={() => handleNav('/showcase-admin')} title="مدیریت نمایش اپلیکیشن" className="flex items-center gap-1.5 rounded-lg border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-1 font-bold text-[#14F195] hover:bg-[#14F195]/20"><Smartphone className="h-3.5 w-3.5" />Showcase</button>}
                 <button onClick={openAdminModal} className="flex items-center gap-1.5 font-bold transition-colors hover:text-[#14F195]">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span>{canManageShowcase && <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">مدیر</span>}</button>
-                <span className="text-slate-600">|</span><button onClick={onLogout} title="خروج از حساب" aria-label="خروج از حساب" className="p-0.5 text-slate-400 transition-colors hover:text-rose-400"><LogOut className="h-3.5 w-3.5" /></button>
+                <span className="text-slate-600">|</span><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-0.5 text-slate-400 transition-colors hover:text-rose-400"><LogOut className="h-3.5 w-3.5" /></button>
               </div> : <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-bold text-slate-200 transition-colors hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
             </div>
 
@@ -89,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
               <button onClick={() => handleNav('/faq')} className={mobileNavClass(currentPath === '/faq')}>سوالات متداول</button>
               <button onClick={() => handleNav('/blog')} className={`flex w-full items-center gap-2 rounded-xl px-4 py-2.5 text-right text-xs font-bold ${currentPath === '/blog' ? 'border border-[#9945FF]/40 bg-[#9945FF]/20 text-[#14F195]' : 'bg-white/5 text-slate-300'}`}><BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ و آکادمی solmint.ir</button>
               {currentUser && canManageShowcase && <button onClick={() => handleNav('/showcase-admin')} className="flex w-full items-center gap-2 rounded-xl border border-[#14F195]/25 bg-[#14F195]/10 px-4 py-2.5 text-right text-xs font-bold text-[#14F195]"><Smartphone className="h-4 w-4" />مدیریت نمایش اپلیکیشن</button>}
-              {currentUser ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><button onClick={openAdminModal} className="flex items-center gap-2 text-xs font-bold text-slate-200">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span></button><button onClick={onLogout} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : <button onClick={openAdminModal} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
+              {currentUser ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><button onClick={openAdminModal} className="flex items-center gap-2 text-xs font-bold text-slate-200">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span></button><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : <button onClick={openAdminModal} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
             </div>
           </div>}
         </div>

@@ -21,6 +21,17 @@ if (!baseURL) {
     assert.ok(response.status < 500, `get-session returned ${response.status}: ${body}`);
   });
 
+  test('application session endpoint fails closed without a valid browser session', async () => {
+    const response = await fetch(`${baseURL}/api/users/me`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { Accept: 'application/json' },
+    });
+    const body = await readResponse(response);
+    console.log(`[auth-live-smoke] users/me status=${response.status} body=${body}`);
+    assert.ok([401, 503].includes(response.status), `users/me must not be public: ${response.status}: ${body}`);
+  });
+
   test('Better Auth rejects invalid signup input without a server failure', async () => {
     const response = await fetch(`${baseURL}/api/auth/sign-up/email`, {
       method: 'POST',
@@ -44,5 +55,16 @@ if (!baseURL) {
     console.log(`[auth-live-smoke] sign-in/social status=${response.status} location=${response.headers.get('location') || ''} body=${body}`);
     assert.ok(response.status < 500, `sign-in/social returned ${response.status}: ${body}`);
     assert.notEqual(response.status, 404, `Google initiation route is not available: ${body}`);
+  });
+
+  test('logout endpoint remains safe and callable without an existing session', async () => {
+    const response = await fetch(`${baseURL}/api/auth/logout`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { Accept: 'application/json' },
+    });
+    const body = await readResponse(response);
+    console.log(`[auth-live-smoke] logout status=${response.status} body=${body}`);
+    assert.equal(response.status, 200, `logout returned ${response.status}: ${body}`);
   });
 }

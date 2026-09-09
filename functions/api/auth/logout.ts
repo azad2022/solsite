@@ -23,9 +23,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: A
     if (hasBetterAuthCookie) {
       runtime = createBetterAuthRuntime(env);
       await runtime.auth.api.signOut({ headers: request.headers });
-    } else {
-      await destroySession(env, request);
     }
+
+    // Remove the legacy session as well. This is intentionally done even when a
+    // Better Auth session exists so a stale legacy cookie can never survive logout.
+    await destroySession(env, request);
   } catch (error) {
     console.error('Auth logout error:', error instanceof Error ? error.message : String(error));
   } finally {
