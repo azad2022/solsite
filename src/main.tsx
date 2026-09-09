@@ -38,10 +38,8 @@ function revealAppAfterMount() {
 }
 
 preloadInitialRoute();
-const root = document.getElementById('root');
-if (!root) throw new Error('Missing #root element.');
 
-createRoot(root).render(
+createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       {window.location.pathname === '/auth/reset-password' ? <AuthResetPasswordPage /> : <App />}
