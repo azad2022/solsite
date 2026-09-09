@@ -36,6 +36,7 @@ export interface ApplicationAuthDatabase {
   createApplicationUser(input: { id: string; username: string; fullName: string; passwordHash: string; createdAt: string }): Promise<void>;
   linkIdentity(input: { betterAuthUserId: string; applicationUserId: string; source: 'native' | 'legacy-migration' }): Promise<void>;
   deleteApplicationUser(applicationUserId: string): Promise<void>;
+  deleteBetterAuthUser(betterAuthUserId: string): Promise<void>;
 }
 
 export interface BetterAuthDatabaseHandle {
@@ -113,10 +114,29 @@ function createPgApplicationDatabase(pool: Pool): ApplicationAuthDatabase {
     async deleteApplicationUser(applicationUserId) {
       await pool.query('delete from public.users where id = $1', [applicationUserId]);
     },
+    async deleteBetterAuthUser(betterAuthUserId) {
+      await pool.query('delete from better_auth."user" where id = $1', [betterAuthUserId]);
+    },
   };
 }
 
 function createSupabaseApplicationDatabase(client: SupabaseClient): ApplicationAuthDatabase {
+  const callAdapter = async (operation: string, input: Record<string, unknown> = {}) => {
+    const { data, error } = await client.rpc('solmint_better_auth_adapter', {
+      p_operation: operation,
+      p_model: input.model ?? null,
+      p_data: input.data ?? {},
+      p_where: input.where ?? [],
+      p_limit: input.limit ?? null,
+      p_offset: input.offset ?? 0,
+      p_sort: input.sort ?? null,
+      p_increment: input.increment ?? {},
+      p_set: input.set ?? {},
+    });
+    if (error) throw error;
+    return data;
+  };
+
   return {
     async findApplicationUserByUsername(username) {
       const normalized = username.trim().toLowerCase();
@@ -142,54 +162,74 @@ function createSupabaseApplicationDatabase(client: SupabaseClient): ApplicationA
       return row?.application_user_id && related ? ({ ...related } as ApplicationUserRow) : null;
     },
     async findBetterAuthIdentityByEmail(email) {
-      const { data, error } = await client.rpc('solmint_better_auth_adapter', {
-        p_operation: 'find_one', p_model: 'user', p_data: {}, p_where: [{ field: 'email', value: email, operator: 'eq' }],
-        p_limit: 1, p_offset: 0, p_sort: null, p_increment: {}, p_set: {},
-      }) as unknown as { data: unknown; error: { message?: string; details?: string; hint?: string } | null };
-      if (error) throw error;
-      const record = data as { id?: string } | null;
+      const record = await callAdapter('find_one', {
+        model: 'user',
+        data: {},
+        where: [{ field: 'email', value: email, operator: 'eq' }],
+        limit: 1,
+        offset: 0,
+      }) as { id?: string } | null;
       return record?.id ? { id: record.id } : null;
     },
     async findBetterAuthSessionToken(sessionId, userId) {
-      const { data, error } = await client.rpc('solmint_better_auth_adapter', {
-        p_operation: 'find_one',
-        p_model: 'session',
-        p_data: {},
-        p_where: [
+      const record = await callAdapter('find_one', {
+        model: 'session',
+        data: {},
+        where: [
           { field: 'id', value: sessionId, operator: 'eq' },
           { field: 'user_id', value: userId, operator: 'eq' },
           { field: 'expires_at', value: new Date().toISOString(), operator: 'gt' },
         ],
-        p_limit: 1,
-        p_offset: 0,
-        p_sort: null,
-        p_increment: {},
-        p_set: {},
-      }) as unknown as { data: unknown; error: { message?: string; details?: string; hint?: string } | null };
-      if (error) throw error;
-      const record = data as { token?: string } | null;
+        limit: 1,
+        offset: 0,
+      }) as { token?: string } | null;
       return record?.token ? String(record.token) : null;
     },
     async createApplicationUser(input) {
-      const { error } = await client.from('users').insert({ id: input.id, username: input.username, full_name: input.fullName, password_hash: input.passwordHash, role: 'user', permissions: [], is_active: true, created_at: input.createdAt });
+      const { error } = await client.from('users').insert({
+        id: input.id,
+        username: input.username,
+        full_name: input.fullName,
+        password_hash: input.passwordHash,
+        role: 'user',
+        permissions: [],
+        is_active: true,
+        created_at: input.createdAt,
+      });
       if (error) throw error;
     },
     async linkIdentity(input) {
-      const { error } = await client.from('auth_identity_links').upsert({ better_auth_user_id: input.betterAuthUserId, application_user_id: input.applicationUserId, source: input.source }, { onConflict: 'better_auth_user_id' });
+      const { error } = await client.from('auth_identity_links').upsert(
+        { better_auth_user_id: input.betterAuthUserId, application_user_id: input.applicationUserId, source: input.source },
+        { onConflict: 'better_auth_user_id' },
+      );
       if (error) throw error;
     },
     async deleteApplicationUser(applicationUserId) {
       const { error } = await client.from('users').delete().eq('id', applicationUserId);
       if (error) throw error;
     },
+    async deleteBetterAuthUser(betterAuthUserId) {
+      await callAdapter('delete', {
+        model: 'user',
+        where: [{ field: 'id', value: betterAuthUserId, operator: 'eq' }],
+      });
+    },
   };
 }
 
 export function createBetterAuthDatabase(env: BetterAuthDatabaseEnv): BetterAuthDatabaseHandle {
   if (isLocalRuntime(env) && env.BETTER_AUTH_DATABASE_URL?.trim()) {
-    localPool ??= new Pool({ connectionString: env.BETTER_AUTH_DATABASE_URL.trim(), max: 5, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000, options: '-c search_path=better_auth,public' });
+    localPool ??= new Pool({
+      connectionString: env.BETTER_AUTH_DATABASE_URL.trim(),
+      max: 5,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+      options: '-c search_path=better_auth,public',
+    });
     return { adapter: localPool, application: createPgApplicationDatabase(localPool), close: async () => {} };
   }
+
   const client = createSupabaseAdmin(env);
   return { adapter: createSupabaseBetterAuthAdapter({ client }), application: createSupabaseApplicationDatabase(client), close: async () => {} };
 }
