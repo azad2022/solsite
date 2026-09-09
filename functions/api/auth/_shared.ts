@@ -21,7 +21,6 @@ export interface AuthUser {
   created_at: string;
 }
 
-const DEFAULT_URL = 'https://nvopkbiedorfshwbmyhn.supabase.co';
 const SESSION_COOKIE = '__Host-solmint_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const SESSION_SLIDING_WINDOW_SECONDS = 60 * 60;
@@ -42,7 +41,11 @@ export function jsonResponse(body: unknown, status = 200, extraHeaders: Record<s
   return Response.json(body, { status, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', 'CDN-Cache-Control': 'no-store', ...extraHeaders } });
 }
 
-function getBaseUrl(env: Env) { return (env.SUPABASE_URL || DEFAULT_URL).replace(/\/$/, ''); }
+function getBaseUrl(env: Env): string {
+  const value = env.SUPABASE_URL?.trim();
+  if (!value) throw new Error('SUPABASE_URL is required for the production authentication function.');
+  return value.replace(/\/$/, '');
+}
 function getSecret(env: Env) { return env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || ''; }
 
 export function getSupabaseKeyType(env: Env): 'secret' | 'legacy-service-role' | 'missing' | 'unknown' {
@@ -190,7 +193,7 @@ async function enforceSessionLimit(env: Env, userId: string): Promise<void> {
       const deleteCount = sessions.length - (MAX_SESSIONS_PER_USER - 1);
       for (const s of sessions.slice(0, deleteCount)) await supabaseRequest(env, `/rest/v1/auth_sessions?id=eq.${encodeURIComponent(s.id)}`, { method: 'DELETE' }).catch(() => {});
     }
-  } catch (error) { console.warn('Session limit enforcement failed:', error); }
+  } catch (error) { console.warn('Session limit enforcement failed:', error instanceof Error ? error.message : 'unknown error'); }
 }
 
 export async function createSession(env: Env, user: AuthUser): Promise<string> {
@@ -267,7 +270,7 @@ export async function getAuthenticatedUser(
         created_at: user.createdAt,
       };
     } catch (error) {
-      console.error('Better Auth application-session validation failed:', error instanceof Error ? error.message : String(error));
+      console.error('Better Auth application-session validation failed:', error instanceof Error ? error.message : 'unknown error');
       return null;
     }
   }

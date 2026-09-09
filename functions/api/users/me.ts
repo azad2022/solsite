@@ -6,7 +6,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: an
     if (!user) return jsonResponse({ success: false, message: 'نشست معتبر نیست.' }, 401);
     return jsonResponse({ success: true, user: toSafeUser(user), isSuperAdmin: user.role === 'superadmin' });
   } catch (error) {
-    console.error('Session identity error:', error);
+    console.error('Session identity error:', error instanceof Error ? error.message : 'unknown error');
     return jsonResponse({ success: false, message: 'سرویس احراز هویت در دسترس نیست.' }, 503);
   }
 };

@@ -197,7 +197,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                 createdAt: record.createdAt,
               });
             } catch (error) {
-              await database.application.deleteApplicationUser(String(user.id)).catch(() => {});
+              await database.application.deleteBetterAuthUser(String(user.id)).catch(() => {});
               throw error;
             }
           },
