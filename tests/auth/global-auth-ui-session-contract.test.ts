@@ -16,6 +16,15 @@ test('Better Auth session is an authenticated UI signal independent of applicati
 test('Header does not show login/register while a Better Auth session exists', () => {
   assert.match(headerSource, /authClient\.useSession\(\)/);
   assert.match(headerSource, /const isAuthenticated = Boolean\(authSession\.data\?\.user\)/);
-  assert.match(headerSource, /: isAuthenticated \?/);
-  assert.doesNotMatch(headerSource, /\{currentUser \?[^]*: <button[^>]+ورود \/ ثبت‌نام/s);
+  assert.match(headerSource, /currentUser \? [\s\S]* : isAuthenticated \?/);
+
+  const authenticatedDesktopBranch = /: isAuthenticated \? <div[\s\S]*?onClick=\{\(\) => void onLogout\(\)\}/;
+  const authenticatedMobileBranch = /: isAuthenticated \? <div[\s\S]*?onClick=\{\(\) => void onLogout\(\)\}/g;
+
+  assert.match(headerSource, authenticatedDesktopBranch);
+  assert.ok([...headerSource.matchAll(authenticatedMobileBranch)].length >= 1);
+
+  const guestLoginBranch = /: <button[^>]*title="ورود \/ ثبت‌نام"/g;
+  const guestBranches = [...headerSource.matchAll(guestLoginBranch)].length;
+  assert.equal(guestBranches, 2, 'desktop and mobile guest branches must remain explicit fallback branches');
 });
