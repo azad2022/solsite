@@ -34,6 +34,23 @@ function callbackErrorFromLocation(): string | null {
   return error ? CALLBACK_ERROR_MESSAGES[error] || `ورود با Google ناموفق بود (${error}).` : null;
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const candidate = error as { status?: number; code?: string; message?: string };
+    if (candidate.status === 403 || candidate.code === 'EMAIL_NOT_VERIFIED') {
+      return 'ایمیل شما هنوز تأیید نشده است. ایمیل تأیید را بررسی کنید و سپس دوباره وارد شوید.';
+    }
+    if (candidate.code === 'INVALID_EMAIL_OR_PASSWORD') return 'ایمیل یا رمز عبور صحیح نیست.';
+    if (candidate.code === 'USERNAME_NOT_FOUND') return 'نام کاربری یا رمز عبور صحیح نیست.';
+    if (candidate.code === 'USER_NOT_FOUND') return 'ایمیل یا نام کاربری پیدا نشد.';
+    if (candidate.code === 'TOO_MANY_REQUESTS') return 'تعداد تلاش‌ها زیاد است. چند دقیقه بعد دوباره امتحان کنید.';
+    if (candidate.code === 'RATE_LIMITED') return 'تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید.';
+    if (candidate.code === 'ACCOUNT_NOT_FOUND') return 'حساب موردنظر پیدا نشد.';
+    if (candidate.message?.trim()) return candidate.message;
+  }
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
+}
+
 async function readApplicationUser(): Promise<SafeApplicationUser | null> {
   const response = await fetchApplicationUser();
   const payload = (await response.json().catch(() => null)) as ApplicationUserResponse | null;
@@ -74,6 +91,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [state, setState] = useState<AuthState>('idle');
   const [message, setMessage] = useState('');
 
@@ -82,6 +100,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     const callbackMessage = callbackErrorFromLocation();
     setState(callbackMessage ? 'error' : 'idle');
     setMessage(callbackMessage || '');
+    setPendingVerificationEmail('');
     if (callbackMessage && window.location.search.includes('error=')) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -111,6 +130,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     setMode(nextMode);
     setState('idle');
     setMessage('');
+    setPendingVerificationEmail('');
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -121,18 +141,21 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
 
     try {
       if (mode === 'register') {
-        if (!name.trim() || !username.trim() || !email.trim() || !password) {
+        const normalizedEmail = email.trim().toLowerCase();
+        const normalizedUsername = username.trim().toLowerCase();
+        if (!name.trim() || !normalizedUsername || !normalizedEmail || !password) {
           throw new Error('نام، نام کاربری، ایمیل و رمز عبور الزامی است.');
         }
         const { error } = await authClient.signUp.email({
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
           name: name.trim(),
           password,
-          username: username.trim(),
+          username: normalizedUsername,
         });
-        if (error) throw new Error(error.message || 'ثبت‌نام انجام نشد.');
+        if (error) throw error;
+        setPendingVerificationEmail(normalizedEmail);
         setState('verification');
-        setMessage('حساب ایجاد شد. ایمیل تأیید را باز کنید؛ پس از تأیید، با همین اطلاعات وارد شوید.');
+        setMessage('حساب ایجاد شد. ایمیل تأیید برای شما ارسال شده است. پس از تأیید ایمیل، با همین اطلاعات وارد شوید.');
         return;
       }
 
@@ -140,8 +163,17 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
       if (!value || !password) throw new Error('ایمیل یا نام کاربری و رمز عبور الزامی است.');
       const result = value.includes('@')
         ? await authClient.signIn.email({ email: value.toLowerCase(), password })
-        : await authClient.signIn.username({ username: value, password });
-      if (result.error) throw new Error(result.error.message || 'ورود انجام نشد.');
+        : await authClient.signIn.username({ username: value.toLowerCase(), password });
+
+      if (result.error) {
+        if (result.error.status === 403 || result.error.code === 'EMAIL_NOT_VERIFIED') {
+          setPendingVerificationEmail(value.includes('@') ? value.toLowerCase() : '');
+          setState('verification');
+          setMessage('ایمیل شما هنوز تأیید نشده است. ایمیل تأیید را بررسی کنید و سپس دوباره وارد شوید.');
+          return;
+        }
+        throw result.error;
+      }
 
       const applicationUser = await readApplicationUser();
       if (!applicationUser || applicationUser.isActive === false || !applicationUser.createdAt) {
@@ -151,7 +183,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
       onClose();
     } catch (error) {
       setState('error');
-      setMessage(error instanceof Error ? error.message : 'ارتباط با سرویس احراز هویت برقرار نشد.');
+      setMessage(errorMessage(error, 'ارتباط با سرویس احراز هویت برقرار نشد.'));
     }
   };
 
@@ -161,10 +193,25 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     setMessage('');
     try {
       const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
-      if (result.error) throw new Error(result.error.message || 'ورود با Google انجام نشد.');
+      if (result.error) throw result.error;
     } catch (error) {
       setState('error');
-      setMessage(error instanceof Error ? error.message : 'ورود با Google انجام نشد.');
+      setMessage(errorMessage(error, 'ورود با Google انجام نشد.'));
+    }
+  };
+
+  const resendVerification = async () => {
+    if (isLoading || !pendingVerificationEmail) return;
+    setState('loading');
+    setMessage('');
+    try {
+      const result = await authClient.sendVerificationEmail({ email: pendingVerificationEmail, callbackURL: '/' });
+      if (result.error) throw result.error;
+      setState('verification');
+      setMessage('ایمیل تأیید دوباره ارسال شد. صندوق ورودی و پوشهٔ Spam را بررسی کنید.');
+    } catch (error) {
+      setState('error');
+      setMessage(errorMessage(error, 'ارسال دوبارهٔ ایمیل تأیید انجام نشد.'));
     }
   };
 
@@ -270,7 +317,19 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
             </Field>
 
             {state === 'verification' ? (
-              <StatusMessage tone="success" icon={<MailCheck size={17} />} message={message} />
+              <>
+                <StatusMessage tone="success" icon={<MailCheck size={17} />} message={message} />
+                {pendingVerificationEmail ? (
+                  <button
+                    type="button"
+                    onClick={() => void resendVerification()}
+                    disabled={isLoading}
+                    className="w-full rounded-2xl border border-pink-100 bg-pink-50 px-4 py-2.5 text-xs font-extrabold text-pink-700 transition hover:bg-pink-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    ارسال دوبارهٔ ایمیل تأیید
+                  </button>
+                ) : null}
+              </>
             ) : null}
             {state === 'error' ? (
               <StatusMessage tone="error" icon={<AlertCircle size={17} />} message={message} />
@@ -290,7 +349,8 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
           <button
             type="button"
             onClick={() => resetMode(mode === 'login' ? 'register' : 'login')}
-            className="mt-3.5 w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300"
+            disabled={isLoading}
+            className="mt-3.5 w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {switchLabel}
           </button>
@@ -348,7 +408,7 @@ function StatusMessage({
     : 'border-red-100 bg-red-50 text-red-700';
 
   return (
-    <div className={`flex items-start gap-2.5 rounded-2xl border p-3 text-xs font-medium leading-5 ${className}`} role="alert">
+    <div className={`flex items-start gap-2.5 rounded-2xl border p-3 text-xs font-medium leading-5 ${className}`} role="status" aria-live="polite">
       <span className="mt-0.5 shrink-0">{icon}</span>
       <span>{message}</span>
     </div>
