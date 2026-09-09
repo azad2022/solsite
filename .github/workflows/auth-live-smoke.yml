@@ -1,0 +1,33 @@
+name: Better Auth Live Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'HTTPS base URL to verify (for example https://solmint.ir)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run Better Auth live smoke
+        env:
+          AUTH_SMOKE_BASE_URL: ${{ inputs.base_url }}
+        run: npx tsx --test tests/auth/better-auth-live-smoke.test.ts
