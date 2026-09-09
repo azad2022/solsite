@@ -43,6 +43,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.23.2'
-      - run: npm install
+      - run: npm install --legacy-peer-deps
       - run: bun test tests/solmint-pay-webhook-egress.test.ts tests/solmint-pay-webhook.test.ts
       - run: npm run build:pay-webhook-egress
