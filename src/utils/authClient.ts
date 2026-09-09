@@ -10,9 +10,15 @@ export const authClient = createAuthClient({
 type SafeApplicationUser = Omit<UserAccount, 'passwordHash'>;
 type ApplicationUserResponse = { success?: boolean; user?: unknown };
 type BetterAuthSessionSnapshot = {
-  data: { user?: { id?: string } } | null;
+  data: { user?: { id?: string; email?: string | null; name?: string | null } } | null;
   isPending: boolean;
   error: unknown;
+};
+
+type BetterAuthPresentationUser = {
+  id: string;
+  email: string;
+  name: string;
 };
 
 async function parseApplicationUser(response: Response): Promise<SafeApplicationUser | null> {
@@ -50,20 +56,20 @@ export async function fetchApplicationUser(fetchImpl: typeof fetch = fetch): Pro
   });
 }
 
-export async function fetchApplicationUserWithRetry(maxAttempts = 3): Promise<Response> {
+export async function fetchApplicationUserWithRetry(maxAttempts = 5): Promise<Response> {
   let lastResponse: Response | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const response = await fetchApplicationUser();
       lastResponse = response;
-      if (response.ok || response.status === 401) return response;
+      if (response.ok) return response;
     } catch {
       // A transient network/runtime failure must not permanently leave the UI anonymous.
     }
 
     if (attempt < maxAttempts) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 250 * attempt));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 200 * attempt));
     }
   }
 
@@ -72,6 +78,8 @@ export async function fetchApplicationUserWithRetry(maxAttempts = 3): Promise<Re
 
 export function useApplicationSession(): {
   user: SafeApplicationUser | null;
+  isAuthenticated: boolean;
+  betterAuthUser: BetterAuthPresentationUser | null;
   isPending: boolean;
   error: Error | null;
 } {
@@ -79,6 +87,14 @@ export function useApplicationSession(): {
   const [user, setUser] = useState<SafeApplicationUser | null>(null);
   const [applicationPending, setApplicationPending] = useState(true);
   const [applicationError, setApplicationError] = useState<Error | null>(null);
+
+  const betterAuthUser = session.data?.user?.id
+    ? {
+        id: session.data.user.id,
+        email: typeof session.data.user.email === 'string' ? session.data.user.email : '',
+        name: typeof session.data.user.name === 'string' ? session.data.user.name.trim() : '',
+      }
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +136,8 @@ export function useApplicationSession(): {
 
   return {
     user,
+    isAuthenticated: Boolean(session.data?.user),
+    betterAuthUser,
     isPending: session.isPending || applicationPending,
     error: session.error instanceof Error ? session.error : applicationError,
   };
