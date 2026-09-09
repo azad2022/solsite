@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import { AlertCircle, Chrome, Eye, EyeOff, Loader2, LockKeyhole, Mail, MailCheck, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { authClient, fetchApplicationUser } from '../utils/authClient';
+import { authDiagnosticLabel, authErrorMessage } from '../utils/authErrorMessages';
 import type { UserAccount } from '../types';
 
 interface AdminAuthGateProps {
@@ -29,26 +30,13 @@ const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
   email_not_found: 'Google ایمیل معتبری برای این حساب برنگرداند.',
 };
 
-function callbackErrorFromLocation(): string | null {
+function callbackErrorFromLocation(): { message: string; code: string } | null {
   const error = new URLSearchParams(window.location.search).get('error');
-  return error ? CALLBACK_ERROR_MESSAGES[error] || `ورود با Google ناموفق بود (${error}).` : null;
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const candidate = error as { status?: number; code?: string; message?: string };
-    if (candidate.status === 403 || candidate.code === 'EMAIL_NOT_VERIFIED') {
-      return 'ایمیل شما هنوز تأیید نشده است. ایمیل تأیید را بررسی کنید و سپس دوباره وارد شوید.';
-    }
-    if (candidate.code === 'INVALID_EMAIL_OR_PASSWORD') return 'ایمیل یا رمز عبور صحیح نیست.';
-    if (candidate.code === 'USERNAME_NOT_FOUND') return 'نام کاربری یا رمز عبور صحیح نیست.';
-    if (candidate.code === 'USER_NOT_FOUND') return 'ایمیل یا نام کاربری پیدا نشد.';
-    if (candidate.code === 'TOO_MANY_REQUESTS') return 'تعداد تلاش‌ها زیاد است. چند دقیقه بعد دوباره امتحان کنید.';
-    if (candidate.code === 'RATE_LIMITED') return 'تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید.';
-    if (candidate.code === 'ACCOUNT_NOT_FOUND') return 'حساب موردنظر پیدا نشد.';
-    if (candidate.message?.trim()) return candidate.message;
-  }
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
+  if (!error) return null;
+  return {
+    message: CALLBACK_ERROR_MESSAGES[error] || `ورود با Google ناموفق بود (${error}).`,
+    code: error.toUpperCase(),
+  };
 }
 
 async function readApplicationUser(): Promise<SafeApplicationUser | null> {
@@ -94,14 +82,16 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [state, setState] = useState<AuthState>('idle');
   const [message, setMessage] = useState('');
+  const [diagnosticCode, setDiagnosticCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    const callbackMessage = callbackErrorFromLocation();
-    setState(callbackMessage ? 'error' : 'idle');
-    setMessage(callbackMessage || '');
+    const callback = callbackErrorFromLocation();
+    setState(callback ? 'error' : 'idle');
+    setMessage(callback?.message || '');
+    setDiagnosticCode(callback?.code || null);
     setPendingVerificationEmail('');
-    if (callbackMessage && window.location.search.includes('error=')) {
+    if (callback && window.location.search.includes('error=')) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [isOpen, mode]);
@@ -130,7 +120,14 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     setMode(nextMode);
     setState('idle');
     setMessage('');
+    setDiagnosticCode(null);
     setPendingVerificationEmail('');
+  };
+
+  const setFailure = (error: unknown, fallback: string) => {
+    setState('error');
+    setMessage(authErrorMessage(error, fallback));
+    setDiagnosticCode(authDiagnosticLabel(error));
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -138,6 +135,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     if (isLoading) return;
     setState('loading');
     setMessage('');
+    setDiagnosticCode(null);
 
     try {
       if (mode === 'register') {
@@ -170,6 +168,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
           setPendingVerificationEmail(value.includes('@') ? value.toLowerCase() : '');
           setState('verification');
           setMessage('ایمیل شما هنوز تأیید نشده است. ایمیل تأیید را بررسی کنید و سپس دوباره وارد شوید.');
+          setDiagnosticCode('EMAIL_NOT_VERIFIED');
           return;
         }
         throw result.error;
@@ -182,8 +181,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
       setCurrentUser(applicationUser as UserAccount);
       onClose();
     } catch (error) {
-      setState('error');
-      setMessage(errorMessage(error, 'ارتباط با سرویس احراز هویت برقرار نشد.'));
+      setFailure(error, mode === 'register' ? 'ثبت‌نام انجام نشد.' : 'ورود انجام نشد.');
     }
   };
 
@@ -191,12 +189,12 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     if (isLoading) return;
     setState('loading');
     setMessage('');
+    setDiagnosticCode(null);
     try {
       const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
       if (result.error) throw result.error;
     } catch (error) {
-      setState('error');
-      setMessage(errorMessage(error, 'ورود با Google انجام نشد.'));
+      setFailure(error, 'ورود با Google انجام نشد.');
     }
   };
 
@@ -204,14 +202,14 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
     if (isLoading || !pendingVerificationEmail) return;
     setState('loading');
     setMessage('');
+    setDiagnosticCode(null);
     try {
       const result = await authClient.sendVerificationEmail({ email: pendingVerificationEmail, callbackURL: '/' });
       if (result.error) throw result.error;
       setState('verification');
       setMessage('ایمیل تأیید دوباره ارسال شد. صندوق ورودی و پوشهٔ Spam را بررسی کنید.');
     } catch (error) {
-      setState('error');
-      setMessage(errorMessage(error, 'ارسال دوبارهٔ ایمیل تأیید انجام نشد.'));
+      setFailure(error, 'ارسال دوبارهٔ ایمیل تأیید انجام نشد.');
     }
   };
 
@@ -279,18 +277,18 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
             {mode === 'register' ? (
               <>
                 <Field label="نام و نام خانوادگی" htmlFor={nameId} icon={<UserPlus size={16} />}>
-                  <input id={nameId} value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" className={inputClassName} />
+                  <input id={nameId} value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="مثلاً علی رضایی" className={inputClassName} />
                 </Field>
-                <Field label="نام کاربری" htmlFor={usernameId} icon={<UserPlus size={16} />} hint="نام کاربری پس از ثبت‌نام قابل تغییر نیست.">
-                  <input id={usernameId} value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" className={inputClassName} />
+                <Field label="نام کاربری" htmlFor={usernameId} icon={<UserPlus size={16} />} hint="پس از ثبت‌نام قابل تغییر نیست.">
+                  <input id={usernameId} value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" placeholder="مثلاً ali_rezaei" className={inputClassName} />
                 </Field>
                 <Field label="ایمیل" htmlFor={emailId} icon={<Mail size={16} />}>
-                  <input id={emailId} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" type="email" inputMode="email" className={inputClassName} dir="ltr" />
+                  <input id={emailId} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" type="email" inputMode="email" placeholder="name@example.com" className={inputClassName} dir="ltr" />
                 </Field>
               </>
             ) : (
               <Field label="ایمیل یا نام کاربری" htmlFor={identifierId} icon={<UserPlus size={16} />}>
-                <input id={identifierId} value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" className={inputClassName} />
+                <input id={identifierId} value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" placeholder="ایمیل یا نام کاربری شما" className={inputClassName} />
               </Field>
             )}
 
@@ -302,6 +300,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
                   onChange={(event) => setPassword(event.target.value)}
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   type={showPassword ? 'text' : 'password'}
+                  placeholder="رمز عبور"
                   className={`${inputClassName} pl-12`}
                   dir="ltr"
                 />
@@ -331,8 +330,14 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
                 ) : null}
               </>
             ) : null}
+
             {state === 'error' ? (
-              <StatusMessage tone="error" icon={<AlertCircle size={17} />} message={message} />
+              <StatusMessage
+                tone="error"
+                icon={<AlertCircle size={17} />}
+                message={message}
+                diagnosticCode={diagnosticCode}
+              />
             ) : null}
 
             <button
@@ -355,7 +360,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
             {switchLabel}
           </button>
 
-          <div className="mt-5 flex items-center justify-center gap-2 text-[11px] leading-5 text-slate-400">
+          <div className="mt-5 flex items-center justify-center gap-2 text-[11px] leading-5 text-slate-500">
             <ShieldCheck size={13} />
             <span>نشست احراز هویت در سمت سرور و با کوکی HttpOnly مدیریت می‌شود.</span>
           </div>
@@ -365,7 +370,7 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
   );
 }
 
-const inputClassName = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-300 hover:border-slate-300 focus:border-pink-400 focus:ring-4 focus:ring-pink-50';
+const inputClassName = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-pink-400 focus:ring-4 focus:ring-pink-50';
 
 function Field({
   label,
@@ -382,12 +387,12 @@ function Field({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between gap-3">
+      <div className="mb-1.5 flex items-start justify-between gap-3">
         <label htmlFor={htmlFor} className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
           <span className="text-pink-500">{icon}</span>
           {label}
         </label>
-        {hint ? <span className="text-[10px] text-slate-400">{hint}</span> : null}
+        {hint ? <span className="text-[10px] font-medium leading-4 text-slate-500">{hint}</span> : null}
       </div>
       {children}
     </div>
@@ -398,10 +403,12 @@ function StatusMessage({
   tone,
   icon,
   message,
+  diagnosticCode,
 }: {
   tone: 'success' | 'error';
   icon: React.ReactNode;
   message: string;
+  diagnosticCode?: string | null;
 }) {
   const className = tone === 'success'
     ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
@@ -410,7 +417,14 @@ function StatusMessage({
   return (
     <div className={`flex items-start gap-2.5 rounded-2xl border p-3 text-xs font-medium leading-5 ${className}`} role="status" aria-live="polite">
       <span className="mt-0.5 shrink-0">{icon}</span>
-      <span>{message}</span>
+      <div className="min-w-0">
+        <div>{message}</div>
+        {diagnosticCode ? (
+          <div className="mt-1.5 font-mono text-[10px] font-semibold tracking-wide opacity-80" dir="ltr">
+            تشخیص: {diagnosticCode}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
