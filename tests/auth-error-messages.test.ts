@@ -22,5 +22,5 @@ test('auth client suppresses database internals from user-facing fallback text',
 test('auth client maps rate limiting from HTTP status', () => {
   const error = { status: 429, message: 'Too many requests' };
   assert.equal(authDiagnosticLabel(error), 'RATE_LIMITED');
-  assert.match(authErrorMessage(error, 'fallback'), /تلاش‌ها زیاد/);
+  assert.equal(authErrorMessage(error, 'fallback'), 'تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید.');
 });
