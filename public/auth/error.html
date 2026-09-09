@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fa-IR" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>خطا در احراز هویت | SolMint</title>
+  <style>
+    :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif;color:#172033;background:#f7f7fb}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 0,#fff 0,#f7f7fb 55%,#f1f2f7 100%)}
+    main{width:min(100%,560px);background:#fff;border:1px solid #ececf3;border-radius:30px;padding:38px 30px;box-shadow:0 24px 80px rgba(28,31,50,.10);text-align:center;position:relative;overflow:hidden}main:before{content:"";position:absolute;inset:0 0 auto;height:5px;background:#ec4899}
+    .logo{width:104px;height:104px;border-radius:24px;object-fit:cover;display:block;margin:0 auto 20px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#db2777}.icon{width:54px;height:54px;border-radius:50%;margin:24px auto 18px;display:grid;place-items:center;background:#fff1f2;color:#e11d48;font-size:28px;font-weight:900}h1{margin:0;color:#111827;font-size:28px;line-height:1.4}p{margin:14px 0 0;color:#667085;font-size:15px;line-height:1.9}.button{display:inline-block;margin-top:28px;border-radius:15px;padding:13px 24px;background:#111827;color:#fff;text-decoration:none;font-weight:800}.code{margin-top:14px;color:#98a2b3;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}footer{margin-top:28px;padding-top:18px;border-top:1px solid #f0f0f4;color:#98a2b3;font-size:11px}@media(max-width:480px){main{padding:32px 21px;border-radius:24px}h1{font-size:25px}.logo{width:88px;height:88px}}
+  </style>
+</head>
+<body>
+<main>
+  <img class="logo" src="/assets/solmint-mascot-solana-coin.webp" alt="SolMint">
+  <div class="eyebrow">SolMint Account</div>
+  <div class="icon">!</div>
+  <h1 id="title">در ورود به حساب مشکلی رخ داد</h1>
+  <p id="message">لطفاً دوباره تلاش کنید. اطلاعات امنیتی شما در این صفحه نمایش داده نمی‌شود.</p>
+  <a class="button" id="action" href="/">بازگشت به SolMint</a>
+  <div class="code" id="code"></div>
+  <footer>SolMint · solmint.ir</footer>
+</main>
+<script>
+(function(){
+  const error=new URLSearchParams(location.search).get('error')||'authentication_error';
+  const languages=(navigator.language||'fa-IR').toLowerCase();
+  const locale=languages.startsWith('fa')?'fa':languages.startsWith('ar')?'ar':languages.startsWith('ru')?'ru':'en';
+  const messages={
+    fa:{internal_server_error:['ورود با Google کامل نشد','سرویس احراز هویت در تکمیل ورود با Google با یک خطای داخلی روبه‌رو شد. دوباره تلاش کنید.'],account_not_linked:['حساب Google متصل نیست','این حساب Google هنوز به حساب SolMint شما متصل نشده است.'],state_mismatch:['نشست امنیتی نامعتبر شد','نشست ورود با Google منقضی یا نامعتبر شده است. دوباره تلاش کنید.'],invalid_code:['کد ورود معتبر نیست','کد ورود Google معتبر نیست یا قبلاً استفاده شده است. دوباره تلاش کنید.'],invalid_grant:['مجوز Google منقضی شد','مجوز دریافت‌شده از Google دیگر معتبر نیست. دوباره تلاش کنید.'],email_not_verified:['ایمیل تأیید نشده است','ایمیل این حساب هنوز تأیید نشده است. ابتدا ایمیل خود را تأیید کنید.']},
+    en:{internal_server_error:['Google sign-in could not be completed','An internal authentication error occurred while completing Google sign-in. Please try again.'],account_not_linked:['Google account is not linked','This Google account is not linked to a SolMint account.'],state_mismatch:['Security session expired','The Google sign-in security session is invalid or expired. Please try again.'],invalid_code:['Invalid sign-in code','The Google authorization code is invalid or has already been used. Please try again.'],invalid_grant:['Google authorization expired','The authorization returned by Google is no longer valid. Please try again.'],email_not_verified:['Email not verified','The email for this account has not been verified yet.']},
+    ar:{internal_server_error:['تعذر إكمال تسجيل الدخول عبر Google','حدث خطأ داخلي أثناء إكمال تسجيل الدخول عبر Google. حاول مرة أخرى.'],account_not_linked:['حساب Google غير مرتبط','حساب Google هذا غير مرتبط بحساب SolMint.'],state_mismatch:['انتهت الجلسة الأمنية','جلسة الأمان الخاصة بتسجيل الدخول عبر Google غير صالحة أو منتهية. حاول مرة أخرى.'],invalid_code:['رمز تسجيل الدخول غير صالح','رمز تفويض Google غير صالح أو تم استخدامه مسبقاً. حاول مرة أخرى.'],invalid_grant:['انتهت صلاحية تفويض Google','التفويض الذي أعاده Google لم يعد صالحاً. حاول مرة أخرى.'],email_not_verified:['لم يتم تأكيد البريد الإلكتروني','لم يتم تأكيد بريد هذا الحساب بعد.']},
+    ru:{internal_server_error:['Не удалось завершить вход через Google','При завершении входа через Google произошла внутренняя ошибка. Попробуйте ещё раз.'],account_not_linked:['Аккаунт Google не связан','Этот аккаунт Google не связан с аккаунтом SolMint.'],state_mismatch:['Истекла защитная сессия','Сессия безопасности входа через Google недействительна или истекла. Попробуйте ещё раз.'],invalid_code:['Недействительный код входа','Код авторизации Google недействителен или уже использован. Попробуйте ещё раз.'],invalid_grant:['Истекло разрешение Google','Разрешение, полученное от Google, больше недействительно. Попробуйте ещё раз.'],email_not_verified:['Почта не подтверждена','Электронная почта этой учётной записи ещё не подтверждена.']}
+  };
+  const generic={fa:['خطا در احراز هویت','عملیات ورود کامل نشد. لطفاً دوباره تلاش کنید.'],en:['Authentication error','The sign-in operation could not be completed. Please try again.'],ar:['خطأ في المصادقة','تعذر إكمال عملية تسجيل الدخول. حاول مرة أخرى.'],ru:['Ошибка аутентификации','Не удалось завершить вход. Попробуйте ещё раз.']};
+  const set=(messages[locale]&&messages[locale][error])||generic[locale]||generic.en;
+  document.documentElement.lang=locale==='fa'?'fa-IR':locale==='ar'?'ar':locale==='ru'?'ru':'en-US';
+  document.documentElement.dir=(locale==='fa'||locale==='ar')?'rtl':'ltr';
+  document.title=set[0]+' | SolMint';
+  document.getElementById('title').textContent=set[0];
+  document.getElementById('message').textContent=set[1];
+  document.getElementById('code').textContent='Error: '+error;
+  document.getElementById('action').textContent=locale==='fa'?'بازگشت به SolMint':locale==='ar'?'العودة إلى SolMint':locale==='ru'?'Вернуться в SolMint':'Back to SolMint';
+})();
+</script>
+</body>
+</html>
