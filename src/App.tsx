@@ -11,6 +11,7 @@ import { fetchCmsSettingsFromApi } from './utils/cmsApiClient';
 import { updateRouteSeo } from './utils/seoManager';
 import { getArticleCategoryTaxonomy, getArticleTagTaxonomy } from './utils/articleTaxonomy';
 import { updateTaxonomySeo } from './utils/taxonomySeo';
+import { signOutAllAuthSessions, useApplicationSession } from './utils/authClient';
 
 const ParticleCanvas = lazy(() => import('./components/ParticleCanvas').then(m => ({ default: m.ParticleCanvas })));
 const AppShowcase = lazy(() => import('./components/AppShowcase').then(m => ({ default: m.AppShowcase })));
@@ -124,6 +125,7 @@ const AdminQuickActionsPortal: React.FC<{ enabled: boolean; onOpenMarket: () => 
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePath(window.location.pathname || '/'));
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const { user: applicationSessionUser, isPending: authPending } = useApplicationSession();
   const [downloadLinks, setDownloadLinks] = useState<DownloadLinks>(() => safeGetLocalStorage<DownloadLinks>('solmint_download_links', DEFAULT_DOWNLOAD_LINKS));
   const [deepseekSettings, setDeepseekSettings] = useState<DeepSeekAiSettings>(() => safeGetLocalStorage<DeepSeekAiSettings>('solmint_deepseek_settings', DEFAULT_DEEPSEEK_SETTINGS));
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(() => safeGetLocalStorage<ChatbotSettings>('solmint_chatbot_settings', DEFAULT_CHATBOT_SETTINGS));
@@ -140,17 +142,10 @@ export default function App() {
   const [isShowcaseAdminOpen, setIsShowcaseAdminOpen] = useState(false);
   const [isMemeTickerAdminOpen, setIsMemeTickerAdminOpen] = useState(false);
 
-  // Authentication is server-owned. Restore the current account from the HttpOnly cookie on refresh.
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/users/me', { credentials: 'include', cache: 'no-store' })
-      .then(async res => {
-        const data = await res.json().catch(() => null);
-        if (!cancelled && res.ok && data?.success && data.user) setCurrentUser(data.user);
-      })
-      .catch(() => { /* Anonymous browsing is the valid fallback state. */ });
-    return () => { cancelled = true; };
-  }, []);
+    if (authPending) return;
+    setCurrentUser(applicationSessionUser ? applicationSessionUser as UserAccount : null);
+  }, [applicationSessionUser, authPending]);
 
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
@@ -217,7 +212,14 @@ export default function App() {
     if (currentPath !== '/solana-price') updateRouteSeo(currentPath);
   }, [currentPath, activeArticle, activeArticleSlug, taxonomyMatch, activeTaxonomy, taxonomyArticleCount]);
 
-  const handleLogout = () => { setCurrentUser(null); setIsShowcaseAdminOpen(false); setIsMemeTickerAdminOpen(false); localStorage.removeItem('solmint_current_user'); localStorage.removeItem('solmint_admin_session'); };
+  const handleLogout = async () => {
+    setCurrentUser(null);
+    setIsShowcaseAdminOpen(false);
+    setIsMemeTickerAdminOpen(false);
+    localStorage.removeItem('solmint_current_user');
+    localStorage.removeItem('solmint_admin_session');
+    await signOutAllAuthSessions();
+  };
 
   useEffect(() => {
     let cancelled = false;
