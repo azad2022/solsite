@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from '../../../../auth/_shared';
 import { PayRuntimeError, assertIdempotencyKey, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../_shared/runtime';
-import { API_KEY_SCOPE, apiKeyDisplayPrefix, createApiKeySecret, hashApiKeySecret } from '../../../../../src/pay/services/apiKeyPolicy';
+import { API_KEY_SCOPE, apiKeyDisplayPrefix, createApiKeySecret, hashApiKeySecret } from '../../../../../../src/pay/services/apiKeyPolicy';
 
 interface PayEnv {
   SUPABASE_URL?: string;
