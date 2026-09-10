@@ -20,23 +20,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
 
-      - name: Install dependencies
-        run: npm install --package-lock=false --no-audit --no-fund
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck production source
+        run: bunx tsc --noEmit -p tsconfig.ci.json
 
       - name: Production build
-        run: npm run build:ci
+        run: bunx vite build && bunx esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs
 
       - name: Unit tests
-        run: npm test
+        run: find tests -type f -name '*.test.ts' -print0 | xargs -0 bunx tsx --test
 
       - name: Assert source tree is unchanged
         run: |
