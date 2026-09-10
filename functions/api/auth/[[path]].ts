@@ -44,8 +44,29 @@ function unavailableResponse(code: AuthUnavailableCode, requestId: string): Resp
   });
 }
 
+export function isPasswordResetPath(pathname: string): boolean {
+  return /^\/api\/auth\/reset-password\/[^/]+$/.test(pathname);
+}
+
+export function redirectLegacyPasswordReset(request: Request): Response | null {
+  if (request.method !== 'GET') return null;
+  const url = new URL(request.url);
+  if (!isPasswordResetPath(url.pathname)) return null;
+
+  const token = url.pathname.slice('/api/auth/reset-password/'.length);
+  if (!token) return null;
+
+  const destination = new URL('/auth/reset-password', url.origin);
+  destination.searchParams.set('token', token);
+  return Response.redirect(destination.toString(), 302);
+}
+
 export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Response> => {
   const requestId = crypto.randomUUID();
+
+  const legacyResetRedirect = redirectLegacyPasswordReset(request);
+  if (legacyResetRedirect) return legacyResetRedirect;
+
   let runtime: ReturnType<typeof createBetterAuthRuntime> | null = null;
 
   try {

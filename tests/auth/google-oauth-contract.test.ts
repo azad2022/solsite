@@ -12,8 +12,10 @@ test('Google OAuth uses the canonical production callback and account selection'
   assert.match(authSource, /sameSite:\s*'lax'/);
 });
 
-test('Google sign-in uses a stable same-origin callback destination', () => {
-  assert.match(clientSource, /authClient\.signIn\.social\(\{\s*provider:\s*'google',\s*callbackURL:\s*'\/'\s*\}\)/s);
+test('Google sign-in preserves the originating device intent in a same-origin callback', () => {
+  assert.match(clientSource, /authClient\.signIn\.social\(\{\s*provider:\s*'google',\s*callbackURL:\s*buildGoogleCallbackURL\(\)\s*\}\)/s);
+  assert.match(clientSource, /function buildGoogleCallbackURL\(\)/);
+  assert.match(clientSource, /url\.searchParams\.set\('auth_device',\s*isMobileBrowser\(\)\s*\?\s*'mobile'\s*:\s*'desktop'\)/);
   assert.doesNotMatch(clientSource, /callbackURL:\s*window\.location\.href/);
 });
 

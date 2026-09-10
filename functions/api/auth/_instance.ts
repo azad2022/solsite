@@ -55,6 +55,12 @@ function setEmailVerificationCallback(url: string): string {
   }
 }
 
+function buildPasswordResetAppUrl(baseURL: string, token: string): string {
+  const parsed = new URL('/auth/reset-password', baseURL);
+  parsed.searchParams.set('token', token);
+  return parsed.toString();
+}
+
 export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
   const foundation = getBetterAuthFoundationConfig(env);
   const socialProviders = getGoogleProvider(env);
@@ -131,9 +137,13 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
       autoSignIn: false,
       requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
-      sendResetPassword: async ({ user, url }, request) => {
+      sendResetPassword: async ({ user, token }, request) => {
         const locale = resolveAuthEmailLocale(request);
-        const email = buildPasswordResetEmail(user.name, url, locale);
+        // Send users to the application reset UI rather than Better Auth's internal
+        // /api/auth/reset-password/:token endpoint. The token itself is still
+        // consumed and validated server-side by Better Auth on POST resetPassword.
+        const resetUrl = buildPasswordResetAppUrl(foundation.baseURL, token);
+        const email = buildPasswordResetEmail(user.name, resetUrl, locale);
         await sendAuthEmail(env, { to: user.email, ...email });
       },
     },

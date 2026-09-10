@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
-import { AlertCircle, Chrome, Eye, EyeOff, Loader2, LockKeyhole, Mail, MailCheck, ShieldCheck, UserPlus, X } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2, LockKeyhole, Mail, MailCheck, ShieldCheck, X } from 'lucide-react';
 import { authClient, fetchApplicationUser } from '../utils/authClient';
 import { authDiagnosticLabel, authErrorMessage } from '../utils/authErrorMessages';
 import type { UserAccount } from '../types';
@@ -15,6 +15,21 @@ const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
 };
 
 function callbackErrorFromLocation(): { message: string; code: string } | null { const error = new URLSearchParams(window.location.search).get('error'); return error ? { message: CALLBACK_ERROR_MESSAGES[error] || `ورود با Google ناموفق بود (${error}).`, code: error.toUpperCase() } : null; }
+
+function isMobileBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const handheld = /android|iphone|ipad|ipod|mobile/i.test(userAgent);
+  const narrow = window.matchMedia?.('(max-width: 767px)').matches ?? window.innerWidth <= 767;
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  return handheld || narrow || (coarse && window.innerWidth <= 1024);
+}
+
+export function buildGoogleCallbackURL(): string {
+  const url = new URL('/', window.location.origin);
+  url.searchParams.set('auth_device', isMobileBrowser() ? 'mobile' : 'desktop');
+  return url.toString();
+}
 
 async function readApplicationUser(): Promise<SafeApplicationUser | null> {
   const response = await fetchApplicationUser(); const payload = (await response.json().catch(() => null)) as ApplicationUserResponse | null;
@@ -46,16 +61,25 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
       const applicationUser = await readApplicationUser(); if (!applicationUser || applicationUser.isActive === false || !applicationUser.createdAt) throw new Error('ورود انجام شد اما پروفایل کاربردی معتبر یا فعال نیست.'); setCurrentUser(applicationUser as UserAccount); onClose();
     } catch (error) { setFailure(error, mode === 'register' ? 'ثبت‌نام انجام نشد.' : 'ورود انجام نشد.'); }
   };
-  const continueWithGoogle = async () => { if (isLoading) return; setState('loading'); setMessage(''); setDiagnosticCode(null); try { const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/' }); if (result.error) throw result.error; } catch (error) { setFailure(error, 'ورود با Google انجام نشد.'); } };
-  const resendVerification = async () => { if (isLoading || !pendingVerificationEmail) return; setState('loading'); try { const result = await authClient.sendVerificationEmail({ email: pendingVerificationEmail, callbackURL: '/' }); if (result.error) throw result.error; setState('verification'); setMessage('ایمیل تأیید دوباره ارسال شد. صندوق ورودی و Spam را بررسی کنید.'); } catch (error) { setFailure(error, 'ارسال دوبارهٔ ایمیل تأیید انجام نشد.'); } };
+  const continueWithGoogle = async () => { if (isLoading) return; setState('loading'); setMessage(''); setDiagnosticCode(null); try { const result = await authClient.signIn.social({ provider: 'google', callbackURL: buildGoogleCallbackURL() }); if (result.error) throw result.error; } catch (error) { setFailure(error, 'ورود با Google انجام نشد.'); } };
+  const resendVerification = async () => { if (isLoading || !pendingVerificationEmail) return; setState('loading'); try { const result = await authClient.sendVerificationEmail({ email: pendingVerificationEmail, callbackURL: buildGoogleCallbackURL() }); if (result.error) throw result.error; setState('verification'); setMessage('ایمیل تأیید دوباره ارسال شد. صندوق ورودی و Spam را بررسی کنید.'); } catch (error) { setFailure(error, 'ارسال دوبارهٔ ایمیل تأیید انجام نشد.'); } };
 
-  return <div className="fixed inset-0 z-[100] flex min-h-dvh items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-md sm:p-6" role="dialog" aria-modal="true" aria-labelledby={titleId} dir="rtl" onMouseDown={event => { if (event.target === event.currentTarget && !isLoading) onClose(); }}><div className="w-full max-w-[440px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-2xl"><div className="h-1 bg-gradient-to-r from-pink-500 via-fuchsia-500 to-violet-500" /><div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6 sm:px-7"><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-pink-50 text-pink-600"><ShieldCheck size={23} /></div><div><p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-pink-600">SolMint Account</p><h2 id={titleId} className="mt-1 text-xl font-black text-slate-950">{mode === 'login' ? 'خوش آمدید' : 'حساب SolMint'}</h2></div></div><button type="button" onClick={onClose} disabled={isLoading} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-40" aria-label="بستن پنجره ورود"><X size={18} /></button></div><div className="px-6 pb-6 sm:px-7 sm:pb-7">
-    <button type="button" onClick={() => void continueWithGoogle()} disabled={isLoading} className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50">{isLoading ? <Loader2 size={17} className="animate-spin" /> : <Chrome size={18} />}ادامه با Google</button>
+  return <div className="fixed inset-0 z-[100] flex min-h-dvh items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-md sm:p-6" role="dialog" aria-modal="true" aria-labelledby={titleId} dir="rtl" onMouseDown={event => { if (event.target === event.currentTarget && !isLoading) onClose(); }}><div className="w-full max-w-[440px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-2xl"><div className="h-1 bg-gradient-to-r from-pink-500 via-fuchsia-500 to-violet-500" /><div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6 sm:px-7"><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-pink-50 text-pink-600"><ShieldCheck size={23} /></div><div><p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-pink-600">SolMint Account</p><h2 id={titleId} className="mt-1 text-xl font-black text-slate-950">{mode === 'login' ? 'ورود به حساب' : 'ایجاد حساب'}</h2></div></div><button type="button" onClick={onClose} disabled={isLoading} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-40" aria-label="بستن پنجره ورود"><X size={18} /></button></div><div className="px-6 pb-6 sm:px-7 sm:pb-7">
+    <button type="button" onClick={() => void continueWithGoogle()} disabled={isLoading} className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50">{isLoading ? <Loader2 size={17} className="animate-spin" /> : <GoogleIcon />}ادامه با Google</button>
     <div className="my-5 flex items-center gap-3 text-[11px] font-semibold text-slate-400"><span className="h-px flex-1 bg-slate-100" /><span>یا با ایمیل و رمز عبور</span><span className="h-px flex-1 bg-slate-100" /></div>
     <form onSubmit={submit} noValidate className="space-y-3.5">{mode === 'register' ? <><Field label="نام و نام خانوادگی" htmlFor={nameId}><input id={nameId} value={name} onChange={e => setName(e.target.value)} autoComplete="name" className={inputClassName} /></Field><Field label="نام کاربری" htmlFor={usernameId}><input id={usernameId} value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" className={inputClassName} /></Field><Field label="ایمیل" htmlFor={emailId}><input id={emailId} value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" type="email" inputMode="email" className={inputClassName} dir="ltr" /></Field></> : <Field label="ایمیل یا نام کاربری" htmlFor={identifierId}><input id={identifierId} value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" className={inputClassName} /></Field>}<Field label="رمز عبور" htmlFor={passwordId}><div className="relative"><input id={passwordId} value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} type={showPassword ? 'text' : 'password'} className={`${inputClassName} pl-12`} dir="ltr" /><button type="button" onClick={() => setShowPassword(v => !v)} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-400" aria-label={showPassword ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></Field>{state === 'verification' && <><StatusMessage tone="success" icon={<MailCheck size={17} />} message={message} />{pendingVerificationEmail && <button type="button" onClick={() => void resendVerification()} disabled={isLoading} className="w-full rounded-2xl border border-pink-100 bg-pink-50 px-4 py-2.5 text-xs font-extrabold text-pink-700 disabled:opacity-50">ارسال دوبارهٔ ایمیل تأیید</button>}</>}{state === 'error' && <StatusMessage tone="error" icon={<AlertCircle size={17} />} message={message} diagnosticCode={diagnosticCode} />}<button type="submit" disabled={isLoading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-extrabold text-white disabled:opacity-50">{isLoading ? <Loader2 size={17} className="animate-spin" /> : <LockKeyhole size={17} />}{mode === 'login' ? 'ورود امن' : 'ایجاد حساب'}</button></form>
     {mode === 'login' && <button type="button" onClick={() => { window.location.href = '/auth/reset-password'; }} className="mt-3 w-full rounded-2xl border border-pink-100 bg-pink-50 px-4 py-2.5 text-xs font-extrabold text-pink-700 hover:bg-pink-100">رمز عبور را فراموش کرده‌اید؟</button>}
-    <button type="button" onClick={switchMode} disabled={isLoading} className="mt-3.5 w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 disabled:opacity-50">{mode === 'login' ? 'ساخت حساب جدید' : 'ورود به حساب'}</button><div className="mt-5 flex items-center justify-center gap-2 text-[11px] leading-5 text-slate-500"><ShieldCheck size={13} /><span>نشست احراز هویت در سمت سرور و با کوکی HttpOnly مدیریت می‌شود.</span></div>
+    <button type="button" onClick={switchMode} disabled={isLoading} className="mt-3.5 w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 disabled:opacity-50">{mode === 'login' ? 'ساخت حساب جدید' : 'ورود به حساب'}</button>
   </div></div></div>;
+}
+
+function GoogleIcon(): React.ReactElement {
+  return <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path fill="#EA4335" d="M21.35 12.27c0-.71-.06-1.39-.18-2.05H12v3.88h5.24a4.49 4.49 0 0 1-1.95 2.94v2.46h3.16c1.85-1.7 2.9-4.2 2.9-7.23Z"/>
+    <path fill="#34A853" d="M12 21.98c2.7 0 4.96-.89 6.61-2.41l-3.16-2.46c-.88.59-2 .94-3.45.94-2.64 0-4.88-1.78-5.68-4.18H3.05v2.54A9.98 9.98 0 0 0 12 21.98Z"/>
+    <path fill="#4A90E2" d="M6.32 13.87A6 6 0 0 1 6 12c0-.65.11-1.28.32-1.87V7.59H3.05A9.98 9.98 0 0 0 2 12c0 1.61.39 3.13 1.05 4.41l3.27-2.54Z"/>
+    <path fill="#FBBC05" d="M12 5.95c1.55 0 2.94.53 4.03 1.57l3.02-3.02C16.96 2.92 14.7 2.02 12 2.02a9.98 9.98 0 0 0-8.95 5.57l3.27 2.54C7.12 7.73 9.36 5.95 12 5.95Z"/>
+  </svg>;
 }
 
 const inputClassName = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-50';
