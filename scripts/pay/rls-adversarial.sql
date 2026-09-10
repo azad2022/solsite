@@ -4,16 +4,22 @@
 
 begin;
 
+insert into public.users(id, username, full_name, password_hash, role, is_active)
+values
+  ('usr-pay-rls-a','pay_rls_test_a','Pay RLS Test A','test-only-placeholder-hash','admin',true),
+  ('usr-pay-rls-b','pay_rls_test_b','Pay RLS Test B','test-only-placeholder-hash','admin',true),
+  ('usr-pay-rls-c','pay_rls_test_c','Pay RLS Test C','test-only-placeholder-hash','user',true);
+
 insert into public.pay_merchants(id, owner_user_id, business_name, slug, status)
 values
-  ('00000000-0000-4000-8000-0000000000a1','usr-418a5419-4836-467f-bc27-385b65eef9df','RLS Test A','rls-test-a','active'),
-  ('00000000-0000-4000-8000-0000000000b1','usr-a0e5ca72-97f5-45cc-b671-251a5d664db3','RLS Test B','rls-test-b','active');
+  ('00000000-0000-4000-8000-0000000000a1','usr-pay-rls-a','RLS Test A','rls-test-a','active'),
+  ('00000000-0000-4000-8000-0000000000b1','usr-pay-rls-b','RLS Test B','rls-test-b','active');
 
 insert into public.pay_merchant_members(merchant_id,user_id,role,status)
 values
-  ('00000000-0000-4000-8000-0000000000a1','usr-418a5419-4836-467f-bc27-385b65eef9df','owner','active'),
-  ('00000000-0000-4000-8000-0000000000b1','usr-a0e5ca72-97f5-45cc-b671-251a5d664db3','owner','active'),
-  ('00000000-0000-4000-8000-0000000000a1','usr-e68eeff0-d0f7-4b4c-a168-1c18c8d05c80','viewer','active');
+  ('00000000-0000-4000-8000-0000000000a1','usr-pay-rls-a','owner','active'),
+  ('00000000-0000-4000-8000-0000000000b1','usr-pay-rls-b','owner','active'),
+  ('00000000-0000-4000-8000-0000000000a1','usr-pay-rls-c','viewer','active');
 
 insert into public.pay_payment_intents(
   id, merchant_id, amount_atomic, asset, recipient, reference, fee_bps,
@@ -29,65 +35,32 @@ values
    'created',now()+interval '15 minutes',2000000,1980000,'44444444444444444444444444444444','solana',1980000);
 
 set local role authenticated;
-select set_config('request.jwt.claims', json_build_object(
-  'solmint_user_id','usr-418a5419-4836-467f-bc27-385b65eef9df'
-)::text, true);
+select set_config('request.jwt.claims', json_build_object('solmint_user_id','usr-pay-rls-a')::text, true);
 
--- Owner A: own tenant only, no cross-merchant visibility, no direct write grants.
 do $$
 begin
-  if (select array_agg(slug order by slug) from public.pay_merchants) <> array['rls-test-a'] then
-    raise exception 'RLS_FAIL owner merchant isolation';
-  end if;
-  if (select array_agg(id::text order by id) from public.pay_payment_intents) <> array['00000000-0000-4000-8000-0000000000c1'] then
-    raise exception 'RLS_FAIL owner payment isolation';
-  end if;
-  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000b1'::uuid) then
-    raise exception 'RLS_FAIL cross-merchant access';
-  end if;
-  if not public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid, array['owner']::text[]) then
-    raise exception 'RLS_FAIL owner role access';
-  end if;
-  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid, array['finance']::text[]) then
-    raise exception 'RLS_FAIL unauthorized finance role';
-  end if;
-  if has_table_privilege('authenticated','public.pay_payment_intents','insert') then
-    raise exception 'RLS_FAIL authenticated insert grant';
-  end if;
-  if has_table_privilege('authenticated','public.pay_payment_intents','update') then
-    raise exception 'RLS_FAIL authenticated update grant';
-  end if;
-  if has_table_privilege('authenticated','public.pay_api_keys','select') then
-    raise exception 'RLS_FAIL authenticated api-key visibility';
-  end if;
+  if (select array_agg(slug order by slug) from public.pay_merchants) <> array['rls-test-a'] then raise exception 'RLS_FAIL owner merchant isolation'; end if;
+  if (select array_agg(id::text order by id) from public.pay_payment_intents) <> array['00000000-0000-4000-8000-0000000000c1'] then raise exception 'RLS_FAIL owner payment isolation'; end if;
+  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000b1'::uuid) then raise exception 'RLS_FAIL cross-merchant access'; end if;
+  if not public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid, array['owner']::text[]) then raise exception 'RLS_FAIL owner role access'; end if;
+  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid, array['finance']::text[]) then raise exception 'RLS_FAIL unauthorized finance role'; end if;
+  if has_table_privilege('authenticated','public.pay_payment_intents','insert') then raise exception 'RLS_FAIL authenticated insert grant'; end if;
+  if has_table_privilege('authenticated','public.pay_payment_intents','update') then raise exception 'RLS_FAIL authenticated update grant'; end if;
+  if has_table_privilege('authenticated','public.pay_api_keys','select') then raise exception 'RLS_FAIL authenticated api-key visibility'; end if;
 end $$;
 
--- Viewer C: own merchant visibility, viewer role allowed, finance role denied.
-select set_config('request.jwt.claims', json_build_object(
-  'solmint_user_id','usr-e68eeff0-d0f7-4b4c-a168-1c18c8d05c80'
-)::text, true);
+select set_config('request.jwt.claims', json_build_object('solmint_user_id','usr-pay-rls-c')::text, true);
 do $$
 begin
-  if (select array_agg(slug order by slug) from public.pay_merchants) <> array['rls-test-a'] then
-    raise exception 'RLS_FAIL viewer merchant isolation';
-  end if;
-  if not public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid) then
-    raise exception 'RLS_FAIL viewer tenant access';
-  end if;
-  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid, array['finance']::text[]) then
-    raise exception 'RLS_FAIL viewer finance access';
-  end if;
+  if (select array_agg(slug order by slug) from public.pay_merchants) <> array['rls-test-a'] then raise exception 'RLS_FAIL viewer merchant isolation'; end if;
+  if not public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid) then raise exception 'RLS_FAIL viewer tenant access'; end if;
+  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid, array['finance']::text[]) then raise exception 'RLS_FAIL viewer finance access'; end if;
 end $$;
 
--- Invalid/nonexistent application user must not gain merchant access.
-select set_config('request.jwt.claims', json_build_object(
-  'solmint_user_id','usr-does-not-exist'
-)::text, true);
+select set_config('request.jwt.claims', json_build_object('solmint_user_id','usr-does-not-exist')::text, true);
 do $$
 begin
-  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid) then
-    raise exception 'RLS_FAIL unknown user access';
-  end if;
+  if public.pay_has_merchant_access('00000000-0000-4000-8000-0000000000a1'::uuid) then raise exception 'RLS_FAIL unknown user access'; end if;
 end $$;
 
 rollback;
