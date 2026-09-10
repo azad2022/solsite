@@ -1,60 +1,81 @@
 # SolMint Pay — Backend Exposure Gates
 
-These gates are derived from the live Supabase project and repository state observed on 2026-09-06.
+These gates are based on the repository state and live Supabase project `nvopkbiedorfshwbmyhn` validated on 2026-09-10.
 
-## Gate A — RLS / tenant isolation — BLOCKED
+## Gate A — RLS / tenant isolation — PASS (adversarial validation)
 
-Live inspection of `pg_policies` returned no policies for the `pay_*` tables. RLS being enabled is therefore not sufficient evidence for browser-facing merchant isolation.
+All 23 live `pay_*` tables are RLS-enabled. Merchant-scoped authenticated tables expose SELECT only through tenant-aware policies, while sensitive server-only tables have no authenticated SELECT grant.
 
-Before exposing merchant-scoped Pay endpoints, the backend/database layer must provide and validate the intended policy or an equivalent non-browser data-access boundary. The public Checkout Payment Intent endpoint is deliberately limited to a server-side, ID-based snapshot and must not become a substitute for merchant-scoped dashboard authorization.
+Production adversarial validation used ephemeral transaction-scoped fixtures and verified:
+
+- merchant A is isolated from merchant B
+- payment intents remain tenant-isolated
+- owner access works only for the owned merchant
+- unauthorized role elevation is denied
+- suspended/inactive/unknown identities do not gain merchant access
+- authenticated has no direct INSERT/UPDATE access to payment intents
+- authenticated cannot read sensitive API-key/webhook data
+
+All fixtures were rolled back; production data was left unchanged.
 
 ## Gate B — Pay mutation routine hardening — PASS
 
-The four Pay routines previously flagged for mutable `search_path` were hardened in the live database and the exact remediation is now persisted in the repository migration chain:
+The four Pay routines previously flagged for mutable `search_path` remain hardened in the repository migration chain:
 
 - `pay_reject_mutation`
 - `pay_reject_merchant_ledger_mutation`
 - `pay_insert_merchant_principal_entry`
 - `pay_skip_duplicate_payment_transfer`
 
-Live verification confirms `search_path=public`, `anon` execution is revoked, `authenticated` execution is revoked, and `service_role` retains execution. These routines are not `SECURITY DEFINER`; this gate is specifically about search-path hardening and PostgREST execution exposure.
+The intended execution boundary remains server-side/service-role only.
 
-## Gate C — production HTTP contract — PARTIALLY RELEASED
+## Gate C — production HTTP contract — PASS for unauthenticated/security boundary; authenticated merchant path pending
 
-A first real Pay read contract now exists in the feature branch:
+A production contract smoke is now executed against `https://solmint.ir` and verifies:
 
-`GET /api/pay/v1/payment-intents/:id`
+- malformed Payment Intent IDs return the canonical JSON error envelope
+- merchant reads require a valid SolMint session
+- forged bearer credentials do not create an authenticated Pay principal
+- merchant creation rejects untrusted origins
+- merchant creation requires authentication before mutation
+- wallet-challenge issuance requires authentication before mutation
+- Payment Intent creation requires a merchant API credential
 
-The contract is published in `public/openapi.json`, advertised by the dynamic and static API catalogs, and routed through `public/_routes.json`. The response is an explicit checkout-safe allowlist; internal accounting fields are not exposed.
-
-This gate remains operationally blocked until deployment validation proves that the endpoint is actually reachable in the target environment with the intended server-only Supabase credential configuration.
+The authenticated merchant creation → wallet ownership → API credential path is intentionally not claimed yet because production currently has no merchant/API-key fixture suitable for a full authenticated E2E.
 
 ## Gate D — authoritative lifecycle — PARTIALLY RELEASED
 
-The Payment Intent contract exposes the server-owned `status` and `verificationCommitment`. The Checkout frontend consumes these values verbatim and does not infer success from transaction submission, reference, signature, or webhook delivery.
+The Payment Intent contract exposes server-owned payment state and verification data. The Checkout frontend must consume these values without inferring success from transaction submission, reference, signature, or webhook delivery.
 
-The full lifecycle gate remains open until the release evidence proves authoritative detection, verification, confirmation, and completion behavior against real payment observations.
+The full lifecycle gate remains open until controlled real observations prove detection, verification, confirmation, completion, and failure/replay behavior.
 
 ## Gate E — financial representation — PASSING AT CONTRACT/UI BOUNDARY
 
-Atomic financial values are transported as strings. The frontend performs only decimal-point presentation using integer/string operations; it does not calculate fees, balances, settlement, revenue, eligibility, or payment success.
+Atomic financial values are transported as strings. Frontend presentation must not use floating-point arithmetic for authoritative financial calculations and must not calculate balances, settlement, revenue, withdrawal eligibility, refunds, or payment success.
 
-## Gate F — release evidence — BLOCKED
+## Gate F — release evidence — IN PROGRESS / BLOCKED FOR EXTERNAL USE
 
-The following are still mandatory before Pay becomes externally usable:
+Completed evidence:
 
-- CI and production build on the current HEAD
-- RLS / tenant-isolation validation
-- authorization validation for merchant-scoped operations
-- idempotency validation
-- verification/reconciliation validation
-- adversarial payment cases
-- webhook security validation
-- frontend integration validation
-- a real E2E checkout lifecycle using a controlled non-production Payment Intent fixture
+- immutable CI typecheck/build/tests
+- production build validation
+- production API security/contract smoke
+- production RLS tenant-isolation adversarial validation
+- Mainnet read-only provider compatibility
+- webhook egress security validation
+- Pay database routine/RLS security checks
 
-The live Pay database currently contains zero Payment Intent rows. Therefore a successful live checkout E2E cannot honestly be claimed from the current environment without introducing a controlled test fixture in an appropriate non-production environment.
+Remaining evidence:
+
+- authenticated production Merchant onboarding contract with a controlled account
+- wallet ownership verification lifecycle
+- API credential issuance/revocation and payment-intent authorization E2E
+- controlled non-production funded Payment Intent lifecycle E2E
+- adversarial payment cases including underpayment, overpayment, wrong asset/recipient/reference, duplicate/replay, expiry and ambiguous discovery
+- final release audit and branch-protection enforcement
+
+The live Pay database currently contains no Merchant/API-key production fixture. No mock production payment is inserted merely to create green E2E output.
 
 ## Current decision
 
-The frontend may consume the released read contract, but `/pay` must remain an unreleased feature until Gates A, C operational verification, D, and F are green. No mock Payment Intent should be inserted into the production database merely to make E2E appear successful.
+Pay has a validated authorization/RLS foundation and a live unauthenticated/security contract. The frontend may continue integration against the published backend contracts, but external production Pay remains unreleased until the authenticated merchant path, controlled payment lifecycle, adversarial verification evidence, and final release gates are complete.

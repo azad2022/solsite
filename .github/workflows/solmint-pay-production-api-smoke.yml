@@ -1,0 +1,48 @@
+name: SolMint Pay Production API Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'functions/api/pay/**'
+      - 'src/pay/**'
+      - 'e2e/pay-production-api-contract.e2e.ts'
+      - 'package.json'
+      - '.github/workflows/solmint-pay-production-api-smoke.yml'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/api/pay/**'
+      - 'src/pay/**'
+      - 'e2e/pay-production-api-contract.e2e.ts'
+      - 'package.json'
+      - '.github/workflows/solmint-pay-production-api-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  production-api-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install dependencies (immutable)
+        run: bun install --frozen-lockfile
+
+      - name: Run production API contract smoke
+        run: bun run test:e2e:pay-production-contract
+
+      - name: Assert source tree is unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain)"

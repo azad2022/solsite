@@ -12,8 +12,12 @@
     "start": "node scripts/start-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && tsc --noEmit",
-    "test": "find tests -type f -name '*.test.ts' -print0 | xargs -0 tsx --test"
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "build:ci": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "test": "find tests -type f -name '*.test.ts' -print0 | xargs -0 tsx --test",
+    "test:pay:devnet": "tsx e2e/pay-devnet-native.e2e.ts",
+    "test:e2e:pay-production-contract": "tsx e2e/pay-production-api-contract.e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -39,7 +43,6 @@
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "10.4.21",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }
