@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const ORIGIN = (process.env.SOLMINT_PAY_PRODUCTION_ORIGIN || 'https://solmint.ir').replace(/\/$/, '');
-const TRUSTED_ORIGIN = ORIGIN;
 const TIMEOUT_MS = 15_000;
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -70,7 +69,7 @@ test('production Pay API rejects forged bearer credentials for merchant reads', 
   assert.equal(typeof body.requestId, 'string');
 });
 
-test('production Pay API requires a trusted origin for merchant creation', async () => {
+test('production Pay API rejects untrusted origin before merchant authentication', async () => {
   const response = await request('/api/pay/v1/merchants', {
     method: 'POST',
     headers: {
@@ -86,35 +85,33 @@ test('production Pay API requires a trusted origin for merchant creation', async
   assert.equal(typeof body.requestId, 'string');
 });
 
-test('production Pay API requires authentication before merchant creation', async () => {
+test('production Pay API fails closed when merchant creation has no origin header', async () => {
   const response = await request('/api/pay/v1/merchants', {
     method: 'POST',
     headers: {
-      Origin: TRUSTED_ORIGIN,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ businessName: 'Smoke Merchant', slug: 'smoke-merchant' }),
   });
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 403);
   const body = await readJson(response);
   assert.equal(body.success, false);
-  assert.equal(body.code, 'UNAUTHORIZED');
+  assert.equal(body.code, 'ORIGIN_FORBIDDEN');
   assert.equal(typeof body.requestId, 'string');
 });
 
-test('production Pay API requires authentication before wallet challenge issuance', async () => {
+test('production Pay API fails closed when wallet challenge issuance has no origin header', async () => {
   const response = await request('/api/pay/v1/merchants/not-a-real-merchant/wallet-challenges', {
     method: 'POST',
     headers: {
-      Origin: TRUSTED_ORIGIN,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ walletAddress: '11111111111111111111111111111111' }),
   });
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 403);
   const body = await readJson(response);
   assert.equal(body.success, false);
-  assert.equal(body.code, 'UNAUTHORIZED');
+  assert.equal(body.code, 'ORIGIN_FORBIDDEN');
   assert.equal(typeof body.requestId, 'string');
 });
 
