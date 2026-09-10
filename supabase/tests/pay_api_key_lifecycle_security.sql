@@ -1,16 +1,16 @@
 -- SolMint Pay API-key lifecycle database/security fixture.
--- Runs against isolated PostgreSQL in CI. It applies the exact lifecycle
--- migrations, verifies grants, then exercises create/replay/conflict/revoke/
--- rotate and audit behavior with transaction-scoped fixtures.
+-- Runs against the same isolated PostgreSQL instance as the Pay identity/RLS test.
+-- It reuses roles created by the first fixture, applies the exact lifecycle
+-- migrations, then exercises create/replay/conflict/revoke/rotate and audit behavior.
 
-create role anon;
-create role authenticated;
-create role service_role;
+DO $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role;
+  end if;
+end $$;
 grant usage on schema public to authenticated, service_role;
 
-create table public.users (id text primary key, is_active boolean not null);
-create table public.pay_merchants (id uuid primary key, status text not null);
-create table public.pay_merchant_members (user_id text not null, merchant_id uuid not null, status text not null, role text not null);
 create table public.pay_api_keys (
   id uuid primary key default gen_random_uuid(), merchant_id uuid not null, name text not null,
   key_prefix text not null, key_hash text not null unique, scopes text[] not null default '{}'::text[],
@@ -42,12 +42,12 @@ insert into public.pay_merchant_members(user_id,merchant_id,status,role) values
 
 DO $$
 begin
-  if has_function_privilege('service_role','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role create grant missing'; end if;
+  if has_function_privilege('service_role','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role create grant missing'; end if;
   if has_function_privilege('service_role','public.pay_revoke_api_key(text,uuid,uuid)','EXECUTE') is not true then raise exception 'service_role revoke grant missing'; end if;
   if has_function_privilege('service_role','public.pay_rotate_api_key(text,uuid,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role rotate grant missing'; end if;
   if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
   if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
-  if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
+  if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
 end $$;
 
 select public.pay_create_api_key('user-a','00000000-0000-0000-0000-000000000001','production','sk_pay_test01',repeat('a',64),array['payment.create']::text[],null,'create-1',repeat('b',64)) as create_result \gset
