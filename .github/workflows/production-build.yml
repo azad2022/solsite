@@ -54,8 +54,8 @@ jobs:
       - name: Verify contextual linker regression tests
         run: bun test tests/contextualHtmlLinking.test.ts
 
-      - name: Typecheck
-        run: bunx tsc --noEmit
+      - name: Typecheck production source
+        run: bunx tsc --noEmit -p tsconfig.ci.json
 
       - name: Production build
         run: bunx vite build && bunx esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs
