@@ -6,11 +6,17 @@
 
 DO $$
 begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated;
+  end if;
   if not exists (select 1 from pg_roles where rolname = 'service_role') then
     create role service_role;
   end if;
 end $$;
-grant usage on schema public to authenticated, service_role;
+grant usage on schema public to anon, authenticated, service_role;
 
 -- Minimal domain dependencies referenced by the lifecycle functions.
 create table public.users (
@@ -88,8 +94,7 @@ end $$;
 
 select public.pay_create_api_key('user-b','00000000-0000-0000-0000-000000000001','wrong-owner','sk_pay_test04',repeat('f',64),array['payment.create']::text[],null,'create-2',repeat('1',64)) as forbidden_result \gset
 DO $$ begin
-  if :'forbidden_result'::jsonb->>'reason' <> 'MERCHANT_FORBIDDEN' then raise exception 'cross-merchant owner must be denied'; end if;
-end $$;
+  if :'forbidden_result'::jsonb->>'reason' <> 'MERCHANT_FORBIDDEN' then raise exception 'cross-merchant owner must be denied'; end $$;
 
 select public.pay_revoke_api_key('user-a','00000000-0000-0000-0000-000000000001',(select id from public.pay_api_keys where key_prefix='sk_pay_test01')) as revoke_result \gset
 DO $$ begin
