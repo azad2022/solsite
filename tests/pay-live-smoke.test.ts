@@ -18,30 +18,34 @@ test('Pay live smoke suite requires PAY_LIVE_SMOKE_BASE_URL', { skip: !liveBaseU
     });
   }
 
-  await t();
+  const merchantResponse = await request('/api/pay/v1/merchants');
+  assert.equal(merchantResponse.status, 401, 'Pay merchant endpoint must require a valid SolMint session');
+  assert.equal(merchantResponse.headers.get('x-pay-request-id')?.startsWith('PAY-'), true);
+  const merchantBody = await merchantResponse.json() as { code?: string; success?: boolean };
+  assert.equal(merchantBody.success, false);
+  assert.equal(merchantBody.code, 'UNAUTHORIZED');
 
-  async function t(): Promise<void> {
-    const merchantResponse = await request('/api/pay/v1/merchants');
-    assert.equal(merchantResponse.status, 401, 'Pay merchant endpoint must require a valid SolMint session');
-    assert.equal(merchantResponse.headers.get('x-pay-request-id')?.startsWith('PAY-'), true);
-    const merchantBody = await merchantResponse.json() as { code?: string; success?: boolean };
-    assert.equal(merchantBody.success, false);
-    assert.equal(merchantBody.code, 'UNAUTHORIZED');
+  const intentResponse = await request('/api/pay/v1/payment-intents', {
+    method: 'POST',
+    body: JSON.stringify({ amountAtomic: '1000000', asset: 'SOL', feePayer: 'merchant' }),
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'live-smoke-unauthenticated' },
+  });
+  assert.equal(intentResponse.status, 401, 'Payment creation must require Pay API credentials');
+  const intentBody = await intentResponse.json() as { code?: string; success?: boolean };
+  assert.equal(intentBody.success, false);
+  assert.equal(intentBody.code, 'UNAUTHORIZED');
 
-    const intentResponse = await request('/api/pay/v1/payment-intents', {
-      method: 'POST',
-      body: JSON.stringify({ amountAtomic: '1000000', asset: 'SOL', feePayer: 'merchant' }),
-      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'live-smoke-unauthenticated' },
-    });
-    assert.equal(intentResponse.status, 401, 'Payment creation must require Pay API credentials');
-    const intentBody = await intentResponse.json() as { code?: string; success?: boolean };
-    assert.equal(intentBody.success, false);
-    assert.equal(intentBody.code, 'UNAUTHORIZED');
-
-    const malformedResponse = await request('/api/pay/v1/payment-intents/not-a-uuid');
-    assert.equal(malformedResponse.status, 400);
-    const malformedBody = await malformedResponse.json() as { code?: string; success?: boolean };
-    assert.equal(malformedBody.success, false);
-    assert.equal(malformedBody.code, 'PAYMENT_INTENT_ID_INVALID');
-  }
+  const malformedResponse = await request('/api/pay/v1/payment-intents/not-a-uuid');
+  const malformedContentType = malformedResponse.headers.get('content-type') || '';
+  const malformedText = await malformedResponse.text();
+  console.log(JSON.stringify({
+    malformedStatus: malformedResponse.status,
+    malformedContentType,
+    malformedBody: malformedText.slice(0, 1000),
+  }));
+  assert.equal(malformedResponse.status, 400);
+  assert.match(malformedContentType, /application\/json/i);
+  const malformedBody = JSON.parse(malformedText) as { code?: string; success?: boolean };
+  assert.equal(malformedBody.success, false);
+  assert.equal(malformedBody.code, 'PAYMENT_INTENT_ID_INVALID');
 });
