@@ -13,7 +13,10 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && tsc --noEmit",
-    "test": "find tests -type f -name '*.test.ts' -print0 | xargs -0 tsx --test"
+    "typecheck": "tsc --noEmit",
+    "build:ci": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "test": "find tests -type f -name '*.test.ts' -print0 | xargs -0 tsx --test",
+    "test:pay:devnet": "tsx e2e/pay-devnet.e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -31,6 +34,7 @@
     "react-dom": "^19.0.1"
   },
   "devDependencies": {
+    "@solana/web3.js": "1.99.0",
     "@types/compression": "^1.8.0",
     "@types/node": "^22.20.1",
     "@types/pg": "^8.15.5",
