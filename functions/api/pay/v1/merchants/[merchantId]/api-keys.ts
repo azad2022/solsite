@@ -52,7 +52,12 @@ async function assertMerchantOwner(env: PayEnv, merchantId: string, userId: stri
   const rows = await response.json() as Array<{ id: string; owner_user_id: string; status: string }>;
   const merchant = rows[0];
   if (!merchant || merchant.owner_user_id !== userId) throw new PayRuntimeError('FORBIDDEN', 403, 'You do not control this merchant account.');
-  if (merchant.status === 'suspended' || merchant.status === 'closed') throw new PayRuntimeError('MERCHANT_NOT_ACTIVE', 403, 'Merchant is not available for API credentials.');
+  if (merchant.status !== 'active') throw new PayRuntimeError('MERCHANT_NOT_ACTIVE', 403, 'Merchant is not active.');
+
+  const membershipResponse = await supabaseRequest(env, `/rest/v1/pay_merchant_members?select=user_id,status,role&merchant_id=eq.${encodeURIComponent(merchantId)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`, { headers: { Accept: 'application/json' } });
+  const memberships = await membershipResponse.json() as Array<{ user_id: string; status: string; role: string }>;
+  const membership = memberships[0];
+  if (!membership || membership.status !== 'active' || membership.role !== 'owner') throw new PayRuntimeError('FORBIDDEN', 403, 'You do not control this merchant account.');
 }
 
 export const onRequestGet = async ({ request, env, params }: { request: Request; env: PayEnv; params: { merchantId: string } }) => {
@@ -81,7 +86,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
   try {
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const user = await getAuthenticatedUser(env, request);
-    if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
+    if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid Solmint session is required.' }, 401, requestId);
     const merchantId = String(params.merchantId || '').trim();
     if (!validUuid(merchantId)) return payJson({ code: 'INVALID_MERCHANT_ID', message: 'Merchant id is invalid.' }, 400, requestId);
     await assertMerchantOwner(env, merchantId, user.id);
