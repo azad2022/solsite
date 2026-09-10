@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const ORIGIN = (process.env.SOLMINT_PAY_PRODUCTION_ORIGIN || 'https://solmint.ir').replace(/\/$/, '');
+const TRUSTED_ORIGIN = ORIGIN;
 const TIMEOUT_MS = 15_000;
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -52,6 +53,65 @@ test('production Pay API requires an authenticated SolMint session for merchant 
   const response = await request('/api/pay/v1/merchants');
   assert.equal(response.status, 401);
   assert.match(response.headers.get('content-type') || '', /application\/json/i);
+  const body = await readJson(response);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 'UNAUTHORIZED');
+  assert.equal(typeof body.requestId, 'string');
+});
+
+test('production Pay API rejects forged bearer credentials for merchant reads', async () => {
+  const response = await request('/api/pay/v1/merchants', {
+    headers: { Authorization: 'Bearer forged.invalid.token' },
+  });
+  assert.equal(response.status, 401);
+  const body = await readJson(response);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 'UNAUTHORIZED');
+  assert.equal(typeof body.requestId, 'string');
+});
+
+test('production Pay API requires a trusted origin for merchant creation', async () => {
+  const response = await request('/api/pay/v1/merchants', {
+    method: 'POST',
+    headers: {
+      Origin: 'https://attacker.example',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ businessName: 'Smoke Merchant', slug: 'smoke-merchant' }),
+  });
+  assert.equal(response.status, 403);
+  const body = await readJson(response);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 'ORIGIN_FORBIDDEN');
+  assert.equal(typeof body.requestId, 'string');
+});
+
+test('production Pay API requires authentication before merchant creation', async () => {
+  const response = await request('/api/pay/v1/merchants', {
+    method: 'POST',
+    headers: {
+      Origin: TRUSTED_ORIGIN,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ businessName: 'Smoke Merchant', slug: 'smoke-merchant' }),
+  });
+  assert.equal(response.status, 401);
+  const body = await readJson(response);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 'UNAUTHORIZED');
+  assert.equal(typeof body.requestId, 'string');
+});
+
+test('production Pay API requires authentication before wallet challenge issuance', async () => {
+  const response = await request('/api/pay/v1/merchants/not-a-real-merchant/wallet-challenges', {
+    method: 'POST',
+    headers: {
+      Origin: TRUSTED_ORIGIN,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ walletAddress: '11111111111111111111111111111111' }),
+  });
+  assert.equal(response.status, 401);
   const body = await readJson(response);
   assert.equal(body.success, false);
   assert.equal(body.code, 'UNAUTHORIZED');
