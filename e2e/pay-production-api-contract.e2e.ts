@@ -41,8 +41,11 @@ test('production Pay API rejects malformed Payment Intent IDs with stable contra
   assert.match(response.headers.get('cache-control') || '', /no-store/i);
   const body = await readJson(response);
   assert.equal(body.success, false);
-  assert.equal(body.code, 'PAYMENT_INTENT_ID_INVALID');
-  assert.equal(typeof body.requestId === 'string' || body.requestId === undefined, true);
+  assert.equal(typeof body.error, 'object');
+  assert.notEqual(body.error, null);
+  const error = body.error as Record<string, unknown>;
+  assert.equal(error.code, 'PAYMENT_INTENT_ID_INVALID');
+  assert.equal(typeof error.message, 'string');
 });
 
 test('production Pay API requires an authenticated SolMint session for merchant reads', async () => {
