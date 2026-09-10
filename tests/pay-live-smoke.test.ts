@@ -40,8 +40,9 @@ test('Pay live smoke suite requires PAY_LIVE_SMOKE_BASE_URL', { skip: !liveBaseU
 
     const malformedResponse = await request('/api/pay/v1/payment-intents/not-a-uuid');
     assert.equal(malformedResponse.status, 400);
-    const malformedBody = await malformedResponse.json() as { code?: string; success?: boolean };
+    assert.equal(malformedResponse.headers.get('content-type')?.startsWith('application/json'), true);
+    const malformedBody = await malformedResponse.json() as { error?: { code?: string }; success?: boolean };
     assert.equal(malformedBody.success, false);
-    assert.equal(malformedBody.code, 'PAYMENT_INTENT_ID_INVALID');
+    assert.equal(malformedBody.error?.code, 'PAYMENT_INTENT_ID_INVALID');
   }
 });
