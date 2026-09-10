@@ -27,13 +27,18 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --package-lock=false --no-audit --no-fund
 
       - name: Typecheck
-        run: node scripts/fix-auth-pbkdf2-buffers.mjs && node scripts/repair-production-types.mjs && npm run lint
+        run: npm run typecheck
 
       - name: Production build
-        run: npm run build
+        run: npm run build:ci
 
       - name: Unit tests
         run: npm test
+
+      - name: Assert source tree is unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
