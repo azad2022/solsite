@@ -1,0 +1,38 @@
+name: SolMint Pay Live Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'HTTPS base URL to verify'
+        required: true
+        default: 'https://solmint.ir'
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - 'functions/api/pay/**'
+      - 'src/pay/**'
+      - 'tests/pay-live-smoke.test.ts'
+      - '.github/workflows/solmint-pay-live-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PAY_LIVE_SMOKE_BASE_URL: ${{ inputs.base_url || 'https://solmint.ir' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Wait for production deployment
+        run: sleep 120
+
+      - name: Run non-mutating Pay live smoke checks
+        run: |
+          node --version
+          npx --yes tsx tests/pay-live-smoke.test.ts
