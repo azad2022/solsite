@@ -77,7 +77,8 @@ begin
   if has_function_privilege('service_role','public.pay_rotate_api_key(text,uuid,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role rotate grant missing'; end if;
   if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
   if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
-  if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
+  if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
+  if has_function_privilege('service_role','public.pay_rotate_api_key_unlocked(text,uuid,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked rotate function remains executable'; end if;
 end $$;
 
 DO $$
