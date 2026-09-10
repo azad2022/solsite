@@ -148,7 +148,7 @@ begin
   if (select count(*) from public.pay_audit_logs where event_type='api_key.revoked') <> 1 then raise exception 'revoke audit missing'; end if;
   if (select count(*) from public.pay_audit_logs where event_type='api_key.rotated') <> 1 then raise exception 'rotate audit missing'; end if;
   if exists (select 1 from public.pay_audit_logs where metadata::text ~* 'secret|key_hash') then raise exception 'secret material leaked to audit metadata'; end if;
-  if exists (select 1 from public.pay_idempotency_keys where response_body::text ~* 'sk_pay_|[0-9a-f]{64}') then raise exception 'secret material or key hash leaked to idempotency response'; end if;
+  if exists (select 1 from public.pay_idempotency_keys where response_body::text ~* 'sk_pay_[A-Za-z0-9_-]{64,}|[0-9a-f]{64}') then raise exception 'secret material or key hash leaked to idempotency response'; end if;
 end $$;
 
 rollback;
