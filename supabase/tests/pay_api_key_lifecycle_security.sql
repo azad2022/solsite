@@ -1,6 +1,7 @@
 -- SolMint Pay API-key lifecycle database/security fixture.
--- Runs against the same isolated PostgreSQL instance as the Pay identity/RLS test.
--- It reuses roles created by the first fixture, applies the exact lifecycle
+-- Runs against a dedicated PostgreSQL database so this lifecycle test does not
+-- share schema objects with the Pay identity/RLS fixture.
+-- It creates only the minimal dependency surface required by the exact lifecycle
 -- migrations, then exercises create/replay/conflict/revoke/rotate and audit behavior.
 
 DO $$
@@ -10,6 +11,22 @@ begin
   end if;
 end $$;
 grant usage on schema public to authenticated, service_role;
+
+-- Minimal domain dependencies referenced by the lifecycle functions.
+create table public.users (
+  id text primary key,
+  is_active boolean not null default true
+);
+create table public.pay_merchants (
+  id uuid primary key,
+  status text not null
+);
+create table public.pay_merchant_members (
+  user_id text not null,
+  merchant_id uuid not null,
+  status text not null,
+  role text not null
+);
 
 create table public.pay_api_keys (
   id uuid primary key default gen_random_uuid(), merchant_id uuid not null, name text not null,
@@ -45,8 +62,8 @@ begin
   if has_function_privilege('service_role','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role create grant missing'; end if;
   if has_function_privilege('service_role','public.pay_revoke_api_key(text,uuid,uuid)','EXECUTE') is not true then raise exception 'service_role revoke grant missing'; end if;
   if has_function_privilege('service_role','public.pay_rotate_api_key(text,uuid,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role rotate grant missing'; end if;
-  if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
-  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
+  if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
+  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
   if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
 end $$;
 
