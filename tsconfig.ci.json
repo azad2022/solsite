@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "supabase/functions/**",
+    "src/components/LegacyAdminCmsModal.tsx"
+  ]
+}
