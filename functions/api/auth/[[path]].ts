@@ -38,6 +38,7 @@ function unavailableResponse(code: AuthUnavailableCode, requestId: string): Resp
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
+      'X-Auth-Error-Code': code,
       'X-Request-Id': requestId,
     },
   });
