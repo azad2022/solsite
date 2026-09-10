@@ -40,7 +40,7 @@ jobs:
         run: bunx tsc --noEmit
 
       - name: Production build
-        run: bun run build
+        run: bunx vite build && bunx esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs
 
       - name: Unit tests
-        run: bun test tests/*.test.ts tests/**/*.test.ts
+        run: find tests -type f -name '*.test.ts' -print0 | xargs -0 bunx tsx --test
