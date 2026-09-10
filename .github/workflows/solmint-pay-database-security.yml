@@ -44,7 +44,7 @@ jobs:
       - name: Setup PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Apply Pay identity/RLS migration and run adversarial security checks
+      - name: Run Pay identity/RLS security checks
         env:
           PGHOST: 127.0.0.1
           PGPORT: 5432
@@ -52,3 +52,12 @@ jobs:
           PGPASSWORD: postgres
           PGDATABASE: solmint_pay_security
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_identity_rls_security.sql
+
+      - name: Run Pay API-key lifecycle security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: solmint_pay_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_api_key_lifecycle_security.sql
