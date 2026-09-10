@@ -20,20 +20,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: bun install --frozen-lockfile
 
       - name: Typecheck
-        run: node scripts/fix-auth-pbkdf2-buffers.mjs && node scripts/repair-production-types.mjs && npm run lint
+        run: bunx tsc --noEmit
 
       - name: Production build
-        run: npm run build
+        run: bun run build
 
       - name: Unit tests
-        run: npm test
+        run: bun test tests/*.test.ts tests/**/*.test.ts
