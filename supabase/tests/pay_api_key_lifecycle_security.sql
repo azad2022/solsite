@@ -18,7 +18,6 @@ begin
 end $$;
 grant usage on schema public to anon, authenticated, service_role;
 
--- Minimal domain dependencies referenced by the lifecycle functions.
 create table public.users (
   id text primary key,
   is_active boolean not null default true
@@ -33,7 +32,6 @@ create table public.pay_merchant_members (
   status text not null,
   role text not null
 );
-
 create table public.pay_api_keys (
   id uuid primary key default gen_random_uuid(), merchant_id uuid not null, name text not null,
   key_prefix text not null, key_hash text not null unique, scopes text[] not null default '{}'::text[],
@@ -69,7 +67,7 @@ begin
   if has_function_privilege('service_role','public.pay_revoke_api_key(text,uuid,uuid)','EXECUTE') is not true then raise exception 'service_role revoke grant missing'; end if;
   if has_function_privilege('service_role','public.pay_rotate_api_key(text,uuid,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role rotate grant missing'; end if;
   if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
-  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
+  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
   if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
 end $$;
 
@@ -94,7 +92,8 @@ end $$;
 
 select public.pay_create_api_key('user-b','00000000-0000-0000-0000-000000000001','wrong-owner','sk_pay_test04',repeat('f',64),array['payment.create']::text[],null,'create-2',repeat('1',64)) as forbidden_result \gset
 DO $$ begin
-  if :'forbidden_result'::jsonb->>'reason' <> 'MERCHANT_FORBIDDEN' then raise exception 'cross-merchant owner must be denied'; end $$;
+  if :'forbidden_result'::jsonb->>'reason' <> 'MERCHANT_FORBIDDEN' then raise exception 'cross-merchant owner must be denied'; end if;
+end $$;
 
 select public.pay_revoke_api_key('user-a','00000000-0000-0000-0000-000000000001',(select id from public.pay_api_keys where key_prefix='sk_pay_test01')) as revoke_result \gset
 DO $$ begin
