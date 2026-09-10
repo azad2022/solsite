@@ -1,0 +1,48 @@
+name: SolMint Pay Devnet E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pay/**'
+      - 'functions/api/pay/**'
+      - 'e2e/pay-devnet.e2e.ts'
+      - 'package.json'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/pay/**'
+      - 'functions/api/pay/**'
+      - 'e2e/pay-devnet.e2e.ts'
+      - 'package.json'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pay-devnet-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  devnet-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SOLANA_RPC_URL: https://api.devnet.solana.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --package-lock=false --no-audit --no-fund
+
+      - name: Run real Devnet payment verification E2E
+        run: npm run test:pay:devnet
