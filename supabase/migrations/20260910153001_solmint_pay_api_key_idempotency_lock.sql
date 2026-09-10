@@ -4,11 +4,11 @@
 
 alter function public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)
   rename to pay_create_api_key_unlocked;
-alter function public.pay_rotate_api_key(text,uuid,uuid,text,text,text[],timestamptz,text,text)
+alter function public.pay_rotate_api_key(text,uuid,uuid,text,text,text,text[],timestamptz,text,text)
   rename to pay_rotate_api_key_unlocked;
 
 revoke all on function public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text) from public, anon, authenticated, service_role;
-revoke all on function public.pay_rotate_api_key_unlocked(text,uuid,uuid,text,text,text[],timestamptz,text,text) from public, anon, authenticated, service_role;
+revoke all on function public.pay_rotate_api_key_unlocked(text,uuid,uuid,text,text,text,text[],timestamptz,text,text) from public, anon, authenticated, service_role;
 
 create function public.pay_create_api_key(
   p_actor_user_id text,
@@ -68,6 +68,6 @@ end;
 $$;
 
 revoke all on function public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text) from public, anon, authenticated;
-revoke all on function public.pay_rotate_api_key(text,uuid,uuid,text,text,text[],timestamptz,text,text) from public, anon, authenticated;
+revoke all on function public.pay_rotate_api_key(text,uuid,uuid,text,text,text,text[],timestamptz,text,text) from public, anon, authenticated;
 grant execute on function public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text) to service_role;
-grant execute on function public.pay_rotate_api_key(text,uuid,uuid,text,text,text[],timestamptz,text,text) to service_role;
+grant execute on function public.pay_rotate_api_key(text,uuid,uuid,text,text,text,text[],timestamptz,text,text) to service_role;
