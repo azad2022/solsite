@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 
 const authGateSource = readFileSync(resolve(process.cwd(), 'src/components/AdminAuthGate.tsx'), 'utf8');
 const authInstanceSource = readFileSync(resolve(process.cwd(), 'functions/api/auth/_instance.ts'), 'utf8');
+const authRouteSource = readFileSync(resolve(process.cwd(), 'functions/api/auth/[[path]].ts'), 'utf8');
 const resetPageSource = readFileSync(resolve(process.cwd(), 'src/components/AuthResetPasswordPage.tsx'), 'utf8');
 
 test('Google OAuth preserves the originating device intent at the same responsive homepage', () => {
@@ -33,6 +34,13 @@ test('Password reset emails point to the application reset UI and never expose B
   assert.match(authInstanceSource, /buildPasswordResetAppUrl\(foundation\.baseURL, token\)/);
   assert.match(authInstanceSource, /new URL\('\/auth\/reset-password', baseURL\)/);
   assert.doesNotMatch(authInstanceSource, /buildPasswordResetEmail\(user\.name, url,/);
+});
+
+test('Legacy Better Auth reset links are redirected to the application reset UI without consuming the token', () => {
+  assert.match(authRouteSource, /function isPasswordResetPath\(pathname: string\)/);
+  assert.match(authRouteSource, /request\.method !== 'GET'/);
+  assert.match(authRouteSource, /new URL\('\/auth\/reset-password', url\.origin\)/);
+  assert.match(authRouteSource, /destination\.searchParams\.set\('token', token\)/);
 });
 
 test('Password reset UI consumes the token with Better Auth resetPassword', () => {
