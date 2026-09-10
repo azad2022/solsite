@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from '../../../../../auth/_shared';
 import { PayRuntimeError, assertIdempotencyKey, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../../_shared/runtime';
-import { API_KEY_SCOPE, apiKeyDisplayPrefix, createApiKeySecret, hashApiKeySecret } from '../../../../../../../src/pay/services/apiKeyPolicy';
+import { API_KEY_SCOPE, apiKeyDisplayPrefix, createApiKeySecret, hashApiKeySecret } from '../../../../../../src/pay/services/apiKeyPolicy';
 
 interface PayEnv {
   SUPABASE_URL?: string;
@@ -33,12 +33,13 @@ function mapApiKey(row: ApiKeyRow) {
   const status = row.revoked_at ? 'revoked' : row.expires_at && Date.parse(row.expires_at) <= Date.now() ? 'expired' : 'active';
   return { id: row.id, merchantId: row.merchant_id, name: row.name, keyPrefix: row.key_prefix, scopes: row.scopes, status, expiresAt: row.expires_at, revokedAt: row.revoked_at, lastUsedAt: row.last_used_at, createdAt: row.created_at };
 }
-async function assertMerchantOwner(env: PayEnv, merchantId: string, userId: string): Promise<void> {
+async function assertMerchantOwner(env: PayEnv, merchantId: string, userId: string, allowSuspended = false): Promise<void> {
   const response = await supabaseRequest(env, `/rest/v1/pay_merchants?select=id,owner_user_id,status&id=eq.${encodeURIComponent(merchantId)}&limit=1`, { headers: { Accept: 'application/json' } });
   const rows = await response.json() as Array<{ id: string; owner_user_id: string; status: string }>;
   const merchant = rows[0];
   if (!merchant || merchant.owner_user_id !== userId) throw new PayRuntimeError('FORBIDDEN', 403, 'You do not control this merchant account.');
-  if (merchant.status === 'closed') throw new PayRuntimeError('MERCHANT_NOT_ACTIVE', 403, 'Merchant is closed.');
+  if (!allowSuspended && merchant.status !== 'active') throw new PayRuntimeError('MERCHANT_NOT_ACTIVE', 403, 'Merchant is not active.');
+  if (allowSuspended && merchant.status === 'closed') throw new PayRuntimeError('MERCHANT_NOT_ACTIVE', 403, 'Merchant is closed.');
 }
 
 export const onRequestDelete = async ({ request, env, params }: { request: Request; env: PayEnv; params: { merchantId: string; keyId: string } }) => {
@@ -51,7 +52,7 @@ export const onRequestDelete = async ({ request, env, params }: { request: Reque
     const merchantId = String(params.merchantId || '').trim();
     const keyId = String(params.keyId || '').trim();
     if (!validUuid(merchantId) || !validUuid(keyId)) return payJson({ code: 'INVALID_IDENTIFIER', message: 'Merchant or API key id is invalid.' }, 400, requestId);
-    await assertMerchantOwner(env, merchantId, user.id);
+    await assertMerchantOwner(env, merchantId, user.id, true);
     const rpcResponse = await supabaseRequest(env, '/rest/v1/rpc/pay_revoke_api_key', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ p_actor_user_id: user.id, p_merchant_id: merchantId, p_key_id: keyId }) });
     const result = await rpcResponse.json() as { state?: string; reason?: string; apiKey?: ApiKeyRow };
     if (result.state === 'revoked' && result.apiKey) return payJson({ apiKey: mapApiKey(result.apiKey) }, 200, requestId);
@@ -85,8 +86,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     const expiresAt = body.expiresAt === null || body.expiresAt === undefined ? null : typeof body.expiresAt === 'string' ? body.expiresAt.trim() : '';
     if (expiresAt !== null && (!expiresAt || Number.isNaN(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())) return payJson({ code: 'INVALID_API_KEY_EXPIRY', message: 'expiresAt must be a valid future date or null.' }, 400, requestId);
 
-    const requestPayload = { keyId, name, scopes, expiresAt };
-    const requestHash = await hashCanonicalRequest(requestPayload);
+    const requestHash = await hashCanonicalRequest({ keyId, name, scopes, expiresAt });
     const secret = createApiKeySecret();
     const keyHash = await hashApiKeySecret(secret);
     const keyPrefix = apiKeyDisplayPrefix(secret);
