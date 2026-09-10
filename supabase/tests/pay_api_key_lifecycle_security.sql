@@ -50,6 +50,15 @@ create table public.pay_audit_logs (
   metadata jsonb not null default '{}'::jsonb, created_at timestamptz not null default now()
 );
 
+grant select, insert, update on
+  public.users,
+  public.pay_merchants,
+  public.pay_merchant_members,
+  public.pay_api_keys,
+  public.pay_idempotency_keys,
+  public.pay_audit_logs
+  to service_role;
+
 \i supabase/migrations/20260910153000_solmint_pay_api_key_lifecycle.sql
 \i supabase/migrations/20260910153001_solmint_pay_api_key_idempotency_lock.sql
 
@@ -65,9 +74,9 @@ DO $$
 begin
   if has_function_privilege('service_role','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role create grant missing'; end if;
   if has_function_privilege('service_role','public.pay_revoke_api_key(text,uuid,uuid)','EXECUTE') is not true then raise exception 'service_role revoke grant missing'; end if;
-  if has_function_privilege('service_role','public.pay_rotate_api_key(text,uuid,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role rotate grant missing'; end if;
+  if has_function_privilege('service_role','public.pay_rotate_api_key(text,uuid,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role rotate grant missing'; end if;
   if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
-  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
+  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
   if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
 end $$;
 
