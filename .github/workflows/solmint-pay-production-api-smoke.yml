@@ -1,6 +1,13 @@
 name: SolMint Pay Production API Smoke
 
 on:
+  pull_request:
+    paths:
+      - 'functions/api/pay/**'
+      - 'src/pay/**'
+      - 'e2e/pay-production-api-contract.e2e.ts'
+      - 'package.json'
+      - '.github/workflows/solmint-pay-production-api-smoke.yml'
   workflow_dispatch:
   push:
     branches: [main]
@@ -8,6 +15,7 @@ on:
       - 'functions/api/pay/**'
       - 'src/pay/**'
       - 'e2e/pay-production-api-contract.e2e.ts'
+      - 'package.json'
       - '.github/workflows/solmint-pay-production-api-smoke.yml'
 
 permissions:
