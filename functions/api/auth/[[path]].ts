@@ -38,17 +38,16 @@ function unavailableResponse(code: AuthUnavailableCode, requestId: string): Resp
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
-      'X-Auth-Error-Code': code,
       'X-Request-Id': requestId,
     },
   });
 }
 
-function isPasswordResetPath(pathname: string): boolean {
+export function isPasswordResetPath(pathname: string): boolean {
   return /^\/api\/auth\/reset-password\/[^/]+$/.test(pathname);
 }
 
-function redirectLegacyPasswordReset(request: Request): Response | null {
+export function redirectLegacyPasswordReset(request: Request): Response | null {
   if (request.method !== 'GET') return null;
   const url = new URL(request.url);
   if (!isPasswordResetPath(url.pathname)) return null;
