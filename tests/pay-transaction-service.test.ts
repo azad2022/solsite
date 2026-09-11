@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { PayHttpClient } from '../src/pay/http';
 import { createPayTransactionService } from '../src/pay/services/transactionService';
 
@@ -35,17 +35,17 @@ function payment() {
 
 describe('Pay transaction service', () => {
   it('rejects a malformed list envelope', async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ success: true, apiVersion: 'v1', data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-    const service = createPayTransactionService(new PayHttpClient({ fetchImpl }));
+    const fetchImpl = mock(async () => new Response(JSON.stringify({ success: true, apiVersion: 'v1', data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const service = createPayTransactionService(new PayHttpClient({ fetchImpl: fetchImpl as unknown as typeof fetch }));
     await expect(service.list(merchantId)).rejects.toThrow('Invalid Pay transaction list envelope.');
   });
 
   it('parses a valid transaction list without converting atomic values to floating point', async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ success: true, apiVersion: 'v1', data: [payment()] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-    const service = createPayTransactionService(new PayHttpClient({ fetchImpl }));
+    const fetchImpl = mock(async () => new Response(JSON.stringify({ success: true, apiVersion: 'v1', data: [payment()] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const service = createPayTransactionService(new PayHttpClient({ fetchImpl: fetchImpl as unknown as typeof fetch }));
     const rows = await service.list(merchantId, { status: 'completed' });
-    expect(rows[0].amount_atomic).toBe('1250000');
-    expect(rows[0].status).toBe('completed');
+    expect(rows[0]?.amount_atomic).toBe('1250000');
+    expect(rows[0]?.status).toBe('completed');
   });
 
   it('parses transaction detail and keeps blockchain evidence separate', async () => {
@@ -59,11 +59,11 @@ describe('Pay transaction service', () => {
         events: [{ id: '44444444-4444-4444-8444-444444444444', payment_id: paymentId, event_type: 'completed', created_at: '2026-09-11T11:02:00Z' }],
       },
     };
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(detail), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-    const service = createPayTransactionService(new PayHttpClient({ fetchImpl }));
+    const fetchImpl = mock(async () => new Response(JSON.stringify(detail), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const service = createPayTransactionService(new PayHttpClient({ fetchImpl: fetchImpl as unknown as typeof fetch }));
     const result = await service.get(paymentId);
     expect(result.payment.amount_atomic).toBe('1250000');
-    expect(result.transactions[0].verification_status).toBe('verified');
-    expect(result.events[0].event_type).toBe('completed');
+    expect(result.transactions[0]?.verification_status).toBe('verified');
+    expect(result.events[0]?.event_type).toBe('completed');
   });
 });
