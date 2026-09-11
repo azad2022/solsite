@@ -11,6 +11,7 @@ import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
 import PayMerchantOnboarding from './components/PayMerchantOnboarding';
 import PayApiKeyManagement from './components/PayApiKeyManagement';
+import PayTicketCenter from './components/PayTicketCenter';
 import { getMyMerchant, type PayMerchant } from './services/merchantOnboardingService';
 import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
 import './pay.css';
@@ -112,6 +113,7 @@ export function PayApp(): React.ReactElement {
     : translate(locale, 'account');
   const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
   const showMerchantOnboarding = sessionState === 'authenticated' && (currentSection === 'overview' || (currentSection === 'merchants' && !merchant));
+  const showTickets = currentSection === 'tickets' && sessionState === 'authenticated' && sessionUser !== null;
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale}>
@@ -179,7 +181,9 @@ export function PayApp(): React.ReactElement {
 
             {currentSection === 'merchants' && sessionState === 'authenticated' && merchant ? <PayApiKeyManagement locale={locale} merchantId={merchant.id} merchantStatus={merchant.status} /> : null}
 
-            {!showMerchantOnboarding && currentSection !== 'merchants' && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {showTickets ? <PayTicketCenter locale={locale} sessionUser={sessionUser!} merchantId={merchant?.id || null} /> : null}
+
+            {!showMerchantOnboarding && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
@@ -188,7 +192,7 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && currentSection !== 'merchants' && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
