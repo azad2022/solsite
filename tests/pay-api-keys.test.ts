@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMerchantApiKey, listMerchantApiKeys, revokeMerchantApiKey, rotateMerchantApiKey } from '../../src/pay/services/apiKeyService';
-import type { PayHttpClient } from '../../src/pay/http';
+import { createMerchantApiKey, listMerchantApiKeys, revokeMerchantApiKey, rotateMerchantApiKey } from '../src/pay/services/apiKeyService';
+import type { PayHttpClient } from '../src/pay/http';
 
 const validKey = {
   id: '11111111-1111-4111-8111-111111111111',
