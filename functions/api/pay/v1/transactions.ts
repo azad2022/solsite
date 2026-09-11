@@ -48,7 +48,10 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
     if (status) conditions.push(`status=eq.${encodeURIComponent(status)}`);
     if (search) {
       const escaped = search.replace(/[%*,()]/g, '');
-      if (escaped) conditions.push(`or=(id.ilike.*${encodeURIComponent(escaped)}*,external_order_id.ilike.*${encodeURIComponent(escaped)}*,reference.ilike.*${encodeURIComponent(escaped)}*,customer_wallet_address.ilike.*${encodeURIComponent(escaped)}*)`);
+      if (escaped) {
+        if (validUuid(escaped)) conditions.push(`or=(id.eq.${encodeURIComponent(escaped)},external_order_id.ilike.*${encodeURIComponent(escaped)}*,reference.ilike.*${encodeURIComponent(escaped)}*,customer_wallet_address.ilike.*${encodeURIComponent(escaped)}*)`);
+        else conditions.push(`or=(external_order_id.ilike.*${encodeURIComponent(escaped)}*,reference.ilike.*${encodeURIComponent(escaped)}*,customer_wallet_address.ilike.*${encodeURIComponent(escaped)}*)`);
+      }
     }
 
     const query = `/rest/v1/pay_payment_intents?select=${PAYMENT_SELECT}&${conditions.join('&')}&order=created_at.desc&limit=${limit}`;
