@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText,
-  LayoutDashboard, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, LayoutWebhook, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, Store,
   TicketCheck, Users, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
@@ -13,13 +12,15 @@ import PayMerchantOnboarding from './components/PayMerchantOnboarding';
 import PayApiKeyManagement from './components/PayApiKeyManagement';
 import PayTicketCenter from './components/PayTicketCenter';
 import PayTransactions from './components/PayTransactions';
+import PayWebhooks from './components/PayWebhooks';
+import { webhookCopy } from './components/pay-webhooks-i18n';
 import { getMyMerchant, type PayMerchant } from './services/merchantOnboardingService';
 import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
 import './pay.css';
 
 const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
-  overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, customers: Users, invoices: FileText,
-  referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck,
+  overview: LayoutWebhook, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, customers: Users, invoices: BookOpen,
+  referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck, webhooks: LayoutWebhook,
 };
 
 type SessionState = 'loading' | 'authenticated' | 'anonymous' | 'error';
@@ -27,6 +28,10 @@ type SessionState = 'loading' | 'authenticated' | 'anonymous' | 'error';
 function localeFromNavigator(): PayLocale {
   if (typeof navigator === 'undefined') return DEFAULT_PAY_LOCALE;
   return normalizePayLocale(navigator.language);
+}
+
+function paySectionLabel(locale: PayLocale, section: PaySection): string {
+  return section === 'webhooks' ? webhookCopy(locale).title : sectionLabel(locale, section);
 }
 
 export function PayApp(): React.ReactElement {
@@ -92,7 +97,7 @@ export function PayApp(): React.ReactElement {
       <div className="solmint-pay" dir={direction} lang={locale}>
         <main className="pay-not-found" aria-labelledby="pay-not-found-title">
           <div className="pay-not-found-card">
-            <div className="pay-empty-icon"><LayoutDashboard size={21} /></div>
+            <div className="pay-empty-icon"><LayoutWebhook size={21} /></div>
             <span className="pay-panel-kicker">{translate(locale, 'dashboard')}</span>
             <h1 id="pay-not-found-title">{translate(locale, 'noData')}</h1>
             <p>{translate(locale, 'sectionDescription')}</p>
@@ -107,7 +112,7 @@ export function PayApp(): React.ReactElement {
     return <PayCheckout locale={locale} intentId={route.kind === 'checkout' ? route.intentId : undefined} onBack={() => navigate('overview')} />;
   }
 
-  const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : sectionLabel(locale, currentSection);
+  const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : paySectionLabel(locale, currentSection);
   const description = currentSection === 'overview' ? translate(locale, 'overviewDescription') : translate(locale, 'sectionDescription');
   const accountTitle = sessionState === 'authenticated'
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
@@ -116,6 +121,7 @@ export function PayApp(): React.ReactElement {
   const showMerchantOnboarding = sessionState === 'authenticated' && (currentSection === 'overview' || (currentSection === 'merchants' && !merchant));
   const showTickets = currentSection === 'tickets' && sessionState === 'authenticated' && sessionUser !== null;
   const showTransactions = currentSection === 'transactions' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
+  const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale}>
@@ -135,7 +141,7 @@ export function PayApp(): React.ReactElement {
               const active = section === currentSection;
               return <button key={section} type="button" className={`pay-nav-item ${active ? 'is-active' : ''}`} onClick={() => navigate(section)} aria-current={active ? 'page' : undefined}>
                 <Icon size={18} strokeWidth={active ? 2.2 : 1.9} />
-                <span>{sectionLabel(locale, section)}</span>
+                <span>{paySectionLabel(locale, section)}</span>
                 {active && <span className="pay-nav-active-dot" aria-hidden="true" />}
               </button>;
             })}
@@ -158,7 +164,7 @@ export function PayApp(): React.ReactElement {
           <header className="pay-topbar">
             <div className="pay-topbar-leading">
               <button type="button" className="pay-icon-button pay-mobile-menu" onClick={() => setMobileNavOpen(true)} aria-label={translate(locale, 'openMenu')}><Menu size={20} /></button>
-              <div className="pay-topbar-breadcrumb"><span>{translate(locale, 'brand')}</span><span className="pay-breadcrumb-separator" aria-hidden="true">{direction === 'rtl' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</span><strong>{sectionLabel(locale, currentSection)}</strong></div>
+              <div className="pay-topbar-breadcrumb"><span>{translate(locale, 'brand')}</span><span className="pay-breadcrumb-separator" aria-hidden="true">{direction === 'rtl' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</span><strong>{paySectionLabel(locale, currentSection)}</strong></div>
             </div>
 
             <div className="pay-topbar-actions">
@@ -185,9 +191,11 @@ export function PayApp(): React.ReactElement {
 
             {showTransactions ? <PayTransactions locale={locale} merchantId={merchant.id} /> : null}
 
+            {showWebhooks ? <PayWebhooks locale={locale} merchantId={merchant.id} /> : null}
+
             {showTickets ? <PayTicketCenter locale={locale} sessionUser={sessionUser!} merchantId={merchant?.id || null} /> : null}
 
-            {!showMerchantOnboarding && !showTransactions && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {!showMerchantOnboarding && !showTransactions && !showWebhooks && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
@@ -196,17 +204,17 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && !showTransactions && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && !showTransactions && !showWebhooks && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
                 <TruthCard icon={<CircleDollarSign size={18} />} title={translate(locale, 'financialState')} value={translate(locale, 'financialStateValue')} />
               </section>
               <section className="pay-operational-grid">
-                <div className="pay-panel pay-panel-lg"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'dashboard')}</span><h2>{translate(locale, 'overviewTitle')}</h2></div><span className="pay-panel-chip"><ShieldCheck size={15} /> {translate(locale, 'serverTruthValue')}</span></div><div className="pay-empty-surface"><div className="pay-empty-icon"><LayoutDashboard size={21} /></div><div><strong>{translate(locale, 'noData')}</strong><p>{translate(locale, 'readOnlyFoundation')}</p></div></div></div>
+                <div className="pay-panel pay-panel-lg"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'dashboard')}</span><h2>{translate(locale, 'overviewTitle')}</h2></div><span className="pay-panel-chip"><ShieldCheck size={15} /> {translate(locale, 'serverTruthValue')}</span></div><div className="pay-empty-surface"><div className="pay-empty-icon"><LayoutWebhook size={21} /></div><div><strong>{translate(locale, 'noData')}</strong><p>{translate(locale, 'readOnlyFoundation')}</p></div></div></div>
                 <div className="pay-panel"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'secureBoundary')}</span><h2>{translate(locale, 'financialState')}</h2></div><ArrowUpRight size={17} /></div><div className="pay-security-note"><div className="pay-security-note-icon"><LockKeyhole size={18} /></div><p>{translate(locale, 'apiPending')}</p></div></div>
               </section>
-            </> : <section className="pay-panel pay-section-empty"><div className="pay-section-empty-icon">{React.createElement(SECTION_ICONS[currentSection], { size: 22 })}</div><div><h2>{sectionLabel(locale, currentSection)}</h2><p>{translate(locale, 'sectionDescription')}</p><span>{translate(locale, 'readOnlyFoundation')}</span></div></section>}
+            </> : <section className="pay-panel pay-section-empty"><div className="pay-section-empty-icon">{React.createElement(SECTION_ICONS[currentSection], { size: 22 })}</div><div><h2>{paySectionLabel(locale, currentSection)}</h2><p>{translate(locale, 'sectionDescription')}</p><span>{translate(locale, 'readOnlyFoundation')}</span></div></section>}
             </>}
           </main>
           <footer className="pay-footer"><span>{translate(locale, 'footer')}</span><span>{translate(locale, 'secureBoundary')}</span></footer>
