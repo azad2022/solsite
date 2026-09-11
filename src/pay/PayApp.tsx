@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, LayoutDashboard, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, Store,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
@@ -19,7 +19,7 @@ import { getPaySessionUser, type PaySessionUser } from './services/sessionServic
 import './pay.css';
 
 const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
-  overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, customers: Users, invoices: BookOpen,
+  overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, customers: Users, invoices: FileText,
   referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck, webhooks: Webhook,
 };
 
@@ -97,7 +97,7 @@ export function PayApp(): React.ReactElement {
       <div className="solmint-pay" dir={direction} lang={locale}>
         <main className="pay-not-found" aria-labelledby="pay-not-found-title">
           <div className="pay-not-found-card">
-            <div className="pay-empty-icon"><Webhook size={21} /></div>
+            <div className="pay-empty-icon"><LayoutDashboard size={21} /></div>
             <span className="pay-panel-kicker">{translate(locale, 'dashboard')}</span>
             <h1 id="pay-not-found-title">{translate(locale, 'noData')}</h1>
             <p>{translate(locale, 'sectionDescription')}</p>
