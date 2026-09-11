@@ -10,6 +10,8 @@ import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
 import PayMerchantOnboarding from './components/PayMerchantOnboarding';
+import PayApiKeyManagement from './components/PayApiKeyManagement';
+import { getMyMerchant, type PayMerchant } from './services/merchantOnboardingService';
 import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
 import './pay.css';
 
@@ -32,6 +34,7 @@ export function PayApp(): React.ReactElement {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sessionState, setSessionState] = useState<SessionState>('loading');
   const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(null);
+  const [merchant, setMerchant] = useState<PayMerchant | null>(null);
   const direction = directionFor(locale);
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
@@ -53,11 +56,19 @@ export function PayApp(): React.ReactElement {
     let cancelled = false;
     setSessionState('loading');
     setSessionUser(null);
+    setMerchant(null);
 
-    void getPaySessionUser().then(user => {
+    void getPaySessionUser().then(async user => {
       if (cancelled) return;
       setSessionUser(user);
       setSessionState(user ? 'authenticated' : 'anonymous');
+      if (!user) return;
+      try {
+        const existingMerchant = await getMyMerchant();
+        if (!cancelled) setMerchant(existingMerchant);
+      } catch {
+        // Merchant onboarding retains its own retryable error state.
+      }
     }).catch(() => {
       if (cancelled) return;
       setSessionState('error');
@@ -164,9 +175,11 @@ export function PayApp(): React.ReactElement {
               <div className="pay-heading-meta" aria-label={translate(locale, 'timeRange')}><span>{translate(locale, 'timeRange')}</span><div className="pay-range-control" role="group" aria-label={translate(locale, 'timeRange')}><button type="button" className="is-active" aria-pressed="true">{translate(locale, 'today')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'sevenDays')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'thirtyDays')}</button></div></div>
             </div>
 
-            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} /> : null}
+            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} onMerchantReady={setMerchant} /> : null}
 
-            {!showMerchantOnboarding && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {currentSection === 'merchants' && sessionState === 'authenticated' ? <PayApiKeyManagement locale={locale} merchantId={merchant?.id ?? null} merchantStatus={merchant?.status} /> : null}
+
+            {!showMerchantOnboarding && currentSection !== 'merchants' && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
@@ -175,7 +188,7 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && currentSection !== 'merchants' && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
