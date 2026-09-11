@@ -111,7 +111,7 @@ export function PayApp(): React.ReactElement {
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
   const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
-  const showMerchantOnboarding = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants');
+  const showMerchantOnboarding = sessionState === 'authenticated' && (currentSection === 'overview' || (currentSection === 'merchants' && !merchant));
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale}>
@@ -177,7 +177,7 @@ export function PayApp(): React.ReactElement {
 
             {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} onMerchantReady={setMerchant} /> : null}
 
-            {currentSection === 'merchants' && sessionState === 'authenticated' ? <PayApiKeyManagement locale={locale} merchantId={merchant?.id ?? null} merchantStatus={merchant?.status} /> : null}
+            {currentSection === 'merchants' && sessionState === 'authenticated' && merchant ? <PayApiKeyManagement locale={locale} merchantId={merchant.id} merchantStatus={merchant.status} /> : null}
 
             {!showMerchantOnboarding && currentSection !== 'merchants' && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
