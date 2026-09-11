@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PAY_CONFIG, isPayLaunchEnabled } from '../src/pay/app/config';
-import { createPayTranslator, getPayDirection, resolvePayLocale } from '../src/pay/i18n';
+import { directionFor, normalizePayLocale, translate } from '../src/pay/i18n';
 import { calculateGatewayFee } from '../src/pay/services/feePolicy';
 import { canTransitionPayment } from '../src/pay/services/paymentStateMachine';
 import { SOLMINT_PAY_FEE_BPS } from '../src/pay/types/domain';
@@ -40,20 +40,18 @@ test('payment state machine permits only deliberate transitions', () => {
 });
 
 test('locale resolution and direction are deterministic', () => {
-  assert.equal(resolvePayLocale('fa-AF'), 'fa-IR');
-  assert.equal(resolvePayLocale('en-GB'), 'en-US');
-  assert.equal(resolvePayLocale('ar-SA'), 'ar');
-  assert.equal(resolvePayLocale('ru-RU'), 'ru');
-  assert.equal(resolvePayLocale('de-DE'), 'fa-IR');
-  assert.equal(getPayDirection('fa-IR'), 'rtl');
-  assert.equal(getPayDirection('ar'), 'rtl');
-  assert.equal(getPayDirection('en-US'), 'ltr');
-  assert.equal(getPayDirection('ru'), 'ltr');
+  assert.equal(normalizePayLocale('fa-AF'), 'fa-IR');
+  assert.equal(normalizePayLocale('en-GB'), 'en-US');
+  assert.equal(normalizePayLocale('ar-SA'), 'ar');
+  assert.equal(normalizePayLocale('ru-RU'), 'ru');
+  assert.equal(normalizePayLocale('de-DE'), 'fa-IR');
+  assert.equal(directionFor('fa-IR'), 'rtl');
+  assert.equal(directionFor('ar'), 'rtl');
+  assert.equal(directionFor('en-US'), 'ltr');
+  assert.equal(directionFor('ru'), 'ltr');
 });
 
 test('translation catalogs expose the same public keys', () => {
-  const fa = createPayTranslator('fa-IR');
-  const en = createPayTranslator('en-US');
-  assert.equal(fa('paymentConfirmed'), 'پرداخت تأیید شد');
-  assert.equal(en('paymentConfirmed'), 'Payment confirmed');
+  assert.equal(translate('fa-IR', 'paymentConfirmed'), 'پرداخت تأیید شد');
+  assert.equal(translate('en-US', 'paymentConfirmed'), 'Payment confirmed');
 });
