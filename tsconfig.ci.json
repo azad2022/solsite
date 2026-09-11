@@ -3,6 +3,7 @@
   "exclude": [
     "supabase/functions/**",
     "src/components/LegacyAdminCmsModal.tsx",
-    "e2e/pay-devnet.e2e.ts"
+    "e2e/pay-devnet.e2e.ts",
+    "tests/**"
   ]
 }
