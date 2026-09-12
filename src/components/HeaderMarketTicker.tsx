@@ -78,9 +78,27 @@ export const HeaderMarketTicker: React.FC = () => {
         writeCache(fresh);
       } catch {}
     };
-    void load();
+
+    // Market data is enhancement-only. Render the cached/local feed first and
+    // wait for idle time before loading the Supabase-dependent code path.
+    let idleId: number | undefined;
+    let timeoutId: number | undefined;
+    const schedule = () => {
+      if (typeof window.requestIdleCallback === 'function') {
+        idleId = window.requestIdleCallback(() => { void load(); }, { timeout: 2500 });
+      } else {
+        timeoutId = window.setTimeout(() => { void load(); }, 1500);
+      }
+    };
+    schedule();
+
     const timer = window.setInterval(load, Math.max(30000, (feed.refreshSeconds || 30) * 1000));
-    return () => { cancelled = true; window.clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      if (idleId !== undefined && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.clearInterval(timer);
+    };
   }, [feed.refreshSeconds]);
 
   const items = useMemo(() => feed.items.slice().sort((a, b) => a.order - b.order), [feed.items]);
