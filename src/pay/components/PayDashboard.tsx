@@ -5,6 +5,7 @@ import type { PayLocale } from '../types';
 import { payDashboardService, type PayDashboardActivity } from '../services/dashboardService';
 import type { PayMerchant } from '../services/merchantOnboardingService';
 import type { PayTransaction, PayTransactionStatus } from '../services/transactionService';
+import { translateTransactionStatus as ts } from './pay-transactions-i18n';
 import { d } from './pay-dashboard-i18n';
 import './pay-dashboard.css';
 
@@ -93,7 +94,7 @@ export default function PayDashboard({ locale, merchant, onViewTransactions }: P
       {!loading && !error && transactions.length > 0 && <div className="pay-dashboard-activity-list">{transactions.map((transaction: PayTransaction) => <article key={transaction.id} className="pay-dashboard-activity-row">
         <div className={`pay-dashboard-activity-icon status-${transaction.status}`} aria-hidden="true">{statusIcon(transaction.status)}</div>
         <div className="pay-dashboard-activity-main"><strong>{short(transaction.id)}</strong><span>{transaction.external_order_id || d(locale, 'payment')} · {formatDate(transaction.created_at, locale)}</span></div>
-        <div className="pay-dashboard-activity-amount"><strong>{atomicToDisplay(transaction.amount_atomic, transaction.token_decimals)} {transaction.asset}</strong><span>{transaction.status.replaceAll('_', ' ')}</span></div>
+        <div className="pay-dashboard-activity-amount"><strong>{atomicToDisplay(transaction.amount_atomic, transaction.token_decimals)} {transaction.asset}</strong><span>{ts(locale, transaction.status)}</span></div>
       </article>)}</div>}
 
       <div className="pay-dashboard-actions"><button type="button" className="pay-primary-action" onClick={onViewTransactions}>{d(locale, 'viewAll')}</button></div>
