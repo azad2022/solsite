@@ -13,6 +13,9 @@ const MERCHANT_SETTLEMENT_LAMPORTS = 990_000_000n;
 const GATEWAY_FEE_LAMPORTS = 10_000_000n;
 const AIRDROP_LAMPORTS = 1_500_000_000;
 const TIMEOUT_MS = 90_000;
+const AIRDROP_MAX_ATTEMPTS = 8;
+const AIRDROP_BACKOFF_BASE_MS = 5_000;
+const AIRDROP_BACKOFF_MAX_MS = 30_000;
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58_ALPHABET].map((char, index) => [char, index]));
 
@@ -113,7 +116,15 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method, params }),
   });
-  if (!response.ok) throw new Error(`Devnet RPC HTTP ${response.status}`);
+  if (!response.ok) {
+    const retryAfter = response.headers.get('retry-after')?.trim();
+    const error = new Error(`Devnet RPC HTTP ${response.status}`) as Error & { retryAfterMs?: number };
+    if (retryAfter) {
+      const seconds = Number(retryAfter);
+      if (Number.isFinite(seconds) && seconds >= 0) error.retryAfterMs = Math.ceil(seconds * 1_000);
+    }
+    throw error;
+  }
   const payload = await response.json() as { result?: T; error?: { code?: number; message?: string } };
   if (payload.error) throw new Error(`Devnet RPC ${payload.error.message || payload.error.code || 'error'}`);
   if (payload.result === undefined) throw new Error(`Devnet RPC ${method} returned no result`);
@@ -132,22 +143,29 @@ async function waitForFinalized(signature: string): Promise<void> {
   throw new Error(`Timed out waiting for finalized transaction ${signature}`);
 }
 
+function airdropDelayMs(attempt: number, error: unknown): number {
+  const retryAfterMs = error instanceof Error && 'retryAfterMs' in error ? Number((error as Error & { retryAfterMs?: number }).retryAfterMs) : 0;
+  if (retryAfterMs > 0) return Math.min(retryAfterMs, AIRDROP_BACKOFF_MAX_MS);
+  const exponential = Math.min(AIRDROP_BACKOFF_MAX_MS, AIRDROP_BACKOFF_BASE_MS * 2 ** (attempt - 1));
+  return exponential + Math.floor(Math.random() * 1_000);
+}
+
 async function retryAirdrop(address: string): Promise<void> {
   let lastError: unknown = null;
-  for (let attempt = 1; attempt <= 6; attempt += 1) {
+  for (let attempt = 1; attempt <= AIRDROP_MAX_ATTEMPTS; attempt += 1) {
     try {
       const signature = await rpc<string>('requestAirdrop', [address, AIRDROP_LAMPORTS]);
       await waitForFinalized(signature);
       return;
     } catch (error) {
       lastError = error;
-      if (attempt < 6) await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+      if (attempt < AIRDROP_MAX_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, airdropDelayMs(attempt, error)));
     }
   }
   throw new Error(`Devnet faucet unavailable after retries: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
-test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: TIMEOUT_MS * 2 + 30_000 }, async () => {
+test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: TIMEOUT_MS * 2 + 180_000 }, async () => {
   const payer = createKeypair();
   const merchant = createKeypair();
   const fee = createKeypair();
