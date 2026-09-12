@@ -53,6 +53,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Require dedicated Devnet RPC
+        env:
+          SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
         run: |
           if [ -z "$SOLANA_DEVNET_RPC_URL" ]; then
             echo "SOLANA_DEVNET_RPC_URL GitHub Actions secret is required for funded Devnet E2E.";
