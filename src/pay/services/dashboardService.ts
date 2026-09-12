@@ -1,5 +1,4 @@
 import { payTransactionService, type PayTransaction, type PayTransactionStatus } from './transactionService';
-import { defaultPayHttpClient, type PayHttpClient } from '../http';
 
 export interface PayDashboardActivity {
   transactions: PayTransaction[];
@@ -19,11 +18,6 @@ export function createPayDashboardService(source: PayDashboardTransactionSource 
       return { transactions, loadedAt: new Date().toISOString() };
     },
   };
-}
-
-export function createPayDashboardHttpService(client: PayHttpClient = defaultPayHttpClient) {
-  void client;
-  return createPayDashboardService(payTransactionService);
 }
 
 export const payDashboardService = createPayDashboardService();
