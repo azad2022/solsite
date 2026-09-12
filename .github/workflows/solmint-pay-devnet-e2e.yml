@@ -27,12 +27,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL || 'https://api.devnet.solana.com' }}
+  SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
 
 jobs:
   devnet-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -52,11 +52,17 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Require HTTPS Devnet RPC
+      - name: Validate dedicated Devnet RPC configuration
+        shell: bash
         run: |
+          if [[ -z "$SOLANA_RPC_URL" ]]; then
+            echo "SOLANA_DEVNET_RPC_URL GitHub Actions secret is required for the funded Devnet E2E."
+            echo "The public Solana Devnet RPC is rate-limited and must not be used as the CI funding endpoint."
+            exit 1
+          fi
           case "$SOLANA_RPC_URL" in
             https://*) ;;
-            *) echo "SOLANA_RPC_URL must use HTTPS"; exit 1 ;;
+            *) echo "SOLANA_DEVNET_RPC_URL must use HTTPS"; exit 1 ;;
           esac
 
       - name: Run real Devnet payment verification E2E
