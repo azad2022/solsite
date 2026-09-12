@@ -1,0 +1,46 @@
+.pay-dashboard { display: grid; gap: 18px; }
+.pay-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, .75fr); gap: 18px; }
+.pay-dashboard-card, .pay-dashboard-panel { border: 1px solid rgba(30, 41, 59, .10); border-radius: 22px; background: rgba(255,255,255,.88); box-shadow: 0 16px 45px rgba(30,41,59,.06); }
+.pay-dashboard-card { min-width: 0; padding: 20px; }
+.pay-dashboard-merchant { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 15px; }
+.pay-dashboard-icon, .pay-dashboard-activity-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: rgba(236,72,153,.10); color: #db2777; }
+.pay-dashboard-merchant span, .pay-dashboard-card-heading span { display: block; font-size: 12px; color: #64748b; }
+.pay-dashboard-merchant h2 { margin: 3px 0 2px; font-size: 20px; line-height: 1.3; color: #0f172a; overflow-wrap: anywhere; }
+.pay-dashboard-merchant small { color: #64748b; font-size: 12px; }
+.pay-dashboard-status { white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; }
+.pay-dashboard-status span { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pay-dashboard-status.status-active { color: #059669; }
+.pay-dashboard-status.status-pending { color: #d97706; }
+.pay-dashboard-status.status-suspended, .pay-dashboard-status.status-closed { color: #dc2626; }
+.pay-dashboard-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pay-dashboard-card-heading strong { display: block; margin-top: 5px; font-size: 14px; line-height: 1.55; color: #334155; }
+.pay-dashboard-card-heading svg { flex: 0 0 auto; color: #64748b; }
+.pay-dashboard-updated { display: block; margin-top: 15px; color: #64748b; font-size: 11px; }
+.pay-dashboard-panel { padding: 20px; }
+.pay-dashboard-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.pay-dashboard-panel-heading h2 { margin: 3px 0 0; color: #0f172a; font-size: 18px; }
+.pay-dashboard-state { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 140px; color: #64748b; text-align: center; }
+.pay-dashboard-state.is-error { flex-wrap: wrap; color: #b91c1c; }
+.pay-dashboard-activity-list { display: grid; border-top: 1px solid rgba(30,41,59,.08); }
+.pay-dashboard-activity-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 13px; align-items: center; padding: 14px 0; border-bottom: 1px solid rgba(30,41,59,.08); }
+.pay-dashboard-activity-row:last-child { border-bottom: 0; }
+.pay-dashboard-activity-icon { width: 34px; height: 34px; border-radius: 11px; background: #f8fafc; color: #64748b; }
+.pay-dashboard-activity-icon.status-completed, .pay-dashboard-activity-icon.status-confirmed { color: #059669; }
+.pay-dashboard-activity-icon.status-failed, .pay-dashboard-activity-icon.status-expired, .pay-dashboard-activity-icon.status-wrong_token, .pay-dashboard-activity-icon.status-wrong_recipient { color: #dc2626; }
+.pay-dashboard-activity-icon.status-underpaid, .pay-dashboard-activity-icon.status-overpaid, .pay-dashboard-activity-icon.status-ambiguous, .pay-dashboard-activity-icon.status-duplicate { color: #d97706; }
+.pay-dashboard-activity-main, .pay-dashboard-activity-amount { min-width: 0; display: grid; gap: 3px; }
+.pay-dashboard-activity-main strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #0f172a; }
+.pay-dashboard-activity-main span, .pay-dashboard-activity-amount span { color: #64748b; font-size: 11px; overflow-wrap: anywhere; }
+.pay-dashboard-activity-amount { justify-items: end; }
+.pay-dashboard-activity-amount strong { color: #0f172a; font-size: 13px; white-space: nowrap; }
+.pay-dashboard-actions { display: flex; justify-content: flex-end; padding-top: 14px; }
+@media (max-width: 900px) { .pay-dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .pay-dashboard-card, .pay-dashboard-panel { border-radius: 18px; padding: 16px; }
+  .pay-dashboard-merchant { grid-template-columns: auto minmax(0,1fr); }
+  .pay-dashboard-status { grid-column: 1 / -1; }
+  .pay-dashboard-panel-heading { align-items: flex-start; }
+  .pay-dashboard-activity-row { grid-template-columns: auto minmax(0,1fr); }
+  .pay-dashboard-activity-amount { grid-column: 2; justify-items: start; }
+}
+@media (prefers-reduced-motion: reduce) { .pay-dashboard * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
