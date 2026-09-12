@@ -26,9 +26,6 @@ concurrency:
   group: pay-devnet-e2e-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL || 'https://api.devnet.solana.com' }}
-
 jobs:
   devnet-e2e:
     runs-on: ubuntu-latest
@@ -57,8 +54,8 @@ jobs:
           SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
         run: |
           if [ -z "$SOLANA_DEVNET_RPC_URL" ]; then
-            echo "SOLANA_DEVNET_RPC_URL GitHub Actions secret is required for funded Devnet E2E.";
-            exit 1;
+            echo "SOLANA_DEVNET_RPC_URL GitHub Actions secret is required for funded Devnet E2E."
+            exit 1
           fi
           case "$SOLANA_DEVNET_RPC_URL" in
             https://*) ;;
