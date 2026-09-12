@@ -5,7 +5,14 @@ import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
 import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 
-const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim() || 'https://api.devnet.solana.com';
+const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
+if (!DEVNET_RPC_URL) {
+  throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E; configure a dedicated Devnet RPC endpoint.');
+}
+if (!DEVNET_RPC_URL.startsWith('https://')) {
+  throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
+}
+
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
 const MEMO_PROGRAM = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const PAYMENT_AMOUNT_LAMPORTS = 1_000_000_000n;
