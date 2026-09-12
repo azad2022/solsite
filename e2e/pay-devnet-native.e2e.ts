@@ -15,10 +15,11 @@ if (!DEVNET_RPC_URL.startsWith('https://')) {
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
 const MEMO_PROGRAM = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
-const PAYMENT_AMOUNT_LAMPORTS = 1_000_000_000n;
-const MERCHANT_SETTLEMENT_LAMPORTS = 990_000_000n;
-const GATEWAY_FEE_LAMPORTS = 10_000_000n;
-const AIRDROP_LAMPORTS = 1_500_000_000;
+const PAYMENT_AMOUNT_LAMPORTS = 500_000_000n;
+const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000n;
+const GATEWAY_FEE_LAMPORTS = 5_000_000n;
+const AIRDROP_LAMPORTS = 1_000_000_000;
+const RPC_REQUEST_TIMEOUT_MS = 20_000;
 const TIMEOUT_MS = 90_000;
 const AIRDROP_MAX_ATTEMPTS = 8;
 const AIRDROP_BACKOFF_BASE_MS = 5_000;
@@ -118,24 +119,36 @@ function buildLegacyMessage(payer: Buffer, merchant: Buffer, fee: Buffer, refere
 }
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const response = await fetch(DEVNET_RPC_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method, params }),
-  });
-  if (!response.ok) {
-    const retryAfter = response.headers.get('retry-after')?.trim();
-    const error = new Error(`Devnet RPC HTTP ${response.status}`) as Error & { retryAfterMs?: number };
-    if (retryAfter) {
-      const seconds = Number(retryAfter);
-      if (Number.isFinite(seconds) && seconds >= 0) error.retryAfterMs = Math.ceil(seconds * 1_000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RPC_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(DEVNET_RPC_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method, params }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const retryAfter = response.headers.get('retry-after')?.trim();
+      const error = new Error(`Devnet RPC HTTP ${response.status}`) as Error & { retryAfterMs?: number };
+      if (retryAfter) {
+        const seconds = Number(retryAfter);
+        if (Number.isFinite(seconds) && seconds >= 0) error.retryAfterMs = Math.ceil(seconds * 1_000);
+      }
+      throw error;
+    }
+    const payload = await response.json() as { result?: T; error?: { code?: number; message?: string } };
+    if (payload.error) throw new Error(`Devnet RPC ${payload.error.message || payload.error.code || 'error'}`);
+    if (payload.result === undefined) throw new Error(`Devnet RPC ${method} returned no result`);
+    return payload.result;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Devnet RPC ${method} timed out after ${RPC_REQUEST_TIMEOUT_MS}ms`);
     }
     throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  const payload = await response.json() as { result?: T; error?: { code?: number; message?: string } };
-  if (payload.error) throw new Error(`Devnet RPC ${payload.error.message || payload.error.code || 'error'}`);
-  if (payload.result === undefined) throw new Error(`Devnet RPC ${method} returned no result`);
-  return payload.result;
 }
 
 async function waitForFinalized(signature: string): Promise<void> {
