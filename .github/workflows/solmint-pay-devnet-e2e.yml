@@ -69,6 +69,7 @@ jobs:
             *) echo "SOLANA_DEVNET_RPC_URL must use HTTPS"; exit 1 ;;
           esac
 
+      # Devnet-only 64-byte Solana keypair JSON; never use a production/mainnet key here.
       - name: Require dedicated Devnet CI funding wallet
         env:
           SOLANA_DEVNET_FUNDER_KEYPAIR: ${{ secrets.SOLANA_DEVNET_FUNDER_KEYPAIR }}
