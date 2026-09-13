@@ -1,23 +1,20 @@
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { createPrivateKey, createPublicKey, generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
 import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
 import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 
 const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
-const DEVNET_FUNDING_RPC_URL = process.env.SOLANA_DEVNET_FUNDING_RPC_URL?.trim();
+const DEVNET_FUNDER_KEYPAIR = process.env.SOLANA_DEVNET_FUNDER_KEYPAIR?.trim();
 if (!DEVNET_RPC_URL) {
   throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E; configure a dedicated Devnet RPC endpoint.');
 }
 if (!DEVNET_RPC_URL.startsWith('https://')) {
   throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
 }
-if (!DEVNET_FUNDING_RPC_URL) {
-  throw new Error('SOLANA_DEVNET_FUNDING_RPC_URL is required for Devnet test-account provisioning.');
-}
-if (!DEVNET_FUNDING_RPC_URL.startsWith('https://')) {
-  throw new Error('SOLANA_DEVNET_FUNDING_RPC_URL must use HTTPS for Devnet test-account provisioning.');
+if (!DEVNET_FUNDER_KEYPAIR) {
+  throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR is required for Devnet test-account provisioning.');
 }
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
@@ -25,14 +22,13 @@ const MEMO_PROGRAM = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const PAYMENT_AMOUNT_LAMPORTS = 500_000_000n;
 const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000n;
 const GATEWAY_FEE_LAMPORTS = 5_000_000n;
-const AIRDROP_LAMPORTS = 1_000_000_000;
+const FUNDER_TOP_UP_LAMPORTS = 520_000_000n;
+const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000_000n;
 const RPC_REQUEST_TIMEOUT_MS = 20_000;
 const TIMEOUT_MS = 90_000;
-const AIRDROP_MAX_ATTEMPTS = 8;
-const AIRDROP_BACKOFF_BASE_MS = 5_000;
-const AIRDROP_BACKOFF_MAX_MS = 30_000;
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58_ALPHABET].map((char, index) => [char, index]));
+const PKCS8_ED25519_SEED_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 
 function base58Encode(bytes: Uint8Array): string {
   let value = BigInt(`0x${Buffer.from(bytes).toString('hex') || '0'}`);
@@ -102,24 +98,50 @@ function createKeypair() {
   return { ...keypair, publicKey, address: base58Encode(publicKey) };
 }
 
+function createDevnetFunder() {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(DEVNET_FUNDER_KEYPAIR);
+  } catch {
+    throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR must contain a JSON array of 64 byte values.');
+  }
+  if (!Array.isArray(parsed) || parsed.length !== 64 || parsed.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+    throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR must contain a JSON array of exactly 64 byte values.');
+  }
+  const secretSeed = Buffer.from(parsed.slice(0, 32) as number[]);
+  const privateKey = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, secretSeed]), format: 'der', type: 'pkcs8' });
+  const publicKey = rawPublicKey(createPublicKey(privateKey));
+  const suppliedPublicKey = Buffer.from(parsed.slice(32) as number[]);
+  if (!suppliedPublicKey.equals(publicKey)) {
+    throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR public key does not match its secret seed.');
+  }
+  return { privateKey, publicKey, address: base58Encode(publicKey) };
+}
+
 function compiledInstruction(programIdIndex: number, accountIndices: number[], data: Buffer): Buffer {
   return Buffer.concat([Buffer.from([programIdIndex]), compactU16(accountIndices.length), Buffer.from(accountIndices), compactU16(data.length), data]);
 }
 
-function systemTransfer(fromIndex: number, toIndex: number, amount: bigint): Buffer {
-  return compiledInstruction(4, [fromIndex, toIndex], Buffer.concat([u32le(2), u64le(amount)]));
+function systemTransfer(programIdIndex: number, fromIndex: number, toIndex: number, amount: bigint): Buffer {
+  return compiledInstruction(programIdIndex, [fromIndex, toIndex], Buffer.concat([u32le(2), u64le(amount)]));
 }
 
 function memoInstruction(referenceIndex: number, data: Buffer): Buffer {
   return compiledInstruction(5, [referenceIndex], data);
 }
 
+function buildFundingMessage(funder: Buffer, payer: Buffer, recentBlockhash: Buffer): Buffer {
+  const accountKeys = [funder, payer, base58Decode(SYSTEM_PROGRAM)];
+  const instructions = [systemTransfer(2, 0, 1, FUNDER_TOP_UP_LAMPORTS)];
+  return Buffer.concat([Buffer.from([1, 0, 1]), compactU16(accountKeys.length), ...accountKeys, recentBlockhash, compactU16(instructions.length), ...instructions]);
+}
+
 function buildLegacyMessage(payer: Buffer, merchant: Buffer, fee: Buffer, reference: Buffer, recentBlockhash: Buffer): Buffer {
   const accountKeys = [payer, merchant, fee, reference, base58Decode(SYSTEM_PROGRAM), base58Decode(MEMO_PROGRAM)];
   const memoData = Buffer.from(`solmint-pay-devnet:${base58Encode(reference)}`, 'utf8');
   const instructions = [
-    systemTransfer(0, 1, MERCHANT_SETTLEMENT_LAMPORTS),
-    systemTransfer(0, 2, GATEWAY_FEE_LAMPORTS),
+    systemTransfer(4, 0, 1, MERCHANT_SETTLEMENT_LAMPORTS),
+    systemTransfer(4, 0, 2, GATEWAY_FEE_LAMPORTS),
     memoInstruction(3, memoData),
   ];
   return Buffer.concat([Buffer.from([1, 0, 3]), compactU16(accountKeys.length), ...accountKeys, recentBlockhash, compactU16(instructions.length), ...instructions]);
@@ -136,12 +158,7 @@ async function rpcAt<T>(url: string, method: string, params: unknown[], label: s
       signal: controller.signal,
     });
     if (!response.ok) {
-      const retryAfter = response.headers.get('retry-after')?.trim();
-      const error = new Error(`${label} HTTP ${response.status}`) as Error & { retryAfterMs?: number };
-      if (retryAfter) {
-        const seconds = Number(retryAfter);
-        if (Number.isFinite(seconds) && seconds >= 0) error.retryAfterMs = Math.ceil(seconds * 1_000);
-      }
+      const error = new Error(`${label} HTTP ${response.status}`);
       throw error;
     }
     const payload = await response.json() as { result?: T; error?: { code?: number; message?: string } };
@@ -162,10 +179,6 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   return rpcAt<T>(DEVNET_RPC_URL, method, params, 'Devnet RPC');
 }
 
-async function fundingRpc<T>(method: string, params: unknown[]): Promise<T> {
-  return rpcAt<T>(DEVNET_FUNDING_RPC_URL, method, params, 'Devnet funding RPC');
-}
-
 async function waitForFinalized(signature: string): Promise<void> {
   const deadline = Date.now() + TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -178,26 +191,18 @@ async function waitForFinalized(signature: string): Promise<void> {
   throw new Error(`Timed out waiting for finalized transaction ${signature}`);
 }
 
-function airdropDelayMs(attempt: number, error: unknown): number {
-  const retryAfterMs = error instanceof Error && 'retryAfterMs' in error ? Number((error as Error & { retryAfterMs?: number }).retryAfterMs) : 0;
-  if (retryAfterMs > 0) return Math.min(retryAfterMs, AIRDROP_BACKOFF_MAX_MS);
-  const exponential = Math.min(AIRDROP_BACKOFF_MAX_MS, AIRDROP_BACKOFF_BASE_MS * 2 ** (attempt - 1));
-  return exponential + Math.floor(Math.random() * 1_000);
-}
-
-async function retryAirdrop(address: string): Promise<void> {
-  let lastError: unknown = null;
-  for (let attempt = 1; attempt <= AIRDROP_MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const signature = await fundingRpc<string>('requestAirdrop', [address, AIRDROP_LAMPORTS]);
-      await waitForFinalized(signature);
-      return;
-    } catch (error) {
-      lastError = error;
-      if (attempt < AIRDROP_MAX_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, airdropDelayMs(attempt, error)));
-    }
+async function fundPayer(funder: { privateKey: ReturnType<typeof createPrivateKey>; publicKey: Buffer; address: string }, payer: { publicKey: Buffer; address: string }): Promise<void> {
+  const balance = await rpc<{ value: number }>('getBalance', [funder.address, { commitment: 'finalized' }]);
+  if (BigInt(balance.value) < MIN_FUNDER_BALANCE_LAMPORTS) {
+    throw new Error('Devnet CI funding account has insufficient SOL for the real-payment E2E.');
   }
-  throw new Error(`Devnet faucet unavailable after retries: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+  const latest = await rpc<{ blockhash: string }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
+  const message = buildFundingMessage(funder.publicKey, payer.publicKey, base58Decode(latest.blockhash));
+  const signatureBytes = sign(null, message, funder.privateKey);
+  const wireTransaction = Buffer.concat([compactU16(1), Buffer.from(signatureBytes), message]);
+  const signature = await rpc<string>('sendTransaction', [wireTransaction.toString('base64'), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]);
+  assert.ok(signature);
+  await waitForFinalized(signature);
 }
 
 test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: TIMEOUT_MS * 2 + 180_000 }, async () => {
@@ -205,8 +210,9 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
   const merchant = createKeypair();
   const fee = createKeypair();
   const reference = createKeypair();
+  const funder = createDevnetFunder();
 
-  await retryAirdrop(payer.address);
+  await fundPayer(funder, payer);
 
   const latest = await rpc<{ blockhash: string }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
   const message = buildLegacyMessage(payer.publicKey, merchant.publicKey, fee.publicKey, reference.publicKey, base58Decode(latest.blockhash));
