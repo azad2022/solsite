@@ -6,15 +6,22 @@ import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 
 const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
+const DEVNET_FUNDING_RPC_URL = process.env.SOLANA_DEVNET_FUNDING_RPC_URL?.trim();
 if (!DEVNET_RPC_URL) {
   throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E; configure a dedicated Devnet RPC endpoint.');
 }
 if (!DEVNET_RPC_URL.startsWith('https://')) {
   throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
 }
+if (!DEVNET_FUNDING_RPC_URL) {
+  throw new Error('SOLANA_DEVNET_FUNDING_RPC_URL is required for Devnet test-account provisioning.');
+}
+if (!DEVNET_FUNDING_RPC_URL.startsWith('https://')) {
+  throw new Error('SOLANA_DEVNET_FUNDING_RPC_URL must use HTTPS for Devnet test-account provisioning.');
+}
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
-const MEMO_PROGRAM = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+const MEMO_PROGRAM = 'MemoSq4gqABKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const PAYMENT_AMOUNT_LAMPORTS = 500_000_000n;
 const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000n;
 const GATEWAY_FEE_LAMPORTS = 5_000_000n;
@@ -118,11 +125,11 @@ function buildLegacyMessage(payer: Buffer, merchant: Buffer, fee: Buffer, refere
   return Buffer.concat([Buffer.from([1, 0, 3]), compactU16(accountKeys.length), ...accountKeys, recentBlockhash, compactU16(instructions.length), ...instructions]);
 }
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+async function rpcAt<T>(url: string, method: string, params: unknown[], label: string): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RPC_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(DEVNET_RPC_URL, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method, params }),
@@ -130,7 +137,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
     });
     if (!response.ok) {
       const retryAfter = response.headers.get('retry-after')?.trim();
-      const error = new Error(`Devnet RPC HTTP ${response.status}`) as Error & { retryAfterMs?: number };
+      const error = new Error(`${label} HTTP ${response.status}`) as Error & { retryAfterMs?: number };
       if (retryAfter) {
         const seconds = Number(retryAfter);
         if (Number.isFinite(seconds) && seconds >= 0) error.retryAfterMs = Math.ceil(seconds * 1_000);
@@ -138,17 +145,25 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
       throw error;
     }
     const payload = await response.json() as { result?: T; error?: { code?: number; message?: string } };
-    if (payload.error) throw new Error(`Devnet RPC ${payload.error.message || payload.error.code || 'error'}`);
-    if (payload.result === undefined) throw new Error(`Devnet RPC ${method} returned no result`);
+    if (payload.error) throw new Error(`${label} ${payload.error.message || payload.error.code || 'error'}`);
+    if (payload.result === undefined) throw new Error(`${label} ${method} returned no result`);
     return payload.result;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Devnet RPC ${method} timed out after ${RPC_REQUEST_TIMEOUT_MS}ms`);
+      throw new Error(`${label} ${method} timed out after ${RPC_REQUEST_TIMEOUT_MS}ms`);
     }
     throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  return rpcAt<T>(DEVNET_RPC_URL, method, params, 'Devnet RPC');
+}
+
+async function fundingRpc<T>(method: string, params: unknown[]): Promise<T> {
+  return rpcAt<T>(DEVNET_FUNDING_RPC_URL, method, params, 'Devnet funding RPC');
 }
 
 async function waitForFinalized(signature: string): Promise<void> {
@@ -174,7 +189,7 @@ async function retryAirdrop(address: string): Promise<void> {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= AIRDROP_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const signature = await rpc<string>('requestAirdrop', [address, AIRDROP_LAMPORTS]);
+      const signature = await fundingRpc<string>('requestAirdrop', [address, AIRDROP_LAMPORTS]);
       await waitForFinalized(signature);
       return;
     } catch (error) {
