@@ -72,4 +72,5 @@ jobs:
       - name: Run real Devnet payment verification E2E
         env:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
+          SOLANA_DEVNET_FUNDING_RPC_URL: https://api.devnet.solana.com
         run: bun run test:pay:devnet
