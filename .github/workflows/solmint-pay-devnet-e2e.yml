@@ -69,8 +69,17 @@ jobs:
             *) echo "SOLANA_DEVNET_RPC_URL must use HTTPS"; exit 1 ;;
           esac
 
+      - name: Require dedicated Devnet CI funding wallet
+        env:
+          SOLANA_DEVNET_FUNDER_KEYPAIR: ${{ secrets.SOLANA_DEVNET_FUNDER_KEYPAIR }}
+        run: |
+          if [ -z "$SOLANA_DEVNET_FUNDER_KEYPAIR" ]; then
+            echo "SOLANA_DEVNET_FUNDER_KEYPAIR GitHub Actions secret is required for funded Devnet E2E."
+            exit 1
+          fi
+
       - name: Run real Devnet payment verification E2E
         env:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
-          SOLANA_DEVNET_FUNDING_RPC_URL: https://api.devnet.solana.com
+          SOLANA_DEVNET_FUNDER_KEYPAIR: ${{ secrets.SOLANA_DEVNET_FUNDER_KEYPAIR }}
         run: bun run test:pay:devnet
