@@ -7,11 +7,11 @@ import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 
 const DEVNET_VERIFICATION_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
 const DEVNET_TRANSACTION_RPC_URL = process.env.SOLANA_TX_RPC_URL?.trim() || 'https://api.devnet.solana.com';
-const DEVNET_FUNDER_SECRET_KEY_B64 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64?.trim();
+const DEVNET_FUNDER_SECRET_KEY = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64?.trim();
 if (!DEVNET_VERIFICATION_RPC_URL) throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E verification path.');
 if (!DEVNET_VERIFICATION_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
 if (!DEVNET_TRANSACTION_RPC_URL.startsWith('https://')) throw new Error('SOLANA_TX_RPC_URL must use HTTPS for the funded Devnet E2E.');
-if (!DEVNET_FUNDER_SECRET_KEY_B64) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for Devnet test-account provisioning.');
+if (!DEVNET_FUNDER_SECRET_KEY) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for Devnet test-account provisioning.');
 
 const SYSTEM_PROGRAM = new PublicKey('11111111111111111111111111111111');
 const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
@@ -20,12 +20,48 @@ const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000;
 const GATEWAY_FEE_LAMPORTS = 5_000_000;
 const FUNDER_TOP_UP_LAMPORTS = 520_000_000;
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000_000;
-const TIMEOUT_MS = 90_000;
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const BASE58_INDEX = new Map([...BASE58_ALPHABET].map((char, index) => [char, index]));
+
+function decodeBase58(value: string): Buffer {
+  let result = 0n;
+  for (const char of value) {
+    const index = BASE58_INDEX.get(char);
+    if (index === undefined) throw new Error('Invalid Base58 key material.');
+    result = result * 58n + BigInt(index);
+  }
+  let hex = result.toString(16);
+  if (hex.length % 2) hex = `0${hex}`;
+  const decoded = hex ? Buffer.from(hex, 'hex') : Buffer.alloc(0);
+  let leadingZeros = 0;
+  for (const char of value) {
+    if (char !== '1') break;
+    leadingZeros += 1;
+  }
+  return Buffer.concat([Buffer.alloc(leadingZeros), decoded]);
+}
+
+function decodeFunderSecret(value: string): Buffer {
+  const candidates: Buffer[] = [];
+  try {
+    const base64 = Buffer.from(value, 'base64');
+    if (base64.length === 64) candidates.push(base64);
+  } catch {}
+  try {
+    const base58 = decodeBase58(value);
+    if (base58.length === 64) candidates.push(base58);
+  } catch {}
+  for (const candidate of candidates) {
+    try {
+      const keypair = Keypair.fromSecretKey(candidate);
+      if (Buffer.from(keypair.secretKey).equals(candidate)) return candidate;
+    } catch {}
+  }
+  throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must contain a valid 64-byte Solana keypair encoded as Base64 or Base58.');
+}
 
 function createDevnetFunder(): Keypair {
-  const secretKey = Buffer.from(DEVNET_FUNDER_SECRET_KEY_B64, 'base64');
-  if (secretKey.length !== 64) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must contain exactly 64 raw Solana keypair bytes encoded as Base64.');
-  return Keypair.fromSecretKey(secretKey);
+  return Keypair.fromSecretKey(decodeFunderSecret(DEVNET_FUNDER_SECRET_KEY));
 }
 
 function createMemoInstruction(reference: PublicKey): TransactionInstruction {
@@ -44,7 +80,6 @@ async function confirmFinalized(connection: Connection, signature: string, block
 async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair): Promise<void> {
   const balance = await connection.getBalance(funder.publicKey, 'finalized');
   if (balance < MIN_FUNDER_BALANCE_LAMPORTS) throw new Error('Devnet funding account has insufficient SOL for the real-payment E2E.');
-
   const latest = await connection.getLatestBlockhash('finalized');
   const transaction = new Transaction({ feePayer: funder.publicKey, recentBlockhash: latest.blockhash }).add(
     SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: payer.publicKey, lamports: FUNDER_TOP_UP_LAMPORTS }),
@@ -54,9 +89,7 @@ async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair
   await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
 }
 
-test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: TIMEOUT_MS * 2 + 180_000 }, async () => {
-  // Transaction submission is intentionally isolated from the verification RPC. This prevents
-  // a provider-specific sendTransaction/serialization path from masking the Pay verification test.
+test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: 270_000 }, async () => {
   const transactionConnection = new Connection(DEVNET_TRANSACTION_RPC_URL, { commitment: 'confirmed' });
   const payer = Keypair.generate();
   const merchant = Keypair.generate();
