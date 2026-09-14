@@ -40,13 +40,11 @@ Validated:
 - Production API smoke was rerun after deployment and passed.
 - The earlier `403 ORIGIN_FORBIDDEN` result was a pre-deployment/stale-environment observation and is not the current production blocker.
 
-## 2026-09-14 — Repository migration history reconciliation prepared
+## 2026-09-14 — Repository migration history reconciliation
 
-Status: **OPEN / VALIDATION IN PROGRESS**
+Status: **VALIDATION IN PROGRESS**
 
 PR: `#82` — `fix(pay): reconcile repository migration history with live Supabase`
-
-Current head: `2b56369ce038060f3910da74c330af752b75b0d4`
 
 Live database evidence used for reconciliation:
 
@@ -55,42 +53,49 @@ Live database evidence used for reconciliation:
 - Repository migration history was reconstructed from the live ledger and verified historical Git sources.
 - The live database was **not** migration-repaired or otherwise mutated by this repository-only reconciliation.
 - The incorrect local `20260905000100` mapping was corrected; `20260905000200` and `20260905000300` were restored.
-- The three Better Auth migrations around `20260907171423` / `20260907171436` / `20260907171450` were corrected to the exact live timestamp/name mapping.
-- Non-live root migration `20260906000001` is removed from the active chain in favor of the live `20260906135730` migration.
+- The seven Better Auth migrations were restored under the exact production-recorded timestamp/name mapping.
+- The non-live root migration `20260906000001` was removed from the active chain in favor of the live `20260906135730` migration.
 
-Validation already passed on the corrected PR head:
+### Preview-free decision
 
-- GitHub `CI` — **GREEN**
-- `Production Build` — **GREEN**
-- `SolMint Pay Database Security` — **GREEN**
+Status: **COMMITTED PROJECT CONSTRAINT**
 
-## Supabase Preview Branching decision
+The project will not depend on Supabase Preview Branching/Preview Database for Pay delivery.
 
-Status: **NOT USED / NOT A PROJECT PREREQUISITE**
+The maintainer does not have access to a credit card and cannot use a paid Supabase Pro/Branching environment. This is a delivery constraint, not a security exception. Production database/RLS remains authoritative.
 
-The project will not depend on Supabase Preview Branching/Preview Database for migration validation.
+### Preview-free validation path
 
-Project constraint: the maintainer does not have access to a credit card and cannot pay for a Supabase Pro/Branching environment. Therefore Preview Branching must not be introduced as a required gate, and the team must not create a paid dependency merely to validate Pay changes.
+1. Keep the production migration ledger as the source of truth for the applied migration history.
+2. Validate the repository migration chain in GitHub CI.
+3. Run Pay database security/adversarial SQL against isolated disposable PostgreSQL in CI.
+4. Run CI/typecheck/unit tests and Production Build.
+5. Reuse the already-validated dedicated Devnet E2E and Mainnet read-only/runtime smoke paths for blockchain behavior.
+6. Never use a public RPC/faucet fallback as a production test assumption.
+7. Do not run `supabase migration repair` against production unless a later explicit, evidence-backed reconciliation requires it.
 
-This is a delivery constraint, not a security exception. Production database/RLS remains authoritative, and validation must stay fail-closed through repository evidence plus isolated CI environments.
+The preview-free migration gate is an integrity/reproducibility check. It does not claim plain PostgreSQL is equivalent to Supabase Preview.
 
-## Preview-free validation path
+### Migration-chain gate repair
 
-The replacement path is:
+The first CI implementation correctly detected that the branch contained six stale/duplicate Better Auth/identity filenames while the canonical production filenames were missing. This was a repository lineage issue, not a reason to weaken the gate.
 
-1. Keep the production migration ledger as the source of truth for the expected migration history.
-2. Validate repository migration filename/order integrity in GitHub CI.
-3. Run Pay database security/adversarial SQL against an isolated disposable PostgreSQL instance in CI.
-4. Run CI/typecheck/unit tests and Production Build on the same change.
-5. For blockchain behavior, use the already-validated dedicated Devnet E2E path and the existing Mainnet read-only/runtime smoke checks.
-6. Do not use public RPC/faucet fallback as a production test assumption.
-7. Do not run `supabase migration repair` against production unless a later, explicit, evidence-backed reconciliation requires it.
+The corrected branch now restores the exact production-recorded filenames using the verified historical blobs and removes the redundant unsuffixed duplicate. The repository may also contain strictly newer migrations that have not yet been applied to Production; these are treated as **pending repository migrations** and are allowed only after the recorded Production ledger boundary.
 
-This path intentionally does **not** claim that a plain disposable PostgreSQL instance is equivalent to Supabase Preview. It provides independent deterministic validation for the checks that can be reproduced safely without a paid Supabase branch.
+The current newer repository migration `20260911103000_pay_webhook_read_projection.sql` is therefore intentionally retained as pending and is not claimed as production-applied.
 
-## Current next stage
+### Validation evidence
 
-After PR #82 validation/merge, move to the next unreleased Pay product gate: **authenticated merchant lifecycle and production-safe merchant credentials**.
+- Earlier `CI` — **GREEN** on the pre-fix reconciliation commit.
+- Earlier `Production Build` — **GREEN** on the pre-fix reconciliation commit.
+- Earlier `SolMint Pay Database Security` — **GREEN** on the pre-fix reconciliation commit.
+- The first version of the new migration-chain gate **FAILED CORRECTLY** by detecting repository/ledger filename drift.
+- The gate logic was repaired to distinguish exact Production history from newer pending repository migrations without weakening the historical boundary.
+- Canonical migration filename restoration is committed on the PR branch; fresh CI validation of this final repair is required before marking this checkpoint completed.
+
+## Next unreleased Pay gate
+
+After PR #82 passes its final validation and is merged, move to **authenticated merchant lifecycle and production-safe merchant credentials** (Issue #68 acceptance path).
 
 The repository currently exposes the real server-mediated contracts for:
 
@@ -99,7 +104,7 @@ The repository currently exposes the real server-mediated contracts for:
 - API-key list/create/revoke/rotate
 - Payment Intent read
 
-The next implementation/audit cycle must verify these contracts end-to-end against the real backend, authentication boundary, authorization/merchant isolation, idempotency, and deployment evidence before expanding the UI surface.
+Do not expand the Pay UI surface until these contracts are verified against authentication, authorization/merchant isolation, idempotency and deployment evidence.
 
 ## Explicitly not complete yet
 
