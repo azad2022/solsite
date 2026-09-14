@@ -107,8 +107,7 @@ export async function supabaseRequest(env: PayRuntimeEnv, path: string, init: Re
   if (!env.SUPABASE_SECRET_KEY && env.SUPABASE_SERVICE_ROLE_KEY) headers.set('Authorization', `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`);
   const response = await fetch(`${getSupabaseBaseUrl(env)}${path}`, { ...init, headers });
   if (!response.ok) {
-    const upstream = (await response.text()).slice(0, 500);
-    console.error(JSON.stringify({ scope: 'pay:supabase', status: response.status, body: upstream }));
+    console.error(JSON.stringify({ scope: 'pay:supabase', status: response.status }));
     throw new PayRuntimeError('UPSTREAM_DATABASE_ERROR', 503, 'Pay data service is unavailable.');
   }
   return response;
