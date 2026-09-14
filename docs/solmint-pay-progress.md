@@ -26,7 +26,7 @@ Validated before merge:
 - Solmint Pay Mainnet Read-only passed.
 - Solmint Pay Production API Smoke passed.
 
-Conclusion: the long-running **Devnet E2E funding/transaction-observation blocker is closed and must not be re-investigated unless a new regression appears**.
+Conclusion: the long-running **Devnet E2E funding/observation blocker is closed and must not be re-investigated unless a new regression appears**.
 
 ## 2026-09-14 — Production API origin gate closed
 
@@ -121,6 +121,32 @@ Validated before merge:
 
 Conclusion: the **API credential runtime-redaction and origin-gate hardening stage is fully passed** and must not be repeated unless a regression appears.
 
+## 2026-09-14 — Persistent authenticated E2E fixture established
+
+Status: **ESTABLISHED — E2E evidence still pending**
+
+Purpose: provide one durable controlled production account/merchant pair for Issue #68 authenticated lifecycle testing so later runs reuse the same fixture instead of recreating users and merchants.
+
+Repository record: `docs/solmint-pay-e2e-fixture.md`
+
+GitHub Actions secret names:
+
+- `PAY_E2E_EMAIL`
+- `PAY_E2E_PASSWORD`
+- `PAY_E2E_MERCHANT_ID`
+- `PAY_E2E_OTHER_MERCHANT_ID`
+
+No secret values, passwords, private keys, or API-key plaintext are stored in the repository.
+
+Controlled fixture state verified in the live database:
+
+- Primary user/merchant: active user, active merchant, active `owner` membership.
+- Isolation target: separate active merchant owned by a different test user; primary E2E user has no membership on that merchant.
+
+Reuse rule: do not recreate this fixture during later E2E runs unless it is intentionally retired or proven corrupted.
+
+Important: this record proves the reusable test fixture exists; it does **not** mark Issue #68 complete. The authenticated workflow must still produce successful GitHub Actions evidence.
+
 ## Cloudflare Workers Builds — identified external deployment integration
 
 Status: **EXTERNAL / NOT A REPOSITORY FAILURE**
@@ -160,4 +186,5 @@ Before starting a new Pay task:
 3. Revalidate the real backend/database contract for the requested capability.
 4. Never repeat the Devnet funding/observation work unless CI demonstrates a regression.
 5. Do not add Supabase Preview Branching as a prerequisite for Pay delivery.
-6. Record a gate as **COMPLETED** only after the relevant implementation, validation, and release evidence are actually green.
+6. Reuse the persistent authenticated E2E fixture recorded in `docs/solmint-pay-e2e-fixture.md` instead of recreating test users/merchants.
+7. Record a gate as **COMPLETED** only after the relevant implementation, validation, and release evidence are actually green.
