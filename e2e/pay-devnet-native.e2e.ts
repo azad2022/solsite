@@ -7,18 +7,12 @@ import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 
 const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
 const DEVNET_FUNDER_SECRET_KEY_B64 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64?.trim();
-if (!DEVNET_RPC_URL) {
-  throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E; configure a dedicated Devnet RPC endpoint.');
-}
-if (!DEVNET_RPC_URL.startsWith('https://')) {
-  throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
-}
-if (!DEVNET_FUNDER_SECRET_KEY_B64) {
-  throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for Devnet test-account provisioning.');
-}
+if (!DEVNET_RPC_URL) throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E; configure a dedicated Devnet RPC endpoint.');
+if (!DEVNET_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
+if (!DEVNET_FUNDER_SECRET_KEY_B64) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for Devnet test-account provisioning.');
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
-const MEMO_PROGRAM = 'MemoSq4gqABKb96qnH8TysNcWxMyWCqXgDLGmfcHr'.replace('ABKb','qAB');
+const MEMO_PROGRAM = 'MemoSq4gqABKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const PAYMENT_AMOUNT_LAMPORTS = 500_000_000n;
 const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000n;
 const GATEWAY_FEE_LAMPORTS = 5_000_000n;
@@ -110,43 +104,22 @@ function decodeFunderSecretKey(value: string): Buffer {
   try {
     const base58Candidate = base58Decode(value);
     if (base58Candidate.length === 64) candidates.push(base58Candidate);
-  } catch {
-    // Try the legacy secret value as Base64 below.
-  }
+  } catch {}
   const base64Candidate = decodeBase64Strict(value);
   if (base64Candidate?.length === 64) candidates.push(base64Candidate);
-
   for (const candidate of candidates) {
-    const secretSeed = candidate.subarray(0, 32);
-    try {
-      const privateKey = createPrivateKey({
-        key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, secretSeed]),
-        format: 'der',
-        type: 'pkcs8',
-      });
-      const derivedPublicKey = rawPublicKey(createPublicKey(privateKey));
-      if (candidate.subarray(32).equals(derivedPublicKey)) return candidate;
-    } catch {
-      // Reject malformed candidates and continue with the other encoding.
-    }
+    const privateKey = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, candidate.subarray(0, 32)]), format: 'der', type: 'pkcs8' });
+    const derivedPublicKey = rawPublicKey(createPublicKey(privateKey));
+    if (candidate.subarray(32).equals(derivedPublicKey)) return candidate;
   }
-
   throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must contain a valid Base58- or Base64-encoded 64-byte Solana keypair.');
 }
 
 function createDevnetFunder() {
   const decoded = decodeFunderSecretKey(DEVNET_FUNDER_SECRET_KEY_B64);
-  const secretSeed = decoded.subarray(0, 32);
-  const privateKey = createPrivateKey({
-    key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, secretSeed]),
-    format: 'der',
-    type: 'pkcs8',
-  });
+  const privateKey = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, decoded.subarray(0, 32)]), format: 'der', type: 'pkcs8' });
   const publicKey = rawPublicKey(createPublicKey(privateKey));
-  const suppliedPublicKey = decoded.subarray(32);
-  if (!suppliedPublicKey.equals(publicKey)) {
-    throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 public key does not match its secret seed.');
-  }
+  if (!decoded.subarray(32).equals(publicKey)) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 public key does not match its secret seed.');
   return { privateKey, publicKey, address: base58Encode(publicKey) };
 }
 
@@ -163,25 +136,17 @@ function memoInstruction(referenceIndex: number, data: Buffer): Buffer {
 }
 
 function buildFundingMessage(funder: Buffer, payer: Buffer, recentBlockhash: Buffer): Buffer {
-  if (funder.length !== 32 || payer.length !== 32 || recentBlockhash.length !== 32) {
-    throw new Error('Funding transaction requires 32-byte public keys and blockhash.');
-  }
+  if (funder.length !== 32 || payer.length !== 32 || recentBlockhash.length !== 32) throw new Error('Funding transaction requires 32-byte public keys and blockhash.');
   const accountKeys = [funder, payer, base58Decode(SYSTEM_PROGRAM)];
   const instructions = [systemTransfer(2, 0, 1, FUNDER_TOP_UP_LAMPORTS)];
   return Buffer.concat([Buffer.from([1, 0, 1]), compactU16(accountKeys.length), ...accountKeys, recentBlockhash, compactU16(instructions.length), ...instructions]);
 }
 
 function buildLegacyMessage(payer: Buffer, merchant: Buffer, fee: Buffer, reference: Buffer, recentBlockhash: Buffer): Buffer {
-  if ([payer, merchant, fee, reference, recentBlockhash].some((value) => value.length !== 32)) {
-    throw new Error('Payment transaction requires 32-byte public keys and blockhash.');
-  }
+  if ([payer, merchant, fee, reference, recentBlockhash].some((value) => value.length !== 32)) throw new Error('Payment transaction requires 32-byte public keys and blockhash.');
   const accountKeys = [payer, merchant, fee, reference, base58Decode(SYSTEM_PROGRAM), base58Decode(MEMO_PROGRAM)];
   const memoData = Buffer.from(`solmint-pay-devnet:${base58Encode(reference)}`, 'utf8');
-  const instructions = [
-    systemTransfer(4, 0, 1, MERCHANT_SETTLEMENT_LAMPORTS),
-    systemTransfer(4, 0, 2, GATEWAY_FEE_LAMPORTS),
-    memoInstruction(3, memoData),
-  ];
+  const instructions = [systemTransfer(4, 0, 1, MERCHANT_SETTLEMENT_LAMPORTS), systemTransfer(4, 0, 2, GATEWAY_FEE_LAMPORTS), memoInstruction(3, memoData)];
   return Buffer.concat([Buffer.from([1, 0, 3]), compactU16(accountKeys.length), ...accountKeys, recentBlockhash, compactU16(instructions.length), ...instructions]);
 }
 
@@ -190,9 +155,7 @@ function serializeSignedLegacyTransaction(message: Buffer, privateKey: ReturnTyp
   if (signature.length !== 64) throw new Error('Ed25519 signature must be exactly 64 bytes.');
   const transaction = Buffer.concat([compactU16(1), signature, message]);
   if (transaction.length > 1232) throw new Error(`Serialized Solana transaction exceeds the 1232-byte packet limit: ${transaction.length}`);
-  if (transaction[0] !== 1 || transaction.subarray(65, 68).compare(message.subarray(0, 3)) !== 0) {
-    throw new Error('Serialized Solana transaction has an invalid legacy wire layout.');
-  }
+  if (transaction[0] !== 1 || transaction.subarray(65, 68).compare(message.subarray(0, 3)) !== 0) throw new Error('Serialized Solana transaction has an invalid legacy wire layout.');
   return transaction;
 }
 
@@ -200,12 +163,7 @@ async function rpcAt<T>(url: string, method: string, params: unknown[], label: s
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RPC_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method, params }),
-      signal: controller.signal,
-    });
+    const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method, params }), signal: controller.signal });
     if (!response.ok) throw new Error(`${label} HTTP ${response.status}`);
     const payload = await response.json() as { result?: T; error?: { code?: number; message?: string } };
     if (payload.error) throw new Error(`${label} ${payload.error.message || payload.error.code || 'error'}`);
@@ -214,14 +172,10 @@ async function rpcAt<T>(url: string, method: string, params: unknown[], label: s
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') throw new Error(`${label} ${method} timed out after ${RPC_REQUEST_TIMEOUT_MS}ms`);
     throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  } finally { clearTimeout(timeout); }
 }
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  return rpcAt<T>(DEVNET_RPC_URL, method, params, 'Devnet RPC');
-}
+async function rpc<T>(method: string, params: unknown[]): Promise<T> { return rpcAt<T>(DEVNET_RPC_URL, method, params, 'Devnet RPC'); }
 
 async function waitForFinalized(signature: string): Promise<void> {
   const deadline = Date.now() + TIMEOUT_MS;
@@ -269,25 +223,16 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
   assert.ok(directObservation, 'the real Devnet transaction must be readable by the Pay provider');
   assert.equal(directObservation?.success, true);
 
-  const window = {
-    createdAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
-  };
+  const window = { createdAt: new Date(Date.now() - 5 * 60_000).toISOString(), expiresAt: new Date(Date.now() + 5 * 60_000).toISOString() };
   const discovered = await provider.findTransactionsByReference(reference.address, 'finalized', window);
   assert.ok(discovered.some((observation) => observation.signature === signature), 'the real transaction must be discoverable through its Pay reference');
 
   const expected: ExpectedPayment = {
     amountAtomic: PAYMENT_AMOUNT_LAMPORTS.toString(),
-    asset: 'SOL',
-    tokenMint: null,
-    tokenProgram: null,
-    tokenDecimals: null,
-    merchantDestination: merchant.address,
-    feeDestination: fee.address,
-    merchantSettlementAtomic: MERCHANT_SETTLEMENT_LAMPORTS.toString(),
-    gatewayFeeAtomic: GATEWAY_FEE_LAMPORTS.toString(),
-    reference: reference.address,
-    requiredCommitment: 'finalized',
+    asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: null,
+    merchantDestination: merchant.address, feeDestination: fee.address,
+    merchantSettlementAtomic: MERCHANT_SETTLEMENT_LAMPORTS.toString(), gatewayFeeAtomic: GATEWAY_FEE_LAMPORTS.toString(),
+    reference: reference.address, requiredCommitment: 'finalized',
   };
 
   const decision = await verifyPayment(provider, expected, signature, new Set(), window);
