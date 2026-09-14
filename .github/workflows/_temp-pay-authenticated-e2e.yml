@@ -47,6 +47,17 @@ jobs:
           test -n "$PAY_E2E_MERCHANT_ID"
           test -n "$PAY_E2E_OTHER_MERCHANT_ID"
 
+      - name: Verify password secret fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(printf '%s' "$PAY_E2E_PASSWORD" | sha256sum | cut -d ' ' -f1)"
+          expected="cbcba802b4c591b1445a2bd58641f617863b671476072538e11360941addec07"
+          if [ "$actual" != "$expected" ]; then
+            echo 'PAY_E2E_PASSWORD fingerprint mismatch.' >&2
+            exit 1
+          fi
+
       - name: Run authenticated production API-key lifecycle E2E
         run: bun run test:e2e:pay-authenticated
 
