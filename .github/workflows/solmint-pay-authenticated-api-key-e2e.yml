@@ -2,6 +2,11 @@ name: SolMint Pay Authenticated API-Key E2E
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - test/pay-authenticated-api-key-e2e
+    paths-ignore:
+      - .github/workflows/solmint-pay-authenticated-api-key-e2e.yml
 
 permissions:
   contents: read
