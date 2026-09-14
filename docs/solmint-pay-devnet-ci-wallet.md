@@ -21,6 +21,8 @@ The funded real-transaction Devnet E2E uses a dedicated CI-only Solana Devnet fu
 
 The Devnet E2E workflow passes the secret directly to the test harness. The harness decodes and validates the keypair, derives the funder public key, funds an ephemeral payer, and then performs the real payment submission, discovery, and verification path through the dedicated Devnet RPC.
 
-## Current validation checkpoint
+## Validation history
 
-The secret was replaced in GitHub Actions with the key material for the wallet identified above. The subsequent E2E rerun passed the secret-presence and keypair-validation stage and advanced to the real payment execution stage.
+The GitHub Actions secret was replaced with the key material for the wallet identified above. The subsequent E2E rerun passed secret presence and keypair validation and advanced into real payment execution.
+
+The next E2E run then showed that the dedicated RPC accepted the real transaction but returned `null` for transaction details at `finalized` commitment during lookup. The verification provider has now been hardened to treat a `finalized` signature status as the finality proof and, only in that case, retry transaction-detail retrieval at `confirmed` commitment. This preserves the effective finality requirement while tolerating provider-side transaction-detail indexing lag.
