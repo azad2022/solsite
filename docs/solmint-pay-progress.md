@@ -134,18 +134,27 @@ The repository is configured for Cloudflare Pages, not for that separate Worker 
 
 Required remediation is therefore a Cloudflare Dashboard integration action: disconnect the obsolete `Workers Builds` integration for that Worker service. Repository code must not be changed or a fake Worker created merely to make this unrelated check green.
 
+## 2026-09-14 — Better Auth production session-boundary correction
+
+Status: **IMPLEMENTED / VALIDATION IN PROGRESS**
+
+Scope: align the shared application authentication boundary with the actual Better Auth cookie emitted by the deployed production runtime.
+
+Evidence:
+
+- Production sign-in for the controlled E2E account now returns HTTP 200 and a Better Auth session cookie.
+- The production cookie name observed in the authenticated smoke path is `__Secure-__Host-solmint_auth_session`.
+- The shared auth boundary previously recognized only the unprefixed cookie form, causing `/api/users/me` and Pay endpoints to return 401 even after successful Better Auth login.
+- `functions/api/auth/_application-session.ts` now accepts the deployed cookie form and normalizes it only at the Better Auth session adapter boundary.
+- `functions/api/auth/_shared.ts` now recognizes the deployed prefixed session cookie before choosing the Better Auth authority path.
+
+Validation state: source build/quality checks are green on the implementation commit; a fresh production E2E run must still confirm the deployed runtime serves the corrected boundary before this gate is marked complete.
+
 ## Next unreleased Pay gate
 
-Move to **authenticated merchant lifecycle and production-safe merchant credentials** (Issue #68 acceptance path).
+Continue **authenticated merchant lifecycle and production-safe merchant credentials** (Issue #68 acceptance path).
 
-The next implementation/audit cycle must verify these real server-mediated contracts end-to-end against authentication, authorization/merchant isolation, idempotency, and deployment/runtime evidence before expanding the UI surface:
-
-- merchant read/create
-- wallet challenge/verification
-- API-key list/create/revoke/rotate
-- Payment Intent read
-
-For Issue #68 specifically, the remaining evidence gate is still the **authenticated production/non-production lifecycle against a controlled merchant account**, including cross-merchant IDOR, revoked/expired/wrong-scope enforcement, replay/concurrency behavior, secret-redaction evidence at runtime, and final production audit evidence. The completed PR #83 hardening stage must be treated as passed, not as a substitute for this remaining authenticated evidence.
+For Issue #68 specifically, the remaining evidence gate is still the **authenticated production/non-production lifecycle against a controlled merchant account**, including cross-merchant IDOR, revoked/expired/wrong-scope enforcement, replay/concurrency behavior, secret-redaction evidence at runtime, and final production audit evidence.
 
 ## Explicitly not complete yet
 
