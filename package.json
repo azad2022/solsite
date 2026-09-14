@@ -17,7 +17,8 @@
     "build:ci": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "test": "find tests -type f -name '*.test.ts' -print0 | xargs -0 tsx --test",
     "test:pay:devnet": "tsx e2e/pay-devnet-native.e2e.ts",
-    "test:e2e:pay-production-contract": "tsx e2e/pay-production-api-contract.e2e.ts"
+    "test:e2e:pay-production-contract": "tsx e2e/pay-production-api-contract.e2e.ts",
+    "test:e2e:pay-authenticated": "tsx e2e/pay-authenticated-api-key-lifecycle.e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -30,7 +31,6 @@
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
-    "pg": "^8.16.3",
     "react": "^19.0.1",
     "react-dom": "^19.0.1"
   },
@@ -40,6 +40,7 @@
     "@types/pg": "^8.15.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
+    "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "10.4.21",
     "tailwindcss": "^4.3.3",
