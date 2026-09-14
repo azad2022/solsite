@@ -6,32 +6,15 @@
 
 DO $$
 begin
-  if not exists (select 1 from pg_roles where rolname = 'anon') then
-    create role anon;
-  end if;
-  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
-    create role authenticated;
-  end if;
-  if not exists (select 1 from pg_roles where rolname = 'service_role') then
-    create role service_role;
-  end if;
+  if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon; end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated; end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role; end if;
 end $$;
 grant usage on schema public to anon, authenticated, service_role;
 
-create table public.users (
-  id text primary key,
-  is_active boolean not null default true
-);
-create table public.pay_merchants (
-  id uuid primary key,
-  status text not null
-);
-create table public.pay_merchant_members (
-  user_id text not null,
-  merchant_id uuid not null,
-  status text not null,
-  role text not null
-);
+create table public.users (id text primary key, is_active boolean not null default true);
+create table public.pay_merchants (id uuid primary key, status text not null);
+create table public.pay_merchant_members (user_id text not null, merchant_id uuid not null, status text not null, role text not null);
 create table public.pay_api_keys (
   id uuid primary key default gen_random_uuid(), merchant_id uuid not null, name text not null,
   key_prefix text not null, key_hash text not null unique, scopes text[] not null default '{}'::text[],
@@ -50,14 +33,7 @@ create table public.pay_audit_logs (
   metadata jsonb not null default '{}'::jsonb, created_at timestamptz not null default now()
 );
 
-grant select, insert, update on
-  public.users,
-  public.pay_merchants,
-  public.pay_merchant_members,
-  public.pay_api_keys,
-  public.pay_idempotency_keys,
-  public.pay_audit_logs
-  to service_role;
+grant select, insert, update on public.users, public.pay_merchants, public.pay_merchant_members, public.pay_api_keys, public.pay_idempotency_keys, public.pay_audit_logs to service_role;
 
 \i supabase/migrations/20260910153000_solmint_pay_api_key_lifecycle.sql
 \i supabase/migrations/20260910153001_solmint_pay_api_key_idempotency_lock.sql
@@ -77,14 +53,13 @@ begin
   if has_function_privilege('service_role','public.pay_revoke_api_key(text,uuid,uuid)','EXECUTE') is not true then raise exception 'service_role revoke grant missing'; end if;
   if has_function_privilege('service_role','public.pay_rotate_api_key(text,uuid,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') is not true then raise exception 'service_role rotate grant missing'; end if;
   if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
-  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
+  if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
   if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
   if has_function_privilege('service_role','public.pay_rotate_api_key_unlocked(text,uuid,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked rotate function remains executable'; end if;
 end $$;
 
 DO $$
-declare
-  r jsonb;
+declare r jsonb;
 begin
   r := public.pay_create_api_key('user-a','00000000-0000-0000-0000-000000000001','production','sk_pay_test01',repeat('a',64),array['payment.create']::text[],null,'create-1',repeat('b',64));
   if r->>'state' <> 'created' then raise exception 'create failed: %', r; end if;
@@ -93,8 +68,7 @@ begin
 end $$;
 
 DO $$
-declare
-  r jsonb;
+declare r jsonb;
 begin
   r := public.pay_create_api_key('user-a','00000000-0000-0000-0000-000000000001','production','sk_pay_test02',repeat('c',64),array['payment.create']::text[],null,'create-1',repeat('b',64));
   if r->>'state' <> 'replay' then raise exception 'same idempotency key must replay: %', r; end if;
@@ -102,25 +76,21 @@ begin
 end $$;
 
 DO $$
-declare
-  r jsonb;
+declare r jsonb;
 begin
   r := public.pay_create_api_key('user-a','00000000-0000-0000-0000-000000000001','production','sk_pay_test03',repeat('d',64),array['payment.create']::text[],null,'create-1',repeat('e',64));
   if r->>'state' <> 'conflict' then raise exception 'changed request hash must conflict: %', r; end if;
 end $$;
 
 DO $$
-declare
-  r jsonb;
+declare r jsonb;
 begin
   r := public.pay_create_api_key('user-b','00000000-0000-0000-0000-000000000001','wrong-owner','sk_pay_test04',repeat('f',64),array['payment.create']::text[],null,'create-2',repeat('1',64));
   if r->>'reason' <> 'MERCHANT_FORBIDDEN' then raise exception 'cross-merchant owner must be denied: %', r; end if;
 end $$;
 
 DO $$
-declare
-  r jsonb;
-  key_id uuid;
+declare r jsonb; key_id uuid;
 begin
   select id into key_id from public.pay_api_keys where key_prefix='sk_pay_test01';
   r := public.pay_revoke_api_key('user-a','00000000-0000-0000-0000-000000000001',key_id);
@@ -128,15 +98,11 @@ begin
   if (select revoked_at is null from public.pay_api_keys where id=key_id) then raise exception 'key was not revoked'; end if;
 end $$;
 
-insert into public.pay_api_keys(merchant_id,name,key_prefix,key_hash,scopes) values
-('00000000-0000-0000-0000-000000000001','rotate-me','sk_pay_old',repeat('1',64),array['payment.create']::text[]);
+insert into public.pay_api_keys(merchant_id,name,key_prefix,key_hash,scopes)
+values ('00000000-0000-0000-0000-000000000001','rotate-me','sk_pay_old',repeat('1',64),array['payment.create']::text[]);
 
 DO $$
-declare
-  r jsonb;
-  replay jsonb;
-  old_key_id uuid;
-  rotated_id uuid;
+declare r jsonb; replay jsonb; old_key_id uuid; rotated_id uuid;
 begin
   select id into old_key_id from public.pay_api_keys where key_prefix='sk_pay_old';
   r := public.pay_rotate_api_key('user-a','00000000-0000-0000-0000-000000000001',old_key_id,'rotated','sk_pay_new',repeat('2',64),array['payment.create']::text[],null,'rotate-1',repeat('3',64));
