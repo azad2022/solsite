@@ -4,3 +4,7 @@ name = "solmint"
 compatibility_date = "2026-08-10"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "./dist"
+
+# Non-secret Pay runtime configuration. Secrets remain in Cloudflare's secret store.
+[vars]
+PAY_APP_ORIGIN = "https://solmint.ir"
