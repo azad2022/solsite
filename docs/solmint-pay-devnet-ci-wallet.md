@@ -25,4 +25,4 @@ The Devnet E2E workflow passes the secret directly to the test harness. The harn
 
 The GitHub Actions secret was replaced with the key material for the wallet identified above. The subsequent E2E rerun passed secret presence and keypair validation and advanced into real payment execution.
 
-The following E2E run showed that the dedicated RPC accepted the real transaction but returned `null` for transaction details at `finalized` commitment during lookup. The verification provider is now hardened to treat a `finalized` signature status as the finality proof and, only in that case, retry transaction-detail retrieval at `confirmed` commitment. This preserves the effective finality requirement while tolerating provider-side transaction-detail indexing lag.
+The next E2E run showed that the dedicated RPC accepted the real transaction but returned `null` for transaction details at `finalized` commitment during lookup. The verification provider now requires a `finalized` signature status before falling back to a `confirmed` transaction-detail lookup. This preserves effective finality while tolerating provider-side transaction-detail indexing lag.
