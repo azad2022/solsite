@@ -51,3 +51,5 @@ The fixture is test-only and must not be used for real customer, merchant, or fi
 Do **not** recreate this user or either merchant during later test runs unless the repository evidence shows the fixture has been intentionally retired or corrupted. Reuse the existing GitHub Actions secrets and IDs above.
 
 The existence of this fixture does not make Pay production-ready by itself. It is test infrastructure only; release readiness still requires all applicable backend, security, E2E, audit, CI, and production gates.
+
+<!-- authenticated-e2e-trigger -->
