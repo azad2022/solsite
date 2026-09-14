@@ -65,7 +65,7 @@ function createDevnetFunder(): Keypair {
 function createMemoInstruction(reference: PublicKey): TransactionInstruction {
   return new TransactionInstruction({
     programId: MEMO_PROGRAM,
-    keys: [{ pubkey: reference, isSigner: false, isWritable: false }],
+    keys: [{ pubkey: reference, isSigner: true, isWritable: false }],
     data: Buffer.from(`solmint-pay-devnet:${reference.toBase58()}`, 'utf8'),
   });
 }
@@ -102,7 +102,7 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
     .add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: merchant.publicKey, lamports: MERCHANT_SETTLEMENT_LAMPORTS }))
     .add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: fee.publicKey, lamports: GATEWAY_FEE_LAMPORTS }))
     .add(createMemoInstruction(reference.publicKey));
-  payment.sign(payer);
+  payment.sign(payer, reference);
 
   const signature = await transactionConnection.sendRawTransaction(payment.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
   await confirmFinalized(transactionConnection, signature, latest.blockhash, latest.lastValidBlockHeight);
