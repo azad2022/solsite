@@ -6,15 +6,15 @@ import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 
 const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
-const DEVNET_FUNDER_KEYPAIR = process.env.SOLANA_DEVNET_FUNDER_KEYPAIR?.trim();
+const DEVNET_FUNDER_SECRET_KEY_B64 = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64?.trim();
 if (!DEVNET_RPC_URL) {
   throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E; configure a dedicated Devnet RPC endpoint.');
 }
 if (!DEVNET_RPC_URL.startsWith('https://')) {
   throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
 }
-if (!DEVNET_FUNDER_KEYPAIR) {
-  throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR is required for Devnet test-account provisioning.');
+if (!DEVNET_FUNDER_SECRET_KEY_B64) {
+  throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for Devnet test-account provisioning.');
 }
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
@@ -99,21 +99,21 @@ function createKeypair() {
 }
 
 function createDevnetFunder() {
-  let parsed: unknown;
+  let decoded: Buffer;
   try {
-    parsed = JSON.parse(DEVNET_FUNDER_KEYPAIR);
+    decoded = Buffer.from(DEVNET_FUNDER_SECRET_KEY_B64, 'base64');
   } catch {
-    throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR must contain a JSON array of 64 byte values.');
+    throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must be valid base64.');
   }
-  if (!Array.isArray(parsed) || parsed.length !== 64 || parsed.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
-    throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR must contain a JSON array of exactly 64 byte values.');
+  if (decoded.length !== 64) {
+    throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must decode to exactly 64 bytes.');
   }
-  const secretSeed = Buffer.from(parsed.slice(0, 32) as number[]);
+  const secretSeed = decoded.subarray(0, 32);
   const privateKey = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, secretSeed]), format: 'der', type: 'pkcs8' });
   const publicKey = rawPublicKey(createPublicKey(privateKey));
-  const suppliedPublicKey = Buffer.from(parsed.slice(32) as number[]);
+  const suppliedPublicKey = decoded.subarray(32);
   if (!suppliedPublicKey.equals(publicKey)) {
-    throw new Error('SOLANA_DEVNET_FUNDER_KEYPAIR public key does not match its secret seed.');
+    throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 public key does not match its secret seed.');
   }
   return { privateKey, publicKey, address: base58Encode(publicKey) };
 }
@@ -194,7 +194,7 @@ async function waitForFinalized(signature: string): Promise<void> {
 async function fundPayer(funder: { privateKey: ReturnType<typeof createPrivateKey>; publicKey: Buffer; address: string }, payer: { publicKey: Buffer; address: string }): Promise<void> {
   const balance = await rpc<{ value: number }>('getBalance', [funder.address, { commitment: 'finalized' }]);
   if (BigInt(balance.value) < MIN_FUNDER_BALANCE_LAMPORTS) {
-    throw new Error('Devnet CI funding account has insufficient SOL for the real-payment E2E.');
+    throw new Error('Devnet funding account has insufficient SOL for the real-payment E2E.');
   }
   const latest = await rpc<{ blockhash: string }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
   const message = buildFundingMessage(funder.publicKey, payer.publicKey, base58Decode(latest.blockhash));
