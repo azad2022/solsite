@@ -52,4 +52,4 @@ Do **not** recreate this user or either merchant during later test runs unless t
 
 The existence of this fixture does not make Pay production-ready by itself. It is test infrastructure only; release readiness still requires all applicable backend, security, E2E, audit, CI, and production gates.
 
-<!-- authenticated-e2e-trigger -->
+<!-- authenticated-e2e-trigger-2 -->
