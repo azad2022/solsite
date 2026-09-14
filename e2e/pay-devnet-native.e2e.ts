@@ -18,6 +18,8 @@ const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000;
 const GATEWAY_FEE_LAMPORTS = 5_000_000;
 const FUNDER_TOP_UP_LAMPORTS = 520_000_000;
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000_000;
+const OBSERVATION_POLL_ATTEMPTS = 20;
+const OBSERVATION_POLL_DELAY_MS = 2_000;
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58_ALPHABET].map((char, index) => [char, index]));
 
@@ -85,6 +87,18 @@ async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair
   await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
 }
 
+async function waitForFinalizedObservation(
+  provider: ReturnType<typeof createSolanaRpcProvider>,
+  signature: string,
+): Promise<NonNullable<Awaited<ReturnType<typeof provider.getTransaction>>>> {
+  for (let attempt = 1; attempt <= OBSERVATION_POLL_ATTEMPTS; attempt += 1) {
+    const observation = await provider.getTransaction(signature, 'finalized');
+    if (observation) return observation;
+    if (attempt < OBSERVATION_POLL_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, OBSERVATION_POLL_DELAY_MS));
+  }
+  throw new Error(`FINALIZED_TRANSACTION_OBSERVATION_TIMEOUT after ${OBSERVATION_POLL_ATTEMPTS} attempts`);
+}
+
 test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: 270_000 }, async () => {
   const connection = new Connection(DEVNET_RPC_URL, { commitment: 'confirmed' });
   const payer = Keypair.generate();
@@ -106,9 +120,8 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
   await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
-  const directObservation = await provider.getTransaction(signature, 'finalized');
-  assert.ok(directObservation, 'the real Devnet transaction must be readable by the Pay provider');
-  assert.equal(directObservation?.success, true);
+  const directObservation = await waitForFinalizedObservation(provider, signature);
+  assert.equal(directObservation.success, true);
 
   const window = { createdAt: new Date(Date.now() - 5 * 60_000).toISOString(), expiresAt: new Date(Date.now() + 5 * 60_000).toISOString() };
   const discovered = await provider.findTransactionsByReference(reference.publicKey.toBase58(), 'finalized', window);
