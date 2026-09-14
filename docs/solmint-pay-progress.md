@@ -42,9 +42,13 @@ Validated:
 
 ## 2026-09-14 — Repository migration history reconciliation
 
-Status: **VALIDATION IN PROGRESS**
+Status: **COMPLETED**
 
-PR: `#82` — `fix(pay): reconcile repository migration history with live Supabase`
+Merged PR: `#82`
+
+Merge commit on `main`: `16e8dfaf51a948920e1375f04db969d0fc86a411`
+
+Scope: reconcile the repository migration chain with the live Production migration ledger without mutating the live database, and establish a preview-free validation path.
 
 Live database evidence used for reconciliation:
 
@@ -80,22 +84,31 @@ The preview-free migration gate is an integrity/reproducibility check. It does n
 
 The first CI implementation **failed correctly** by detecting six stale/duplicate Better Auth/identity filenames in the branch while the canonical production names were missing. The test was not weakened.
 
-The migration lineage is now corrected using verified historical blobs: the exact production names are restored, redundant unsuffixed files are removed, and the strictly newer repository migration `20260911103000_pay_webhook_read_projection.sql` remains as an explicit pending migration because it is newer than the current Production ledger boundary.
+A second issue in the new gate was also corrected: version-boundary comparison now uses numeric 14-digit migration timestamps so newer pending migrations are not rejected accidentally.
 
-The final reconciliation lineage is now prepared on the PR branch. Fresh CI validation is required before this checkpoint can be marked completed.
+The migration lineage was then corrected using verified historical blobs: the exact production names are restored, redundant unsuffixed files are removed, and the strictly newer repository migration `20260911103000_pay_webhook_read_projection.sql` remains as an explicit pending migration because it is newer than the current Production ledger boundary.
+
+### Final validation evidence
+
+- `SolMint Pay Database Security` #283 — **GREEN**: migration-chain integrity, identity/RLS security, and API-key lifecycle security all passed.
+- `CI` #2100 — **GREEN**: typecheck, production build, unit tests, and source-tree invariant all passed.
+- `Production Build` #1778 — **GREEN**.
+- Cloudflare Pages preview deployment for the final PR head — **successful**.
+- Repository code search found no remaining references to the removed legacy identity migration filename.
+- PR #82 was merged successfully as `16e8dfaf51a948920e1375f04db969d0fc86a411`.
+
+This checkpoint is now **completed**. The live Production database remains unchanged by this PR.
 
 ## Next unreleased Pay gate
 
-After PR #82 passes its final validation and is merged, move to **authenticated merchant lifecycle and production-safe merchant credentials** (Issue #68 acceptance path).
+Move to **authenticated merchant lifecycle and production-safe merchant credentials** (Issue #68 acceptance path).
 
-The repository currently exposes the real server-mediated contracts for:
+The next implementation/audit cycle must verify these real server-mediated contracts end-to-end against authentication, authorization/merchant isolation, idempotency, and deployment/runtime evidence before expanding the UI surface:
 
 - merchant read/create
 - wallet challenge/verification
 - API-key list/create/revoke/rotate
 - Payment Intent read
-
-Do not expand the Pay UI surface until these contracts are verified against authentication, authorization/merchant isolation, idempotency and deployment evidence.
 
 ## Explicitly not complete yet
 
