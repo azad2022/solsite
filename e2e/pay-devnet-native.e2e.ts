@@ -18,7 +18,7 @@ if (!DEVNET_FUNDER_SECRET_KEY_B64) {
 }
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
-const MEMO_PROGRAM = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+const MEMO_PROGRAM = 'MemoSq4gqABKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const PAYMENT_AMOUNT_LAMPORTS = 500_000_000n;
 const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000n;
 const GATEWAY_FEE_LAMPORTS = 5_000_000n;
@@ -98,18 +98,50 @@ function createKeypair() {
   return { ...keypair, publicKey, address: base58Encode(publicKey) };
 }
 
-function createDevnetFunder() {
-  let decoded: Buffer;
+function decodeBase64Strict(value: string): Buffer | null {
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 !== 0) return null;
+  const decoded = Buffer.from(value, 'base64');
+  if (decoded.length === 0 && value.length > 0) return null;
+  return decoded;
+}
+
+function decodeFunderSecretKey(value: string): Buffer {
+  const candidates: Buffer[] = [];
   try {
-    decoded = Buffer.from(DEVNET_FUNDER_SECRET_KEY_B64, 'base64');
+    const base58Candidate = base58Decode(value);
+    if (base58Candidate.length === 64) candidates.push(base58Candidate);
   } catch {
-    throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must be valid base64.');
+    // Try the legacy secret value as Base64 below.
   }
-  if (decoded.length !== 64) {
-    throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must decode to exactly 64 bytes.');
+  const base64Candidate = decodeBase64Strict(value);
+  if (base64Candidate?.length === 64) candidates.push(base64Candidate);
+
+  for (const candidate of candidates) {
+    const secretSeed = candidate.subarray(0, 32);
+    try {
+      const privateKey = createPrivateKey({
+        key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, secretSeed]),
+        format: 'der',
+        type: 'pkcs8',
+      });
+      const derivedPublicKey = rawPublicKey(createPublicKey(privateKey));
+      if (candidate.subarray(32).equals(derivedPublicKey)) return candidate;
+    } catch {
+      // Reject malformed candidates and continue with the other encoding.
+    }
   }
+
+  throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must contain a valid Base58- or Base64-encoded 64-byte Solana keypair.');
+}
+
+function createDevnetFunder() {
+  const decoded = decodeFunderSecretKey(DEVNET_FUNDER_SECRET_KEY_B64);
   const secretSeed = decoded.subarray(0, 32);
-  const privateKey = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, secretSeed]), format: 'der', type: 'pkcs8' });
+  const privateKey = createPrivateKey({
+    key: Buffer.concat([PKCS8_ED25519_SEED_PREFIX, secretSeed]),
+    format: 'der',
+    type: 'pkcs8',
+  });
   const publicKey = rawPublicKey(createPublicKey(privateKey));
   const suppliedPublicKey = decoded.subarray(32);
   if (!suppliedPublicKey.equals(publicKey)) {
