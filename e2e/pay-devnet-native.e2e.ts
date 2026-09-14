@@ -43,10 +43,8 @@ function decodeBase58(value: string): Buffer {
 
 function decodeFunderSecret(value: string): Buffer {
   const candidates: Buffer[] = [];
-  try {
-    const base64 = Buffer.from(value, 'base64');
-    if (base64.length === 64) candidates.push(base64);
-  } catch {}
+  const base64 = Buffer.from(value, 'base64');
+  if (base64.length === 64) candidates.push(base64);
   try {
     const base58 = decodeBase58(value);
     if (base58.length === 64) candidates.push(base58);
@@ -54,7 +52,7 @@ function decodeFunderSecret(value: string): Buffer {
   for (const candidate of candidates) {
     try {
       const keypair = Keypair.fromSecretKey(candidate);
-      if (Buffer.from(keypair.secretKey).equals(candidate)) return candidate;
+      if (Buffer.from(candidate.subarray(32)).equals(Buffer.from(keypair.publicKey.toBytes()))) return candidate;
     } catch {}
   }
   throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must contain a valid 64-byte Solana keypair encoded as Base64 or Base58.');
