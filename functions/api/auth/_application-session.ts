@@ -61,17 +61,6 @@ export function getBetterAuthSessionToken(request: Request): string | null {
   return null;
 }
 
-function headersForBetterAuthSession(request: Request): Headers {
-  const headers = new Headers(request.headers);
-  const cookieHeader = headers.get('Cookie');
-  if (!cookieHeader) return headers;
-
-  const normalizedCookie = cookieHeader
-    .replace(/(^|;\s*)__Secure-__Host-solmint_auth_session=/g, '$1__Host-solmint_auth_session=');
-  if (normalizedCookie !== cookieHeader) headers.set('Cookie', normalizedCookie);
-  return headers;
-}
-
 export function mapBetterAuthUserToApplicationUser(
   user: BetterAuthSessionUser,
   applicationUser: ApplicationIdentityRow | undefined,
@@ -96,7 +85,7 @@ export async function getBetterAuthApplicationUser(
 ): Promise<BetterAuthApplicationUser | null> {
   const runtime = createBetterAuthRuntime(env);
   try {
-    const session = await runtime.auth.api.getSession({ headers: headersForBetterAuthSession(request) });
+    const session = await runtime.auth.api.getSession({ headers: new Headers(request.headers) });
     if (!session?.user) return null;
 
     const applicationUser = await runtime.application.findIdentityByBetterAuthUserId(String(session.user.id));
