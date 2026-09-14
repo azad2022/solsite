@@ -32,6 +32,7 @@ type ParsedTransferInfo = {
 type TokenAccountValue = { owner?: unknown; data?: { parsed?: { type?: unknown; info?: { mint?: unknown; owner?: unknown } } } };
 type TokenAccountResult = { value?: TokenAccountValue | null };
 type SignatureEntry = { signature?: unknown; blockTime?: unknown };
+type SignatureStatus = { confirmationStatus?: unknown; err?: unknown };
 type InstructionWithPath = { instruction: ParsedInstruction; instructionIndex: number };
 
 function commitmentValue(value: SolanaCommitment): 'confirmed' | 'finalized' {
@@ -196,6 +197,21 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
     return await rpc<ParsedTransaction | null>(this.rpcUrl, 'getTransaction', [signature, { commitment: commitmentValue(commitment), encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]);
   }
 
+  private async fetchFinalizedTransaction(signature: string): Promise<ParsedTransaction | null> {
+    const finalized = await this.fetchTransaction(signature, 'finalized');
+    if (finalized) return finalized;
+
+    const statuses = await rpc<ReadonlyArray<SignatureStatus | null>>(this.rpcUrl, 'getSignatureStatuses', [[signature], { searchTransactionHistory: true }]);
+    const status = statuses[0];
+    if (!status || status.err != null || status.confirmationStatus !== 'finalized') return null;
+
+    // Some RPC providers can know that a signature is finalized before their
+    // transaction-detail index serves the same signature at finalized commitment.
+    // The signature status is the finality proof; the confirmed lookup supplies
+    // transaction details without weakening the effective finality requirement.
+    return await this.fetchTransaction(signature, 'confirmed');
+  }
+
   private async normalize(result: ParsedTransaction, signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction> {
     const parsedTransfers = collectParsedInstructions(result)
       .map(({ instruction, instructionIndex }) => parseSupportedInstruction(instruction, this.expectedAssetMints, instructionIndex))
@@ -214,7 +230,9 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
   }
 
   async getTransaction(signature: string, commitment: SolanaCommitment): Promise<ObservedPaymentTransaction | null> {
-    const result = await this.fetchTransaction(signature, commitment);
+    const result = commitment === 'finalized'
+      ? await this.fetchFinalizedTransaction(signature)
+      : await this.fetchTransaction(signature, commitment);
     if (!result) return null;
     return this.normalize(result, signature, commitment);
   }
@@ -243,7 +261,9 @@ export class SolanaRpcProvider implements SolanaPaymentProvider {
           break;
         }
         if (timestamp !== null && timestamp > windowEnd) continue;
-        const raw = await this.fetchTransaction(signature, commitment);
+        const raw = commitment === 'finalized'
+          ? await this.fetchFinalizedTransaction(signature)
+          : await this.fetchTransaction(signature, commitment);
         if (!raw) continue;
         const observation = await this.normalize(raw, signature, commitment);
         if (transactionContainsReference(raw, reference)) results.push({ ...observation, referenceMatched: true });
