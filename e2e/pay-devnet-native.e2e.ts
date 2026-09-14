@@ -228,8 +228,8 @@ async function fundPayer(funder: { privateKey: ReturnType<typeof createPrivateKe
   if (BigInt(balance.value) < MIN_FUNDER_BALANCE_LAMPORTS) {
     throw new Error('Devnet funding account has insufficient SOL for the real-payment E2E.');
   }
-  const latest = await rpc<{ blockhash: string }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
-  const message = buildFundingMessage(funder.publicKey, payer.publicKey, base58Decode(latest.blockhash));
+  const latest = await rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
+  const message = buildFundingMessage(funder.publicKey, payer.publicKey, base58Decode(latest.value.blockhash));
   const signatureBytes = sign(null, message, funder.privateKey);
   const wireTransaction = Buffer.concat([compactU16(1), Buffer.from(signatureBytes), message]);
   const signature = await rpc<string>('sendTransaction', [wireTransaction.toString('base64'), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]);
@@ -246,8 +246,8 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
 
   await fundPayer(funder, payer);
 
-  const latest = await rpc<{ blockhash: string }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
-  const message = buildLegacyMessage(payer.publicKey, merchant.publicKey, fee.publicKey, reference.publicKey, base58Decode(latest.blockhash));
+  const latest = await rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
+  const message = buildLegacyMessage(payer.publicKey, merchant.publicKey, fee.publicKey, reference.publicKey, base58Decode(latest.value.blockhash));
   const signatureBytes = sign(null, message, payer.privateKey);
   const wireTransaction = Buffer.concat([compactU16(1), Buffer.from(signatureBytes), message]);
   const signature = await rpc<string>('sendTransaction', [wireTransaction.toString('base64'), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]);
