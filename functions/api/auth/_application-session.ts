@@ -44,16 +44,32 @@ type ApplicationIdentityRow = {
   created_at: string | null;
 };
 
+const BETTER_AUTH_SESSION_COOKIE_NAMES = ['__Host-solmint_auth_session', '__Secure-__Host-solmint_auth_session', 'solmint_auth_session'] as const;
+
 export function getBetterAuthSessionToken(request: Request): string | null {
   const cookieHeader = request.headers.get('Cookie') || '';
-  const match = cookieHeader.match(/(?:^|;\s*)(?:__Host-solmint_auth_session|solmint_auth_session)=([^;]+)/);
-  if (!match) return null;
-  try {
-    const value = decodeURIComponent(match[1]).trim();
-    return value || null;
-  } catch {
-    return null;
+  for (const cookieName of BETTER_AUTH_SESSION_COOKIE_NAMES) {
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${cookieName.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}=([^;]+)`));
+    if (!match) continue;
+    try {
+      const value = decodeURIComponent(match[1]).trim();
+      return value || null;
+    } catch {
+      return null;
+    }
   }
+  return null;
+}
+
+function headersForBetterAuthSession(request: Request): Headers {
+  const headers = new Headers(request.headers);
+  const cookieHeader = headers.get('Cookie');
+  if (!cookieHeader) return headers;
+
+  const normalizedCookie = cookieHeader
+    .replace(/(^|;\s*)__Secure-__Host-solmint_auth_session=/g, '$1__Host-solmint_auth_session=');
+  if (normalizedCookie !== cookieHeader) headers.set('Cookie', normalizedCookie);
+  return headers;
 }
 
 export function mapBetterAuthUserToApplicationUser(
@@ -80,7 +96,7 @@ export async function getBetterAuthApplicationUser(
 ): Promise<BetterAuthApplicationUser | null> {
   const runtime = createBetterAuthRuntime(env);
   try {
-    const session = await runtime.auth.api.getSession({ headers: request.headers });
+    const session = await runtime.auth.api.getSession({ headers: headersForBetterAuthSession(request) });
     if (!session?.user) return null;
 
     const applicationUser = await runtime.application.findIdentityByBetterAuthUserId(String(session.user.id));
