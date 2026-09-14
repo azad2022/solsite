@@ -36,26 +36,49 @@ while IFS= read -r expected_name; do
   fi
 done < "$tmp_expected"
 
-max_expected_version="$(awk -F_ 'BEGIN { max="" } /^[0-9]{14}_/ { if ($1 > max) max=$1 } END { print max }' "$tmp_expected")"
+max_expected_version="$(awk -F_ '
+  BEGIN { max = 0 }
+  $1 ~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$/ {
+    if ($1 + 0 > max) max = $1 + 0
+  }
+  END { printf "%014d", max }
+' "$tmp_expected")"
+
+if [[ ! "$max_expected_version" =~ ^[0-9]{14}$ ]] || (( 10#$max_expected_version == 0 )); then
+  echo "Unable to determine a valid production migration version boundary." >&2
+  exit 1
+fi
 
 while IFS= read -r actual_name; do
   actual_version="${actual_name%%_*}"
-  if [[ "$actual_version" == "$actual_name" ]]; then
+  if [[ "$actual_version" == "$actual_name" ]] || [[ ! "$actual_version" =~ ^[0-9]{14}$ ]]; then
     echo "Malformed migration filename detected: $actual_name" >&2
     exit 1
   fi
-  if [[ "$actual_version" =~ ^[0-9]{14}$ ]] && [[ "$actual_version" <="$max_expected_version" ]]; then
+
+  if (( 10#$actual_version <= 10#$max_expected_version )); then
     if ! grep -Fqx "$actual_name" "$tmp_expected"; then
       echo "Unexpected non-production migration at or before the production ledger boundary: $actual_name" >&2
       exit 1
     fi
-  elif [[ ! "$actual_version" =~ ^[0-9]{14}$ ]]; then
-    echo "Malformed migration filename detected: $actual_name" >&2
-    exit 1
   fi
 done < "$tmp_actual"
 
-if awk -F_ 'length($1) == 14 { count[$1]++ } END { for (k in count) if (count[k] > 1) { print "duplicate migration timestamp: " k > "/dev/stderr"; bad=1 } exit bad }' "$tmp_actual"; then
+if awk -F_ '
+  {
+    count[$1]++
+  }
+  END {
+    bad = 0
+    for (k in count) {
+      if (count[k] > 1) {
+        print "duplicate migration timestamp: " k > "/dev/stderr"
+        bad = 1
+      }
+    }
+    exit bad
+  }
+' "$tmp_actual"; then
   :
 else
   exit 1
