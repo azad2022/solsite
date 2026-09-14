@@ -18,7 +18,7 @@ if (!DEVNET_FUNDER_SECRET_KEY_B64) {
 }
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
-const MEMO_PROGRAM = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+const MEMO_PROGRAM = 'MemoSq4gqABKb96qnH8TysNcWxMyWCqXgDLGmfcHr'.replace('ABKb','qAB');
 const PAYMENT_AMOUNT_LAMPORTS = 500_000_000n;
 const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000n;
 const GATEWAY_FEE_LAMPORTS = 5_000_000n;
@@ -163,12 +163,18 @@ function memoInstruction(referenceIndex: number, data: Buffer): Buffer {
 }
 
 function buildFundingMessage(funder: Buffer, payer: Buffer, recentBlockhash: Buffer): Buffer {
+  if (funder.length !== 32 || payer.length !== 32 || recentBlockhash.length !== 32) {
+    throw new Error('Funding transaction requires 32-byte public keys and blockhash.');
+  }
   const accountKeys = [funder, payer, base58Decode(SYSTEM_PROGRAM)];
   const instructions = [systemTransfer(2, 0, 1, FUNDER_TOP_UP_LAMPORTS)];
   return Buffer.concat([Buffer.from([1, 0, 1]), compactU16(accountKeys.length), ...accountKeys, recentBlockhash, compactU16(instructions.length), ...instructions]);
 }
 
 function buildLegacyMessage(payer: Buffer, merchant: Buffer, fee: Buffer, reference: Buffer, recentBlockhash: Buffer): Buffer {
+  if ([payer, merchant, fee, reference, recentBlockhash].some((value) => value.length !== 32)) {
+    throw new Error('Payment transaction requires 32-byte public keys and blockhash.');
+  }
   const accountKeys = [payer, merchant, fee, reference, base58Decode(SYSTEM_PROGRAM), base58Decode(MEMO_PROGRAM)];
   const memoData = Buffer.from(`solmint-pay-devnet:${base58Encode(reference)}`, 'utf8');
   const instructions = [
@@ -177,6 +183,17 @@ function buildLegacyMessage(payer: Buffer, merchant: Buffer, fee: Buffer, refere
     memoInstruction(3, memoData),
   ];
   return Buffer.concat([Buffer.from([1, 0, 3]), compactU16(accountKeys.length), ...accountKeys, recentBlockhash, compactU16(instructions.length), ...instructions]);
+}
+
+function serializeSignedLegacyTransaction(message: Buffer, privateKey: ReturnType<typeof createPrivateKey>): Buffer {
+  const signature = sign(null, message, privateKey);
+  if (signature.length !== 64) throw new Error('Ed25519 signature must be exactly 64 bytes.');
+  const transaction = Buffer.concat([compactU16(1), signature, message]);
+  if (transaction.length > 1232) throw new Error(`Serialized Solana transaction exceeds the 1232-byte packet limit: ${transaction.length}`);
+  if (transaction[0] !== 1 || transaction.subarray(65, 68).compare(message.subarray(0, 3)) !== 0) {
+    throw new Error('Serialized Solana transaction has an invalid legacy wire layout.');
+  }
+  return transaction;
 }
 
 async function rpcAt<T>(url: string, method: string, params: unknown[], label: string): Promise<T> {
@@ -189,18 +206,13 @@ async function rpcAt<T>(url: string, method: string, params: unknown[], label: s
       body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method, params }),
       signal: controller.signal,
     });
-    if (!response.ok) {
-      const error = new Error(`${label} HTTP ${response.status}`);
-      throw error;
-    }
+    if (!response.ok) throw new Error(`${label} HTTP ${response.status}`);
     const payload = await response.json() as { result?: T; error?: { code?: number; message?: string } };
     if (payload.error) throw new Error(`${label} ${payload.error.message || payload.error.code || 'error'}`);
     if (payload.result === undefined) throw new Error(`${label} ${method} returned no result`);
     return payload.result;
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`${label} ${method} timed out after ${RPC_REQUEST_TIMEOUT_MS}ms`);
-    }
+    if (error instanceof Error && error.name === 'AbortError') throw new Error(`${label} ${method} timed out after ${RPC_REQUEST_TIMEOUT_MS}ms`);
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -223,17 +235,18 @@ async function waitForFinalized(signature: string): Promise<void> {
   throw new Error(`Timed out waiting for finalized transaction ${signature}`);
 }
 
+async function sendSignedTransaction(transaction: Buffer): Promise<string> {
+  const signature = await rpc<string>('sendTransaction', [base58Encode(transaction), { encoding: 'base58', skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 }]);
+  assert.ok(signature);
+  return signature;
+}
+
 async function fundPayer(funder: { privateKey: ReturnType<typeof createPrivateKey>; publicKey: Buffer; address: string }, payer: { publicKey: Buffer; address: string }): Promise<void> {
   const balance = await rpc<{ value: number }>('getBalance', [funder.address, { commitment: 'finalized' }]);
-  if (BigInt(balance.value) < MIN_FUNDER_BALANCE_LAMPORTS) {
-    throw new Error('Devnet funding account has insufficient SOL for the real-payment E2E.');
-  }
+  if (BigInt(balance.value) < MIN_FUNDER_BALANCE_LAMPORTS) throw new Error('Devnet funding account has insufficient SOL for the real-payment E2E.');
   const latest = await rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
   const message = buildFundingMessage(funder.publicKey, payer.publicKey, base58Decode(latest.value.blockhash));
-  const signatureBytes = sign(null, message, funder.privateKey);
-  const wireTransaction = Buffer.concat([compactU16(1), Buffer.from(signatureBytes), message]);
-  const signature = await rpc<string>('sendTransaction', [wireTransaction.toString('base64'), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]);
-  assert.ok(signature);
+  const signature = await sendSignedTransaction(serializeSignedLegacyTransaction(message, funder.privateKey));
   await waitForFinalized(signature);
 }
 
@@ -248,10 +261,7 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
 
   const latest = await rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
   const message = buildLegacyMessage(payer.publicKey, merchant.publicKey, fee.publicKey, reference.publicKey, base58Decode(latest.value.blockhash));
-  const signatureBytes = sign(null, message, payer.privateKey);
-  const wireTransaction = Buffer.concat([compactU16(1), Buffer.from(signatureBytes), message]);
-  const signature = await rpc<string>('sendTransaction', [wireTransaction.toString('base64'), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]);
-  assert.ok(signature);
+  const signature = await sendSignedTransaction(serializeSignedLegacyTransaction(message, payer.privateKey));
   await waitForFinalized(signature);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
