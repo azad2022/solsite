@@ -61,6 +61,7 @@ grant select, insert, update on
 
 \i supabase/migrations/20260910153000_solmint_pay_api_key_lifecycle.sql
 \i supabase/migrations/20260910153001_solmint_pay_api_key_idempotency_lock.sql
+\i supabase/migrations/20260914190000_solmint_pay_api_key_rotate_replay_fix.sql
 
 begin;
 set local role service_role;
@@ -78,7 +79,7 @@ begin
   if has_function_privilege('authenticated','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'authenticated can execute create'; end if;
   if has_function_privilege('anon','public.pay_create_api_key(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'anon can execute create'; end if;
   if has_function_privilege('service_role','public.pay_create_api_key_unlocked(text,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked create function remains executable'; end if;
-  if has_function_privilege('service_role','public.pay_rotate_api_key_unlocked(text,uuid,uuid,text,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked rotate function remains executable'; end if;
+  if has_function_privilege('service_role','public.pay_rotate_api_key_unlocked(text,uuid,uuid,text,text,text[],timestamptz,text,text)','EXECUTE') then raise exception 'unlocked rotate function remains executable'; end if;
 end $$;
 
 DO $$
@@ -133,13 +134,22 @@ insert into public.pay_api_keys(merchant_id,name,key_prefix,key_hash,scopes) val
 DO $$
 declare
   r jsonb;
+  replay jsonb;
   old_key_id uuid;
+  rotated_id uuid;
 begin
   select id into old_key_id from public.pay_api_keys where key_prefix='sk_pay_old';
   r := public.pay_rotate_api_key('user-a','00000000-0000-0000-0000-000000000001',old_key_id,'rotated','sk_pay_new',repeat('2',64),array['payment.create']::text[],null,'rotate-1',repeat('3',64));
   if r->>'state' <> 'created' then raise exception 'rotate failed: %', r; end if;
   if not exists (select 1 from public.pay_api_keys where id=old_key_id and revoked_at is not null) then raise exception 'old key remained active after rotate'; end if;
   if not exists (select 1 from public.pay_api_keys where key_prefix='sk_pay_new' and revoked_at is null) then raise exception 'new key is not active'; end if;
+
+  select id into rotated_id from public.pay_api_keys where key_prefix='sk_pay_new';
+  replay := public.pay_rotate_api_key('user-a','00000000-0000-0000-0000-000000000001',old_key_id,'rotated','sk_pay_replay_should_be_ignored',repeat('4',64),array['payment.create']::text[],null,'rotate-1',repeat('3',64));
+  if replay->>'state' <> 'replay' then raise exception 'rotate replay must replay even when old target key is revoked: %', replay; end if;
+  if replay::text ~* 'sk_pay_replay_should_be_ignored|[0-9a-f]{64}' then raise exception 'rotation replay leaked new secret/hash-like material: %', replay; end if;
+  if (select count(*) from public.pay_api_keys) <> 3 then raise exception 'rotation replay created an extra key'; end if;
+  if not exists (select 1 from public.pay_api_keys where id=rotated_id and revoked_at is null) then raise exception 'rotation replay changed the existing replacement key'; end if;
 end $$;
 
 DO $$
