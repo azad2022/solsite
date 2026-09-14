@@ -24,20 +24,16 @@ jobs:
         with:
           ref: test/pay-authenticated-api-key-e2e
           persist-credentials: false
-
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.2.15
-
       - name: Install dependencies (immutable)
         run: bun install --frozen-lockfile
-
       - name: Require controlled merchant E2E configuration
         shell: bash
         run: |
@@ -46,49 +42,17 @@ jobs:
           test -n "$PAY_E2E_PASSWORD"
           test -n "$PAY_E2E_MERCHANT_ID"
           test -n "$PAY_E2E_OTHER_MERCHANT_ID"
-
       - name: Verify password secret fingerprint
         shell: bash
         run: |
           set -euo pipefail
           actual="$(printf '%s' "$PAY_E2E_PASSWORD" | sha256sum | cut -d ' ' -f1)"
           expected="cbcba802b4c591b1445a2bd58641f617863b671476072538e11360941addec07"
-          if [ "$actual" != "$expected" ]; then
-            echo 'PAY_E2E_PASSWORD fingerprint mismatch.' >&2
-            exit 1
-          fi
-
-      - name: Diagnose Better Auth session handoff
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const signIn = await fetch('https://solmint.ir/api/auth/sign-in/email', {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'Origin': 'https://solmint.ir' },
-            body: JSON.stringify({ email: process.env.PAY_E2E_EMAIL, password: process.env.PAY_E2E_PASSWORD }),
-            redirect: 'manual',
-          });
-          const cookies = typeof signIn.headers.getSetCookie === 'function' ? signIn.headers.getSetCookie() : [];
-          const fallback = signIn.headers.get('set-cookie') || '';
-          const rawCookies = cookies.length ? cookies : fallback.split(/,(?=[^;,]+=)/).filter(Boolean);
-          const cookieHeader = rawCookies.map(v => v.split(';',1)[0]).filter(Boolean).join('; ');
-          const me = await fetch('https://solmint.ir/api/users/me', {
-            headers: { Accept: 'application/json', Origin: 'https://solmint.ir', Cookie: cookieHeader },
-            redirect: 'manual',
-          });
-          let body = {};
-          try { body = await me.json(); } catch {}
-          const names = rawCookies.map(v => v.split('=',1)[0]).filter(Boolean);
-          console.log(JSON.stringify({ signInStatus: signIn.status, cookieNames: names, meStatus: me.status, meSuccess: typeof body.success === 'boolean' ? body.success : undefined, meMessage: typeof body.message === 'string' ? body.message : undefined }));
-          NODE
-
+          test "$actual" = "$expected"
       - name: Run authenticated production API-key lifecycle E2E
         run: bun run test:e2e:pay-authenticated
-
       - name: Assert source tree is unchanged
         run: |
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all)"
-
-# trigger after session handoff diagnosis
+# trigger-after-pages-deploy
