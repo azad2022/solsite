@@ -5,12 +5,10 @@ import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
 import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 
-const DEVNET_VERIFICATION_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
-const DEVNET_TRANSACTION_RPC_URL = process.env.SOLANA_TX_RPC_URL?.trim() || 'https://api.devnet.solana.com';
+const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
 const DEVNET_FUNDER_SECRET_KEY = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64?.trim();
-if (!DEVNET_VERIFICATION_RPC_URL) throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E verification path.');
-if (!DEVNET_VERIFICATION_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
-if (!DEVNET_TRANSACTION_RPC_URL.startsWith('https://')) throw new Error('SOLANA_TX_RPC_URL must use HTTPS for the funded Devnet E2E.');
+if (!DEVNET_RPC_URL) throw new Error('SOLANA_RPC_URL is required for the funded Devnet E2E.');
+if (!DEVNET_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet E2E.');
 if (!DEVNET_FUNDER_SECRET_KEY) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for Devnet test-account provisioning.');
 
 const SYSTEM_PROGRAM = new PublicKey('11111111111111111111111111111111');
@@ -88,26 +86,26 @@ async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair
 }
 
 test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: 270_000 }, async () => {
-  const transactionConnection = new Connection(DEVNET_TRANSACTION_RPC_URL, { commitment: 'confirmed' });
+  const connection = new Connection(DEVNET_RPC_URL, { commitment: 'confirmed' });
   const payer = Keypair.generate();
   const merchant = Keypair.generate();
   const fee = Keypair.generate();
   const reference = Keypair.generate();
   const funder = createDevnetFunder();
 
-  await fundPayer(transactionConnection, funder, payer);
+  await fundPayer(connection, funder, payer);
 
-  const latest = await transactionConnection.getLatestBlockhash('finalized');
+  const latest = await connection.getLatestBlockhash('finalized');
   const payment = new Transaction({ feePayer: payer.publicKey, recentBlockhash: latest.blockhash })
     .add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: merchant.publicKey, lamports: MERCHANT_SETTLEMENT_LAMPORTS }))
     .add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: fee.publicKey, lamports: GATEWAY_FEE_LAMPORTS }))
     .add(createMemoInstruction(reference.publicKey));
   payment.sign(payer, reference);
 
-  const signature = await transactionConnection.sendRawTransaction(payment.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
-  await confirmFinalized(transactionConnection, signature, latest.blockhash, latest.lastValidBlockHeight);
+  const signature = await connection.sendRawTransaction(payment.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
+  await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
 
-  const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_VERIFICATION_RPC_URL });
+  const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
   const directObservation = await provider.getTransaction(signature, 'finalized');
   assert.ok(directObservation, 'the real Devnet transaction must be readable by the Pay provider');
   assert.equal(directObservation?.success, true);
