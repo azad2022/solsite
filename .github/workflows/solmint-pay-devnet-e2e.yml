@@ -56,6 +56,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # The Pay E2E is CI-only and must use the canonical Solana SDK for transaction
+      # serialization instead of maintaining a second hand-rolled wire serializer.
+      # --no-save keeps this dependency out of the production package manifest/lockfile.
+      - name: Install pinned Solana E2E SDK
+        run: bun add --no-save @solana/web3.js@1.99.0
+
       - name: Require dedicated Devnet RPC
         env:
           SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
