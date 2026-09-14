@@ -58,29 +58,29 @@ jobs:
             exit 1
           fi
 
-      - name: Diagnose Better Auth sign-in response
+      - name: Diagnose Better Auth session handoff
         shell: bash
         run: |
           set -euo pipefail
           node <<'NODE'
-          const response = await fetch('https://solmint.ir/api/auth/sign-in/email', {
+          const signIn = await fetch('https://solmint.ir/api/auth/sign-in/email', {
             method: 'POST',
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'Origin': 'https://solmint.ir' },
             body: JSON.stringify({ email: process.env.PAY_E2E_EMAIL, password: process.env.PAY_E2E_PASSWORD }),
             redirect: 'manual',
           });
+          const cookies = typeof signIn.headers.getSetCookie === 'function' ? signIn.headers.getSetCookie() : [];
+          const fallback = signIn.headers.get('set-cookie') || '';
+          const rawCookies = cookies.length ? cookies : fallback.split(/,(?=[^;,]+=)/).filter(Boolean);
+          const cookieHeader = rawCookies.map(v => v.split(';',1)[0]).filter(Boolean).join('; ');
+          const me = await fetch('https://solmint.ir/api/users/me', {
+            headers: { Accept: 'application/json', Origin: 'https://solmint.ir', Cookie: cookieHeader },
+            redirect: 'manual',
+          });
           let body = {};
-          try { body = await response.json(); } catch {}
-          const pick = (value) => typeof value === 'string' ? value : undefined;
-          console.log(JSON.stringify({
-            status: response.status,
-            code: pick(body.code),
-            error: pick(body.error),
-            message: pick(body.message),
-            success: typeof body.success === 'boolean' ? body.success : undefined,
-            hasUser: Boolean(body.user && typeof body.user === 'object'),
-            hasSetCookie: typeof response.headers.get('set-cookie') === 'string' && Boolean(response.headers.get('set-cookie')),
-          }));
+          try { body = await me.json(); } catch {}
+          const names = rawCookies.map(v => v.split('=',1)[0]).filter(Boolean);
+          console.log(JSON.stringify({ signInStatus: signIn.status, cookieNames: names, meStatus: me.status, meSuccess: typeof body.success === 'boolean' ? body.success : undefined, meMessage: typeof body.message === 'string' ? body.message : undefined }));
           NODE
 
       - name: Run authenticated production API-key lifecycle E2E
@@ -91,4 +91,4 @@ jobs:
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all)"
 
-# trigger after credential issuer correction
+# trigger after session handoff diagnosis
