@@ -70,15 +70,15 @@ function idempotencyKey(label: string): string { return `${label}-${crypto.rando
 
 function apiKeyId(body: Record<string, unknown>): string {
   const apiKey = body.apiKey;
-  assert.ok(apiKey && typeof apiKey === 'object');
+  if (!apiKey || typeof apiKey !== 'object') throw new Error('API key payload is missing.');
   const id = (apiKey as Record<string, unknown>).id;
-  assert.equal(typeof id, 'string');
+  if (typeof id !== 'string') throw new Error('API key id is missing.');
   return id;
 }
 
 function apiKeySecret(body: Record<string, unknown>): string {
   const secret = body.secret;
-  assert.equal(typeof secret, 'string');
+  if (typeof secret !== 'string') throw new Error('API key secret is missing from an initial mutation response.');
   assert.match(secret, /^sk_pay_[A-Za-z0-9_-]{64,}$/);
   return secret;
 }
