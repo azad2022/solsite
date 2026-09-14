@@ -58,7 +58,7 @@ alter table public.pay_commissions enable row level security;
 alter table public.pay_gas_accounts enable row level security;
 alter table public.pay_gas_ledger enable row level security;
 
-\set bridge_migration 'supabase/migrations/20260907214733_solmint_pay_identity_rls_bridge.sql'
+\set bridge_migration 'supabase/migrations/20260907214733_solmint_pay_identity_rls_bridge_20260908.sql'
 \i :bridge_migration
 
 create table public.pay_webhooks (id uuid primary key);
