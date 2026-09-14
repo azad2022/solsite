@@ -82,7 +82,7 @@ The first CI implementation **failed correctly** by detecting six stale/duplicat
 
 The migration lineage is now corrected using verified historical blobs: the exact production names are restored, redundant unsuffixed files are removed, and the strictly newer repository migration `20260911103000_pay_webhook_read_projection.sql` remains as an explicit pending migration because it is newer than the current Production ledger boundary.
 
-The final reconciliation commit is on the PR lineage. Fresh CI validation is required before this checkpoint can be marked completed.
+The final reconciliation lineage is now prepared on the PR branch. Fresh CI validation is required before this checkpoint can be marked completed.
 
 ## Next unreleased Pay gate
 
