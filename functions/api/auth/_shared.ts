@@ -22,6 +22,7 @@ export interface AuthUser {
 }
 
 const SESSION_COOKIE = '__Host-solmint_session';
+const BETTER_AUTH_SESSION_COOKIE_NAMES = '__Host-solmint_auth_session|__Secure-__Host-solmint_auth_session|solmint_auth_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const SESSION_SLIDING_WINDOW_SECONDS = 60 * 60;
 const MAX_SESSIONS_PER_USER = 5;
@@ -254,7 +255,7 @@ export async function getAuthenticatedUser(
   },
 ): Promise<AuthUser | null> {
   const cookie = request.headers.get('Cookie') || '';
-  const hasBetterAuthCookie = /(?:^|;\s*)(?:__Host-solmint_auth_session|solmint_auth_session)=/.test(cookie);
+  const hasBetterAuthCookie = new RegExp(`(?:^|;\\s*)(?:${BETTER_AUTH_SESSION_COOKIE_NAMES})=`).test(cookie);
 
   if (hasBetterAuthCookie) {
     try {
