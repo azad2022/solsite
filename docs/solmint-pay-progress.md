@@ -23,8 +23,8 @@ Validated before merge:
 - `SolMint Pay Devnet E2E` passed.
 - CI passed.
 - Production Build passed.
-- SolMint Pay Mainnet Read-only passed.
-- SolMint Pay Production API Smoke passed.
+- Solmint Pay Mainnet Read-only passed.
+- Solmint Pay Production API Smoke passed.
 
 Conclusion: the long-running **Devnet E2E funding/transaction-observation blocker is closed and must not be re-investigated unless a new regression appears**.
 
@@ -99,6 +99,41 @@ The migration lineage was then corrected using verified historical blobs: the ex
 
 This checkpoint is now **completed**. The live Production database remains unchanged by this PR.
 
+## 2026-09-14 — API credential security gate hardening
+
+Status: **COMPLETED**
+
+Merged PR: `#83`
+
+Merge commit on `main`: `6b5cc0f2e31a461f739ab5aa13a40444cb8c3751`
+
+Scope: close the repository/runtime security gaps found during Issue #68 acceptance work without inventing a new API contract or changing financial rules.
+
+Validated before merge:
+
+- Pay runtime no longer logs upstream Supabase response bodies on error. Only non-sensitive scope/status context is retained, preventing an accidental upstream payload from exposing API-key material to logs.
+- A dedicated regression test proves secret-looking upstream error payloads are not emitted through the Pay database error logger.
+- Production API smoke now explicitly verifies that API-key list/create endpoints fail closed on an untrusted `Origin` before authentication is attempted.
+- `CI` #2103 — **GREEN**.
+- `Production Build` #1781 — **GREEN**.
+- `SolMint Pay Production API Smoke` #59 — **GREEN**.
+- `SolMint Pay Devnet E2E` #287 — **GREEN**.
+
+Conclusion: the **API credential runtime-redaction and origin-gate hardening stage is fully passed** and must not be repeated unless a regression appears.
+
+## Cloudflare Workers Builds — identified external deployment integration
+
+Status: **EXTERNAL / NOT A REPOSITORY FAILURE**
+
+Evidence on the relevant commits shows two separate Cloudflare check runs from the same Cloudflare GitHub App:
+
+- `Cloudflare Pages` deploy — **success**.
+- `Workers Builds: solsite` — **failure**, pointing to a separate Cloudflare Worker service named `solsite`.
+
+The repository is configured for Cloudflare Pages, not for that separate Worker service. No GitHub Actions workflow in the repository owns the `Workers Builds: solsite` check.
+
+Required remediation is therefore a Cloudflare Dashboard integration action: disconnect the obsolete `Workers Builds` integration for that Worker service. Repository code must not be changed or a fake Worker created merely to make this unrelated check green.
+
 ## Next unreleased Pay gate
 
 Move to **authenticated merchant lifecycle and production-safe merchant credentials** (Issue #68 acceptance path).
@@ -109,6 +144,8 @@ The next implementation/audit cycle must verify these real server-mediated contr
 - wallet challenge/verification
 - API-key list/create/revoke/rotate
 - Payment Intent read
+
+For Issue #68 specifically, the remaining evidence gate is still the **authenticated production/non-production lifecycle against a controlled merchant account**, including cross-merchant IDOR, revoked/expired/wrong-scope enforcement, replay/concurrency behavior, secret-redaction evidence at runtime, and final production audit evidence. The completed PR #83 hardening stage must be treated as passed, not as a substitute for this remaining authenticated evidence.
 
 ## Explicitly not complete yet
 
@@ -123,3 +160,4 @@ Before starting a new Pay task:
 3. Revalidate the real backend/database contract for the requested capability.
 4. Never repeat the Devnet funding/observation work unless CI demonstrates a regression.
 5. Do not add Supabase Preview Branching as a prerequisite for Pay delivery.
+6. Record a gate as **COMPLETED** only after the relevant implementation, validation, and release evidence are actually green.
