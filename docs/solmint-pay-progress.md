@@ -78,20 +78,11 @@ The preview-free migration gate is an integrity/reproducibility check. It does n
 
 ### Migration-chain gate repair
 
-The first CI implementation correctly detected that the branch contained six stale/duplicate Better Auth/identity filenames while the canonical production filenames were missing. This was a repository lineage issue, not a reason to weaken the gate.
+The first CI implementation **failed correctly** by detecting six stale/duplicate Better Auth/identity filenames in the branch while the canonical production names were missing. The test was not weakened.
 
-The corrected branch now restores the exact production-recorded filenames using the verified historical blobs and removes the redundant unsuffixed duplicate. The repository may also contain strictly newer migrations that have not yet been applied to Production; these are treated as **pending repository migrations** and are allowed only after the recorded Production ledger boundary.
+The migration lineage is now corrected using verified historical blobs: the exact production names are restored, redundant unsuffixed files are removed, and the strictly newer repository migration `20260911103000_pay_webhook_read_projection.sql` remains as an explicit pending migration because it is newer than the current Production ledger boundary.
 
-The current newer repository migration `20260911103000_pay_webhook_read_projection.sql` is therefore intentionally retained as pending and is not claimed as production-applied.
-
-### Validation evidence
-
-- Earlier `CI` — **GREEN** on the pre-fix reconciliation commit.
-- Earlier `Production Build` — **GREEN** on the pre-fix reconciliation commit.
-- Earlier `SolMint Pay Database Security` — **GREEN** on the pre-fix reconciliation commit.
-- The first version of the new migration-chain gate **FAILED CORRECTLY** by detecting repository/ledger filename drift.
-- The gate logic was repaired to distinguish exact Production history from newer pending repository migrations without weakening the historical boundary.
-- Canonical migration filename restoration is committed on the PR branch; fresh CI validation of this final repair is required before marking this checkpoint completed.
+The final repair commit is now on the PR branch. Fresh CI validation is required before this checkpoint can be marked completed.
 
 ## Next unreleased Pay gate
 
