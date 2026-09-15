@@ -161,43 +161,51 @@ Final production evidence:
 
 Conclusion: the **production API credential lifecycle acceptance gate is closed**. This does not mark SolMint Pay production-ready.
 
-## 2026-09-15 — Payment Intent implementation and backend contract hardening
+## 2026-09-15 — Payment Intent implementation and contract hardening
 
-Status: **IMPLEMENTED / VALIDATION IN PROGRESS**
+Status: **COMPLETED**
 
-Merged PRs: `#87`, `#88`, `#92`
+Relevant merged PRs: `#87`, `#88`, `#92`, and subsequent replay-contract correction.
 
-Current `main` HEAD: `bbc4914094944d8c417abeceb4bb4e6b192c84f1`.
+Current `main` HEAD at the time of this checkpoint update: `bbf5d6efe18077f7ca7b39f3e1f57a97b8bee737`.
 
 ### Payment Intent creation gate
 
-PR `#87` introduced the controlled production Payment Intent creation E2E. The flow uses the real Better Auth session, a temporary `payment.create` API key, the controlled merchant, an existing verified receiving wallet, and real server-side Payment Intent creation. It also verifies idempotent replay and conflict handling and revokes the temporary API credential afterward. No customer on-chain payment is performed by this gate.
+PR `#87` introduced the controlled production Payment Intent creation E2E. The flow uses the real Better Auth session, a temporary `payment.create` API key, the controlled merchant, an existing verified receiving wallet, and real server-side Payment Intent creation. It verifies idempotent replay/conflict handling and revokes the temporary API credential afterward. No customer on-chain payment is performed by this gate.
 
-PR `#88` fixed the E2E wallet-message signer by replacing the unsupported `Keypair.sign()` call with the supported detached Ed25519 signer. The fix is isolated to the manual E2E workflow and does not alter production financial logic.
+PR `#88` corrected the E2E wallet-message signer by replacing the unsupported `Keypair.sign()` call with a supported detached Ed25519 signer.
 
-A subsequent production run exposed a runtime compatibility problem in the E2E harness involving the Solana SDK and `@noble/hashes`; the harness was simplified to use the existing TweetNaCl signer and no longer imports the Solana SDK for the wallet-message-only setup path.
+A later manual run exposed an E2E runtime incompatibility caused by importing the Solana SDK into the wallet-message-only production creation harness. The harness was simplified so the production creation test uses the required Ed25519 signer without unnecessarily loading the incompatible SDK dependency graph.
 
-### Run evidence
+A further wallet-verification failure exposed persisted challenge-integrity handling; PR `#92` hardened that boundary and made the manual workflow wait for the successful Cloudflare Pages deployment of the exact `main` commit before mutating the controlled fixture.
 
-Run `35003556859` reached the authenticated production E2E but failed with HTTP `500` versus the expected HTTP `200` during wallet verification. The failure led to the hardened persisted-challenge integrity check now deployed in PR `#92`.
+Finally, the production creation E2E replay assertion was aligned with the actual backend contract: a fresh idempotent create returns `201`, while a replay of the same completed request returns `200` and the same Payment Intent ID.
 
-PR `#92` also made the manual Payment Intent workflow wait for the successful Cloudflare Pages deployment of the exact `main` commit before mutating the controlled production fixture.
+### Final creation-gate evidence
 
-The earlier manual Payment Intent run is therefore **not evidence that the current deployed Payment Intent contract is broken**; it predates the current hardened deployment.
+Run `35022672293`, Job `104562021327`:
+
+- checkout succeeded;
+- the exact `main` commit was successfully deployed by Cloudflare Pages before mutation;
+- controlled Payment Intent E2E passed;
+- source-tree cleanliness assertion passed;
+- the complete job concluded `success`.
+
+Therefore the **controlled Production Payment Intent creation gate is COMPLETED**.
 
 ### Live database/backend evidence
 
 Current live Supabase project: `nvopkbiedorfshwbmyhn`.
 
-The live `public.pay_payment_intents` table now contains the authoritative `fee_recipient`, `merchant_net_atomic`, `merchant_settlement_atomic`, `customer_total_atomic`, and `verification_commitment` fields.
+The live `public.pay_payment_intents` table contains the authoritative `fee_recipient`, `merchant_net_atomic`, `merchant_settlement_atomic`, `customer_total_atomic`, and `verification_commitment` fields.
 
 The live `public.pay_create_payment_intent` routine accepts `p_fee_recipient`, enforces the canonical fee/customer-total/merchant-net invariants, and snapshots the supplied server-side fee recipient into the Payment Intent.
 
-The live migration ledger now contains the later Payment Intent hardening migrations through `20260915175809`.
+The live migration ledger contains the Payment Intent hardening migrations through `20260915175809`.
 
 ### Controlled merchant wallet evidence
 
-The controlled production merchant currently has exactly one active, verified receiving wallet. This is the merchant's receiving destination and is intentionally distinct from the SolMint Pay gateway-fee recipient.
+The controlled production merchant has exactly one active, verified receiving wallet. This is the merchant receiving destination and is intentionally distinct from the SolMint Pay gateway-fee recipient.
 
 No private key or signing material for this wallet is stored in this ledger.
 
@@ -221,7 +229,7 @@ No private key associated with this address belongs in repository code, document
 
 Status: **IMPLEMENTED / VALIDATED BY STATIC CONTRACT TESTS**
 
-The public Payment Intent GET contract now exposes these authoritative financial snapshot fields in addition to the existing amount/fee/status information:
+The public Payment Intent GET contract exposes these authoritative financial snapshot fields in addition to the existing amount/fee/status information:
 
 - `feeRecipient`
 - `merchantNetAtomic`
@@ -237,20 +245,22 @@ Status: **COMPLETED**
 
 Removed from `main`:
 
-- obsolete `.github/workflows/_temp-pay-authenticated-e2e.yml` workflow, which was a temporary production-triggered harness;
+- obsolete `.github/workflows/_temp-pay-authenticated-e2e.yml` workflow;
 - obsolete `__temp_test.txt` artifact.
 
 This cleanup prevents temporary validation machinery from remaining in the production repository.
 
 ## Current Pay next gate
 
-The next gate is **controlled Payment Intent E2E on the current deployed `main`**, with the workflow already configured to wait for the exact Cloudflare Pages deployment.
+The next gate is the **funded Devnet Payment Intent reconciliation lifecycle** around the existing verification/reconciliation engine.
 
-Once that manual creation gate is green, proceed immediately to the funded **Devnet Payment Intent lifecycle** and verify the real state progression:
+The intended gate will validate real finalized Devnet blockchain data through the existing provider and reconciliation code, without inserting synthetic financial state into Production.
 
-`created → pending → submitted → detected → verifying → confirmed/completed`
+Target evidence:
 
-Then add adversarial verification evidence for:
+`real Devnet transaction → finalized observation → reference discovery → deterministic verification → reconciliation confirmed → duplicate/replay rejected`
+
+After that gate is green, proceed to adversarial verification evidence:
 
 - underpayment
 - overpayment
@@ -265,11 +275,11 @@ Then add adversarial verification evidence for:
 
 The frontend must continue to consume backend-authoritative state and must never infer payment success from a submitted signature, reference, webhook, or browser state.
 
-The obsolete Cloudflare `Workers Builds: solsite` check remains an external dashboard issue. The Supabase Preview check remains skipped/failed by project configuration and is not a delivery prerequisite under the committed preview-free constraint.
+The obsolete Cloudflare `Workers Builds: solsite` check remains an external dashboard issue. The Supabase Preview check remains skipped by project configuration and is not a delivery prerequisite under the committed preview-free constraint.
 
 ## Explicitly not complete yet
 
-Do not mark SolMint Pay production-ready. The API credential lifecycle is complete, the gateway fee recipient is configured and documented, the Payment Intent backend contract is hardened, and the controlled merchant has a verified receiving wallet. However, the current deployed Payment Intent creation E2E and the funded end-to-end verification lifecycle still require positive production/Devnet evidence, followed by final security/audit/reconciliation/runtime and branch-protection gates.
+Do not mark SolMint Pay production-ready. The API credential lifecycle and controlled Payment Intent creation gate are complete. The funded Devnet reconciliation lifecycle, adversarial verification cases, final security/release audit, production runtime/rollback evidence, and branch-protection enforcement remain open.
 
 ## Working rule
 
