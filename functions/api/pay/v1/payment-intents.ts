@@ -143,7 +143,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const result = await rpcResponse.json() as { state: 'created' | 'replay' | 'conflict' | 'in_progress'; response_status?: number; response_body?: unknown };
     if (result.state === 'conflict') return payJson({ code: 'IDEMPOTENCY_CONFLICT', message: 'The Idempotency-Key was reused with different request data.' }, 409, requestId);
     if (result.state === 'in_progress') return payJson({ code: 'REQUEST_IN_PROGRESS', message: 'An identical request is already being processed.' }, 409, requestId);
-    if (result.state === 'replay' || result.state === 'created') return payJson(result.response_body || {}, result.response_status || 201, requestId);
+    if (result.state === 'replay') return payJson(result.response_body || {}, 200, requestId);
+    if (result.state === 'created') return payJson(result.response_body || {}, result.response_status || 201, requestId);
     throw new PayRuntimeError('PAYMENT_CREATION_FAILED', 503, 'Payment intent creation returned an invalid state.');
   } catch (error) {
     if (error instanceof PayRuntimeError) {
