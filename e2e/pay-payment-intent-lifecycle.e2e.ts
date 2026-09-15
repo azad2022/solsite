@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { Keypair } from '@solana/web3.js';
+import nacl from 'tweetnacl';
 import test from 'node:test';
 import { encodeBase58 } from '../src/pay/services/base58';
 
@@ -195,7 +196,8 @@ test('controlled production Payment Intent creation remains backend-authoritativ
     assert.equal(challenge.walletAddress, walletAddress);
     assert.equal(typeof challenge.expiresAt, 'string');
 
-    const signatureBytes = funder.sign(new TextEncoder().encode(challenge.message as string));
+    const messageBytes = new TextEncoder().encode(challenge.message as string);
+    const signatureBytes = nacl.sign.detached(messageBytes, funder.secretKey);
     const verifyResponse = await request(`/api/pay/v1/merchants/${encodeURIComponent(MERCHANT_ID)}/wallet-challenges/${encodeURIComponent(challenge.id as string)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
