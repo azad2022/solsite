@@ -6,6 +6,7 @@
     "e2e/pay-devnet.e2e.ts",
     "e2e/pay-devnet-native.e2e.ts",
     "e2e/pay-payment-intent-lifecycle.e2e.ts",
+    "e2e/pay-payment-intent-devnet-lifecycle.e2e.ts",
     "tests/**"
   ]
 }
