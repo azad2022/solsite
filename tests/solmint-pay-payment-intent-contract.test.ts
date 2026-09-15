@@ -4,6 +4,7 @@ import { createPayPaymentIntentService } from '../src/pay/payment-intent-service
 import { PayHttpClient, PayHttpError } from '../src/pay/http';
 
 const INTENT_ID = '11111111-1111-4111-8111-111111111111';
+const FEE_RECIPIENT = 'C9Cas87cue2YaHHTugTsQp6XP1Ho5CsbQNHCNi2rqSxz';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -22,10 +23,13 @@ function payload(overrides: Record<string, unknown> = {}) {
       feeBps: 100,
       feePayer: 'customer',
       feeAtomic: '1234567',
+      feeRecipient: FEE_RECIPIENT,
       gasSponsored: false,
       status: 'verifying',
-      expiresAt: '2026-09-06T14:00:00.000Z',
+      expiresAt: '2099-09-06T14:00:00.000Z',
       customerTotalAtomic: '124691356',
+      merchantNetAtomic: '123456789',
+      merchantSettlementAtomic: '123456789',
       network: 'solana',
       verificationCommitment: 'finalized',
       ...overrides,
@@ -47,6 +51,9 @@ test('typed Payment Intent service preserves atomic precision and rejects malfor
   assert.equal(requestedPath, `/api/pay/v1/payment-intents/${INTENT_ID}`);
   assert.equal(intent.amountAtomic, '123456789');
   assert.equal(intent.customerTotalAtomic, '124691356');
+  assert.equal(intent.merchantNetAtomic, '123456789');
+  assert.equal(intent.merchantSettlementAtomic, '123456789');
+  assert.equal(intent.feeRecipient, FEE_RECIPIENT);
   assert.equal(intent.status, 'verifying');
   assert.equal(intent.verificationCommitment, 'finalized');
 
