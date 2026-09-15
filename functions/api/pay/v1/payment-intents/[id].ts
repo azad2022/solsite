@@ -19,10 +19,13 @@ type PaymentIntentRow = {
   fee_bps: number;
   fee_payer: string;
   fee_atomic: string | number;
+  fee_recipient: string;
   gas_sponsored: boolean;
   status: string;
   expires_at: string;
   customer_total_atomic: string | number;
+  merchant_net_atomic: string | number;
+  merchant_settlement_atomic: string | number;
   network: string;
   verification_commitment: string;
 };
@@ -38,8 +41,8 @@ const PUBLIC_STATUS = new Set([
 const PAYMENT_INTENT_SELECT = [
   'id', 'merchant_id', 'amount_atomic', 'asset', 'token_mint', 'token_program',
   'token_decimals', 'recipient', 'reference', 'fee_bps', 'fee_payer', 'fee_atomic',
-  'gas_sponsored', 'status', 'expires_at', 'customer_total_atomic', 'network',
-  'verification_commitment'
+  'fee_recipient', 'gas_sponsored', 'status', 'expires_at', 'customer_total_atomic',
+  'merchant_net_atomic', 'merchant_settlement_atomic', 'network', 'verification_commitment'
 ].join(',');
 
 async function supabaseGet<T>(base: string, headers: Record<string, string>, query: string): Promise<T[]> {
@@ -92,10 +95,13 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
         feeBps: payment.fee_bps,
         feePayer: payment.fee_payer,
         feeAtomic: atomic(payment.fee_atomic),
+        feeRecipient: payment.fee_recipient,
         gasSponsored: payment.gas_sponsored,
         status: payment.status,
         expiresAt: payment.expires_at,
         customerTotalAtomic: atomic(payment.customer_total_atomic),
+        merchantNetAtomic: atomic(payment.merchant_net_atomic),
+        merchantSettlementAtomic: atomic(payment.merchant_settlement_atomic),
         network: payment.network,
         verificationCommitment: payment.verification_commitment
       }
