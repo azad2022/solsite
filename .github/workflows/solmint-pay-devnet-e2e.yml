@@ -15,6 +15,7 @@ on:
       - 'src/pay/**'
       - 'functions/api/pay/**'
       - 'e2e/pay-devnet-native.e2e.ts'
+      - 'e2e/pay-payment-intent-devnet-lifecycle.e2e.ts'
       - 'package.json'
       - '.github/workflows/solmint-pay-devnet-e2e.yml'
   push:
@@ -23,6 +24,7 @@ on:
       - 'src/pay/**'
       - 'functions/api/pay/**'
       - 'e2e/pay-devnet-native.e2e.ts'
+      - 'e2e/pay-payment-intent-devnet-lifecycle.e2e.ts'
       - 'package.json'
       - '.github/workflows/solmint-pay-devnet-e2e.yml'
 
@@ -36,7 +38,7 @@ concurrency:
 jobs:
   devnet-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -56,9 +58,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The Pay E2E is CI-only and must use the canonical Solana SDK for transaction
-      # serialization instead of maintaining a second hand-rolled wire serializer.
-      # --no-save keeps this dependency out of the production package manifest/lockfile.
+      # Pay E2E runs in CI only. Keep the Solana SDK out of the production dependency graph.
       - name: Install pinned Solana E2E SDK
         run: bun add --no-save @solana/web3.js@1.99.0
 
@@ -75,8 +75,6 @@ jobs:
             *) echo "SOLANA_DEVNET_RPC_URL must use HTTPS"; exit 1 ;;
           esac
 
-      # Reuse the existing Devnet-only funding secret. The repository never stores the key.
-      # The secret contains base64-encoded raw Solana keypair bytes.
       - name: Require existing Devnet CI funding wallet
         env:
           DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
@@ -91,3 +89,9 @@ jobs:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
           DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: bun run test:pay:devnet
+
+      - name: Run real Devnet Payment Intent reconciliation E2E
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
+          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: bun run test:e2e:pay-devnet-payment-intent
