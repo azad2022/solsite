@@ -1,0 +1,49 @@
+name: SolMint Pay Payment Intent E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  payment-intent-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
+      PAY_E2E_EMAIL: ${{ secrets.PAY_E2E_EMAIL }}
+      PAY_E2E_PASSWORD: ${{ secrets.PAY_E2E_PASSWORD }}
+      PAY_E2E_MERCHANT_ID: ${{ secrets.PAY_E2E_MERCHANT_ID }}
+      DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+      - name: Install dependencies (immutable)
+        run: bun install --frozen-lockfile
+      - name: Install pinned Solana E2E SDK
+        run: bun add --no-save @solana/web3.js@1.99.0
+      - name: Require controlled Payment Intent E2E configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PAY_E2E_EMAIL"
+          test -n "$PAY_E2E_PASSWORD"
+          test -n "$PAY_E2E_MERCHANT_ID"
+          test -n "$DEVNET_E2E_FUNDER_SECRET_KEY_B64"
+      - name: Run controlled production Payment Intent E2E
+        run: bun run test:e2e:pay-payment-intent
+      - name: Assert source tree is unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
