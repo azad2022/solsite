@@ -21,10 +21,13 @@ export interface PayPaymentIntent {
   readonly feeBps: number;
   readonly feePayer: PayFeePayer;
   readonly feeAtomic: string;
+  readonly feeRecipient: string;
   readonly gasSponsored: boolean;
   readonly status: PayPaymentStatus;
   readonly expiresAt: string;
   readonly customerTotalAtomic: string;
+  readonly merchantNetAtomic: string;
+  readonly merchantSettlementAtomic: string;
   readonly network: 'solana';
   readonly verificationCommitment: 'confirmed' | 'finalized';
 }
@@ -144,10 +147,13 @@ function parsePaymentIntent(payload: unknown): PayPaymentIntent {
     feeBps: boundedInteger(data.feeBps, 'feeBps', 0, 10000),
     feePayer: feePayer as PayFeePayer,
     feeAtomic: atomicString(data.feeAtomic, 'feeAtomic'),
+    feeRecipient: requiredString(data.feeRecipient, 'feeRecipient'),
     gasSponsored: requiredBoolean(data.gasSponsored, 'gasSponsored'),
     status: status as PayPaymentStatus,
     expiresAt: requiredString(data.expiresAt, 'expiresAt'),
     customerTotalAtomic: atomicString(data.customerTotalAtomic, 'customerTotalAtomic'),
+    merchantNetAtomic: atomicString(data.merchantNetAtomic, 'merchantNetAtomic'),
+    merchantSettlementAtomic: atomicString(data.merchantSettlementAtomic, 'merchantSettlementAtomic'),
     network: 'solana',
     verificationCommitment: commitment,
   };

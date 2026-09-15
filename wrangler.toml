@@ -1,4 +1,4 @@
-# SolMint production deployment uses Cloudflare Pages Functions for edge authentication.
+# Solmint production deployment uses Cloudflare Pages Functions for edge authentication.
 # The Node/Express server remains a separate Node runtime and is not deployed as a Worker.
 name = "solmint"
 compatibility_date = "2026-08-10"
@@ -8,3 +8,6 @@ pages_build_output_dir = "./dist"
 # Non-secret Pay runtime configuration. Secrets remain in Cloudflare's secret store.
 [vars]
 PAY_APP_ORIGIN = "https://solmint.ir"
+# Public Solana address that receives SolMint Pay gateway fees.
+# Merchant principal, referral liabilities, network fees, and refunds remain separate.
+PAY_FEE_RECIPIENT = "C9Cas87cue2YaHHTugTsQp6XP1Ho5CsbQNHCNi2rqSxz"
