@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import test from 'node:test';
 import { encodeBase58 } from '../src/pay/services/base58';
@@ -113,6 +112,13 @@ function decodeSecret(value: string): Uint8Array {
   throw new Error('Controlled E2E wallet key must decode to a 64-byte Solana keypair.');
 }
 
+function createFunder(secret: Uint8Array): nacl.SignKeyPair {
+  const keypair = nacl.sign.keyPair.fromSecretKey(secret);
+  assert.equal(keypair.secretKey.length, 64);
+  assert.equal(keypair.publicKey.length, 32);
+  return keypair;
+}
+
 function assertIntentEnvelope(body: Record<string, unknown>): Record<string, unknown> {
   assert.equal(body.success, true);
   assert.equal(body.apiVersion, 'v1');
@@ -178,8 +184,8 @@ test('controlled production Payment Intent creation remains backend-authoritativ
   assert.equal(typeof secret, 'string');
   assert.match(secret as string, /^sk_pay_[A-Za-z0-9_-]{64,}$/);
 
-  const funder = Keypair.fromSecretKey(decodeSecret(FUNDER_SECRET));
-  const walletAddress = funder.publicKey.toBase58();
+  const funder = createFunder(decodeSecret(FUNDER_SECRET));
+  const walletAddress = encodeBase58(Buffer.from(funder.publicKey));
 
   const challengeResponse = await request(`/api/pay/v1/merchants/${encodeURIComponent(MERCHANT_ID)}/wallet-challenges`, {
     method: 'POST',
@@ -253,7 +259,7 @@ test('controlled production Payment Intent creation remains backend-authoritativ
     body: JSON.stringify(createBody),
   });
   const replayBody = await readJson(replayResponse);
-  assert.equal(replayResponse.status, firstResponse.status);
+  assert.equal(replayResponse.status, 200);
   assert.equal(paymentIntentId(replayBody), firstId);
 
   const conflictResponse = await request('/api/pay/v1/payment-intents', {
