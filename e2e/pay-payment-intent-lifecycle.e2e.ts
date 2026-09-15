@@ -13,6 +13,9 @@ const TIMEOUT_MS = 20_000;
 const PAYMENT_AMOUNT_ATOMIC = '1000000';
 const PAYMENT_ASSET = 'SOL';
 const PAYMENT_FEE_PAYER = 'merchant';
+const GATEWAY_FEE_ATOMIC = '10000';
+const MERCHANT_NET_ATOMIC = '990000';
+const GATEWAY_FEE_RECIPIENT = 'C9Cas87cue2YaHHTugTsQp6XP1Ho5CsbQNHCNi2rqSxz';
 
 function requireConfig(): void {
   const missing = [
@@ -132,11 +135,36 @@ function paymentIntentId(body: Record<string, unknown>): string {
   return data.id as string;
 }
 
-function assertAuthoritativeSnapshot(data: Record<string, unknown>, walletAddress: string): void {
+function assertAtomic(value: unknown, expected: string, field: string): void {
+  assert.equal(typeof value, 'string', `${field} must remain an atomic integer string`);
+  assert.match(value as string, /^\d+$/, `${field} must be an atomic integer string`);
+  assert.equal(value, expected, `${field} mismatch`);
+}
+
+function assertCreatedIntentResponse(data: Record<string, unknown>): void {
+  assertAtomic(data.amountAtomic, PAYMENT_AMOUNT_ATOMIC, 'amountAtomic');
+  assert.equal(data.asset, PAYMENT_ASSET);
+  assert.equal(data.tokenMint, null);
+  assert.equal(data.tokenProgram, null);
+  assert.equal(data.tokenDecimals, null);
+  assert.equal(data.feePayer, PAYMENT_FEE_PAYER);
+  assertAtomic(data.gatewayFeeAtomic, GATEWAY_FEE_ATOMIC, 'gatewayFeeAtomic');
+  assertAtomic(data.customerTotalAtomic, PAYMENT_AMOUNT_ATOMIC, 'customerTotalAtomic');
+  assertAtomic(data.merchantNetAtomic, MERCHANT_NET_ATOMIC, 'merchantNetAtomic');
+  assert.equal(typeof data.reference, 'string');
+  assert.ok((data.reference as string).length >= 32);
+  assert.ok((data.reference as string).length <= 44);
+  assert.equal(typeof data.checkoutUrl, 'string');
+  assert.match(data.checkoutUrl as string, /\/pay\/checkout\/[0-9a-f-]{36}$/i);
+  assert.equal(typeof data.expiresAt, 'string');
+  assert.ok(new Date(data.expiresAt as string).getTime() > Date.now());
+  assert.equal(data.status, 'created');
+}
+
+function assertAuthoritativeSnapshot(data: Record<string, unknown>, walletAddress: string, merchantName = ''): void {
   assert.equal(data.merchant && typeof data.merchant === 'object', true);
-  assert.equal(typeof data.amountAtomic, 'string');
-  assert.match(data.amountAtomic as string, /^\d+$/);
-  assert.equal(data.amountAtomic, PAYMENT_AMOUNT_ATOMIC);
+  if (merchantName) assert.equal((data.merchant as Record<string, unknown>).businessName, merchantName);
+  assertAtomic(data.amountAtomic, PAYMENT_AMOUNT_ATOMIC, 'amountAtomic');
   assert.equal(data.asset, PAYMENT_ASSET);
   assert.equal(data.tokenMint, null);
   assert.equal(data.tokenProgram, null);
@@ -147,10 +175,11 @@ function assertAuthoritativeSnapshot(data: Record<string, unknown>, walletAddres
   assert.ok((data.reference as string).length >= 32);
   assert.ok((data.reference as string).length <= 44);
   assert.equal(data.feePayer, PAYMENT_FEE_PAYER);
-  assert.equal(typeof data.feeAtomic, 'string');
-  assert.match(data.feeAtomic as string, /^\d+$/);
-  assert.equal(typeof data.customerTotalAtomic, 'string');
-  assert.match(data.customerTotalAtomic as string, /^\d+$/);
+  assertAtomic(data.feeAtomic, GATEWAY_FEE_ATOMIC, 'feeAtomic');
+  assert.equal(data.feeRecipient, GATEWAY_FEE_RECIPIENT);
+  assertAtomic(data.customerTotalAtomic, PAYMENT_AMOUNT_ATOMIC, 'customerTotalAtomic');
+  assertAtomic(data.merchantNetAtomic, MERCHANT_NET_ATOMIC, 'merchantNetAtomic');
+  assertAtomic(data.merchantSettlementAtomic, MERCHANT_NET_ATOMIC, 'merchantSettlementAtomic');
   assert.equal(data.network, 'solana');
   assert.ok(['created', 'pending'].includes(String(data.status)));
   assert.equal(typeof data.expiresAt, 'string');
@@ -242,8 +271,8 @@ test('controlled production Payment Intent creation remains backend-authoritativ
   const firstBody = await readJson(firstResponse);
   assert.equal(firstResponse.status, 201);
   const firstId = paymentIntentId(firstBody);
-  const firstData = firstBody.data as Record<string, unknown>;
-  assertAuthoritativeSnapshot(firstData, walletAddress);
+  const firstData = assertIntentEnvelope(firstBody);
+  assertCreatedIntentResponse(firstData);
 
   const readResponse = await request(`/api/pay/v1/payment-intents/${encodeURIComponent(firstId)}`);
   const readBody = await readJson(readResponse);
@@ -260,6 +289,7 @@ test('controlled production Payment Intent creation remains backend-authoritativ
   const replayBody = await readJson(replayResponse);
   assert.equal(replayResponse.status, 200);
   assert.equal(paymentIntentId(replayBody), firstId);
+  assertCreatedIntentResponse(assertIntentEnvelope(replayBody));
 
   const conflictResponse = await request('/api/pay/v1/payment-intents', {
     method: 'POST',
