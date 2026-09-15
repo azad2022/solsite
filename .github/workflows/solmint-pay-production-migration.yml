@@ -45,8 +45,15 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SUPABASE_PROJECT_ID"
-          test -n "$SUPABASE_ACCESS_TOKEN"
-          test -n "$SUPABASE_DB_PASSWORD"
+          if [[ -z "$SUPABASE_ACCESS_TOKEN" ]]; then
+            echo "ERROR: required GitHub Actions secret SUPABASE_ACCESS_TOKEN is missing or empty."
+            exit 1
+          fi
+          if [[ -z "$SUPABASE_DB_PASSWORD" ]]; then
+            echo "ERROR: required GitHub Actions secret SUPABASE_DB_PASSWORD is missing or empty."
+            exit 1
+          fi
+          echo "Production migration credentials are present (values are not printed)."
 
       - name: Link Production project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
