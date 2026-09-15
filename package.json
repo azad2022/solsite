@@ -18,7 +18,8 @@
     "test": "find tests -type f -name '*.test.ts' -print0 | xargs -0 tsx --test",
     "test:pay:devnet": "tsx e2e/pay-devnet-native.e2e.ts",
     "test:e2e:pay-production-contract": "tsx e2e/pay-production-api-contract.e2e.ts",
-    "test:e2e:pay-authenticated": "tsx e2e/pay-authenticated-api-key-lifecycle.e2e.ts"
+    "test:e2e:pay-authenticated": "tsx e2e/pay-authenticated-api-key-lifecycle.e2e.ts",
+    "test:e2e:pay-payment-intent": "tsx e2e/pay-payment-intent-lifecycle.e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
