@@ -10,6 +10,12 @@ function toArrayBuffer(value: Uint8Array): ArrayBuffer {
   return copy.buffer;
 }
 
+function canonicalIsoTimestamp(value: string): string {
+  const timestamp = new Date(value);
+  if (!Number.isFinite(timestamp.getTime())) throw new Error('Invalid wallet challenge timestamp.');
+  return timestamp.toISOString();
+}
+
 export function buildWalletOwnershipMessage(input: { origin: string; challengeId: string; merchantId: string; walletAddress: string; issuedAt: string; expiresAt: string }): string {
   return [
     'SolMint Pay wallet ownership verification',
@@ -17,8 +23,8 @@ export function buildWalletOwnershipMessage(input: { origin: string; challengeId
     `Challenge: ${input.challengeId}`,
     `Merchant: ${input.merchantId}`,
     `Wallet: ${input.walletAddress}`,
-    `Issued: ${input.issuedAt}`,
-    `Expires: ${input.expiresAt}`,
+    `Issued: ${canonicalIsoTimestamp(input.issuedAt)}`,
+    `Expires: ${canonicalIsoTimestamp(input.expiresAt)}`,
   ].join('\n');
 }
 
