@@ -136,29 +136,56 @@ Required remediation is therefore a Cloudflare Dashboard integration action: dis
 
 ## 2026-09-14 — Better Auth production session-boundary correction
 
-Status: **IMPLEMENTED / VALIDATION IN PROGRESS**
+Status: **COMPLETED**
 
 Scope: align the shared application authentication boundary with the actual Better Auth cookie emitted by the deployed production runtime.
 
 Evidence:
 
-- Production sign-in for the controlled E2E account now returns HTTP 200 and a Better Auth session cookie.
+- Production sign-in for the controlled E2E account returns HTTP 200 and a Better Auth session cookie.
 - The production cookie name observed in the authenticated smoke path is `__Secure-__Host-solmint_auth_session`.
-- The shared auth boundary previously recognized only the unprefixed cookie form, causing `/api/users/me` and Pay endpoints to return 401 even after successful Better Auth login.
-- `functions/api/auth/_application-session.ts` now accepts the deployed cookie form and normalizes it only at the Better Auth session adapter boundary.
-- `functions/api/auth/_shared.ts` now recognizes the deployed prefixed session cookie before choosing the Better Auth authority path.
+- The shared auth boundary was corrected to recognize the deployed prefixed cookie form at the Better Auth session boundary.
+- Authenticated production E2E subsequently passed on `main`, confirming the deployed runtime serves the corrected boundary.
 
-Validation state: source build/quality checks are green on the implementation commit; a fresh production E2E run must still confirm the deployed runtime serves the corrected boundary before this gate is marked complete.
+## 2026-09-15 — Authenticated API credential lifecycle gate closed
 
-## Next unreleased Pay gate
+Status: **COMPLETED**
 
-Continue **authenticated merchant lifecycle and production-safe merchant credentials** (Issue #68 acceptance path).
+Merged PR: `#85`
 
-For Issue #68 specifically, the remaining evidence gate is still the **authenticated production/non-production lifecycle against a controlled merchant account**, including cross-merchant IDOR, revoked/expired/wrong-scope enforcement, replay/concurrency behavior, secret-redaction evidence at runtime, and final production audit evidence.
+Merge commit on `main`: `ab6d4713c543338b51aeaf8b62b99ccb5d755636`
+
+Final production evidence:
+
+- `SolMint Pay Authenticated API-Key E2E` run **#9** succeeded on `main` at the merge commit.
+- Workflow event was `workflow_dispatch`; no push-triggered production test was introduced.
+- Controlled production E2E covered authentication/session establishment, merchant authorization, create/list, idempotent replay, concurrency, wrong-scope rejection, cross-merchant IDOR rejection, rotation, old-secret rejection, rotation replay, revoke, post-revoke rejection, expiry, and plaintext-secret handling.
+- The source-tree invariant passed after the E2E run.
+- The runtime API-key redaction/origin hardening gate had already passed separately.
+- Issue **#68** is now closed as completed.
+- Superseded PR **#84** is closed; its rotation-replay fix is included in the integrated lifecycle gate.
+
+Conclusion: the **production API credential lifecycle acceptance gate is closed**. This does not mark SolMint Pay production-ready.
+
+## Current Pay next gate
+
+The next unreleased engineering gate is **wallet ownership lifecycle evidence**, followed by the controlled non-production Payment Intent lifecycle and the final release audit/security gate.
+
+The remaining broader release requirements are:
+
+- wallet ownership challenge/verification lifecycle against the real backend contract
+- controlled non-production Payment Intent lifecycle
+- adversarial payment verification cases
+- reconciliation/accounting/webhook/idempotency/rate-limit final evidence where applicable
+- runtime smoke and rollback readiness
+- branch-protection enforcement
+- final SolMint Pay production release audit
+
+The obsolete Cloudflare `Workers Builds: solsite` integration remains an **external dashboard issue**, not a repository implementation blocker.
 
 ## Explicitly not complete yet
 
-Do not mark Pay production-ready. Remaining release gates include the authenticated production merchant path with a controlled account, wallet ownership lifecycle evidence, API credential authorization E2E, controlled non-production Payment Intent lifecycle, adversarial verification cases, final release audit, and branch-protection enforcement.
+Do not mark Pay production-ready. The API credential lifecycle gate is complete, but the broader Pay release gate is still open until the remaining wallet, Payment Intent, verification, security/audit, deployment, runtime and branch-protection evidence is green.
 
 ## Working rule
 
