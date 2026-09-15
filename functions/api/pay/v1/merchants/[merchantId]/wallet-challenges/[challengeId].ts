@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from '../../../../../auth/_shared';
 import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../../_shared/runtime';
-import { buildWalletOwnershipMessage, validateChallengeWindow, verifySolanaWalletSignature } from '../../../../../../../src/pay/services/walletSignature';
+import { validateChallengeWindow, verifySolanaWalletSignature } from '../../../../../../../src/pay/services/walletSignature';
 
 interface PayEnv {
   SUPABASE_URL?: string;
@@ -17,6 +17,11 @@ function originAllowed(request: Request, env: PayEnv): boolean {
 
 function validId(value: string): boolean {
   return /^[A-Za-z0-9_-]{1,128}$/.test(value);
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export const onRequestPost = async ({ request, env, params }: { request: Request; env: PayEnv; params: { merchantId: string; challengeId: string } }) => {
@@ -39,23 +44,21 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     if (!merchant || merchant.owner_user_id !== user.id) return payJson({ code: 'FORBIDDEN', message: 'You do not control this merchant account.' }, 403, id);
     if (merchant.status === 'suspended' || merchant.status === 'closed') return payJson({ code: 'MERCHANT_NOT_ACTIVE', message: 'Merchant is not available for wallet verification.' }, 403, id);
 
-    const challengeResponse = await supabaseRequest(env, `/rest/v1/pay_wallet_challenges?select=id,merchant_id,wallet_address,message,issued_at,expires_at,consumed_at,status&id=eq.${encodeURIComponent(challengeId)}&merchant_id=eq.${encodeURIComponent(merchantId)}&limit=1`, { headers: { Accept: 'application/json' } });
-    const challenges = await challengeResponse.json() as Array<{ id: string; merchant_id: string; wallet_address: string; message: string; issued_at: string; expires_at: string; consumed_at: string | null; status: string }>;
+    const challengeResponse = await supabaseRequest(env, `/rest/v1/pay_wallet_challenges?select=id,merchant_id,wallet_address,message,nonce_hash,issued_at,expires_at,consumed_at,status&id=eq.${encodeURIComponent(challengeId)}&merchant_id=eq.${encodeURIComponent(merchantId)}&limit=1`, { headers: { Accept: 'application/json' } });
+    const challenges = await challengeResponse.json() as Array<{ id: string; merchant_id: string; wallet_address: string; message: string; nonce_hash: string; issued_at: string; expires_at: string; consumed_at: string | null; status: string }>;
     const challenge = challenges[0];
     if (!challenge) return payJson({ code: 'CHALLENGE_NOT_FOUND', message: 'Wallet verification challenge was not found.' }, 404, id);
     if (challenge.consumed_at || challenge.status !== 'issued') return payJson({ code: 'CHALLENGE_ALREADY_USED', message: 'This wallet verification challenge has already been consumed.' }, 409, id);
     if (!validateChallengeWindow(challenge.issued_at, challenge.expires_at)) return payJson({ code: 'CHALLENGE_EXPIRED', message: 'This wallet verification challenge has expired.' }, 410, id);
 
-    const origin = env.PAY_APP_ORIGIN?.trim();
-    if (!origin) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay application origin is not configured.');
     const body = await readJsonBody(request);
     const signatureBase58 = typeof body.signature === 'string' ? body.signature.trim() : '';
     const walletAddress = typeof body.walletAddress === 'string' ? body.walletAddress.trim() : '';
     if (!signatureBase58 || !walletAddress) return payJson({ code: 'INVALID_PROOF', message: 'walletAddress and signature are required.' }, 400, id);
     if (walletAddress !== challenge.wallet_address) return payJson({ code: 'WALLET_MISMATCH', message: 'Signed wallet does not match the challenged wallet.' }, 400, id);
 
-    const expectedMessage = buildWalletOwnershipMessage({ origin, challengeId, merchantId, walletAddress: challenge.wallet_address, issuedAt: challenge.issued_at, expiresAt: challenge.expires_at });
-    if (expectedMessage !== challenge.message) return payJson({ code: 'CHALLENGE_TAMPERED', message: 'Wallet challenge data is inconsistent.' }, 500, id);
+    const messageHash = await sha256Hex(challenge.message);
+    if (messageHash !== challenge.nonce_hash) return payJson({ code: 'CHALLENGE_TAMPERED', message: 'Wallet challenge data is inconsistent.' }, 500, id);
 
     const signatureValid = await verifySolanaWalletSignature({ walletAddress, message: challenge.message, signatureBase58 });
     if (!signatureValid) return payJson({ code: 'INVALID_SIGNATURE', message: 'Wallet signature could not be verified.' }, 400, id);
@@ -70,6 +73,8 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
       if (result.reason === 'CHALLENGE_ALREADY_USED') return payJson({ code: 'CHALLENGE_ALREADY_USED', message: 'This wallet verification challenge has already been consumed.' }, 409, id);
       if (result.reason === 'CHALLENGE_EXPIRED') return payJson({ code: 'CHALLENGE_EXPIRED', message: 'This wallet verification challenge has expired.' }, 410, id);
       if (result.reason === 'MERCHANT_FORBIDDEN') return payJson({ code: 'FORBIDDEN', message: 'You do not control this merchant account.' }, 403, id);
+      if (result.reason === 'SIGNATURE_ALREADY_USED') return payJson({ code: 'SIGNATURE_ALREADY_USED', message: 'This signature has already been used.' }, 409, id);
+      if (result.reason === 'WALLET_NOT_FOUND') return payJson({ code: 'WALLET_NOT_FOUND', message: 'The challenged receiving wallet no longer exists.' }, 409, id);
       throw new PayRuntimeError('CHALLENGE_CONSUMPTION_FAILED', 503, 'Wallet verification could not be committed safely.');
     }
 
