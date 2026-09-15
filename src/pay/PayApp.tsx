@@ -119,7 +119,7 @@ export function PayApp(): React.ReactElement {
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
   const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
-  const showMerchantOnboarding = sessionState === 'authenticated' && (currentSection === 'overview' || (currentSection === 'merchants' && !merchant));
+  const showMerchantOnboarding = sessionState === 'authenticated' && ((currentSection === 'overview' && merchant === null) || currentSection === 'merchants');
   const showTickets = currentSection === 'tickets' && sessionState === 'authenticated' && sessionUser !== null;
   const showTransactions = currentSection === 'transactions' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showDashboard = currentSection === 'dashboard' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
@@ -187,7 +187,7 @@ export function PayApp(): React.ReactElement {
               <div className="pay-heading-meta" aria-label={translate(locale, 'timeRange')}><span>{translate(locale, 'timeRange')}</span><div className="pay-range-control" role="group" aria-label={translate(locale, 'timeRange')}><button type="button" className="is-active" aria-pressed="true">{translate(locale, 'today')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'sevenDays')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'thirtyDays')}</button></div></div>
             </div>
 
-            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} onMerchantReady={setMerchant} /> : null}
+            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} initialMerchant={currentSection === 'merchants' ? merchant : null} onMerchantReady={setMerchant} /> : null}
 
             {currentSection === 'merchants' && sessionState === 'authenticated' && merchant ? <PayApiKeyManagement locale={locale} merchantId={merchant.id} merchantStatus={merchant.status} /> : null}
 

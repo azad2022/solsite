@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Copy, KeyRound, Loader2, ShieldCheck, Store, Wallet, XCircle } from 'lucide-react';
 import { createMyMerchant, getMyMerchant, issueWalletChallenge, verifyWalletChallenge, type PayMerchant } from '../services/merchantOnboardingService';
 import { encodeBase58 } from '../services/base58';
@@ -18,15 +18,20 @@ declare global {
   interface Window { solana?: SolanaProvider; }
 }
 
-interface Props { locale?: PayLocale; onClose?: () => void; onMerchantReady?: (merchant: PayMerchant) => void; }
+interface Props {
+  locale?: PayLocale;
+  onClose?: () => void;
+  onMerchantReady?: (merchant: PayMerchant) => void;
+  initialMerchant?: PayMerchant | null;
+}
 type Stage = 'idle' | 'loading' | 'creating' | 'challenge' | 'signing' | 'verifying' | 'done' | 'error';
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
 
-export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMerchantReady }: Props): React.ReactElement {
-  const [merchant, setMerchant] = useState<PayMerchant | null>(null);
+export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMerchantReady, initialMerchant = null }: Props): React.ReactElement {
+  const [merchant, setMerchant] = useState<PayMerchant | null>(initialMerchant);
   const [businessName, setBusinessName] = useState('');
   const [slug, setSlug] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
@@ -34,6 +39,13 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (initialMerchant) {
+      setMerchant(initialMerchant);
+      setStage(current => current === 'error' ? 'idle' : current);
+    }
+  }, [initialMerchant]);
 
   const resetError = () => { setError(''); if (stage === 'error') setStage('idle'); };
 
