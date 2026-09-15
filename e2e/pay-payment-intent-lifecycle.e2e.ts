@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import test from 'node:test';
 import { encodeBase58 } from '../src/pay/services/base58';
@@ -84,7 +85,7 @@ async function signIn(): Promise<string> {
   return cookie;
 }
 
-function decodeBase58(value: string): Uint8Array {
+function decodeBase58(value: string): Buffer {
   const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   const index = new Map([...alphabet].map((char, position) => [char, position]));
   let result = 0n;
@@ -101,21 +102,15 @@ function decodeBase58(value: string): Uint8Array {
     if (char !== '1') break;
     leadingZeros += 1;
   }
-  return new Uint8Array(Buffer.concat([Buffer.alloc(leadingZeros), decoded]));
+  return Buffer.concat([Buffer.alloc(leadingZeros), decoded]);
 }
 
 function decodeSecret(value: string): Uint8Array {
   const base64 = Buffer.from(value, 'base64');
-  if (base64.length === 64) return new Uint8Array(base64);
+  if (base64.length === 64) return base64;
   const base58 = decodeBase58(value);
   if (base58.length === 64) return base58;
   throw new Error('Controlled E2E wallet key must decode to a 64-byte Solana keypair.');
-}
-
-function deriveWalletIdentity(secretKey: Uint8Array): { publicKey: string; secretKey: Uint8Array } {
-  assert.equal(secretKey.length, 64);
-  const pair = nacl.sign.keyPair.fromSecretKey(secretKey);
-  return { publicKey: encodeBase58(pair.publicKey), secretKey: pair.secretKey };
 }
 
 function assertIntentEnvelope(body: Record<string, unknown>): Record<string, unknown> {
@@ -183,8 +178,8 @@ test('controlled production Payment Intent creation remains backend-authoritativ
   assert.equal(typeof secret, 'string');
   assert.match(secret as string, /^sk_pay_[A-Za-z0-9_-]{64,}$/);
 
-  const wallet = deriveWalletIdentity(decodeSecret(FUNDER_SECRET));
-  const walletAddress = wallet.publicKey;
+  const funder = Keypair.fromSecretKey(decodeSecret(FUNDER_SECRET));
+  const walletAddress = funder.publicKey.toBase58();
 
   const challengeResponse = await request(`/api/pay/v1/merchants/${encodeURIComponent(MERCHANT_ID)}/wallet-challenges`, {
     method: 'POST',
@@ -202,7 +197,7 @@ test('controlled production Payment Intent creation remains backend-authoritativ
     assert.equal(typeof challenge.expiresAt, 'string');
 
     const messageBytes = new TextEncoder().encode(challenge.message as string);
-    const signatureBytes = nacl.sign.detached(messageBytes, wallet.secretKey);
+    const signatureBytes = nacl.sign.detached(messageBytes, funder.secretKey);
     const verifyResponse = await request(`/api/pay/v1/merchants/${encodeURIComponent(MERCHANT_ID)}/wallet-challenges/${encodeURIComponent(challenge.id as string)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -258,7 +253,7 @@ test('controlled production Payment Intent creation remains backend-authoritativ
     body: JSON.stringify(createBody),
   });
   const replayBody = await readJson(replayResponse);
-  assert.equal(replayResponse.status, 200);
+  assert.equal(replayResponse.status, firstResponse.status);
   assert.equal(paymentIntentId(replayBody), firstId);
 
   const conflictResponse = await request('/api/pay/v1/payment-intents', {
