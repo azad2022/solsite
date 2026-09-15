@@ -48,4 +48,4 @@ jobs:
       - name: Assert source tree is unchanged
         run: |
           git diff --exit-code
-          test -z "$(git status --porcelain --untracked-files=all)">
+          test -z "$(git status --porcelain --untracked-files=all)"
