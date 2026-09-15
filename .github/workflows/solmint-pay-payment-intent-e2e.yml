@@ -5,11 +5,12 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   payment-intent-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     env:
       SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
       PAY_E2E_EMAIL: ${{ secrets.PAY_E2E_EMAIL }}
@@ -21,18 +22,23 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.2.15
+
       - name: Install dependencies (immutable)
         run: bun install --frozen-lockfile
+
       - name: Install pinned Ed25519 signer
         run: bun add --no-save tweetnacl@1.0.3
+
       - name: Require controlled Payment Intent E2E configuration
         shell: bash
         run: |
@@ -41,8 +47,43 @@ jobs:
           test -n "$PAY_E2E_PASSWORD"
           test -n "$PAY_E2E_MERCHANT_ID"
           test -n "$DEVNET_E2E_FUNDER_SECRET_KEY_B64"
+
+      - name: Wait for Cloudflare Pages deployment of this main commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 36); do
+            check_run=$(gh api --method GET \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+              --jq '.check_runs[] | select(.name == "Cloudflare Pages") | {status: .status, conclusion: .conclusion}' \
+              | tail -n 1 || true)
+
+            status=$(printf '%s' "$check_run" | jq -r '.status // empty' 2>/dev/null || true)
+            conclusion=$(printf '%s' "$check_run" | jq -r '.conclusion // empty' 2>/dev/null || true)
+
+            if [ "$status" = "completed" ] && [ "$conclusion" = "success" ]; then
+              echo "Cloudflare Pages deployment for ${GITHUB_SHA} is successful."
+              exit 0
+            fi
+
+            if [ "$status" = "completed" ] && [ -n "$conclusion" ] && [ "$conclusion" != "success" ]; then
+              echo "Cloudflare Pages deployment for ${GITHUB_SHA} ended with conclusion: ${conclusion}."
+              exit 1
+            fi
+
+            echo "Waiting for Cloudflare Pages deployment (${attempt}/36)..."
+            sleep 10
+          done
+
+          echo "Timed out waiting for Cloudflare Pages deployment of ${GITHUB_SHA}."
+          exit 1
+
       - name: Run controlled production Payment Intent E2E
         run: bun run test:e2e:pay-payment-intent
+
       - name: Assert source tree is unchanged
         run: |
           git diff --exit-code
