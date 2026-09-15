@@ -68,15 +68,21 @@ Workflow زیر در repository قرار دارد:
 
 این project ref secret نیست و نباید به‌عنوان secret جدید ساخته شود.
 
-## وضعیت migration `20260915221500_pay_payment_intent_authoritative_response.sql`
+## وضعیت migration `20260915195212_pay_payment_intent_authoritative_response.sql`
 
-این migration در repository وجود دارد و function `public.pay_create_payment_intent` را برای response contract و idempotent replay به‌روزرسانی می‌کند.
+این migration در Production با نسخه `20260915195212` ثبت شده و نام migration آن `pay_payment_intent_authoritative_response` است.
 
-در آخرین checkpoint repository، migrationهای live تا `20260915175809` ثبت شده بودند؛ بنابراین این migration در آن checkpoint pending محسوب می‌شود.
+Repository قبلاً همان منطق را با timestamp متفاوت `20260915221500` نگه داشته بود. این حالت یک migration-lineage mismatch بود و نباید با `db push` روی Production به‌صورت کورکورانه اجرا می‌شد.
 
-اجرای مستقیم آن از connector فعلی Supabase در این نوبت با `502 Upstream or external service error` قابل انجام/تأیید نبود. در نتیجه نباید ادعا شود که migration اجرا شده است.
+در اصلاح repository باید همان SQL موجود، با نسخه و نام ثبت‌شده Production (`20260915195212_pay_payment_intent_authoritative_response.sql`) نگهداری شود و فایل timestamp جایگزین حذف شود. این reconciliation فقط repository-side است و نباید با `migration repair` یا SQL دستی روی Production انجام شود.
 
-پس از ثبت credentials لازم در GitHub، مسیر معتبر اجرای آن workflow فوق است و نتیجه باید با خود workflow و `supabase migration list` تأیید شود.
+پس از reconciliation، هر migration جدید باید timestamp منحصربه‌فرد خود را داشته باشد و قبل از اجرای production migration با live ledger تطبیق داده شود.
+
+## Migration Failure Handling
+
+Workflow قبل از اتصال و mutation، credential guard را اجرا می‌کند. اگر `SUPABASE_ACCESS_TOKEN` یا `SUPABASE_DB_PASSWORD` در GitHub Actions در دسترس نباشد، workflow باید همان‌جا متوقف شود و هیچ migration نباید اجرا شود.
+
+این failure یک configuration/security gate است، نه failure در SQL migration. رفع آن باید با تنظیم secret صحیح در GitHub Actions انجام شود؛ مقدار secret نباید در issue، PR، log یا ChatGPT وارد شود.
 
 ## Rule for future ChatGPT sessions
 
