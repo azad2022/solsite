@@ -33,6 +33,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Install pinned Solana E2E SDK
         run: bun add --no-save @solana/web3.js@1.99.0
+      - name: Pin compatible Noble hashes runtime for Solana E2E SDK
+        run: bun add --no-save @noble/hashes@1.8.0
       - name: Install pinned Ed25519 signer
         run: bun add --no-save tweetnacl@1.0.3
       - name: Require controlled Payment Intent E2E configuration
