@@ -4,6 +4,7 @@ import { onRequestGet } from '../functions/api/pay/v1/payment-intents/[id]';
 
 const INTENT_ID = '11111111-1111-4111-8111-111111111111';
 const MERCHANT_ID = '22222222-2222-4222-8222-222222222222';
+const FEE_RECIPIENT = 'C9Cas87cue2YaHHTugTsQp6XP1Ho5CsbQNHCNi2rqSxz';
 
 const payment = {
   id: INTENT_ID,
@@ -18,10 +19,13 @@ const payment = {
   fee_bps: 100,
   fee_payer: 'customer',
   fee_atomic: '10000000',
+  fee_recipient: FEE_RECIPIENT,
   gas_sponsored: false,
   status: 'pending',
-  expires_at: '2026-09-06T14:00:00.000Z',
+  expires_at: '2099-09-06T14:00:00.000Z',
   customer_total_atomic: '1010000000',
+  merchant_net_atomic: '1000000000',
+  merchant_settlement_atomic: '1000000000',
   network: 'solana',
   verification_commitment: 'finalized',
 };
@@ -65,11 +69,11 @@ test('Pay Payment Intent endpoint returns only checkout-safe authoritative field
     assert.equal(body.success, true);
     assert.equal(body.data.amountAtomic, '1000000000');
     assert.equal(body.data.customerTotalAtomic, '1010000000');
+    assert.equal(body.data.merchantNetAtomic, '1000000000');
+    assert.equal(body.data.merchantSettlementAtomic, '1000000000');
+    assert.equal(body.data.feeRecipient, FEE_RECIPIENT);
     assert.equal(body.data.status, 'pending');
     assert.equal(body.data.verificationCommitment, 'finalized');
-    assert.equal('merchantNetAtomic' in body.data, false);
-    assert.equal('feeRecipient' in body.data, false);
-    assert.equal('merchantSettlementAtomic' in body.data, false);
     assert.match(requested[0], /pay_payment_intents\?select=/);
     assert.match(requested[1], /pay_merchants\?select=id,business_name,status/);
   } finally {
