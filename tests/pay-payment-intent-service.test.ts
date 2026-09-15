@@ -16,10 +16,13 @@ const BASE_DATA = {
   feeBps: 100,
   feePayer: 'merchant',
   feeAtomic: '10000',
+  feeRecipient: 'C9Cas87cue2YaHHTugTsQp6XP1Ho5CsbQNHCNi2rqSxz',
   gasSponsored: false,
   status: 'created',
   expiresAt: '2099-01-01T00:00:00.000Z',
   customerTotalAtomic: '1000000',
+  merchantNetAtomic: '990000',
+  merchantSettlementAtomic: '990000',
   network: 'solana',
   verificationCommitment: 'finalized',
 } as const;
@@ -39,7 +42,10 @@ test('Payment Intent service preserves authoritative atomic snapshot', async () 
   assert.equal(intent.id, BASE_DATA.id);
   assert.equal(intent.amountAtomic, '1000000');
   assert.equal(intent.feeAtomic, '10000');
+  assert.equal(intent.feeRecipient, BASE_DATA.feeRecipient);
   assert.equal(intent.customerTotalAtomic, '1000000');
+  assert.equal(intent.merchantNetAtomic, '990000');
+  assert.equal(intent.merchantSettlementAtomic, '990000');
   assert.equal(intent.reference, BASE_DATA.reference);
   assert.equal(intent.status, 'created');
   assert.equal(intent.verificationCommitment, 'finalized');
