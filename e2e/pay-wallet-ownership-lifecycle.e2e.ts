@@ -4,21 +4,19 @@ import test from 'node:test';
 import { encodeBase58 } from '../src/pay/services/base58';
 
 const ORIGIN = (process.env.SOLMINT_PAY_PRODUCTION_ORIGIN || 'https://solmint.ir').replace(/\/$/, '');
-const EMAIL = (process.env.PAY_WALLET_E2E_EMAIL || '').trim();
-const PASSWORD = process.env.PAY_WALLET_E2E_PASSWORD || '';
-const MERCHANT_ID = (process.env.PAY_WALLET_E2E_MERCHANT_ID || '').trim();
+const EMAIL = (process.env.PAY_E2E_EMAIL || '').trim();
+const PASSWORD = process.env.PAY_E2E_PASSWORD || '';
 const OTHER_MERCHANT_ID = (process.env.PAY_E2E_OTHER_MERCHANT_ID || '').trim();
 const REQUEST_TIMEOUT_MS = 20_000;
 const CHALLENGE_WAIT_MS = 10 * 60 * 1000 + 5_000;
 
 function requireConfig(): void {
   const missing = [
-    ['PAY_WALLET_E2E_EMAIL', EMAIL],
-    ['PAY_WALLET_E2E_PASSWORD', PASSWORD],
-    ['PAY_WALLET_E2E_MERCHANT_ID', MERCHANT_ID],
+    ['PAY_E2E_EMAIL', EMAIL],
+    ['PAY_E2E_PASSWORD', PASSWORD],
     ['PAY_E2E_OTHER_MERCHANT_ID', OTHER_MERCHANT_ID],
   ].filter(([, value]) => !value).map(([name]) => name);
-  if (missing.length) throw new Error(`Missing isolated wallet E2E configuration: ${missing.join(', ')}`);
+  if (missing.length) throw new Error(`Missing existing Pay E2E configuration: ${missing.join(', ')}`);
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -59,6 +57,40 @@ async function signIn(): Promise<string> {
   return cookie;
 }
 
+interface Merchant { id: string; owner_user_id?: string; business_name?: string; slug?: string; status?: string; }
+
+function readMerchant(body: Record<string, unknown>): Merchant {
+  assert.ok(body.merchant && typeof body.merchant === 'object');
+  const merchant = body.merchant as Record<string, unknown>;
+  assert.equal(typeof merchant.id, 'string');
+  return merchant as Merchant;
+}
+
+async function ensureMerchant(cookie: string): Promise<string> {
+  const existingResponse = await request('/api/pay/v1/merchants', {}, cookie);
+  const existingBody = await readJson(existingResponse);
+  assert.equal(existingResponse.status, 200);
+
+  if (existingBody.merchant !== null) {
+    const merchant = readMerchant(existingBody);
+    assert.equal(merchant.status, 'active');
+    return merchant.id;
+  }
+
+  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const createResponse = await request('/api/pay/v1/merchants', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ businessName: `SolMint Pay Wallet E2E ${suffix}`, slug: `wallet-e2e-${suffix}` }),
+  }, cookie);
+  const createBody = await readJson(createResponse);
+  assert.equal(createResponse.status, 201);
+  const merchant = readMerchant(createBody);
+  assert.equal(createBody.created, true);
+  assert.equal(merchant.status, 'active');
+  return merchant.id;
+}
+
 interface WalletSigner { address: string; privateKey: ReturnType<typeof generateKeyPairSync>['privateKey']; }
 
 function createWalletSigner(): WalletSigner {
@@ -76,13 +108,18 @@ function signMessage(message: string, wallet: WalletSigner): string {
 }
 
 function tamperBase58(signature: string): string {
-  const bytes = Buffer.from(signature, 'utf8');
-  bytes[bytes.length - 1] = bytes[bytes.length - 1] === 49 ? 50 : 49;
-  return bytes.toString('utf8');
+  const chars = [...signature];
+  const index = chars.length - 1;
+  chars[index] = chars[index] === '1' ? '2' : '1';
+  return chars.join('');
 }
 
-async function issueChallenge(cookie: string, walletAddress: string): Promise<{ response: Response; body: Record<string, unknown> }> {
-  const response = await request(`/api/pay/v1/merchants/${encodeURIComponent(MERCHANT_ID)}/wallet-challenges`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ walletAddress }) }, cookie);
+async function issueChallenge(cookie: string, merchantId: string, walletAddress: string): Promise<{ response: Response; body: Record<string, unknown> }> {
+  const response = await request(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ walletAddress }),
+  }, cookie);
   return { response, body: await readJson(response) };
 }
 
@@ -93,8 +130,12 @@ function challenge(body: Record<string, unknown>): Record<string, string> {
   return row as Record<string, string>;
 }
 
-async function verify(cookie: string, challengeId: string, walletAddress: string, signature: string, merchantId = MERCHANT_ID, origin = ORIGIN) {
-  const response = await request(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges/${encodeURIComponent(challengeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ walletAddress, signature }) }, cookie, origin);
+async function verify(cookie: string, merchantId: string, challengeId: string, walletAddress: string, signature: string, origin = ORIGIN) {
+  const response = await request(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges/${encodeURIComponent(challengeId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ walletAddress, signature }),
+  }, cookie, origin);
   return { response, body: await readJson(response) };
 }
 
@@ -110,32 +151,42 @@ async function waitForExpiry(): Promise<void> { await new Promise((resolve) => s
 test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritative', async () => {
   requireConfig();
 
-  const noSession = await request(`/api/pay/v1/merchants/${encodeURIComponent(MERCHANT_ID)}/wallet-challenges`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ walletAddress: createWalletSigner().address }) });
+  const cookie = await signIn();
+  const me = await request('/api/users/me', {}, cookie);
+  assert.equal(me.status, 200);
+
+  const merchantId = await ensureMerchant(cookie);
+
+  const noSession = await request(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ walletAddress: createWalletSigner().address }),
+  });
   const noSessionBody = await readJson(noSession);
   assert.equal(noSession.status, 401);
   assert.equal(noSessionBody.code, 'UNAUTHORIZED');
   assertRedactedError(noSessionBody);
 
-  const cookie = await signIn();
-  const me = await request('/api/users/me', {}, cookie);
-  assert.equal(me.status, 200);
-
-  const badOrigin = await request(`/api/pay/v1/merchants/${encodeURIComponent(MERCHANT_ID)}/wallet-challenges`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ walletAddress: createWalletSigner().address }) }, cookie, 'https://evil.example');
+  const badOrigin = await request(`/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ walletAddress: createWalletSigner().address }),
+  }, cookie, 'https://evil.example');
   const badOriginBody = await readJson(badOrigin);
   assert.equal(badOrigin.status, 403);
   assert.equal(badOriginBody.code, 'ORIGIN_FORBIDDEN');
   assertRedactedError(badOriginBody);
 
-  const crossIssue = await issueChallenge(cookie, createWalletSigner().address);
+  const crossIssue = await issueChallenge(cookie, merchantId, createWalletSigner().address);
   assert.equal(crossIssue.response.status, 201);
   const crossChallenge = challenge(crossIssue.body);
-  const crossMerchantAttempt = await verify(cookie, crossChallenge.id, crossChallenge.walletAddress, 'invalid', OTHER_MERCHANT_ID);
+  const crossMerchantAttempt = await verify(cookie, OTHER_MERCHANT_ID, crossChallenge.id, crossChallenge.walletAddress, 'invalid');
   assert.equal(crossMerchantAttempt.response.status, 403);
   assert.equal(crossMerchantAttempt.body.code, 'FORBIDDEN');
   assertRedactedError(crossMerchantAttempt.body);
 
   const wallet = createWalletSigner();
-  const challengeResponse = await issueChallenge(cookie, wallet.address);
+  const challengeResponse = await issueChallenge(cookie, merchantId, wallet.address);
   assert.equal(challengeResponse.response.status, 201);
   const activeChallenge = challenge(challengeResponse.body);
   assert.equal(activeChallenge.walletAddress, wallet.address);
@@ -143,36 +194,36 @@ test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritat
 
   const wrongWallet = createWalletSigner();
   const wrongWalletSignature = signMessage(activeChallenge.message, wrongWallet);
-  const mismatch = await verify(cookie, activeChallenge.id, wrongWallet.address, wrongWalletSignature);
+  const mismatch = await verify(cookie, merchantId, activeChallenge.id, wrongWallet.address, wrongWalletSignature);
   assert.equal(mismatch.response.status, 400);
   assert.equal(mismatch.body.code, 'WALLET_MISMATCH');
   assertRedactedError(mismatch.body);
 
-  const tampered = await verify(cookie, activeChallenge.id, wallet.address, tamperBase58(signMessage(activeChallenge.message, wallet)));
+  const tampered = await verify(cookie, merchantId, activeChallenge.id, wallet.address, tamperBase58(signMessage(activeChallenge.message, wallet)));
   assert.equal(tampered.response.status, 400);
   assert.equal(tampered.body.code, 'INVALID_SIGNATURE');
   assertRedactedError(tampered.body);
 
-  const verified = await verify(cookie, activeChallenge.id, wallet.address, signMessage(activeChallenge.message, wallet));
+  const verified = await verify(cookie, merchantId, activeChallenge.id, wallet.address, signMessage(activeChallenge.message, wallet));
   assert.equal(verified.response.status, 200);
   assert.equal(verified.body.verified, true);
-  assert.equal(verified.body.merchantId, MERCHANT_ID);
+  assert.equal(verified.body.merchantId, merchantId);
   assert.equal(verified.body.walletAddress, wallet.address);
   assertRedactedError(verified.body);
 
-  const replay = await verify(cookie, activeChallenge.id, wallet.address, signMessage(activeChallenge.message, wallet));
+  const replay = await verify(cookie, merchantId, activeChallenge.id, wallet.address, signMessage(activeChallenge.message, wallet));
   assert.equal(replay.response.status, 409);
   assert.equal(replay.body.code, 'CHALLENGE_ALREADY_USED');
   assertRedactedError(replay.body);
 
   const concurrentWallet = createWalletSigner();
-  const concurrentChallengeResponse = await issueChallenge(cookie, concurrentWallet.address);
+  const concurrentChallengeResponse = await issueChallenge(cookie, merchantId, concurrentWallet.address);
   assert.equal(concurrentChallengeResponse.response.status, 201);
   const concurrentChallenge = challenge(concurrentChallengeResponse.body);
   const concurrentSignature = signMessage(concurrentChallenge.message, concurrentWallet);
   const concurrent = await Promise.all([
-    verify(cookie, concurrentChallenge.id, concurrentWallet.address, concurrentSignature),
-    verify(cookie, concurrentChallenge.id, concurrentWallet.address, concurrentSignature),
+    verify(cookie, merchantId, concurrentChallenge.id, concurrentWallet.address, concurrentSignature),
+    verify(cookie, merchantId, concurrentChallenge.id, concurrentWallet.address, concurrentSignature),
   ]);
   assert.deepEqual(concurrent.map((item) => item.response.status).sort((a, b) => a - b), [200, 409]);
   assert.equal(concurrent.filter((item) => item.body.verified === true).length, 1);
@@ -180,17 +231,17 @@ test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritat
   concurrent.forEach((item) => assertRedactedError(item.body));
 
   const expiredWallet = createWalletSigner();
-  const expiredResponse = await issueChallenge(cookie, expiredWallet.address);
+  const expiredResponse = await issueChallenge(cookie, merchantId, expiredWallet.address);
   assert.equal(expiredResponse.response.status, 201);
   const expiredChallenge = challenge(expiredResponse.body);
   assert.ok(new Date(expiredChallenge.expiresAt).getTime() > Date.now());
   await waitForExpiry();
-  const expired = await verify(cookie, expiredChallenge.id, expiredWallet.address, signMessage(expiredChallenge.message, expiredWallet));
+  const expired = await verify(cookie, merchantId, expiredChallenge.id, expiredWallet.address, signMessage(expiredChallenge.message, expiredWallet));
   assert.equal(expired.response.status, 410);
   assert.equal(expired.body.code, 'CHALLENGE_EXPIRED');
   assertRedactedError(expired.body);
 
-  const badOriginVerify = await verify(cookie, expiredChallenge.id, expiredWallet.address, 'invalid', MERCHANT_ID, 'https://evil.example');
+  const badOriginVerify = await verify(cookie, merchantId, expiredChallenge.id, expiredWallet.address, 'invalid', 'https://evil.example');
   assert.equal(badOriginVerify.response.status, 403);
   assert.equal(badOriginVerify.body.code, 'ORIGIN_FORBIDDEN');
   assertRedactedError(badOriginVerify.body);
