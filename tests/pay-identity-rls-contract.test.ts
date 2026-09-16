@@ -21,7 +21,8 @@ test('Pay identity bridge resolves the Better Auth application identity before m
   const source = read(identityPath);
   assert.match(source, /getBetterAuthApplicationUser\(request, env\)/);
   assert.match(source, /user\.applicationUserId/);
-  assert.match(source, /AUTH_BRIDGE_MISCONFIGURED/);
+  assert.match(source, /AUTH_BRIDGE_CONFIG_INVALID/);
+  assert.match(source, /AUTH_BRIDGE_PRIVATE_KEY_INVALID/);
 });
 
 test('merchant GET uses the identity-aware PostgREST path rather than the service-role helper', () => {
