@@ -5,6 +5,8 @@ on:
     paths:
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "functions/api/pay/**"
+      - "src/pay/**"
       - ".github/workflows/solmint-pay-database-security.yml"
       - "docs/solmint-pay-live-migration-ledger.txt"
   push:
@@ -12,6 +14,8 @@ on:
     paths:
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "functions/api/pay/**"
+      - "src/pay/**"
       - ".github/workflows/solmint-pay-database-security.yml"
       - "docs/solmint-pay-live-migration-ledger.txt"
   workflow_dispatch:
