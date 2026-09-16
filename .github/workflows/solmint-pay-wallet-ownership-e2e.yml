@@ -2,6 +2,12 @@ name: SolMint Pay Wallet Ownership E2E
 
 on:
   workflow_dispatch:
+    inputs:
+      test_ref:
+        description: Ref containing the Wallet Ownership E2E implementation
+        required: true
+        default: test/pay-wallet-ownership-lifecycle-v2
+        type: string
 
 permissions:
   contents: read
@@ -10,30 +16,46 @@ concurrency:
   group: pay-wallet-ownership-e2e
   cancel-in-progress: false
 
+env:
+  SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
+
 jobs:
   wallet-ownership-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
       PAY_E2E_EMAIL: ${{ secrets.PAY_E2E_EMAIL }}
       PAY_E2E_PASSWORD: ${{ secrets.PAY_E2E_PASSWORD }}
       PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
     steps:
-      - name: Checkout exact test branch
+      - name: Checkout selected test ref
         uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.test_ref }}
           persist-credentials: false
+
+      - name: Verify selected test ref contains Wallet Ownership E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f 'e2e/pay-wallet-ownership-lifecycle.e2e.ts'
+          test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges.ts'
+          test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges/[challengeId].ts'
+          printf 'Testing ref: %s\n' '${{ inputs.test_ref }}'
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.2.15
+
       - name: Install dependencies (immutable)
         run: bun install --frozen-lockfile
+
       - name: Require existing controlled E2E authentication fixture
         shell: bash
         run: |
@@ -41,8 +63,10 @@ jobs:
           test -n "$PAY_E2E_EMAIL"
           test -n "$PAY_E2E_PASSWORD"
           test -n "$PAY_E2E_OTHER_MERCHANT_ID"
+
       - name: Run authenticated wallet ownership lifecycle E2E
         run: bunx tsx e2e/pay-wallet-ownership-lifecycle.e2e.ts
+
       - name: Assert source tree is unchanged by E2E
         run: |
           git diff --exit-code
