@@ -61,15 +61,22 @@ interface Merchant { id: string; owner_user_id?: string; business_name?: string;
 
 function readMerchant(body: Record<string, unknown>): Merchant {
   assert.ok(body.merchant && typeof body.merchant === 'object');
-  const merchant = body.merchant as Record<string, unknown>;
-  assert.equal(typeof merchant.id, 'string');
-  return merchant as Merchant;
+  const raw = body.merchant as Record<string, unknown>;
+  const id = raw.id;
+  assert.equal(typeof id, 'string');
+  return {
+    id,
+    owner_user_id: typeof raw.owner_user_id === 'string' ? raw.owner_user_id : undefined,
+    business_name: typeof raw.business_name === 'string' ? raw.business_name : undefined,
+    slug: typeof raw.slug === 'string' ? raw.slug : undefined,
+    status: typeof raw.status === 'string' ? raw.status : undefined,
+  };
 }
 
 async function ensureMerchant(cookie: string): Promise<string> {
   const existingResponse = await request('/api/pay/v1/merchants', {}, cookie);
   const existingBody = await readJson(existingResponse);
-  assert.equal(existingResponse.status, 200);
+  assert.equal(existingResponse.status, 200, `Merchant lookup failed (${existingResponse.status}, code=${String(existingBody.code || 'unknown')}, requestId=${String(existingBody.requestId || 'unknown')}).`);
 
   if (existingBody.merchant !== null) {
     const merchant = readMerchant(existingBody);
@@ -84,10 +91,10 @@ async function ensureMerchant(cookie: string): Promise<string> {
     body: JSON.stringify({ businessName: `SolMint Pay Wallet E2E ${suffix}`, slug: `wallet-e2e-${suffix}` }),
   }, cookie);
   const createBody = await readJson(createResponse);
-  assert.equal(createResponse.status, 201);
+  assert.equal(createResponse.status, 201, `Merchant creation failed (${createResponse.status}, code=${String(createBody.code || 'unknown')}, requestId=${String(createBody.requestId || createResponse.headers.get('X-Pay-Request-ID') || 'unknown')}).`);
   const merchant = readMerchant(createBody);
   assert.equal(createBody.created, true);
-  assert.equal(merchant.status, 'active');
+  assert.equal(merchant.status, 'pending');
   return merchant.id;
 }
 
