@@ -53,10 +53,16 @@ jobs:
           echo "Production migration database credentials are present (values are not printed)."
 
       - name: Preview pending migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --password "$SUPABASE_DB_PASSWORD" --dry-run
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
 
       - name: Apply pending migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --password "$SUPABASE_DB_PASSWORD"
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
 
       - name: Verify migration state
-        run: supabase migration list --db-url "$SUPABASE_DB_URL" --password "$SUPABASE_DB_PASSWORD"
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase migration list --db-url "$SUPABASE_DB_URL"
