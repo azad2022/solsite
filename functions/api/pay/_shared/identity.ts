@@ -39,8 +39,9 @@ export async function resolvePayIdentity(request: Request, env: PayIdentityEnv):
     const accessToken = await mintPayInternalJwt(env, user.applicationUserId);
     return { user, accessToken };
   } catch (error) {
-    console.error(JSON.stringify({ scope: 'pay:identity-bridge', code: classifyPayAuthBridgeError(error), error: error instanceof Error ? error.message : 'signing_failed' }));
-    throw new PayRuntimeError(classifyPayAuthBridgeError(error), 503, 'Pay authorization is temporarily unavailable.');
+    const code = classifyPayAuthBridgeError(error);
+    console.error(JSON.stringify({ scope: 'pay:identity-bridge', code, error: error instanceof Error ? error.message : 'signing_failed' }));
+    throw new PayRuntimeError(code, 503, 'Pay authorization is temporarily unavailable.');
   }
 }
 
