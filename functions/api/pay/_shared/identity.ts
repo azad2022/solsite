@@ -11,6 +11,26 @@ export interface PayIdentityContext {
   accessToken: string;
 }
 
+export type PayAuthBridgeFailureCode =
+  | 'AUTH_BRIDGE_CONFIG_INVALID'
+  | 'AUTH_BRIDGE_PRIVATE_KEY_INVALID'
+  | 'AUTH_BRIDGE_CRYPTO_FAILED'
+  | 'AUTH_BRIDGE_RUNTIME_FAILED';
+
+export function classifyPayAuthBridgeError(error: unknown): PayAuthBridgeFailureCode {
+  const message = error instanceof Error ? error.message : '';
+  if (/SUPABASE_INTERNAL_JWT_PRIVATE_KEY/i.test(message) || /PKCS#8 PEM/i.test(message) || /invalid base64 data/i.test(message)) {
+    return 'AUTH_BRIDGE_PRIVATE_KEY_INVALID';
+  }
+  if (/SUPABASE_INTERNAL_JWT_(ALGORITHM|KEY_ID|ISSUER|AUDIENCE|TTL_SECONDS)|SUPABASE_URL/i.test(message)) {
+    return 'AUTH_BRIDGE_CONFIG_INVALID';
+  }
+  if (/crypto|operationerror|data provided to an operation does not meet the requirements|importkey|subtle/i.test(message)) {
+    return 'AUTH_BRIDGE_CRYPTO_FAILED';
+  }
+  return 'AUTH_BRIDGE_RUNTIME_FAILED';
+}
+
 export async function resolvePayIdentity(request: Request, env: PayIdentityEnv): Promise<PayIdentityContext> {
   const user = await getBetterAuthApplicationUser(request, env);
   if (!user || !user.isActive) throw new PayRuntimeError('UNAUTHORIZED', 401, 'A valid SolMint session is required.');
@@ -19,8 +39,8 @@ export async function resolvePayIdentity(request: Request, env: PayIdentityEnv):
     const accessToken = await mintPayInternalJwt(env, user.applicationUserId);
     return { user, accessToken };
   } catch (error) {
-    console.error(JSON.stringify({ scope: 'pay:identity-bridge', error: error instanceof Error ? error.message : 'signing_failed' }));
-    throw new PayRuntimeError('AUTH_BRIDGE_MISCONFIGURED', 503, 'Pay authorization is temporarily unavailable.');
+    console.error(JSON.stringify({ scope: 'pay:identity-bridge', code: classifyPayAuthBridgeError(error), error: error instanceof Error ? error.message : 'signing_failed' }));
+    throw new PayRuntimeError(classifyPayAuthBridgeError(error), 503, 'Pay authorization is temporarily unavailable.');
   }
 }
 
