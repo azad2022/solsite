@@ -63,7 +63,7 @@ function readMerchant(body: Record<string, unknown>): Merchant {
   assert.ok(body.merchant && typeof body.merchant === 'object');
   const raw = body.merchant as Record<string, unknown>;
   const id = raw.id;
-  assert.equal(typeof id, 'string');
+  if (typeof id !== 'string') throw new Error('Merchant response did not contain a valid id.');
   return {
     id,
     owner_user_id: typeof raw.owner_user_id === 'string' ? raw.owner_user_id : undefined,
@@ -229,8 +229,8 @@ test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritat
   const concurrentChallenge = challenge(concurrentChallengeResponse.body);
   const concurrentSignature = signMessage(concurrentChallenge.message, concurrentWallet);
   const concurrent = await Promise.all([
-    verify(cookie, merchantId, concurrentChallenge.id, concurrentWallet.address, concurrentSignature),
-    verify(cookie, merchantId, concurrentChallenge.id, concurrentWallet.address, concurrentSignature),
+    verify(cookie, merchantId, concurrentChallenge.id, concurrentChallenge.walletAddress, concurrentSignature),
+    verify(cookie, merchantId, concurrentChallenge.id, concurrentChallenge.walletAddress, concurrentSignature),
   ]);
   assert.deepEqual(concurrent.map((item) => item.response.status).sort((a, b) => a - b), [200, 409]);
   assert.equal(concurrent.filter((item) => item.body.verified === true).length, 1);
