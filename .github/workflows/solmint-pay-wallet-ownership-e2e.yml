@@ -8,6 +8,9 @@ on:
         required: true
         default: test/pay-wallet-ownership-lifecycle-v2
         type: string
+  push:
+    branches:
+      - test/pay-wallet-ownership-lifecycle-v2
 
 permissions:
   contents: read
@@ -31,7 +34,7 @@ jobs:
       - name: Checkout selected test ref
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.test_ref }}
+          ref: ${{ inputs.test_ref || github.ref_name }}
           persist-credentials: false
 
       - name: Verify selected test ref contains Wallet Ownership E2E
@@ -41,7 +44,7 @@ jobs:
           test -f 'e2e/pay-wallet-ownership-lifecycle.e2e.ts'
           test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges.ts'
           test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges/[challengeId].ts'
-          printf 'Testing ref: %s\n' '${{ inputs.test_ref }}'
+          printf 'Testing ref: %s\n' '${{ inputs.test_ref || github.ref_name }}'
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
