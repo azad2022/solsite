@@ -167,7 +167,7 @@ Status: **COMPLETED**
 
 Relevant merged PRs: `#87`, `#88`, `#92`, and subsequent replay-contract correction.
 
-Current `main` HEAD at the time of this checkpoint update: `bbf5d6efe18077f7ca7b39f3e1f57a97b8bee737`.
+Current `main` HEAD at the time of this checkpoint update: `bbf5d6efe18077f7ca7b39e3f1f57a97b8bee737`.
 
 ### Payment Intent creation gate
 
@@ -250,11 +250,73 @@ Removed from `main`:
 
 This cleanup prevents temporary validation machinery from remaining in the production repository.
 
+## 2026-09-16 — Wallet Ownership E2E fixture decoupling
+
+Status: **IMPLEMENTATION CORRECTED / VALIDATION PENDING**
+
+PR: `#109`
+
+The Wallet Ownership E2E fixture was redesigned so it no longer depends on dedicated PR-local account/merchant secrets.
+
+Implementation:
+
+- Reuse the existing controlled Better Auth E2E account via `PAY_E2E_EMAIL` and `PAY_E2E_PASSWORD`.
+- Reuse the existing cross-merchant security fixture `PAY_E2E_OTHER_MERCHANT_ID`.
+- Resolve the primary Merchant through the real `GET /api/pay/v1/merchants` contract.
+- When no Merchant exists for the authenticated E2E user, create it through the real authenticated `POST /api/pay/v1/merchants` contract.
+- Keep the wallet signer ephemeral Ed25519 in CI; no private-key Secret is introduced.
+- Do not perform direct Auth/DB INSERTs and do not introduce a new public API, field, financial rule, or production database behavior.
+
+### Real CI failure and root cause
+
+Manual Workflow Run `35119983044`, Job `104875005944`, failed before any Auth/Pay/backend interaction.
+
+The runner successfully received the existing E2E secrets and completed dependency installation, but the Workflow checked out `main` at `bb7c1ad10b3ccfb8666cd83267e47e6b27b2f75c1`. The E2E source file exists on the Wallet Ownership test branch, not on that `main` snapshot.
+
+The failing command was:
+
+`bunx tsx e2e/pay-wallet-ownership-lifecycle.e2e.ts`
+
+and the exact error was:
+
+`ERR_MODULE_NOT_FOUND: Cannot find module '/home/runner/work/solsite/solsite/e2e/pay-wallet-ownership-lifecycle.e2e.ts'`
+
+This was a Workflow ref-selection defect, not an authentication, Secret, database, wallet-signature, or Production API failure.
+
+### Correction
+
+The registered Workflow on `main` now exposes a `workflow_dispatch` input named `test_ref`, defaulting to:
+
+`test/pay-wallet-ownership-lifecycle-v2`
+
+The checkout uses that selected ref and a preflight verifies that the Wallet Ownership E2E source and its two wallet-challenge API files exist before dependencies/tests run.
+
+The same Workflow correction was mirrored onto PR #109's test branch to prevent merge regression.
+
+### Validation state
+
+The gate remains **PENDING**. Run `35119983044` is recorded as an infrastructure/test-run failure and is not evidence against the wallet ownership backend contract itself. The next required evidence is a manual rerun using the default `test_ref` above, followed by analysis of the actual Wallet Ownership lifecycle results.
+
 ## Current Pay next gate
 
-The next gate is the **funded Devnet Payment Intent reconciliation lifecycle** around the existing verification/reconciliation engine.
+The next gate is the **Wallet Ownership Lifecycle** validation followed by the funded Devnet Payment Intent reconciliation lifecycle.
 
-The intended gate will validate real finalized Devnet blockchain data through the existing provider and reconciliation code, without inserting synthetic financial state into Production.
+The Wallet Ownership gate must validate:
+
+- unauthenticated access rejection;
+- trusted-origin enforcement;
+- cross-merchant isolation;
+- wallet mismatch;
+- signature tampering;
+- successful Ed25519 verification;
+- replay rejection;
+- concurrent double-consume atomicity;
+- expiry enforcement;
+- error redaction.
+
+After Wallet Ownership is green, proceed to the **funded Devnet Payment Intent reconciliation lifecycle** around the existing verification/reconciliation engine.
+
+The intended reconciliation gate will validate real finalized Devnet blockchain data through the existing provider and reconciliation code, without inserting synthetic financial state into Production.
 
 Target evidence:
 
@@ -279,7 +341,7 @@ The obsolete Cloudflare `Workers Builds: solsite` check remains an external dash
 
 ## Explicitly not complete yet
 
-Do not mark SolMint Pay production-ready. The API credential lifecycle and controlled Payment Intent creation gate are complete. The funded Devnet reconciliation lifecycle, adversarial verification cases, final security/release audit, production runtime/rollback evidence, and branch-protection enforcement remain open.
+Do not mark SolMint Pay production-ready. The API credential lifecycle and controlled Payment Intent creation gate are complete. Wallet Ownership Lifecycle validation, funded Devnet reconciliation lifecycle, adversarial verification cases, final security/release audit, production runtime/rollback evidence, and branch-protection enforcement remain open.
 
 ## Working rule
 
