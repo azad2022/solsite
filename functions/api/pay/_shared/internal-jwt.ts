@@ -41,8 +41,12 @@ function base64UrlEncode(input: Uint8Array | string): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+function normalizePemInput(value: string): string {
+  return value.trim().replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+}
+
 function pemToDer(pem: string): ArrayBuffer {
-  const normalized = pem.trim();
+  const normalized = normalizePemInput(pem);
   if (!normalized.startsWith('-----BEGIN PRIVATE KEY-----') || !normalized.endsWith('-----END PRIVATE KEY-----')) {
     throw new Error('SUPABASE_INTERNAL_JWT_PRIVATE_KEY must be a PKCS#8 PEM private key.');
   }
@@ -62,7 +66,7 @@ function requireNonEmpty(name: string, value: string | undefined): string {
 }
 
 function requirePrivateKey(value: string | undefined): string {
-  const normalized = value?.trim();
+  const normalized = normalizePemInput(value || '');
   if (!normalized) throw new Error('SUPABASE_INTERNAL_JWT_PRIVATE_KEY is required for the Pay internal JWT bridge.');
   pemToDer(normalized);
   return normalized;
