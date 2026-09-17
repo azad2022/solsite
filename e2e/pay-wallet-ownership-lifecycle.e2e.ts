@@ -103,7 +103,13 @@ function createFixtureDatabase(): FixtureDatabase {
           },
           body: JSON.stringify({ query: text, parameters: values, read_only: false }),
         });
-        if (!response.ok) throw new Error(`Supabase Management API database query failed with HTTP ${response.status}.`);
+        if (!response.ok) {
+          const detail = await response.text();
+          const safeDetail = detail
+            .replaceAll(SUPABASE_ACCESS_TOKEN, '[redacted]')
+            .replaceAll(/pay-wallet-e2e-[^@\s]+@solmint\.invalid/gi, '[e2e-email-redacted]');
+          throw new Error(`Supabase Management API database query failed with HTTP ${response.status}: ${safeDetail.slice(0, 500)}`);
+        }
         return response.json().catch(() => null);
       },
       async end(): Promise<void> {},
