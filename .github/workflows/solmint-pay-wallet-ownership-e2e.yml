@@ -1,6 +1,15 @@
 name: SolMint Pay Wallet Ownership E2E
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'e2e/pay-wallet-ownership-lifecycle.e2e.ts'
+      - 'functions/api/pay/v1/merchants/**/wallet-challenges.ts'
+      - 'functions/api/pay/v1/merchants/**/wallet-challenges/**.ts'
+      - '.github/workflows/solmint-pay-wallet-ownership-e2e.yml'
+      - 'package.json'
+      - 'bun.lockb'
   workflow_dispatch:
     inputs:
       test_ref:
@@ -34,7 +43,7 @@ jobs:
       - name: Checkout selected test ref
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.test_ref || github.ref_name }}
+          ref: ${{ inputs.test_ref || github.event.pull_request.head.sha || github.ref_name }}
           persist-credentials: false
 
       - name: Verify selected test ref contains Wallet Ownership E2E
@@ -44,7 +53,7 @@ jobs:
           test -f 'e2e/pay-wallet-ownership-lifecycle.e2e.ts'
           test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges.ts'
           test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges/[challengeId].ts'
-          printf 'Testing ref: %s\n' '${{ inputs.test_ref || github.ref_name }}'
+          printf 'Testing ref: %s\n' '${{ inputs.test_ref || github.event.pull_request.head.sha || github.ref_name }}'
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
