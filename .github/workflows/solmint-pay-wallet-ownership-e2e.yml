@@ -1,25 +1,13 @@
 name: SolMint Pay Wallet Ownership E2E
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'e2e/pay-wallet-ownership-lifecycle.e2e.ts'
-      - 'functions/api/pay/v1/merchants/**/wallet-challenges.ts'
-      - 'functions/api/pay/v1/merchants/**/wallet-challenges/**.ts'
-      - '.github/workflows/solmint-pay-wallet-ownership-e2e.yml'
-      - 'package.json'
-      - 'bun.lockb'
   workflow_dispatch:
     inputs:
       test_ref:
-        description: Ref containing the Wallet Ownership E2E implementation
+        description: Trusted ref containing the Wallet Ownership E2E implementation
         required: true
         default: test/pay-wallet-ownership-e2e-on-114
         type: string
-  push:
-    branches:
-      - test/pay-wallet-ownership-e2e-on-114
 
 permissions:
   contents: read
@@ -35,15 +23,11 @@ jobs:
   wallet-ownership-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
-      - name: Checkout selected test ref
+      - name: Checkout selected trusted test ref
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.test_ref || github.event.pull_request.head.sha || github.ref_name }}
+          ref: ${{ inputs.test_ref }}
           persist-credentials: false
 
       - name: Verify selected test ref contains Wallet Ownership E2E
@@ -53,7 +37,7 @@ jobs:
           test -f 'e2e/pay-wallet-ownership-lifecycle.e2e.ts'
           test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges.ts'
           test -f 'functions/api/pay/v1/merchants/[merchantId]/wallet-challenges/[challengeId].ts'
-          printf 'Testing ref: %s\n' '${{ inputs.test_ref || github.event.pull_request.head.sha || github.ref_name }}'
+          printf 'Testing ref: %s\n' '${{ inputs.test_ref }}'
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -70,13 +54,40 @@ jobs:
 
       - name: Require existing controlled Wallet E2E configuration
         shell: bash
+        env:
+          PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "$PAY_E2E_OTHER_MERCHANT_ID"
           test -n "$SUPABASE_DB_URL"
           test -n "$SUPABASE_DB_PASSWORD"
 
+          node --input-type=module <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL?.trim();
+          if (!raw) throw new Error('SUPABASE_DB_URL is required.');
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            throw new Error('SUPABASE_DB_URL is not a valid PostgreSQL URL.');
+          }
+
+          const host = url.hostname.toLowerCase();
+          const isSharedSessionPooler = host.endsWith('.pooler.supabase.com') && url.port === '5432';
+          if (!isSharedSessionPooler) {
+            throw new Error(
+              'SUPABASE_DB_URL must use the Supabase shared Session pooler on port 5432. GitHub Actions runners are IPv4-only, while the direct db.*:5432 endpoint is IPv6-only unless the project has the IPv4 add-on. Session pooler also preserves the connection semantics required by the fixture transaction.',
+            );
+          }
+        NODE
+
       - name: Run authenticated wallet ownership lifecycle E2E
+        env:
+          PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: bunx tsx e2e/pay-wallet-ownership-lifecycle.e2e.ts
 
       - name: Assert source tree is unchanged by E2E
