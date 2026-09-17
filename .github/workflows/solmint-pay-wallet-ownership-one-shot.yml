@@ -49,3 +49,5 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: bunx tsx e2e/pay-wallet-ownership-lifecycle.e2e.ts
+
+# autonomous validation trigger marker
