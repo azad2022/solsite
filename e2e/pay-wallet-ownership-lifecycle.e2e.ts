@@ -23,7 +23,7 @@ function requireConfig(): void {
   }
   if (missing.length) throw new Error(`Missing existing Wallet Ownership E2E configuration: ${missing.join(', ')}`);
 }
-\ntype DatabaseRow = Record<string, unknown>;
+type DatabaseRow = Record<string, unknown>;
 
 function databaseRows(value: unknown): DatabaseRow[] {
   if (Array.isArray(value)) return value.filter((item): item is DatabaseRow => !!item && typeof item === 'object');
