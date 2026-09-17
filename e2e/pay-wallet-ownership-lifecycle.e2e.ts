@@ -10,14 +10,17 @@ const ORIGIN = (process.env.SOLMINT_PAY_PRODUCTION_ORIGIN || 'https://solmint.ir
 const OTHER_MERCHANT_ID = (process.env.PAY_E2E_OTHER_MERCHANT_ID || '').trim();
 const DB_URL = (process.env.SUPABASE_DB_URL || '').trim();
 const DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD || '';
+const SUPABASE_ACCESS_TOKEN = (process.env.SUPABASE_ACCESS_TOKEN || '').trim();
+const SUPABASE_PROJECT_REF = 'nvopkbiedorfshwbmyhn';
 const REQUEST_TIMEOUT_MS = 20_000;
 
 function requireConfig(): void {
   const missing = [
     ['PAY_E2E_OTHER_MERCHANT_ID', OTHER_MERCHANT_ID],
-    ['SUPABASE_DB_URL', DB_URL],
-    ['SUPABASE_DB_PASSWORD', DB_PASSWORD],
   ].filter(([, value]) => !value).map(([name]) => name);
+  if (!SUPABASE_ACCESS_TOKEN && (!DB_URL || !DB_PASSWORD)) {
+    missing.push('SUPABASE_ACCESS_TOKEN or SUPABASE_DB_URL+SUPABASE_DB_PASSWORD');
+  }
   if (missing.length) throw new Error(`Missing existing Wallet Ownership E2E configuration: ${missing.join(', ')}`);
 }
 
@@ -68,7 +71,30 @@ function createWalletSigner(): WalletSigner {
   return { address: encodeBase58(rawPublicKey), privateKey };
 }
 
-function createDatabasePool(): Pool {
+interface FixtureDatabase {
+  query(text: string, values?: unknown[]): Promise<unknown>;
+  end(): Promise<void>;
+}
+
+function createFixtureDatabase(): FixtureDatabase {
+  if (SUPABASE_ACCESS_TOKEN) {
+    return {
+      async query(text: string, values: unknown[] = []): Promise<unknown> {
+        const response = await fetch(`https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${SUPABASE_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: text, parameters: values, read_only: false }),
+        });
+        if (!response.ok) throw new Error(`Supabase Management API database query failed with HTTP ${response.status}.`);
+        return response.json().catch(() => null);
+      },
+      async end(): Promise<void> {},
+    };
+  }
+
   try {
     const parsed = new URL(DB_URL);
     parsed.password = DB_PASSWORD;
@@ -83,7 +109,7 @@ function createDatabasePool(): Pool {
 }
 
 async function provisionFixture(): Promise<Fixture> {
-  const db = createDatabasePool();
+  const db = createFixtureDatabase();
   const betterAuthUserId = crypto.randomUUID();
   const applicationUserId = betterAuthUserId;
   const runId = crypto.randomUUID().replaceAll('-', '');
@@ -94,58 +120,48 @@ async function provisionFixture(): Promise<Fixture> {
   const merchantId = crypto.randomUUID();
   const wallet = createWalletSigner();
 
-  const client = await db.connect();
   try {
-    await client.query('BEGIN');
-    await client.query(
+    await db.query(
       'insert into better_auth."user" (id, name, email, email_verified, username, created_at, updated_at) values ($1,$2,$3,true,$4,now(),now())',
       [betterAuthUserId, 'SolMint Pay Wallet E2E', email, username],
     );
-    await client.query(
+    await db.query(
       'insert into better_auth.account (id, user_id, account_id, provider_id, password, created_at, updated_at) values ($1,$2,$3,$4,$5,now(),now())',
       [betterAuthUserId, betterAuthUserId, betterAuthUserId, 'credential', passwordHash],
     );
-    await client.query(
+    await db.query(
       'insert into public.users (id, username, full_name, password_hash, role, permissions, is_active, created_at) values ($1,$2,$3,$4,$5,$6,true,now())',
       [applicationUserId, username, 'SolMint Pay Wallet E2E', passwordHash, 'user', JSON.stringify([])],
     );
-    await client.query(
+    await db.query(
       'insert into public.auth_identity_links (better_auth_user_id, application_user_id, source, created_at, updated_at) values ($1,$2,$3,now(),now())',
       [betterAuthUserId, applicationUserId, 'native'],
     );
-    await client.query(
+    await db.query(
       'insert into public.pay_merchants (id, owner_user_id, business_name, slug, status) values ($1,$2,$3,$4,$5)',
       [merchantId, applicationUserId, 'SolMint Pay Wallet E2E', `pay-wallet-e2e-${runId}`, 'pending'],
     );
-    await client.query(
+    await db.query(
       'insert into public.pay_merchant_members (merchant_id, user_id, role, status) values ($1,$2,$3,$4)',
       [merchantId, applicationUserId, 'owner', 'active'],
     );
-    await client.query('COMMIT');
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    await db.query('delete from public.pay_merchants where id = $1', [merchantId]).catch(() => {});
+    await db.query('delete from public.users where id = $1', [applicationUserId]).catch(() => {});
+    await db.query('delete from better_auth."user" where id = $1', [betterAuthUserId]).catch(() => {});
     await db.end().catch(() => {});
     throw error;
-  } finally {
-    client.release();
   }
 
-  return { db, betterAuthUserId, applicationUserId, merchantId, password, email, wallet };
+  return { db: db as Pool, betterAuthUserId, applicationUserId, merchantId, password, email, wallet };
 }
 
 async function cleanupFixture(fixture: Fixture): Promise<void> {
-  const client = await fixture.db.connect();
   try {
-    await client.query('BEGIN');
-    await client.query('delete from public.pay_merchants where id = $1', [fixture.merchantId]);
-    await client.query('delete from public.users where id = $1', [fixture.applicationUserId]);
-    await client.query('delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]);
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw error;
+    await fixture.db.query('delete from public.pay_merchants where id = $1', [fixture.merchantId]);
+    await fixture.db.query('delete from public.users where id = $1', [fixture.applicationUserId]);
+    await fixture.db.query('delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]);
   } finally {
-    client.release();
     await fixture.db.end();
   }
 }
