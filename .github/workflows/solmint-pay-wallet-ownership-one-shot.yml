@@ -34,6 +34,23 @@ jobs:
         with:
           bun-version: 1.2.15
 
+      - name: Probe Supabase Management API database access
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          node --input-type=module <<'NODE'
+          const token = process.env.SUPABASE_ACCESS_TOKEN;
+          const response = await fetch('https://api.supabase.com/v1/projects/nvopkbiedorfshwbmyhn/database/query', {
+            method: 'POST',
+            headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+            body: JSON.stringify({ query: 'select 1 as ok', read_only: true }),
+          });
+          if (!response.ok) throw new Error('Supabase Management API database query failed with HTTP ' + response.status + '.');
+          console.log('Supabase Management API database access: PASS');
+          NODE
       - name: Validate required configuration
         shell: bash
         run: |
