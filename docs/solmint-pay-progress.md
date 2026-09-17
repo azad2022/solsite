@@ -297,6 +297,30 @@ The same Workflow correction was mirrored onto PR #109's test branch to prevent 
 
 The gate remains **PENDING**. Run `35119983044` is recorded as an infrastructure/test-run failure and is not evidence against the wallet ownership backend contract itself. The next required evidence is a manual rerun using the default `test_ref` above, followed by analysis of the actual Wallet Ownership lifecycle results.
 
+## 2026-09-18 — Wallet Ownership autonomous validation checkpoint
+
+Status: **VALIDATION BLOCKED — EXTERNAL PRODUCTION RUNTIME CONFIG**
+
+Authoritative evidence:
+
+- main HEAD: `081a5023284493e0715cc2ec9f491bc11ce2de5b`.
+- CI: Run `35283781161` — **PASS**.
+- Production Build: Run `35283781011` — **PASS**.
+- Authentication Build Verification: Run `35283780987` — **PASS**.
+- Autonomous Wallet Ownership E2E: Run `35283781051` — **FAIL** at live authenticated merchant lookup with `503 AUTH_BRIDGE_PRIVATE_KEY_INVALID`.
+- PR `#115` remains open, draft, with head `1458effbe54322500bfc3facec85c1f5b10a59e6`.
+
+The Wallet Ownership E2E now executes without GitHub Workflow UI interaction. The old manual Wallet Ownership workflow was removed from `main`; the active one-shot runner is triggered only by the controlled repository trigger file.
+
+The E2E harness itself was revalidated against Better Auth 1.7.2. Its credential fixture requires the documented credential issuer `local:credential`, uses the repository Better Auth-compatible password hashing, and the E2E branch was restored to the clean lifecycle test before the issuer fix. Relative to the clean fixture baseline, the current PR test branch has only the issuer correction.
+
+The live Production failure is therefore not being treated as a test-fixture failure. The Pay internal JWT bridge rejects the currently deployed Cloudflare runtime value for `SUPABASE_INTERNAL_JWT_PRIVATE_KEY`. Repository code intentionally requires a server-side PKCS#8 PEM key and does not introduce a client fallback, RLS bypass, or weaker parser to accommodate a malformed secret.
+
+No success is inferred from the attached status report or from unrelated Auth/CI green checks. Wallet Ownership remains open until a fresh authenticated Production lifecycle run reaches the challenge/signature/replay/concurrency/expiry assertions successfully.
+
+**Do not repeat:** GitHub Workflow registration troubleshooting, nested `workflow_dispatch` dispatching, DB password/pooler troubleshooting for this fixture path, or Better Auth credential issuer debugging unless a new regression is demonstrated.
+
+**Next action:** correct the existing Cloudflare Pages production secret for `SUPABASE_INTERNAL_JWT_PRIVATE_KEY` in the production runtime, then rerun the autonomous Wallet Ownership E2E. After that run is green, record the Gate as **COMPLETED** and proceed to the funded Devnet Payment Intent reconciliation gate.
 ## Current Pay next gate
 
 The next gate is the **Wallet Ownership Lifecycle** validation followed by the funded Devnet Payment Intent reconciliation lifecycle.
