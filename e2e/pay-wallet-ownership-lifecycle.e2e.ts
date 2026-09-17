@@ -7,6 +7,7 @@ import { encodeBase58 } from '../src/pay/services/base58';
 const ORIGIN = (process.env.SOLMINT_PAY_PRODUCTION_ORIGIN || 'https://solmint.ir').replace(/\/$/, '');
 const EMAIL = (process.env.PAY_E2E_EMAIL || '').trim();
 const PASSWORD = process.env.PAY_E2E_PASSWORD || '';
+const MERCHANT_ID = (process.env.PAY_E2E_MERCHANT_ID || '').trim();
 const OTHER_MERCHANT_ID = (process.env.PAY_E2E_OTHER_MERCHANT_ID || '').trim();
 const REQUEST_TIMEOUT_MS = 20_000;
 const CHALLENGE_WAIT_MS = 10 * 60 * 1000 + 5_000;
@@ -15,6 +16,7 @@ function requireConfig(): void {
   const missing = [
     ['PAY_E2E_EMAIL', EMAIL],
     ['PAY_E2E_PASSWORD', PASSWORD],
+    ['PAY_E2E_MERCHANT_ID', MERCHANT_ID],
     ['PAY_E2E_OTHER_MERCHANT_ID', OTHER_MERCHANT_ID],
   ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) throw new Error(`Missing existing Pay E2E configuration: ${missing.join(', ')}`);
@@ -79,23 +81,9 @@ async function ensureMerchant(cookie: string): Promise<string> {
   const existingBody = await readJson(existingResponse);
   assert.equal(existingResponse.status, 200, `Merchant lookup failed (${existingResponse.status}, code=${String(existingBody.code || 'unknown')}, requestId=${String(existingBody.requestId || 'unknown')}).`);
 
-  if (existingBody.merchant !== null) {
-    const merchant = readMerchant(existingBody);
-    assert.equal(merchant.status, 'active');
-    return merchant.id;
-  }
-
-  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const createResponse = await request('/api/pay/v1/merchants', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ businessName: `SolMint Pay Wallet E2E ${suffix}`, slug: `wallet-e2e-${suffix}` }),
-  }, cookie);
-  const createBody = await readJson(createResponse);
-  assert.equal(createResponse.status, 201, `Merchant creation failed (${createResponse.status}, code=${String(createBody.code || 'unknown')}, requestId=${String(createBody.requestId || createResponse.headers.get('X-Pay-Request-ID') || 'unknown')}).`);
-  const merchant = readMerchant(createBody);
-  assert.equal(createBody.created, true);
-  assert.equal(merchant.status, 'pending');
+  const merchant = readMerchant(existingBody);
+  assert.equal(merchant.id, MERCHANT_ID, 'Authenticated Pay E2E user must resolve to the canonical controlled merchant fixture.');
+  assert.equal(merchant.status, 'active');
   return merchant.id;
 }
 
