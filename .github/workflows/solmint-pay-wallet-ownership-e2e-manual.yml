@@ -1,11 +1,6 @@
 name: SolMint Pay Wallet Ownership E2E
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/solmint-pay-wallet-ownership-e2e-manual.yml
   workflow_dispatch:
     inputs:
       test_ref:
@@ -26,7 +21,6 @@ env:
 
 jobs:
   wallet-ownership-e2e:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
