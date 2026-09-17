@@ -24,9 +24,6 @@ concurrency:
 env:
   SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
 
-authorizations:
-  # Intentionally empty: financial/security authority remains backend-controlled.
-
 jobs:
   wallet-ownership-e2e:
     if: github.event_name == 'workflow_dispatch'
