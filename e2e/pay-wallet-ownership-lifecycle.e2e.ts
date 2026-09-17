@@ -71,11 +71,11 @@ function createWalletSigner(): WalletSigner {
 function createDatabasePool(): Pool {
   try {
     const parsed = new URL(DB_URL);
+    parsed.password = DB_PASSWORD;
     return new Pool({
-      connectionString: DB_URL,
+      connectionString: parsed.toString(),
       max: 1,
       ssl: { rejectUnauthorized: false },
-      ...(parsed.password ? {} : { password: DB_PASSWORD }),
     });
   } catch {
     throw new Error('SUPABASE_DB_URL is not a valid database connection URL.');
