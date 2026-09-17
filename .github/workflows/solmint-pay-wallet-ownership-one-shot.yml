@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - .github/solmint-pay-wallet-ownership-e2e.trigger
 
 permissions:
   contents: read
