@@ -176,7 +176,11 @@ async function expireChallenge(fixture: Fixture, challengeId: string): Promise<v
 async function signIn(email: string, password: string): Promise<string> {
   const response = await request('/api/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
   const body = await readJson(response);
-  assert.equal(response.status, 200, `Better Auth sign-in failed with ${response.status}.`);
+  if (response.status !== 200) {
+    const code = typeof body.code === 'string' ? body.code : 'UNKNOWN';
+    const message = typeof body.message === 'string' ? body.message : 'No public message.';
+    throw new Error(`Better Auth sign-in failed with ${response.status}; code=${code}; message=${message}`);
+  }
   assert.ok(body.user && typeof body.user === 'object');
   const cookie = cookieHeader(response);
   assert.ok(cookie, 'Better Auth must issue a session cookie.');
