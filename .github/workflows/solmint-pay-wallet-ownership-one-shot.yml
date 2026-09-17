@@ -1,6 +1,6 @@
 name: SolMint Pay Wallet Ownership One Shot
 # test harness follows canonical production session-pooler configuration
-# management api fixture path v2
+# management api fixture diagnostic v3
 
 on:
   push:
