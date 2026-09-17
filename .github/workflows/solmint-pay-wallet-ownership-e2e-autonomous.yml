@@ -17,153 +17,158 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  dispatch-and-record:
+  wallet-ownership-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 30
     steps:
-      - name: Record dispatch start
-        id: start
+      - name: Checkout Wallet Ownership test ref
+        uses: actions/checkout@v5
+        with:
+          ref: test/pay-wallet-ownership-e2e-on-114
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Validate required controlled configuration
+        env:
+          PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          test -n "$PAY_E2E_OTHER_MERCHANT_ID"
+          test -n "$SUPABASE_DB_URL"
+          test -n "$SUPABASE_DB_PASSWORD"
+          node --input-type=module <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL?.trim();
+          const url = new URL(raw);
+          const host = url.hostname.toLowerCase();
+          if (!(host.endsWith('.pooler.supabase.com') && url.port === '5432')) {
+            throw new Error('SUPABASE_DB_URL must use the Supabase shared Session pooler on port 5432.');
+          }
+          NODE
 
-      - name: Dispatch Wallet Ownership E2E
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh workflow run solmint-pay-wallet-ownership-e2e-manual.yml             --repo "${{ github.repository }}"             --ref main             -f test_ref=test/pay-wallet-ownership-e2e-on-114
-
-      - name: Resolve dispatched run
-        id: resolve
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STARTED_AT: ${{ steps.start.outputs.started_at }}
+      - name: Verify E2E sources exist
         shell: bash
         run: |
           set -euo pipefail
-          for attempt in {1..30}; do
-            run_id="$(gh run list               --repo "${{ github.repository }}"               --workflow solmint-pay-wallet-ownership-e2e-manual.yml               --event workflow_dispatch               --limit 20               --json databaseId,createdAt               --jq --arg started "$STARTED_AT" '
-                map(select((.createdAt | fromdateiso8601) >= ($started | fromdateiso8601)))
-                | sort_by(.createdAt)
-                | last
-                | .databaseId // empty
-              ')"
-            if [ -n "$run_id" ]; then
-              echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Dispatched Wallet Ownership E2E run was not observable." >&2
-          exit 1
+          test -f e2e/pay-wallet-ownership-lifecycle.e2e.ts
+          test -f functions/api/pay/v1/merchants/[merchantId]/wallet-challenges.ts
+          test -f functions/api/pay/v1/merchants/[merchantId]/wallet-challenges/[challengeId].ts
 
-      - name: Watch dispatched run
-        id: watch
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run authenticated Wallet Ownership lifecycle E2E
+        id: e2e
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
+          PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         shell: bash
         run: |
           set +e
-          gh run watch "${{ steps.resolve.outputs.run_id }}"             --repo "${{ github.repository }}"             --exit-status
-          watch_status=$?
-          echo "watch_status=$watch_status" >> "$GITHUB_STEP_SUMMARY"
+          bunx tsx e2e/pay-wallet-ownership-lifecycle.e2e.ts 2>&1 | tee "$RUNNER_TEMP/wallet-ownership-e2e.log"
+          code=${PIPESTATUS[0]}
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Read final result
-        id: result
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh run view "${{ steps.resolve.outputs.run_id }}"             --repo "${{ github.repository }}"             --json databaseId,status,conclusion,htmlUrl,headSha             --jq '{databaseId,status,conclusion,htmlUrl,headSha}' | tee "$RUNNER_TEMP/result.json"
-          {
-            echo 'result<<EOF'
-            cat "$RUNNER_TEMP/result.json"
-            echo EOF
-          } >> "$GITHUB_OUTPUT"
-
       - name: Checkout main for checkpoint
+        if: ${{ always() }}
         uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 1
+          persist-credentials: true
 
-      - name: Record durable checkpoint
+      - name: Record durable Wallet Ownership checkpoint
+        if: ${{ always() }}
         env:
-          CONCLUSION: ${{ fromJson(steps.result.outputs.result).conclusion }}
-          RUN_ID: ${{ fromJson(steps.result.outputs.result).databaseId }}
-          RUN_URL: ${{ fromJson(steps.result.outputs.result).htmlUrl }}
-          HEAD_SHA: ${{ fromJson(steps.result.outputs.result).headSha }}
+          EXIT_CODE: ${{ steps.e2e.outputs.exit_code || 'unknown' }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
-          python3 - "$CONCLUSION" "$RUN_ID" "$RUN_URL" "$HEAD_SHA" <<'PY'
+          python3 - "$EXIT_CODE" "$RUN_ID" "$RUN_URL" <<'PY'
           from pathlib import Path
           import sys
 
-          conclusion, run_id, run_url, head_sha = sys.argv[1:]
+          exit_code, run_id, run_url = sys.argv[1:]
           path = Path("docs/solmint-pay-progress.md")
           text = path.read_text(encoding="utf-8")
-          marker = "## 2026-09-18 — Wallet Ownership autonomous dispatch result"
+          marker = "## 2026-09-18 — Wallet Ownership autonomous validation"
           if marker in text:
-              raise SystemExit("Checkpoint already exists; refusing duplicate.")
-
-          if conclusion == "success":
+              prefix_text, remainder = text.split(marker, 1)
+              suffix = ""
+              if "\n## " in remainder:
+                  _, suffix = remainder.split("\n## ", 1)
+                  suffix = "\n## " + suffix
+              text = prefix_text.rstrip() + "\n\n" + marker + suffix
+          if exit_code == "0":
               status = "COMPLETED"
-              body = f"""The authenticated Wallet Ownership lifecycle E2E completed successfully through the autonomous dispatch path.
-
-- GitHub Actions run: `{run_id}`
-- Workflow: `solmint-pay-wallet-ownership-e2e-manual.yml`
-- Test ref: `test/pay-wallet-ownership-e2e-on-114`
-- Dispatched run head SHA: `{head_sha}`
-- Run: {run_url}
-
-The manual GitHub UI is no longer a delivery prerequisite for this gate. Do not repeat Workflow-registration troubleshooting unless a new regression appears.
-
-The next required gate is the funded Devnet Payment Intent reconciliation lifecycle followed by the final security/release audit."""
+              body = (
+                  "The authenticated Wallet Ownership lifecycle E2E completed successfully through the autonomous CI path.\n\n"
+                  f"GitHub Actions run: `{run_id}`\n\nRun: {run_url}\n\n"
+                  "The gate covered authentication, merchant ownership/IDOR isolation, trusted origin, wallet mismatch, tampered signature, server-side Ed25519 verification, replay rejection, concurrent atomic consumption, expiry, and error redaction.\n\n"
+                  "Manual GitHub Workflow UI interaction is not a delivery prerequisite for this gate. The next required gate is the funded Devnet Payment Intent reconciliation lifecycle."
+              )
+          elif exit_code == "unknown":
+              status = "BLOCKED / NO RESULT"
+              body = f"The autonomous Wallet Ownership E2E produced no exit code.\n\nGitHub Actions run: `{run_id}`\n\nRun: {run_url}\n\nThe gate remains open."
           else:
-              status = "BLOCKED / VALIDATION NOT PASSED"
-              body = f"""The authenticated Wallet Ownership lifecycle E2E did not complete successfully through the autonomous dispatch path.
-
-- GitHub Actions run: `{run_id}`
-- Workflow: `solmint-pay-wallet-ownership-e2e-manual.yml`
-- Test ref: `test/pay-wallet-ownership-e2e-on-114`
-- Dispatched run head SHA: `{head_sha}`
-- Conclusion: `{conclusion}`
-- Run: {run_url}
-
-No success is inferred. The Wallet Ownership gate remains open until a subsequent run is green."""
-
+              status = "BLOCKED / E2E FAILED"
+              body = f"The authenticated Wallet Ownership lifecycle E2E executed but failed.\n\nGitHub Actions run: `{run_id}`\n\nE2E exit code: `{exit_code}`\n\nRun: {run_url}\n\nThe failure is authoritative for this attempt; no success is inferred. Fix the root cause and rerun through the autonomous path."
           entry = f"{marker}\n\nStatus: **{status}**\n\n{body}\n"
-          path.write_text(text.rstrip() + "\n\n" + entry, encoding="utf-8")
+          if marker in text:
+              prefix_text, remainder = text.split(marker, 1)
+              suffix = ""
+              if "\n## " in remainder:
+                  _, suffix = remainder.split("\n## ", 1)
+                  suffix = "\n## " + suffix
+              text = prefix_text.rstrip() + "\n\n" + entry + suffix
+          else:
+              text = text.rstrip() + "\n\n" + entry
+          path.write_text(text, encoding="utf-8")
           PY
 
       - name: Persist checkpoint
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ always() }}
+        shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/solmint-pay-progress.md
-          git commit -m "chore(pay): record wallet ownership e2e result"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "chore(pay): record wallet ownership autonomous validation"
           git push origin HEAD:main
 
       - name: Close Wallet Ownership gate
-        if: ${{ fromJson(steps.result.outputs.result).conclusion == 'success' }}
+        if: ${{ always() && steps.e2e.outputs.exit_code == '0' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh issue close 101 --repo "${{ github.repository }}" --reason completed
+        run: gh issue close 101 --repo "${{ github.repository }}" --reason completed
 
-      - name: Keep gate open and record failure
-        if: ${{ fromJson(steps.result.outputs.result).conclusion != 'success' }}
+      - name: Keep Wallet Ownership gate open on failure
+        if: ${{ always() && steps.e2e.outputs.exit_code != '0' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue comment 101 --repo "${{ github.repository }}" --body "Autonomous Wallet Ownership E2E did not pass. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Gate remains open."
+
+      - name: Fail job when Wallet Ownership E2E fails
+        if: ${{ always() && steps.e2e.outputs.exit_code != '0' }}
+        shell: bash
         run: |
-          set -euo pipefail
-          gh issue comment 101             --repo "${{ github.repository }}"             --body "Autonomous Wallet Ownership E2E did not pass. Run: ${{ fromJson(steps.result.outputs.result).htmlUrl }}; conclusion: ${{ fromJson(steps.result.outputs.result).conclusion }}. Gate remains open."
+          echo "Wallet Ownership E2E failed or produced no successful result." >&2
+          exit 1
