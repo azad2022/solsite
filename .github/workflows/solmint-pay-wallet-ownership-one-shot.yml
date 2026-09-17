@@ -42,6 +42,21 @@ jobs:
           test -n "$SUPABASE_DB_URL"
           test -n "$SUPABASE_DB_PASSWORD"
 
+      - name: Probe production database credential
+        env:
+          PGHOST: aws-0-eu-central-1.pooler.supabase.com
+          PGPORT: 5432
+          PGUSER: postgres.nvopkbiedorfshwbmyhn
+          PGDATABASE: postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql -v ON_ERROR_STOP=1 -c 'select 1;'
+          echo 'Production DB credential probe: PASS'
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
