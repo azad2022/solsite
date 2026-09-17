@@ -29,6 +29,7 @@ jobs:
     env:
       PAY_E2E_EMAIL: ${{ secrets.PAY_E2E_EMAIL }}
       PAY_E2E_PASSWORD: ${{ secrets.PAY_E2E_PASSWORD }}
+      PAY_E2E_MERCHANT_ID: ${{ secrets.PAY_E2E_MERCHANT_ID }}
       PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
     steps:
       - name: Checkout selected test ref
@@ -65,6 +66,7 @@ jobs:
           set -euo pipefail
           test -n "$PAY_E2E_EMAIL"
           test -n "$PAY_E2E_PASSWORD"
+          test -n "$PAY_E2E_MERCHANT_ID"
           test -n "$PAY_E2E_OTHER_MERCHANT_ID"
 
       - name: Run authenticated wallet ownership lifecycle E2E
