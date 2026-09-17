@@ -50,8 +50,14 @@ jobs:
             headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
             body: JSON.stringify({ query: 'select 1 as ok', read_only: true }),
           });
-          if (!response.ok) throw new Error('Supabase Management API database query failed with HTTP ' + response.status + '.');
-          console.log('Supabase Management API database access: PASS');
+          if (!response.ok) throw new Error('Supabase Management API read-only database query failed with HTTP ' + response.status + '.');
+          const writeProbe = await fetch('https://api.supabase.com/v1/projects/nvopkbiedorfshwbmyhn/database/query', {
+            method: 'POST',
+            headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+            body: JSON.stringify({ query: 'select 1 as ok', read_only: false }),
+          });
+          if (!writeProbe.ok) throw new Error('Supabase Management API writable database query failed with HTTP ' + writeProbe.status + '.');
+          console.log('Supabase Management API read/write database access: PASS');
           NODE
       - name: Validate required configuration
         shell: bash
