@@ -54,7 +54,7 @@ async function request(path: string, init: RequestInit = {}, cookie = '', origin
 
 interface WalletSigner { address: string; privateKey: ReturnType<typeof generateKeyPairSync>['privateKey']; }
 interface Fixture {
-  db: Pool;
+  db: FixtureDatabase;
   betterAuthUserId: string;
   applicationUserId: string;
   merchantId: string;
@@ -153,7 +153,7 @@ async function provisionFixture(): Promise<Fixture> {
     throw error;
   }
 
-  return { db: db as Pool, betterAuthUserId, applicationUserId, merchantId, password, email, wallet };
+  return { db, betterAuthUserId, applicationUserId, merchantId, password, email, wallet };
 }
 
 async function cleanupFixture(fixture: Fixture): Promise<void> {
