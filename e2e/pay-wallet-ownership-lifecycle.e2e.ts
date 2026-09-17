@@ -73,8 +73,23 @@ function createWalletSigner(): WalletSigner {
   return { address: encodeBase58(rawPublicKey), privateKey };
 }
 
+function createDatabasePool(): Pool {
+  try {
+    const parsed = new URL(DB_URL);
+    const config = {
+      connectionString: DB_URL,
+      max: 1,
+      ssl: { rejectUnauthorized: false },
+      ...(parsed.password ? {} : { password: DB_PASSWORD }),
+    };
+    return new Pool(config);
+  } catch {
+    throw new Error('SUPABASE_DB_URL is not a valid database connection URL.');
+  }
+}
+
 async function provisionFixture(): Promise<Fixture> {
-  const db = new Pool({ connectionString: DB_URL, password: DB_PASSWORD, max: 1, ssl: { rejectUnauthorized: false } });
+  const db = createDatabasePool();
   const betterAuthUserId = crypto.randomUUID();
   const applicationUserId = betterAuthUserId;
   const runId = crypto.randomUUID().replaceAll('-', '');
@@ -210,7 +225,6 @@ test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritat
     const me = await request('/api/users/me', {}, cookie);
     assert.equal(me.status, 200);
 
-    // This request deliberately exercises the internal JWT -> PostgREST -> RLS bridge.
     const merchants = await request('/api/pay/v1/merchants', {}, cookie);
     const merchantsBody = await readJson(merchants);
     assert.equal(merchants.status, 200, `Merchant lookup via internal JWT bridge failed (code=${String(merchantsBody.code || 'unknown')}, requestId=${String(merchantsBody.requestId || 'unknown')}).`);
