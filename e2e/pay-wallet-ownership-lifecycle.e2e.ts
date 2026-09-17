@@ -112,10 +112,6 @@ async function provisionFixture(): Promise<Fixture> {
       'insert into public.pay_merchant_members (merchant_id, user_id, role, status) values ($1,$2,$3,$4)',
       [merchantId, applicationUserId, 'owner', 'active'],
     );
-    await client.query(
-      'insert into public.pay_merchant_wallets (merchant_id, address, network, wallet_role, is_active, verification_status) values ($1,$2,$3,$4,false,$5)',
-      [merchantId, wallet.address, 'solana', 'receiving', 'unverified'],
-    );
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
