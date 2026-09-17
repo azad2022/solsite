@@ -1,7 +1,7 @@
 // Production Wallet Ownership lifecycle E2E. Fixture credentials and signer keys exist only for this process.
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, randomBytes, sign } from 'node:crypto';
-import { hashPassword } from 'better-auth/crypto';
+import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import { Pool } from 'pg';
 import test from 'node:test';
 import { encodeBase58 } from '../src/pay/services/base58';
@@ -177,14 +177,39 @@ async function assertFixtureReady(fixture: Fixture): Promise<void> {
   const result = await fixture.db.query(
     'select u.id, u.email_verified, (a.id is not null) as has_account, (a.provider_id = $2) as credential_provider, (a.account_id = u.id) as account_matches_user, (a.password is not null) as has_password from better_auth."user" u left join better_auth.account a on a.user_id = u.id where u.id = $1',
     [fixture.betterAuthUserId, 'credential'],
-  ) as { rows?: Array<Record<string, unknown>>; result?: Array<Record<string, unknown>> };
-  const rows = Array.isArray(result.rows) ? result.rows : Array.isArray(result.result) ? result.result : [];
+  ) as { rows?: Array<Record<string, unknown>>; result?: Array<Record<string, unknown>>; data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+  const rows = Array.isArray(result)
+    ? result
+    : Array.isArray(result.rows)
+      ? result.rows
+      : Array.isArray(result.result)
+        ? result.result
+        : Array.isArray(result.data)
+          ? result.data
+          : [];
   assert.equal(rows.length, 1, 'Wallet Ownership fixture user row must exist.');
   assert.equal(rows[0].email_verified, true, 'Wallet Ownership fixture email must be marked verified.');
   assert.equal(rows[0].has_account, true, 'Wallet Ownership fixture credential account must exist.');
   assert.equal(rows[0].credential_provider, true, 'Wallet Ownership fixture must use the credential provider.');
   assert.equal(rows[0].account_matches_user, true, 'Wallet Ownership credential account_id must match user id.');
   assert.equal(rows[0].has_password, true, 'Wallet Ownership fixture credential password must exist.');
+  const passwordQuery = await fixture.db.query(
+    'select a.password from better_auth.account a where a.user_id = $1 and a.provider_id = $2 and a.account_id = $1 limit 1',
+    [fixture.betterAuthUserId, 'credential'],
+  ) as { rows?: Array<Record<string, unknown>>; result?: Array<Record<string, unknown>>; data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+  const passwordRows = Array.isArray(passwordQuery)
+    ? passwordQuery
+    : Array.isArray(passwordQuery.rows)
+      ? passwordQuery.rows
+      : Array.isArray(passwordQuery.result)
+        ? passwordQuery.result
+        : Array.isArray(passwordQuery.data)
+          ? passwordQuery.data
+          : [];
+  assert.equal(passwordRows.length, 1, 'Wallet Ownership credential row must be queryable by Better Auth lookup.');
+  const storedPasswordHash = passwordRows[0].password;
+  assert.equal(typeof storedPasswordHash, 'string', 'Wallet Ownership credential password hash must be present.');
+  assert.equal(await verifyPassword({ hash: storedPasswordHash as string, password: fixture.password }), true, 'Wallet Ownership fixture password must verify with Better Auth crypto.');
 }
 async function signIn(email: string, password: string): Promise<string> {
   const response = await request('/api/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
