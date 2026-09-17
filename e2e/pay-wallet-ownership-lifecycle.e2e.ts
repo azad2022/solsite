@@ -173,6 +173,19 @@ async function expireChallenge(fixture: Fixture, challengeId: string): Promise<v
   );
 }
 
+async function assertFixtureReady(fixture: Fixture): Promise<void> {
+  const result = await fixture.db.query(
+    'select u.id, u.email_verified, (a.id is not null) as has_account, (a.provider_id = $2) as credential_provider, (a.account_id = u.id) as account_matches_user, (a.password is not null) as has_password from better_auth."user" u left join better_auth.account a on a.user_id = u.id where u.id = $1',
+    [fixture.betterAuthUserId, 'credential'],
+  ) as { rows?: Array<Record<string, unknown>>; result?: Array<Record<string, unknown>> };
+  const rows = Array.isArray(result.rows) ? result.rows : Array.isArray(result.result) ? result.result : [];
+  assert.equal(rows.length, 1, 'Wallet Ownership fixture user row must exist.');
+  assert.equal(rows[0].email_verified, true, 'Wallet Ownership fixture email must be marked verified.');
+  assert.equal(rows[0].has_account, true, 'Wallet Ownership fixture credential account must exist.');
+  assert.equal(rows[0].credential_provider, true, 'Wallet Ownership fixture must use the credential provider.');
+  assert.equal(rows[0].account_matches_user, true, 'Wallet Ownership credential account_id must match user id.');
+  assert.equal(rows[0].has_password, true, 'Wallet Ownership fixture credential password must exist.');
+}
 async function signIn(email: string, password: string): Promise<string> {
   const response = await request('/api/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
   const body = await readJson(response);
@@ -236,6 +249,7 @@ test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritat
   requireConfig();
   const fixture = await provisionFixture();
   try {
+    await assertFixtureReady(fixture);
     const cookie = await signIn(fixture.email, fixture.password);
     const me = await request('/api/users/me', {}, cookie);
     assert.equal(me.status, 200);
