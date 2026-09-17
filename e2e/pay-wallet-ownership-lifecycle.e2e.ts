@@ -1,6 +1,7 @@
 // Production Wallet Ownership lifecycle E2E. Fixture credentials and signer keys exist only for this process.
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, randomBytes, scryptSync, sign } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, sign } from 'node:crypto';
+import { hashPassword } from 'better-auth/crypto';
 import { Pool } from 'pg';
 import test from 'node:test';
 import { encodeBase58 } from '../src/pay/services/base58';
@@ -48,12 +49,6 @@ async function request(path: string, init: RequestInit = {}, cookie = '', origin
   } finally { clearTimeout(timer); }
 }
 
-function hashBetterAuthPassword(password: string): string {
-  const salt = randomBytes(16);
-  const key = scryptSync(password.normalize('NFKC'), salt, 64, { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 });
-  return `${salt.toString('hex')}:${key.toString('hex')}`;
-}
-
 interface WalletSigner { address: string; privateKey: ReturnType<typeof generateKeyPairSync>['privateKey']; }
 interface Fixture {
   db: Pool;
@@ -76,13 +71,12 @@ function createWalletSigner(): WalletSigner {
 function createDatabasePool(): Pool {
   try {
     const parsed = new URL(DB_URL);
-    const config = {
+    return new Pool({
       connectionString: DB_URL,
       max: 1,
       ssl: { rejectUnauthorized: false },
       ...(parsed.password ? {} : { password: DB_PASSWORD }),
-    };
-    return new Pool(config);
+    });
   } catch {
     throw new Error('SUPABASE_DB_URL is not a valid database connection URL.');
   }
@@ -96,7 +90,7 @@ async function provisionFixture(): Promise<Fixture> {
   const email = `pay-wallet-e2e-${runId}@solmint.invalid`;
   const username = `pay_wallet_e2e_${runId.slice(0, 20)}`;
   const password = `E2E-${randomBytes(24).toString('base64url')}`;
-  const passwordHash = hashBetterAuthPassword(password);
+  const passwordHash = await hashPassword(password);
   const merchantId = crypto.randomUUID();
   const wallet = createWalletSigner();
 
@@ -130,6 +124,7 @@ async function provisionFixture(): Promise<Fixture> {
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
+    await db.end().catch(() => {});
     throw error;
   } finally {
     client.release();
