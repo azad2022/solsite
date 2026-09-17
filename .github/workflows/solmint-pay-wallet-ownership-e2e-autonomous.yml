@@ -21,20 +21,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
+      - name: Record dispatch start
+        id: start
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Dispatch Wallet Ownership E2E
-        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           gh workflow run solmint-pay-wallet-ownership-e2e-manual.yml             --repo "${{ github.repository }}"             --ref main             -f test_ref=test/pay-wallet-ownership-e2e-on-114
-          echo "dispatch_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Resolve dispatched run
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STARTED_AT: ${{ steps.dispatch.outputs.dispatch_time }}
+          STARTED_AT: ${{ steps.start.outputs.started_at }}
         shell: bash
         run: |
           set -euo pipefail
@@ -55,6 +60,7 @@ jobs:
           exit 1
 
       - name: Watch dispatched run
+        id: watch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
