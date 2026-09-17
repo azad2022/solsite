@@ -210,6 +210,13 @@ test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritat
     const me = await request('/api/users/me', {}, cookie);
     assert.equal(me.status, 200);
 
+    // This request deliberately exercises the internal JWT -> PostgREST -> RLS bridge.
+    const merchants = await request('/api/pay/v1/merchants', {}, cookie);
+    const merchantsBody = await readJson(merchants);
+    assert.equal(merchants.status, 200, `Merchant lookup via internal JWT bridge failed (code=${String(merchantsBody.code || 'unknown')}, requestId=${String(merchantsBody.requestId || 'unknown')}).`);
+    assert.ok(merchantsBody.merchant && typeof merchantsBody.merchant === 'object');
+    assert.equal((merchantsBody.merchant as Record<string, unknown>).id, fixture.merchantId);
+
     const noSession = await request(`/api/pay/v1/merchants/${encodeURIComponent(fixture.merchantId)}/wallet-challenges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
