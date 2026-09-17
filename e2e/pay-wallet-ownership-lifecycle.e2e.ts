@@ -141,8 +141,8 @@ async function provisionFixture(): Promise<Fixture> {
       [betterAuthUserId, 'SolMint Pay Wallet E2E', email, username],
     );
     await db.query(
-      'insert into better_auth.account (id, user_id, account_id, provider_id, password, created_at, updated_at) values ($1,$2,$3,$4,$5,now(),now())',
-      [betterAuthUserId, betterAuthUserId, betterAuthUserId, 'credential', passwordHash],
+      'insert into better_auth.account (id, user_id, account_id, provider_id, issuer, password, created_at, updated_at) values ($1,$2,$3,$4,$5,now(),now())',
+      [betterAuthUserId, betterAuthUserId, betterAuthUserId, 'credential', 'local:credential', passwordHash],
     );
     await db.query(
       'insert into public.users (id, username, full_name, password_hash, role, permissions, is_active, created_at) values ($1,$2,$3,$4,$5,$6,true,now())',
