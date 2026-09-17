@@ -23,6 +23,21 @@ function requireConfig(): void {
   }
   if (missing.length) throw new Error(`Missing existing Wallet Ownership E2E configuration: ${missing.join(', ')}`);
 }
+\ntype DatabaseRow = Record<string, unknown>;
+
+function databaseRows(value: unknown): DatabaseRow[] {
+  if (Array.isArray(value)) return value.filter((item): item is DatabaseRow => !!item && typeof item === 'object');
+  if (!value || typeof value !== 'object') return [];
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.rows)) return databaseRows(record.rows);
+  if (Array.isArray(record.data)) return databaseRows(record.data);
+  if (Array.isArray(record.result)) return databaseRows(record.result);
+  if (record.rows && typeof record.rows === 'object') return databaseRows(record.rows);
+  if (record.data && typeof record.data === 'object') return databaseRows(record.data);
+  if (record.result && typeof record.result === 'object') return databaseRows(record.result);
+  return [];
+}
+
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text();
@@ -177,16 +192,8 @@ async function assertFixtureReady(fixture: Fixture): Promise<void> {
   const result = await fixture.db.query(
     'select u.id, u.email_verified, (a.id is not null) as has_account, (a.provider_id = $2) as credential_provider, (a.account_id = u.id) as account_matches_user, (a.password is not null) as has_password from better_auth."user" u left join better_auth.account a on a.user_id = u.id where u.id = $1',
     [fixture.betterAuthUserId, 'credential'],
-  ) as { rows?: Array<Record<string, unknown>>; result?: Array<Record<string, unknown>>; data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-  const rows = Array.isArray(result)
-    ? result
-    : Array.isArray(result.rows)
-      ? result.rows
-      : Array.isArray(result.result)
-        ? result.result
-        : Array.isArray(result.data)
-          ? result.data
-          : [];
+  );
+  const rows = databaseRows(result);
   assert.equal(rows.length, 1, 'Wallet Ownership fixture user row must exist.');
   assert.equal(rows[0].email_verified, true, 'Wallet Ownership fixture email must be marked verified.');
   assert.equal(rows[0].has_account, true, 'Wallet Ownership fixture credential account must exist.');
@@ -196,16 +203,8 @@ async function assertFixtureReady(fixture: Fixture): Promise<void> {
   const passwordQuery = await fixture.db.query(
     'select a.password from better_auth.account a where a.user_id = $1 and a.provider_id = $2 and a.account_id = $1 limit 1',
     [fixture.betterAuthUserId, 'credential'],
-  ) as { rows?: Array<Record<string, unknown>>; result?: Array<Record<string, unknown>>; data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-  const passwordRows = Array.isArray(passwordQuery)
-    ? passwordQuery
-    : Array.isArray(passwordQuery.rows)
-      ? passwordQuery.rows
-      : Array.isArray(passwordQuery.result)
-        ? passwordQuery.result
-        : Array.isArray(passwordQuery.data)
-          ? passwordQuery.data
-          : [];
+  );
+  const passwordRows = databaseRows(passwordQuery);
   assert.equal(passwordRows.length, 1, 'Wallet Ownership credential row must be queryable by Better Auth lookup.');
   const storedPasswordHash = passwordRows[0].password;
   assert.equal(typeof storedPasswordHash, 'string', 'Wallet Ownership credential password hash must be present.');
