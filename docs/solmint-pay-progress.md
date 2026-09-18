@@ -388,6 +388,41 @@ The frontend must continue to consume backend-authoritative state and must never
 
 The obsolete Cloudflare `Workers Builds: solsite` check remains an external dashboard issue. The Supabase Preview check remains skipped by project configuration and is not a delivery prerequisite under the committed preview-free constraint.
 
+## 2026-09-18 — Pay SECURITY DEFINER path hardening
+
+Status: **COMPLETED**
+
+Production migration:
+- 20260918154623_solmint_pay_security_definer_search_path_hardening
+
+Validated:
+- All remaining Pay SECURITY DEFINER routines now use search_path=''.
+- Sensitive Pay mutation routines remain service_role-only.
+- Pay authenticated SELECT policies remain merchant/affiliate scoped.
+- Post-change CI passed.
+- Post-change Production Build passed.
+- Post-change Authentication Build Verification passed.
+- Post-change SolMint Pay Database Security passed.
+- Supabase Security Advisor no longer reports the previously identified Pay SECURITY DEFINER search_path issue.
+
+## 2026-09-18 — Final Release Audit status
+
+Status: **BLOCKED — RELEASE CONTROL**
+
+Completed operational evidence:
+- Wallet Ownership Lifecycle on merged main: PASS.
+- Funded Devnet verification and Payment Intent reconciliation: PASS.
+- Production API Smoke: PASS.
+- Production Live Smoke: PASS.
+- Database Security: PASS.
+- CI / Production Build / Authentication Build Verification: PASS.
+
+Blocking evidence still required:
+- GitHub main branch protection / equivalent required-status enforcement. Current repository metadata reports main as protected=false and rulesets are empty. Issue #117 tracks the required maintainer action.
+- Production rollback/recovery evidence has not been independently closed by the release audit.
+
+Separate security track:
+- Issue #38 remains open for pre-existing site-wide SECURITY DEFINER and broad-grant findings. Pay-specific access controls are separately hardened and have not been treated as resolved by closing that issue.
 ## Explicitly not complete yet
 
 Do not mark SolMint Pay production-ready.
