@@ -12,12 +12,15 @@ on:
           - 'true'
   pull_request:
     paths:
-      - 'src/pay/**'
       - 'functions/api/pay/**'
+      - 'src/pay/services/**'
+      - 'src/pay/payment-verification-service.ts'
+      - 'src/pay/payment-intent-service.ts'
+      - 'src/pay/checkout-status.ts'
       - 'e2e/pay-devnet-native.e2e.ts'
       - 'e2e/pay-payment-intent-devnet-lifecycle.e2e.ts'
       - 'package.json'
-      - '.github/workflows/solmint-pay-devnet-e2e.yml'
+      - 'bun.lock'
   push:
     branches: [main]
     paths:
