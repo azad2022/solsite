@@ -86,7 +86,7 @@ jobs:
 
       - name: Top up Devnet E2E funder from official faucet when needed
         env:
-          SOLANA_DEVNET_RPC_URL: \${{ secrets.SOLANA_DEVNET_RPC_URL }}
+          SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
         run: |
           node --input-type=module <<'NODE'
           import { Connection, PublicKey } from '@solana/web3.js';
