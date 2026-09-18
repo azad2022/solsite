@@ -1,5 +1,14 @@
 import { defaultPayHttpClient, type PayHttpClient } from '../http';
 
+export interface PayMerchantReceivingWallet {
+  id: string;
+  address: string;
+  network: 'solana';
+  verificationStatus: 'unverified' | 'verified' | 'rejected';
+  isActive: boolean;
+  verifiedAt: string | null;
+}
+
 export interface PayMerchant {
   id: string;
   ownerUserId: string;
@@ -8,6 +17,7 @@ export interface PayMerchant {
   status: 'pending' | 'active' | 'suspended' | 'closed';
   createdAt: string;
   updatedAt: string;
+  receivingWallet: PayMerchantReceivingWallet | null;
 }
 
 interface MerchantEnvelope {
@@ -30,10 +40,36 @@ interface VerifyEnvelope {
   verifiedAt?: string;
 }
 
+function parseMerchantReceivingWallet(value: unknown): PayMerchantReceivingWallet {
+  if (!value || typeof value !== 'object') throw new TypeError('Invalid merchant receiving wallet response.');
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== 'string' ||
+    typeof row.address !== 'string' ||
+    row.network !== 'solana' ||
+    typeof row.verification_status !== 'string' ||
+    !['unverified', 'verified', 'rejected'].includes(row.verification_status) ||
+    row.is_active !== true ||
+    (row.verified_at !== null && typeof row.verified_at !== 'string')
+  ) {
+    throw new TypeError('Invalid merchant receiving wallet response.');
+  }
+  return {
+    id: row.id,
+    address: row.address,
+    network: 'solana',
+    verificationStatus: row.verification_status as PayMerchantReceivingWallet['verificationStatus'],
+    isActive: true,
+    verifiedAt: row.verified_at as string | null,
+  };
+}
+
 function parseMerchant(value: unknown): PayMerchant {
   if (!value || typeof value !== 'object') throw new TypeError('Invalid merchant response.');
   const row = value as Record<string, unknown>;
   const status = row.status;
+  const wallet = row.receiving_wallet;
+  const parsedWallet = wallet == null ? null : parseMerchantReceivingWallet(wallet);
   if (
     typeof row.id !== 'string' ||
     typeof row.owner_user_id !== 'string' ||
@@ -52,6 +88,7 @@ function parseMerchant(value: unknown): PayMerchant {
     status: status as PayMerchant['status'],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    receivingWallet: parsedWallet,
   };
 }
 
