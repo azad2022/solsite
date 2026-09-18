@@ -17,8 +17,9 @@ const EXPECTED_FUNDER_PUBLIC_KEY = new PublicKey('EZTvPLYyjn6TnXqhiFKw59aqgAPHwx
 const PAYMENT_AMOUNT_LAMPORTS = 500_000_000;
 const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000;
 const GATEWAY_FEE_LAMPORTS = 5_000_000;
-const FUNDER_TOP_UP_LAMPORTS = 520_000_000;
-const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000_000;
+// Fund only the payment amount + gateway fee with a small fee buffer; the previous 520M was already sufficient.
+const FUNDER_TOP_UP_LAMPORTS = 510_000_000;
+const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000;
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -78,7 +79,7 @@ async function confirmFinalized(connection: Connection, signature: string, block
 
 async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair): Promise<void> {
   const balance = await connection.getBalance(funder.publicKey, 'finalized');
-  if (balance < MIN_FUNDER_BALANCE_LAMPORTS) throw new Error('Devnet funding account has insufficient SOL for the real-payment E2E.');
+  if (balance < MIN_FUNDER_BALANCE_LAMPORTS) throw new Error(`Devnet funder ${funder.publicKey.toBase58()} has ${(balance / 1e9).toFixed(6)} SOL; at least ${(MIN_FUNDER_BALANCE_LAMPORTS / 1e9).toFixed(6)} SOL is required for this flow.`);
   const latest = await connection.getLatestBlockhash('finalized');
   const transaction = new Transaction({ feePayer: funder.publicKey, recentBlockhash: latest.blockhash }).add(
     SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: payer.publicKey, lamports: FUNDER_TOP_UP_LAMPORTS }),
