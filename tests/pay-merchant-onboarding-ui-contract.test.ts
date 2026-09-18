@@ -12,6 +12,8 @@ test('merchant onboarding refreshes the authoritative Merchant after wallet veri
   assert.match(component, /const verified = await verifyWalletChallenge\(/);
   assert.match(component, /const refreshed = await getMyMerchant\(\)/);
   assert.match(component, /onMerchantReady\?\.\(refreshed\)/);
+  assert.match(component, /merchantRefreshStale/);
+  assert.match(component, /retryMerchantRefresh/);
   assert.match(component, /failed refresh/);
 });
 
@@ -39,6 +41,6 @@ test('merchant onboarding keeps user-facing status/progress copy localized', () 
     'merchantStatus_suspended',
     'merchantStatus_closed',
   ]) {
-    assert.match(i18n, new RegExp('\\b' + key + '\\b'));
+      assert.match(i18n, new RegExp('\\b' + key + '\\b'));
   }
 });
