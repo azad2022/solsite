@@ -21,10 +21,10 @@ jobs:
       PAY_E2E_OTHER_MERCHANT_ID: ${{ secrets.PAY_E2E_OTHER_MERCHANT_ID }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
-      - name: Checkout Wallet Ownership test ref
+      - name: Checkout merged main
         uses: actions/checkout@v5
         with:
-          ref: test/pay-wallet-ownership-e2e-on-114
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
