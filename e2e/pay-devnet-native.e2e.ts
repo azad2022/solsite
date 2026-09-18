@@ -14,12 +14,12 @@ if (!DEVNET_FUNDER_SECRET_KEY) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64
 const SYSTEM_PROGRAM = new PublicKey('11111111111111111111111111111111');
 const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 const EXPECTED_FUNDER_PUBLIC_KEY = new PublicKey('EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV');
-const PAYMENT_AMOUNT_LAMPORTS = 2_000_000;
-const MERCHANT_SETTLEMENT_LAMPORTS = 1_980_000;
-const GATEWAY_FEE_LAMPORTS = 20_000;
+const PAYMENT_AMOUNT_LAMPORTS = 500_000_000;
+const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000;
+const GATEWAY_FEE_LAMPORTS = 5_000_000;
 // Fund only the payment amount + gateway fee with a small fee buffer; the previous 520M was already sufficient.
-const MIN_FUNDER_BALANCE_LAMPORTS = 2_500_000;
-
+const FUNDER_TOP_UP_LAMPORTS = 510_000_000;
+const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000;
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -77,21 +77,40 @@ async function confirmFinalized(connection: Connection, signature: string, block
   if (confirmation.value.err) throw new Error(`Devnet transaction failed: ${JSON.stringify(confirmation.value.err)}`);
 }
 
-async function assertFunderReserve(connection: Connection, funder: Keypair): Promise<void> {
+async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair): Promise<void> {
   const balance = await connection.getBalance(funder.publicKey, 'finalized');
-  if (balance < MIN_FUNDER_BALANCE_LAMPORTS) throw new Error(`Devnet funder ${funder.publicKey.toBase58()} has ${(balance / 1e9).toFixed(6)} SOL; at least ${(MIN_FUNDER_BALANCE_LAMPORTS / 1e9).toFixed(6)} SOL must remain reserved for this E2E flow.`);
+  if (balance < MIN_FUNDER_BALANCE_LAMPORTS) throw new Error(`Devnet funder ${funder.publicKey.toBase58()} has ${(balance / 1e9).toFixed(6)} SOL; at least ${(MIN_FUNDER_BALANCE_LAMPORTS / 1e9).toFixed(6)} SOL is required for this flow.`);
+  const latest = await connection.getLatestBlockhash('finalized');
+  const transaction = new Transaction({ feePayer: funder.publicKey, recentBlockhash: latest.blockhash }).add(
+    SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: payer.publicKey, lamports: FUNDER_TOP_UP_LAMPORTS }),
+  );
+  transaction.sign(funder);
+  const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
+  await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
+}
+
+async function waitForFinalizedObservation(
+  provider: ReturnType<typeof createSolanaRpcProvider>,
+  signature: string,
+): Promise<NonNullable<Awaited<ReturnType<typeof provider.getTransaction>>>> {
+  for (let attempt = 1; attempt <= OBSERVATION_POLL_ATTEMPTS; attempt += 1) {
+    const observation = await provider.getTransaction(signature, 'finalized');
+    if (observation) return observation;
+    if (attempt < OBSERVATION_POLL_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, OBSERVATION_POLL_DELAY_MS));
+  }
+  throw new Error(`FINALIZED_TRANSACTION_OBSERVATION_TIMEOUT after ${OBSERVATION_POLL_ATTEMPTS} attempts`);
 }
 
 test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: 270_000 }, async () => {
   const connection = new Connection(DEVNET_RPC_URL, { commitment: 'confirmed' });
+  const payer = Keypair.generate();
   const merchant = Keypair.generate();
   const fee = Keypair.generate();
   const reference = Keypair.generate();
   const funder = createDevnetFunder();
 
   assert.equal(funder.publicKey.toBase58(), EXPECTED_FUNDER_PUBLIC_KEY.toBase58(), 'Devnet E2E funder secret must match the documented CI wallet.');
-  const payer = funder;
-  await assertFunderReserve(connection, funder);
+  await fundPayer(connection, funder, payer);
 
   const latest = await connection.getLatestBlockhash('finalized');
   const payment = new Transaction({ feePayer: payer.publicKey, recentBlockhash: latest.blockhash })
