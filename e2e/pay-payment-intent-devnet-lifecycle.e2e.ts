@@ -15,7 +15,7 @@ const EXPECTED_FUNDER_PUBLIC_KEY = 'EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV
 const PAYMENT_AMOUNT_LAMPORTS = 2_000_000n;
 const MERCHANT_SETTLEMENT_LAMPORTS = 1_980_000n;
 const GATEWAY_FEE_LAMPORTS = 20_000n;
-// Fund only the payment amount + gateway fee with a small fee buffer; this test uses 0.1 SOL to minimize CI reserve consumption.
+// Use the dedicated Devnet funder directly as payer to avoid an extra funding hop; keep a small reserve for transaction fees/rent.
 const MIN_FUNDER_BALANCE_LAMPORTS = 2_500_000n;
 
 const OBSERVATION_POLL_ATTEMPTS = 20;
@@ -145,7 +145,8 @@ test('SolMint Pay Payment Intent reconciliation verifies a real Devnet transacti
   const merchant = Keypair.generate();
   const feeRecipient = Keypair.generate();
   const reference = Keypair.generate();
-
+  const payer = funder;
+  await assertFunderReserve(connection, funder);
 
   const latest = await connection.getLatestBlockhash('finalized');
   const transaction = new Transaction({ feePayer: payer.publicKey, recentBlockhash: latest.blockhash })
