@@ -87,41 +87,22 @@ jobs:
       - name: Top up Devnet E2E funder from official faucet when needed
         env:
           SOLANA_DEVNET_RPC_URL: \${{ secrets.SOLANA_DEVNET_RPC_URL }}
-          DEVNET_E2E_FUNDER_SECRET_KEY_B64: \${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: |
           node --input-type=module <<'NODE'
-          import { Keypair, Connection, PublicKey } from '@solana/web3.js';
-          const secret = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64?.trim();
-          if (!secret) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required.');
-          const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-          const INDEX = new Map([...ALPHABET].map((char, index) => [char, index]));
-          function decodeBase58(value) {
-            let n = 0n;
-            for (const char of value) { const index = INDEX.get(char); if (index === undefined) throw new Error('Invalid Base58 funder secret.'); n = n * 58n + BigInt(index); }
-            let hex = n.toString(16); if (hex.length % 2) hex = '0' + hex;
-            const body = hex ? Buffer.from(hex, 'hex') : Buffer.alloc(0);
-            let zeros = 0; for (const char of value) { if (char !== '1') break; zeros += 1; }
-            return Buffer.concat([Buffer.alloc(zeros), body]);
-          }
-          const candidates = [];
-          const base64 = Buffer.from(secret, 'base64');
-          if (base64.length === 64) candidates.push(base64);
-          try { const base58 = decodeBase58(secret); if (base58.length === 64) candidates.push(base58); } catch {}
-          let funder = null;
-          for (const candidate of candidates) { try { const keypair = Keypair.fromSecretKey(candidate); if (Buffer.from(candidate.subarray(32)).equals(Buffer.from(keypair.publicKey.toBytes()))) { funder = keypair; break; } } catch {} }
-          if (!funder) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is not a valid Solana keypair.');
+          import { Connection, PublicKey } from '@solana/web3.js';
           const expected = 'EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV';
-          if (funder.publicKey.toBase58() !== expected) throw new Error('Devnet funder secret does not match the documented CI funder.');
           const reserve = 1_100_000_000;
-          const before = await new Connection(process.env.SOLANA_DEVNET_RPC_URL, { commitment: 'confirmed' }).getBalance(new PublicKey(expected), 'confirmed');
+          const publicKey = new PublicKey(expected);
+          const provider = new Connection(process.env.SOLANA_DEVNET_RPC_URL, { commitment: 'confirmed' });
+          const before = await provider.getBalance(publicKey, 'confirmed');
           console.log('Devnet funder balance before faucet check: ' + (before / 1e9).toFixed(6) + ' SOL');
           if (before >= reserve) { console.log('Devnet funder reserve is sufficient.'); process.exit(0); }
           const faucet = new Connection('https://api.devnet.solana.com', { commitment: 'confirmed' });
-          const signature = await faucet.requestAirdrop(new PublicKey(expected), 2_000_000_000);
+          const signature = await faucet.requestAirdrop(publicKey, 2_000_000_000);
           const latest = await faucet.getLatestBlockhash('confirmed');
           const confirmation = await faucet.confirmTransaction({ signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight }, 'confirmed');
           if (confirmation.value.err) throw new Error('Official Devnet faucet airdrop transaction failed.');
-          const after = await new Connection(process.env.SOLANA_DEVNET_RPC_URL, { commitment: 'confirmed' }).getBalance(new PublicKey(expected), 'confirmed');
+          const after = await provider.getBalance(publicKey, 'confirmed');
           console.log('Devnet funder balance after faucet check: ' + (after / 1e9).toFixed(6) + ' SOL');
           if (after < reserve) throw new Error('Devnet funder reserve remains insufficient after official faucet top-up.');
           console.log('Devnet funder self-healing top-up: PASS');
