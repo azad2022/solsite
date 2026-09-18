@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Copy, KeyRound, Loader2, ShieldCheck, Store, Wallet, XCircle } from 'lucide-react';
 import { createMyMerchant, getMyMerchant, issueWalletChallenge, verifyWalletChallenge, type PayMerchant } from '../services/merchantOnboardingService';
+import { PayHttpError } from '../http';
 import { encodeBase58 } from '../services/base58';
 import { translateMerchantOnboarding as t } from './pay-merchant-onboarding-i18n';
 import type { PayLocale } from '../types';
@@ -39,6 +40,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialMerchant) {
@@ -79,7 +81,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       onMerchantReady?.(created);
       return created;
     } catch (e) {
-      setStage('error'); setError(e instanceof Error ? e.message : t(locale, 'merchantCreationFailed')); return null;
+      setStage('error'); setError(e instanceof PayHttpError ? e.message : t(locale, 'merchantCreationFailed')); return null;
     }
   };
 
@@ -110,11 +112,27 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       setStage('verifying');
       const verified = await verifyWalletChallenge(activeMerchant.id, issued.id, connectedAddress, encodeBase58(signature));
       if (verified.verified !== true) throw new Error(t(locale, 'walletVerificationRejected'));
+      setWalletAddress(verified.walletAddress || connectedAddress);
+      setVerifiedAt(verified.verifiedAt || null);
       setStage('done');
       setChallenge(null);
+
+      // The backend may promote the merchant to active during the same atomic
+      // wallet-consume operation. Refresh through the official Merchant API so
+      // the rest of Pay never relies on a client-side status assumption.
+      try {
+        const refreshed = await getMyMerchant();
+        if (refreshed) {
+          setMerchant(refreshed);
+          onMerchantReady?.(refreshed);
+        }
+      } catch {
+        // Keep the authoritative verification result visible. A failed refresh
+        // is a stale-data condition, not a verification failure.
+      }
     } catch (e) {
       setStage('error');
-      setError(e instanceof Error ? e.message : t(locale, 'walletVerificationFailed'));
+      setError(e instanceof PayHttpError ? e.message : e instanceof Error ? e.message : t(locale, 'walletVerificationFailed'));
     }
   };
 
@@ -131,6 +149,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
 
   const busy = ['loading', 'creating', 'challenge', 'signing', 'verifying'].includes(stage);
   const verified = stage === 'done' && !!merchant && !!walletAddress;
+  const stageLabel = stage === 'challenge' ? t(locale, 'walletVerificationStarting') : stage === 'signing' ? t(locale, 'walletAwaitingSignature') : stage === 'verifying' ? t(locale, 'walletVerifying') : stage === 'loading' ? t(locale, 'loadingMerchant') : stage === 'creating' ? t(locale, 'creatingMerchant') : stage === 'done' ? t(locale, 'verified') : '';
 
   return (
     <section className="pay-onboarding-panel" aria-labelledby="pay-onboarding-title">
@@ -139,14 +158,16 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
         {onClose && <button type="button" className="pay-icon-button" onClick={onClose} aria-label={t(locale, 'close')}><XCircle size={18} /></button>}
       </div>
 
+      {stageLabel && <div className={`pay-onboarding-progress is-${stage}`} role="status" aria-live="polite"><span className="pay-onboarding-progress-dot" aria-hidden="true" />{stageLabel}</div>}
+
       {!merchant ? <div className="pay-onboarding-form">
         <label><span>{t(locale, 'businessName')}</span><input value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder={t(locale, 'businessNamePlaceholder')} autoComplete="organization" disabled={busy} /></label>
         <label><span>{t(locale, 'businessSlug')}</span><input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} placeholder={t(locale, 'businessSlugPlaceholder')} spellCheck={false} disabled={busy} /></label>
         <button type="button" className="pay-primary-action" onClick={() => void ensureMerchant()} disabled={busy}>{stage === 'creating' ? <Loader2 className="animate-spin" size={17} /> : <Store size={17} />} {t(locale, 'createMerchant')}</button>
         <button type="button" className="pay-secondary-action" onClick={() => void loadExisting()} disabled={busy}>{stage === 'loading' ? <Loader2 className="animate-spin" size={17} /> : null} {t(locale, 'checkExistingMerchant')}</button>
       </div> : <div className="pay-onboarding-state">
-        <div className="pay-onboarding-success"><CheckCircle2 size={22} /><div><strong>{merchant.businessName}</strong><span>{t(locale, 'merchantId')}: {merchant.id}</span><small>{t(locale, 'status')}: {merchant.status}</small></div></div>
-        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span>{walletAddress || t(locale, 'walletNotVerified')}</span></div><button type="button" className="pay-primary-action" onClick={() => void startWalletVerification()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {stage === 'done' ? t(locale, 'verified') : t(locale, 'connectAndVerifyWallet')}</button></div>
+        <div className="pay-onboarding-success"><CheckCircle2 size={22} /><div><strong>{merchant.businessName}</strong><span>{t(locale, 'merchantId')}: {merchant.id}</span><small>{t(locale, 'status')}: {t(locale, `merchantStatus_${merchant.status}` as never)}</small></div></div>
+        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span title={walletAddress || undefined}>{walletAddress || t(locale, 'walletNotVerified')}</span>{verifiedAt ? <small>{t(locale, 'walletVerifiedAt')}: {new Date(verifiedAt).toLocaleString(locale)}</small> : null}</div><button type="button" className="pay-primary-action" onClick={() => void startWalletVerification()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {stage === 'done' ? t(locale, 'verified') : t(locale, 'connectAndVerifyWallet')}</button></div>
         {verified && <div className="pay-onboarding-verified"><CheckCircle2 size={18} /><span>{t(locale, 'walletOwnershipVerified')}</span></div>}
       </div>}
 
