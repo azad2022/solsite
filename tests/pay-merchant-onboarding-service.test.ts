@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PayHttpClient, PayHttpError } from '../src/pay/http';
+import { getMyMerchant } from '../src/pay/services/merchantOnboardingService';
 
 test('merchant onboarding service parses the real merchant envelope', async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -13,7 +14,7 @@ test('merchant onboarding service parses the real merchant envelope', async () =
     }) as typeof fetch,
   });
 
-  const { createMyMerchant, getMyMerchant } = await import('../src/pay/services/merchantOnboardingService');
+  const { createMyMerchant } = await import('../src/pay/services/merchantOnboardingService');
   const merchant = await createMyMerchant({ businessName: 'Test Store', slug: 'test-store' }, client);
   assert.equal(merchant.id, 'merchant-1');
   assert.equal(merchant.ownerUserId, 'user-1');
