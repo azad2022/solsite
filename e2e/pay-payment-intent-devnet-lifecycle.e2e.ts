@@ -12,12 +12,12 @@ if (!DEVNET_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must
 if (!DEVNET_FUNDER_SECRET_KEY) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for the funded Devnet Payment Intent lifecycle E2E.');
 
 const EXPECTED_FUNDER_PUBLIC_KEY = 'EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV';
-const PAYMENT_AMOUNT_LAMPORTS = 3_000_000n;
-const MERCHANT_SETTLEMENT_LAMPORTS = 2_970_000n;
-const GATEWAY_FEE_LAMPORTS = 30_000n;
+const PAYMENT_AMOUNT_LAMPORTS = 2_000_000n;
+const MERCHANT_SETTLEMENT_LAMPORTS = 1_980_000n;
+const GATEWAY_FEE_LAMPORTS = 20_000n;
 // Fund only the payment amount + gateway fee with a small fee buffer; this test uses 0.1 SOL to minimize CI reserve consumption.
-const FUNDER_TOP_UP_LAMPORTS = 3_100_000n;
-const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000n;
+const MIN_FUNDER_BALANCE_LAMPORTS = 2_500_000n;
+
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
 const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
@@ -76,16 +76,9 @@ async function confirmFinalized(connection: Connection, signature: string, block
   if (confirmation.value.err) throw new Error(`Devnet transaction failed: ${JSON.stringify(confirmation.value.err)}`);
 }
 
-async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair): Promise<void> {
+async function assertFunderReserve(connection: Connection, funder: Keypair): Promise<void> {
   const balance = await connection.getBalance(funder.publicKey, 'finalized');
-  if (balance < Number(MIN_FUNDER_BALANCE_LAMPORTS)) throw new Error(`Devnet funder ${funder.publicKey.toBase58()} has ${(balance / 1e9).toFixed(6)} SOL; at least ${(Number(MIN_FUNDER_BALANCE_LAMPORTS) / 1e9).toFixed(6)} SOL is required for this flow.`);
-  const latest = await connection.getLatestBlockhash('finalized');
-  const transaction = new Transaction({ feePayer: funder.publicKey, recentBlockhash: latest.blockhash }).add(
-    SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: payer.publicKey, lamports: Number(FUNDER_TOP_UP_LAMPORTS) }),
-  );
-  transaction.sign(funder);
-  const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
-  await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
+  if (balance < Number(MIN_FUNDER_BALANCE_LAMPORTS)) throw new Error(`Devnet funder ${funder.publicKey.toBase58()} has ${(balance / 1e9).toFixed(6)} SOL; at least ${(Number(MIN_FUNDER_BALANCE_LAMPORTS) / 1e9).toFixed(6)} SOL must remain reserved for this E2E flow.`);
 }
 
 async function waitForFinalizedObservation(
@@ -149,11 +142,10 @@ test('SolMint Pay Payment Intent reconciliation verifies a real Devnet transacti
   const funder = createFunder();
   assert.equal(funder.publicKey.toBase58(), EXPECTED_FUNDER_PUBLIC_KEY, 'Devnet E2E funder secret must match the documented CI wallet.');
 
-  const payer = Keypair.generate();
   const merchant = Keypair.generate();
   const feeRecipient = Keypair.generate();
   const reference = Keypair.generate();
-  await fundPayer(connection, funder, payer);
+
 
   const latest = await connection.getLatestBlockhash('finalized');
   const transaction = new Transaction({ feePayer: payer.publicKey, recentBlockhash: latest.blockhash })
