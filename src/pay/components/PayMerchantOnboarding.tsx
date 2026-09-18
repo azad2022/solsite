@@ -43,6 +43,8 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
+  const [merchantRefreshStale, setMerchantRefreshStale] = useState(false);
+  const [refreshingMerchant, setRefreshingMerchant] = useState(false);
 
   useEffect(() => {
     if (initialMerchant) {
@@ -53,12 +55,31 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
 
   const resetError = () => { setError(''); if (stage === 'error') setStage('idle'); };
 
+  const refreshMerchant = async () => {
+    if (refreshingMerchant) return;
+    setRefreshingMerchant(true);
+    try {
+      const refreshed = await getMyMerchant();
+      if (!refreshed) throw new Error('Merchant refresh returned no merchant.');
+      setMerchant(refreshed);
+      setMerchantRefreshStale(false);
+      onMerchantReady?.(refreshed);
+    } catch {
+      setMerchantRefreshStale(true);
+    } finally {
+      setRefreshingMerchant(false);
+    }
+  };
+
   const loadExisting = async () => {
     resetError();
     setStage('loading');
     try {
       const existing = await getMyMerchant();
       setMerchant(existing);
+      setMerchantRefreshStale(false);
+      setWalletAddress('');
+      setVerifiedAt(null);
       if (existing) {
         onMerchantReady?.(existing);
         setStage('done');
@@ -116,6 +137,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       if (verified.verified !== true) throw new WalletUiError(t(locale, 'walletVerificationRejected'));
       setWalletAddress(verified.walletAddress || connectedAddress);
       setVerifiedAt(verified.verifiedAt || null);
+      setMerchantRefreshStale(false);
       setStage('done');
       setChallenge(null);
 
@@ -126,9 +148,13 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
         const refreshed = await getMyMerchant();
         if (refreshed) {
           setMerchant(refreshed);
+          setMerchantRefreshStale(false);
           onMerchantReady?.(refreshed);
+        } else {
+          setMerchantRefreshStale(true);
         }
       } catch {
+        setMerchantRefreshStale(true);
         // Keep the authoritative verification result visible. A failed refresh
         // is a stale-data condition, not a verification failure.
       }
@@ -169,8 +195,9 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
         <button type="button" className="pay-secondary-action" onClick={() => void loadExisting()} disabled={busy}>{stage === 'loading' ? <Loader2 className="animate-spin" size={17} /> : null} {t(locale, 'checkExistingMerchant')}</button>
       </div> : <div className="pay-onboarding-state">
         <div className="pay-onboarding-success"><CheckCircle2 size={22} /><div><strong>{merchant.businessName}</strong><span>{t(locale, 'merchantId')}: {merchant.id}</span><small>{t(locale, 'status')}: {translateMerchantStatus(locale, merchant.status)}</small></div></div>
-        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span title={walletAddress || undefined}>{walletAddress || t(locale, 'walletNotVerified')}</span>{verifiedAt ? <small>{t(locale, 'walletVerifiedAt')}: {new Date(verifiedAt).toLocaleString(locale)}</small> : null}</div><button type="button" className="pay-primary-action" onClick={() => void startWalletVerification()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {stage === 'done' ? t(locale, 'verified') : t(locale, 'connectAndVerifyWallet')}</button></div>
+        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span title={walletAddress || undefined}>{walletAddress || t(locale, 'walletStatusUnavailable')}</span>{verifiedAt ? <small>{t(locale, 'walletVerifiedAt')}: {new Date(verifiedAt).toLocaleString(locale)}</small> : null}</div><button type="button" className="pay-primary-action" onClick={() => void startWalletVerification()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {stage === 'done' ? t(locale, 'verified') : t(locale, 'connectAndVerifyWallet')}</button></div>
         {verified && <div className="pay-onboarding-verified"><CheckCircle2 size={18} /><span>{t(locale, 'walletOwnershipVerified')}</span></div>}
+        {merchantRefreshStale && <div className="pay-onboarding-stale" role="status" aria-live="polite"><span>{t(locale, 'merchantRefreshStale')}</span><button type="button" className="pay-secondary-action" onClick={() => void refreshMerchant()} disabled={refreshingMerchant}>{refreshingMerchant ? <Loader2 className="animate-spin" size={15} /> : null}{t(locale, 'retryMerchantRefresh')}</button></div>}
       </div>}
 
       {challenge && stage === 'signing' && <div className="pay-onboarding-challenge"><div className="pay-onboarding-challenge-head"><KeyRound size={17} /><strong>{t(locale, 'walletSignatureRequest')}</strong><button type="button" onClick={() => void copyMessage()} aria-label={t(locale, 'copy')} title={t(locale, 'copy')}><Copy size={15} /></button></div><pre>{challenge.message}</pre><small>{t(locale, 'signatureNotTransaction')}</small>{copied && <em>{t(locale, 'copied')}</em>}</div>}
