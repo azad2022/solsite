@@ -82,7 +82,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       setVerifiedAt(null);
       if (existing) {
         onMerchantReady?.(existing);
-        setStage('done');
+        setStage('idle');
       } else {
         setStage('idle');
       }
@@ -177,7 +177,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
 
   const busy = ['loading', 'creating', 'challenge', 'signing', 'verifying'].includes(stage);
   const verified = stage === 'done' && !!merchant && !!walletAddress;
-  const stageLabel = stage === 'challenge' ? t(locale, 'walletVerificationStarting') : stage === 'signing' ? t(locale, 'walletAwaitingSignature') : stage === 'verifying' ? t(locale, 'walletVerifying') : stage === 'loading' ? t(locale, 'loadingMerchant') : stage === 'creating' ? t(locale, 'creatingMerchant') : stage === 'done' ? t(locale, 'verified') : '';
+  const stageLabel = stage === 'challenge' ? t(locale, 'walletVerificationStarting') : stage === 'signing' ? t(locale, 'walletAwaitingSignature') : stage === 'verifying' ? t(locale, 'walletVerifying') : stage === 'loading' ? t(locale, 'loadingMerchant') : stage === 'creating' ? t(locale, 'creatingMerchant') : stage === 'done' && verified ? t(locale, 'verified') : '';
 
   return (
     <section className="pay-onboarding-panel" aria-labelledby="pay-onboarding-title">
