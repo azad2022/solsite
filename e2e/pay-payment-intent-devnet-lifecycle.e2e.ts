@@ -78,7 +78,7 @@ async function confirmFinalized(connection: Connection, signature: string, block
 
 async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair): Promise<void> {
   const balance = await connection.getBalance(funder.publicKey, 'finalized');
-  if (balance < Number(MIN_FUNDER_BALANCE_LAMPORTS)) throw new Error('Devnet funding account has insufficient SOL for the Payment Intent lifecycle E2E.');
+  if (balance < Number(MIN_FUNDER_BALANCE_LAMPORTS)) throw new Error(`Devnet funder ${funder.publicKey.toBase58()} has ${(balance / 1e9).toFixed(6)} SOL; at least ${(Number(MIN_FUNDER_BALANCE_LAMPORTS) / 1e9).toFixed(6)} SOL is required for this flow.`);
   const latest = await connection.getLatestBlockhash('finalized');
   const transaction = new Transaction({ feePayer: funder.publicKey, recentBlockhash: latest.blockhash }).add(
     SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: payer.publicKey, lamports: Number(FUNDER_TOP_UP_LAMPORTS) }),
