@@ -27,6 +27,8 @@ interface Props {
 }
 type Stage = 'idle' | 'loading' | 'creating' | 'challenge' | 'signing' | 'verifying' | 'done' | 'error';
 
+class WalletUiError extends Error {}
+
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
@@ -99,7 +101,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       const connectionAddress = connection && typeof connection === 'object' ? connection.publicKey?.toBase58?.() : '';
       const providerAddress = provider.publicKey?.toBase58?.() || '';
       const connectedAddress = connectionAddress || providerAddress || '';
-      if (!connectedAddress) throw new Error(t(locale, 'walletAddressMissing'));
+      if (!connectedAddress) throw new WalletUiError(t(locale, 'walletAddressMissing'));
       setWalletAddress(connectedAddress);
       const issued = await issueWalletChallenge(activeMerchant.id, connectedAddress);
       setChallenge(issued);
@@ -107,11 +109,11 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       setStage('signing');
       const signed = await provider.signMessage(new TextEncoder().encode(issued.message), 'utf8');
       const signature = signed instanceof Uint8Array ? signed : signed.signature;
-      if (!(signature instanceof Uint8Array) || signature.length === 0) throw new Error(t(locale, 'walletSignatureMissing'));
+      if (!(signature instanceof Uint8Array) || signature.length === 0) throw new WalletUiError(t(locale, 'walletSignatureMissing'));
 
       setStage('verifying');
       const verified = await verifyWalletChallenge(activeMerchant.id, issued.id, connectedAddress, encodeBase58(signature));
-      if (verified.verified !== true) throw new Error(t(locale, 'walletVerificationRejected'));
+      if (verified.verified !== true) throw new WalletUiError(t(locale, 'walletVerificationRejected'));
       setWalletAddress(verified.walletAddress || connectedAddress);
       setVerifiedAt(verified.verifiedAt || null);
       setStage('done');
@@ -132,7 +134,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       }
     } catch (e) {
       setStage('error');
-      setError(e instanceof PayHttpError ? e.message : e instanceof Error ? e.message : t(locale, 'walletVerificationFailed'));
+      setError(e instanceof PayHttpError || e instanceof WalletUiError ? e.message : t(locale, 'walletVerificationFailed'));
     }
   };
 
