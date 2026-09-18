@@ -346,48 +346,6 @@ Authoritative validation:
 
 The Wallet Ownership lifecycle gate and funded Devnet reconciliation gate are therefore closed. No bypass, synthetic Production financial state, or frontend-derived payment-success assumption was used.
 
-## Current Pay next gate
-
-The next gate is the **Wallet Ownership Lifecycle** validation followed by the funded Devnet Payment Intent reconciliation lifecycle.
-
-The Wallet Ownership gate must validate:
-
-- unauthenticated access rejection;
-- trusted-origin enforcement;
-- cross-merchant isolation;
-- wallet mismatch;
-- signature tampering;
-- successful Ed25519 verification;
-- replay rejection;
-- concurrent double-consume atomicity;
-- expiry enforcement;
-- error redaction.
-
-After Wallet Ownership is green, proceed to the **funded Devnet Payment Intent reconciliation lifecycle** around the existing verification/reconciliation engine.
-
-The intended reconciliation gate will validate real finalized Devnet blockchain data through the existing provider and reconciliation code, without inserting synthetic financial state into Production.
-
-Target evidence:
-
-`real Devnet transaction → finalized observation → reference discovery → deterministic verification → reconciliation confirmed → duplicate/replay rejected`
-
-After that gate is green, proceed to adversarial verification evidence:
-
-- underpayment
-- overpayment
-- wrong token
-- wrong recipient
-- wrong reference
-- duplicate/replay
-- ambiguous discovery
-- expired intent
-- RPC failure
-- incomplete transaction discovery
-
-The frontend must continue to consume backend-authoritative state and must never infer payment success from a submitted signature, reference, webhook, or browser state.
-
-The obsolete Cloudflare `Workers Builds: solsite` check remains an external dashboard issue. The Supabase Preview check remains skipped by project configuration and is not a delivery prerequisite under the committed preview-free constraint.
-
 ## 2026-09-18 — Pay SECURITY DEFINER path hardening
 
 Status: **COMPLETED**
