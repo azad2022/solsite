@@ -88,7 +88,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       }
     } catch (e) {
       setStage('error');
-      setError(e instanceof Error ? e.message : t(locale, 'loadMerchantFailed'));
+      setError(e instanceof PayHttpError ? e.message : t(locale, 'loadMerchantFailed'));
     }
   };
 
@@ -98,6 +98,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
     const finalSlug = (slug || slugify(businessName)).trim();
     if (!/^[a-z0-9][a-z0-9-]{2,59}$/.test(finalSlug)) { setStage('error'); setError(t(locale, 'slugInvalid')); return null; }
     setStage('creating');
+    setMerchantRefreshStale(false);
     try {
       const created = await createMyMerchant({ businessName: businessName.trim(), slug: finalSlug });
       setMerchant(created);
