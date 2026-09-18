@@ -321,6 +321,31 @@ No success is inferred from the attached status report or from unrelated Auth/CI
 **Do not repeat:** GitHub Workflow registration troubleshooting, nested `workflow_dispatch` dispatching, DB password/pooler troubleshooting for this fixture path, or Better Auth credential issuer debugging unless a new regression is demonstrated.
 
 **Next action:** correct the existing Cloudflare Pages production secret for `SUPABASE_INTERNAL_JWT_PRIVATE_KEY` in the production runtime, then rerun the autonomous Wallet Ownership E2E. After that run is green, record the Gate as **COMPLETED** and proceed to the funded Devnet Payment Intent reconciliation gate.
+## 2026-09-18 — Wallet Ownership and funded Devnet reconciliation gate closed
+
+Status: **COMPLETED**
+
+Final merged implementation:
+
+- PR #116 was squash-merged.
+- Merge commit: dca631ea7a0caa2300241f6470d72448a5ff6a99.
+- Production migration 20260918153647_solmint_pay_wallet_rotation_atomicity was applied and recorded in the live migration ledger.
+- The root production failure in concurrent wallet rotation was fixed at the database transaction boundary: the existing active receiving wallet is deactivated before the challenged wallet is promoted, while both updates remain inside the same transaction.
+- The Wallet Ownership One-Shot harness was corrected to checkout merged main rather than a stale test branch.
+
+Authoritative validation:
+
+- Production Wallet Ownership One-Shot #23: PASS after the database rotation-order correction.
+- Merged-main Wallet Ownership One-Shot #24: PASS.
+- SolMint Pay Live Smoke #22: PASS after the merged deployment.
+- SolMint Pay Production API Smoke post-merge: PASS.
+- SolMint Pay Database Security post-merge: PASS.
+- SolMint Pay Devnet E2E post-merge: PASS, including real payment verification and Payment Intent reconciliation.
+- Post-merge CI, Production Build, and Authentication build verification: PASS.
+- Issue #101 is closed as completed.
+
+The Wallet Ownership lifecycle gate and funded Devnet reconciliation gate are therefore closed. No bypass, synthetic Production financial state, or frontend-derived payment-success assumption was used.
+
 ## Current Pay next gate
 
 The next gate is the **Wallet Ownership Lifecycle** validation followed by the funded Devnet Payment Intent reconciliation lifecycle.
@@ -365,7 +390,26 @@ The obsolete Cloudflare `Workers Builds: solsite` check remains an external dash
 
 ## Explicitly not complete yet
 
-Do not mark SolMint Pay production-ready. The API credential lifecycle and controlled Payment Intent creation gate are complete. Wallet Ownership Lifecycle validation, funded Devnet reconciliation lifecycle, adversarial verification cases, final security/release audit, production runtime/rollback evidence, and branch-protection enforcement remain open.
+Do not mark SolMint Pay production-ready.
+
+Completed gates now include:
+
+- API credential lifecycle.
+- controlled Payment Intent creation.
+- Wallet Ownership Lifecycle.
+- funded Devnet payment verification.
+- funded Devnet Payment Intent reconciliation.
+- adversarial payment-verification contract coverage used by the merged Wallet Ownership work.
+- post-merge Production Build, CI, Database Security, Production API Smoke, Live Smoke, and merged-main Wallet Ownership E2E.
+
+Still open:
+
+- final Security / Release Audit.
+- production rollback / recovery evidence.
+- branch-protection enforcement evidence.
+- any remaining release-gate findings from the audit.
+
+The external Cloudflare Workers Builds: solsite check remains separate from the Pages delivery path, and Supabase Preview remains outside the committed preview-free Pay delivery path.
 
 ## Working rule
 
