@@ -12,11 +12,11 @@ if (!DEVNET_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must
 if (!DEVNET_FUNDER_SECRET_KEY) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for the funded Devnet Payment Intent lifecycle E2E.');
 
 const EXPECTED_FUNDER_PUBLIC_KEY = 'EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV';
-const PAYMENT_AMOUNT_LAMPORTS = 100_000_000n;
-const MERCHANT_SETTLEMENT_LAMPORTS = 99_000_000n;
-const GATEWAY_FEE_LAMPORTS = 1_000_000n;
+const PAYMENT_AMOUNT_LAMPORTS = 3_000_000n;
+const MERCHANT_SETTLEMENT_LAMPORTS = 2_970_000n;
+const GATEWAY_FEE_LAMPORTS = 30_000n;
 // Fund only the payment amount + gateway fee with a small fee buffer; this test uses 0.1 SOL to minimize CI reserve consumption.
-const FUNDER_TOP_UP_LAMPORTS = 101_000_000n;
+const FUNDER_TOP_UP_LAMPORTS = 3_100_000n;
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000n;
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
