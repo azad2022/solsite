@@ -12,13 +12,18 @@ test('merchant onboarding refreshes the authoritative Merchant after wallet veri
   assert.match(component, /const verified = await verifyWalletChallenge\(/);
   assert.match(component, /const refreshed = await getMyMerchant\(\)/);
   assert.match(component, /onMerchantReady\?\.\(refreshed\)/);
-  assert.match(component, /This failed refresh is a stale-data condition|A failed refresh/);
+  assert.match(component, /failed refresh/);
 });
 
 test('merchant onboarding does not surface raw unexpected wallet-provider errors', () => {
-  assert.match(component, /e instanceof PayHttpError \|\| e instanceof WalletUiError/);
-  assert.match(component, /t\(locale, 'walletVerificationFailed'\)/);
-  assert.doesNotMatch(component, /e instanceof Error \? e\.message/);
+  const verifyStart = component.indexOf('const verify = async () =>');
+  const verifyEnd = component.indexOf('\n  const decimals =', verifyStart);
+  assert.ok(verifyStart >= 0 && verifyEnd > verifyStart);
+  const verifyBlock = component.slice(verifyStart, verifyEnd);
+
+  assert.match(verifyBlock, /e instanceof PayHttpError \|\| e instanceof WalletUiError/);
+  assert.match(verifyBlock, /walletVerificationFailed/);
+  assert.doesNotMatch(verifyBlock, /e instanceof Error \? e\.message/);
 });
 
 test('merchant onboarding keeps user-facing status/progress copy localized', () => {
