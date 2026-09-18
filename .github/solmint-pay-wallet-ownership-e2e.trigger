@@ -1,2 +1,2 @@
-run=2026-09-18T18:19:00-05:00
-purpose=wallet-ownership-final-post-jwt-standby-validation
+run=2026-09-18T19:00:00+03:30
+purpose=wallet-ownership-final-post-devnet-funding-validation
