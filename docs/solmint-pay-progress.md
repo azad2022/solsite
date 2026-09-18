@@ -414,3 +414,56 @@ Before starting a new Pay task:
 4. Never repeat the Devnet funding/observation work unless CI demonstrates a regression.
 5. Do not add Supabase Preview Branching as a prerequisite for Pay delivery.
 6. Record a gate as **COMPLETED** only after the relevant implementation, validation, and release evidence are actually green.
+
+
+## 2026-09-18 — Merchant receiving-wallet frontend/backend binding checkpoint
+
+Status: **IMPLEMENTED / VALIDATION BLOCKED BY EXTERNAL DEVNET FUNDING**
+
+Repository state reconciliation:
+
+- Current `main` HEAD: `964df8a26022c9efedd6695859dd684f945800c9`.
+- PR `#118` is already present on `main` and hardens the existing wallet-verification UI against stale merchant state, localized state/progress, and unexpected provider errors.
+- PR `#122` is open on top of this `main` and adds the authoritative receiving-wallet snapshot to the existing Merchant GET contract.
+
+Contract implemented in PR `#122`:
+
+- Reuses the existing `GET /api/pay/v1/merchants` endpoint.
+- Reads `pay_merchant_wallets` through the authenticated identity path.
+- Exposes only the wallet matching `wallet_role=receiving`, `is_active=true`, and `verification_status=verified`.
+- Frontend parses the snapshot fail-closed and maps it to the existing `PayMerchant` domain model.
+- Merchant onboarding displays the persisted authoritative wallet/verification timestamp after reload instead of relying only on transient browser state.
+- No new payment rule, secret, private key, RPC, or direct browser database access was introduced.
+
+Live database evidence reconfirmed on 2026-09-18:
+
+- `public.pay_merchants` and `public.pay_merchant_wallets` have RLS enabled.
+- Authenticated SELECT on both tables is restricted by the existing `pay_has_merchant_access(...)` policies.
+- `pay_merchant_wallets` contains the existing receiving-wallet, active-state, verification-status, and verification-timestamp fields used by this contract.
+
+PR validation after test-fix commit `b6ed7a17ea11a26c63c18f25030e87d5707576a0`:
+
+- CI run `35369298851`: **PASS**.
+- Production Build run `35369298809`: **PASS**.
+- SolMint Pay Database Security run `35369298783`: **PASS**.
+- SolMint Pay Production API Smoke run `35369298816`: **PASS**.
+- SolMint Pay Mainnet Read-only run `35369298799`: **PASS**.
+- SolMint Pay Devnet E2E run `35369298897`: **BLOCKED/FAILURE — EXTERNAL FUNDING**, before the real payment flow: the configured Devnet funder had `0.000680 SOL` while this flow requires at least `0.510100 SOL`.
+
+The CI failure in the first PR run was a real test defect (`getMyMerchant is not defined`) and was corrected in commit `b6ed7a17ea11a26c63c18f25030e87d5707576a0`. The remaining Devnet failure is not evidence of a repository regression; it is an exhausted external CI funding fixture.
+
+Do not repeat:
+
+- the already-passed Wallet Ownership backend/reconciliation gate;
+- Better Auth/JWT bridge debugging;
+- Devnet RPC redesign;
+- Supabase Preview setup;
+- the fixed merchant-wallet test import defect.
+
+Next gate:
+
+1. Replenish the existing dedicated Devnet funder sufficiently for the real E2E.
+2. Rerun the existing `SolMint Pay Devnet E2E` workflow against the current PR head.
+3. If that run is green, recheck the full required PR evidence and merge `#122`.
+4. Immediately after merge, run the production deployment/runtime smoke and continue the next contract-backed Pay surface. Do not mark production-ready until the separate branch-protection and rollback/recovery release controls are also closed.
+
