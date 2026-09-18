@@ -17,7 +17,7 @@ const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000n;
 const GATEWAY_FEE_LAMPORTS = 5_000_000n;
 // Fund only the payment amount + gateway fee with a small fee buffer; this test does not need an extra reserve.
 const FUNDER_TOP_UP_LAMPORTS = 510_000_000n;
-const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000_000n;
+const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000n;
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
 const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
