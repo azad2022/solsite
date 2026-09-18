@@ -16,7 +16,7 @@ test('merchant onboarding refreshes the authoritative Merchant after wallet veri
 });
 
 test('merchant onboarding does not surface raw unexpected wallet-provider errors', () => {
-  const verifyStart = component.indexOf('const verify = async () =>');
+  const verifyStart = component.indexOf('const startWalletVerification = async () =>');
   const verifyEnd = component.indexOf('\n  const decimals =', verifyStart);
   assert.ok(verifyStart >= 0 && verifyEnd > verifyStart);
   const verifyBlock = component.slice(verifyStart, verifyEnd);
