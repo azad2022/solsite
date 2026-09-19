@@ -502,3 +502,38 @@ Current next engineering sequence:
 5. Keep Customers/Reports/Developer/Security/Notifications/Refunds as UNKNOWN/BLOCKED where no released API contract exists; never create placeholder financial data.
 
 Release rule remains unchanged: SolMint Pay must not be called production-ready until all applicable security, database/RLS, authentication/authorization, verification/reconciliation, deployment, rollback, branch-protection, and runtime evidence gates are green.
+
+
+## 2026-09-19 — Invoice and Referral read surfaces merged
+
+Status: **COMPLETED / FRONTEND-BACKEND READ BINDING EXPANDED**
+
+Authoritative merge evidence:
+
+- PR #124 `feat(pay): add authoritative invoice read surface` was squash-merged.
+- Merge commit: `3eac09de24ebdddf97143b0d8cc1de6b6a05c821`.
+- Validation before merge: CI `35439728410`, Production Build `35439728394`, Database Security `35439728404`, Production API Smoke `35439728407`, Mainnet Read-only `35439728385`, Devnet E2E `35439728416` — all **PASS**.
+- The Invoice UI is read-only and consumes the real `pay_invoices` contract through the central Pay service layer. Amounts remain atomic strings; no invoice mutation or financial calculation is invented.
+
+- PR #125 `feat(pay): add authoritative referral read surface` was squash-merged.
+- Merge commit: `bca504cd5517d887b09877afc37f23fa913cd051`.
+- Final validation after the translation/type correction: CI `35439913062`, Production Build `35439913046`, Database Security `35439913059`, Production API Smoke `35439913051`, Mainnet Read-only `35439913124`, Devnet E2E `35439913077` — all **PASS**.
+- The Referral/Affiliate UI reads `pay_affiliates`, `pay_referrals`, and `pay_commissions` through authenticated server mediation and does not calculate commission, payout, tier, or withdrawal truth.
+- Issue #121 was already closed after the merged receiving-wallet contract.
+
+Current roadmap interpretation:
+
+- Merchant / Wallet verification, Dashboard, Transactions, Checkout / Payment Intent, API Keys, Webhooks, Tickets, Invoices (read), and Referrals/Affiliates (read) now have real frontend/backend bindings.
+- Customers, Reports, Developer, Security, Notifications, Refunds, and Invoice/Referral mutations remain unimplemented where no released HTTP contract exists. They must remain UNKNOWN/BLOCKED rather than placeholders pretending to be operational.
+
+Next engineering gate:
+
+1. Reconcile the current Payment Links table and any existing backend routines/routes.
+2. Add only a contract-backed read/mutation surface that is supported by the live schema and server API.
+3. Validate through the full applicable CI/security/build/Devnet/Mainnet evidence.
+4. Update this ledger after merge before starting the next surface.
+
+Release controls remain separate:
+- Branch protection evidence: Issue #117.
+- Controlled rollback/recovery evidence: Issue #120.
+- Site-wide pre-existing security debt: Issue #38.
