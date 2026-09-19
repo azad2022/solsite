@@ -2,89 +2,984 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Solmint Public API",
-    "version": "1.1.0",
-    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, wallet analysis, and the public Pay checkout snapshot. These APIs do not accept seed phrases, private keys, passwords, or signing credentials."
+    "version": "1.2.0",
+    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, wallet analysis, and the public Pay checkout snapshot. These APIs do not accept seed phrases, private keys, passwords, or signing credentials. Authenticated merchant Pay read contracts for invoices, payment links, and referral records are also documented here; they require an authenticated Solmint session and preserve merchant/affiliate authorization."
   },
-  "servers": [{ "url": "https://solmint.ir" }],
+  "servers": [
+    {
+      "url": "https://solmint.ir"
+    }
+  ],
   "paths": {
     "/api/health": {
-      "get": { "operationId": "getHealth", "summary": "Public API health", "responses": { "200": { "description": "Service is reachable" } } }
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Public API health",
+        "responses": {
+          "200": {
+            "description": "Service is reachable"
+          }
+        }
+      }
     },
     "/api/articles": {
-      "get": { "operationId": "listPublicArticles", "summary": "List published public articles", "responses": { "200": { "description": "Published articles", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleListResponse" } } } }, "502": { "description": "Upstream article service unavailable" }, "503": { "description": "Article service temporarily unavailable" } } }
+      "get": {
+        "operationId": "listPublicArticles",
+        "summary": "List published public articles",
+        "responses": {
+          "200": {
+            "description": "Published articles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleListResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream article service unavailable"
+          },
+          "503": {
+            "description": "Article service temporarily unavailable"
+          }
+        }
+      }
     },
     "/api/solana/status": {
-      "get": { "operationId": "getSolanaStatus", "summary": "Read current Solana network status data", "responses": { "200": { "description": "Current Solana status payload" } } }
+      "get": {
+        "operationId": "getSolanaStatus",
+        "summary": "Read current Solana network status data",
+        "responses": {
+          "200": {
+            "description": "Current Solana status payload"
+          }
+        }
+      }
     },
     "/api/tools/solana-token": {
-      "get": { "operationId": "inspectSolanaToken", "summary": "Inspect a Solana token mint on-chain", "parameters": [{ "$ref": "#/components/parameters/Mint" }, { "name": "mode", "in": "query", "required": false, "schema": { "type": "string", "enum": ["token", "extensions"], "default": "token" } }], "responses": { "200": { "description": "On-chain mint information" }, "400": { "description": "Invalid mint address" }, "404": { "description": "Mint account not found" }, "422": { "description": "Address is not a token mint account" }, "502": { "description": "Solana RPC unavailable" } } }
+      "get": {
+        "operationId": "inspectSolanaToken",
+        "summary": "Inspect a Solana token mint on-chain",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Mint"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "token",
+                "extensions"
+              ],
+              "default": "token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "On-chain mint information"
+          },
+          "400": {
+            "description": "Invalid mint address"
+          },
+          "404": {
+            "description": "Mint account not found"
+          },
+          "422": {
+            "description": "Address is not a token mint account"
+          },
+          "502": {
+            "description": "Solana RPC unavailable"
+          }
+        }
+      }
     },
     "/api/tools/token-risk": {
-      "get": { "operationId": "analyzeTokenRisk", "summary": "Return an explainable rule-based token risk profile", "parameters": [{ "$ref": "#/components/parameters/Mint" }], "responses": { "200": { "description": "Combined on-chain and market observations" }, "400": { "description": "Invalid mint address" }, "503": { "description": "Required upstream data unavailable" } } }
+      "get": {
+        "operationId": "analyzeTokenRisk",
+        "summary": "Return an explainable rule-based token risk profile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Mint"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Combined on-chain and market observations"
+          },
+          "400": {
+            "description": "Invalid mint address"
+          },
+          "503": {
+            "description": "Required upstream data unavailable"
+          }
+        }
+      }
     },
     "/api/tools/market-context": {
-      "get": { "operationId": "getMarketContext", "summary": "Get DEX market context for a Solana token mint", "parameters": [{ "$ref": "#/components/parameters/Mint" }], "responses": { "200": { "description": "DEX pair and market observations" }, "400": { "description": "Invalid mint address" }, "502": { "description": "Market data provider error" }, "503": { "description": "Market data provider unavailable" } } }
+      "get": {
+        "operationId": "getMarketContext",
+        "summary": "Get DEX market context for a Solana token mint",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Mint"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DEX pair and market observations"
+          },
+          "400": {
+            "description": "Invalid mint address"
+          },
+          "502": {
+            "description": "Market data provider error"
+          },
+          "503": {
+            "description": "Market data provider unavailable"
+          }
+        }
+      }
     },
     "/api/wallet/analyze": {
-      "get": { "operationId": "analyzePublicSolanaWallet", "summary": "Read-only analysis of a public Solana wallet address", "parameters": [{ "$ref": "#/components/parameters/Address" }], "responses": { "200": { "description": "Observed wallet balances, tokens, activity, and source availability" }, "400": { "description": "Invalid Solana public address" }, "502": { "description": "Upstream data provider error" }, "503": { "description": "Solana data temporarily unavailable" } } }
+      "get": {
+        "operationId": "analyzePublicSolanaWallet",
+        "summary": "Read-only analysis of a public Solana wallet address",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Observed wallet balances, tokens, activity, and source availability"
+          },
+          "400": {
+            "description": "Invalid Solana public address"
+          },
+          "502": {
+            "description": "Upstream data provider error"
+          },
+          "503": {
+            "description": "Solana data temporarily unavailable"
+          }
+        }
+      }
     },
     "/api/pay/v1/payment-intents/{id}": {
       "get": {
         "operationId": "getPayPaymentIntent",
         "summary": "Read the authoritative public checkout snapshot for a Payment Intent",
         "description": "Returns only the server-owned checkout fields required to render a Payment Intent. The response does not assert payment success merely because a transaction was submitted; payment status remains authoritative on the server.",
-        "parameters": [{ "$ref": "#/components/parameters/PaymentIntentId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PaymentIntentId"
+          }
+        ],
         "responses": {
-          "200": { "description": "Authoritative Payment Intent checkout snapshot", "headers": { "X-Request-Id": { "$ref": "#/components/headers/XRequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentIntentResponse" } } } },
-          "400": { "description": "Invalid Payment Intent ID" },
-          "404": { "description": "Payment Intent not found or merchant unavailable" },
-          "502": { "description": "Payment service read failed" },
-          "503": { "description": "Payment service is misconfigured" }
+          "200": {
+            "description": "Authoritative Payment Intent checkout snapshot",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid Payment Intent ID"
+          },
+          "404": {
+            "description": "Payment Intent not found or merchant unavailable"
+          },
+          "502": {
+            "description": "Payment service read failed"
+          },
+          "503": {
+            "description": "Payment service is misconfigured"
+          }
+        }
+      }
+    },
+    "/api/pay/v1/invoices": {
+      "get": {
+        "operationId": "listPayInvoices",
+        "summary": "Read merchant invoices",
+        "description": "Authenticated read-only merchant invoice records. Access is enforced server-side through the merchant identity/RLS boundary. Invoice mutation is not part of this contract.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayMerchantIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/PayInvoiceIdQuery"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "open",
+                "paid",
+                "partially_paid",
+                "overdue",
+                "void",
+                "refunded"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PayLimitQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative merchant invoice records"
+          },
+          "400": {
+            "description": "Invalid merchant, invoice identifier, status, limit, or search"
+          },
+          "401": {
+            "description": "Authenticated Solmint session required"
+          },
+          "403": {
+            "description": "Merchant access denied"
+          },
+          "404": {
+            "description": "Requested invoice not found"
+          },
+          "503": {
+            "description": "Invoice service temporarily unavailable"
+          }
+        }
+      }
+    },
+    "/api/pay/v1/payment-links": {
+      "get": {
+        "operationId": "listPayPaymentLinks",
+        "summary": "Read merchant payment links",
+        "description": "Authenticated read-only merchant payment link records. Access is enforced server-side through the merchant identity/RLS boundary. Link mutation and public checkout URL creation are not part of this contract.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayMerchantIdQuery"
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PayLimitQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative merchant payment link records"
+          },
+          "400": {
+            "description": "Invalid merchant/link identifier or limit"
+          },
+          "401": {
+            "description": "Authenticated Solmint session required"
+          },
+          "403": {
+            "description": "Merchant access denied"
+          },
+          "404": {
+            "description": "Requested payment link not found"
+          },
+          "503": {
+            "description": "Payment link service temporarily unavailable"
+          }
+        }
+      }
+    },
+    "/api/pay/v1/referrals": {
+      "get": {
+        "operationId": "listPayReferralRecords",
+        "summary": "Read authorized affiliate and referral records",
+        "description": "Authenticated read-only referral records. The response is authorization-scoped by existing affiliate/merchant RLS policies. Commission and payout calculations remain authoritative in the backend.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayLimitQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized affiliate, referral, and commission records"
+          },
+          "400": {
+            "description": "Invalid limit"
+          },
+          "401": {
+            "description": "Authenticated Solmint session required"
+          },
+          "403": {
+            "description": "Referral access denied"
+          },
+          "503": {
+            "description": "Referral service temporarily unavailable"
+          }
         }
       }
     }
   },
   "components": {
     "parameters": {
-      "Mint": { "name": "mint", "in": "query", "required": true, "description": "A Solana token Mint address (Base58, 32-44 characters).", "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" } },
-      "Address": { "name": "address", "in": "query", "required": true, "description": "A public Solana wallet address. Never send seed phrases or private keys.", "schema": { "type": "string", "minLength": 32, "maxLength": 44, "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" } },
-      "PaymentIntentId": { "name": "id", "in": "path", "required": true, "description": "Payment Intent UUID.", "schema": { "type": "string", "format": "uuid" } }
+      "Mint": {
+        "name": "mint",
+        "in": "query",
+        "required": true,
+        "description": "A Solana token Mint address (Base58, 32-44 characters).",
+        "schema": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 44,
+          "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+        }
+      },
+      "Address": {
+        "name": "address",
+        "in": "query",
+        "required": true,
+        "description": "A public Solana wallet address. Never send seed phrases or private keys.",
+        "schema": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 44,
+          "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+        }
+      },
+      "PaymentIntentId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Payment Intent UUID.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "PayMerchantIdQuery": {
+        "name": "merchantId",
+        "in": "query",
+        "required": true,
+        "description": "Merchant UUID. The backend/RLS boundary determines whether the authenticated user may access it.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "PayInvoiceIdQuery": {
+        "name": "invoiceId",
+        "in": "query",
+        "required": false,
+        "description": "Invoice UUID. When supplied, the endpoint returns that invoice detail.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "PayLimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum number of records.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50
+        }
+      }
     },
     "headers": {
-      "XRequestId": { "description": "Optional upstream request correlation identifier when supplied by the platform.", "schema": { "type": "string", "maxLength": 128 } }
+      "XRequestId": {
+        "description": "Optional upstream request correlation identifier when supplied by the platform.",
+        "schema": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
     },
     "schemas": {
-      "ArticleListResponse": { "type": "object", "required": ["success", "articles"], "properties": { "success": { "type": "boolean" }, "articles": { "type": "array", "items": { "$ref": "#/components/schemas/Article" } } } },
-      "Article": { "type": "object", "required": ["id", "title", "slug", "category", "summary"], "properties": { "id": { "type": "string" }, "title": { "type": "string" }, "slug": { "type": "string" }, "category": { "type": "string" }, "tags": { "type": "array", "items": { "type": "string" } }, "summary": { "type": "string" }, "publishedAt": { "type": "string", "format": "date-time" } } },
+      "ArticleListResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "articles"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "articles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Article"
+            }
+          }
+        }
+      },
+      "Article": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "category",
+          "summary"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "PaymentIntentResponse": {
         "type": "object",
-        "required": ["success", "apiVersion", "data"],
+        "required": [
+          "success",
+          "apiVersion",
+          "data"
+        ],
         "properties": {
-          "success": { "const": true },
-          "apiVersion": { "const": "v1" },
+          "success": {
+            "const": true
+          },
+          "apiVersion": {
+            "const": "v1"
+          },
           "data": {
             "type": "object",
-            "required": ["id", "merchant", "amountAtomic", "asset", "tokenMint", "tokenProgram", "tokenDecimals", "recipient", "reference", "feeBps", "feePayer", "feeAtomic", "gasSponsored", "status", "expiresAt", "customerTotalAtomic", "network", "verificationCommitment"],
+            "required": [
+              "id",
+              "merchant",
+              "amountAtomic",
+              "asset",
+              "tokenMint",
+              "tokenProgram",
+              "tokenDecimals",
+              "recipient",
+              "reference",
+              "feeBps",
+              "feePayer",
+              "feeAtomic",
+              "gasSponsored",
+              "status",
+              "expiresAt",
+              "customerTotalAtomic",
+              "network",
+              "verificationCommitment"
+            ],
             "properties": {
-              "id": { "type": "string", "format": "uuid" },
-              "merchant": { "type": "object", "required": ["id", "businessName"], "properties": { "id": { "type": "string", "format": "uuid" }, "businessName": { "type": "string", "minLength": 1 } } },
-              "amountAtomic": { "type": "string", "pattern": "^[0-9]+$" },
-              "asset": { "type": "string", "enum": ["SOL", "USDC", "USDT"] },
-              "tokenMint": { "type": ["string", "null"] },
-              "tokenProgram": { "type": ["string", "null"] },
-              "tokenDecimals": { "type": ["integer", "null"], "minimum": 0, "maximum": 255 },
-              "recipient": { "type": "string", "minLength": 32, "maxLength": 44 },
-              "reference": { "type": "string", "minLength": 32, "maxLength": 44 },
-              "feeBps": { "type": "integer", "minimum": 0, "maximum": 10000 },
-              "feePayer": { "type": "string", "enum": ["merchant", "customer"] },
-              "feeAtomic": { "type": "string", "pattern": "^[0-9]+$" },
-              "gasSponsored": { "type": "boolean" },
-              "status": { "type": "string", "enum": ["created", "pending", "detected", "verifying", "confirmed", "completed", "expired", "underpaid", "overpaid", "wrong_token", "wrong_recipient", "duplicate", "ambiguous", "failed", "refunded"] },
-              "expiresAt": { "type": "string", "format": "date-time" },
-              "customerTotalAtomic": { "type": "string", "pattern": "^[0-9]+$" },
-              "network": { "type": "string", "const": "solana" },
-              "verificationCommitment": { "type": "string", "enum": ["confirmed", "finalized"] }
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "merchant": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "businessName"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "businessName": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "amountAtomic": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "asset": {
+                "type": "string",
+                "enum": [
+                  "SOL",
+                  "USDC",
+                  "USDT"
+                ]
+              },
+              "tokenMint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokenProgram": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokenDecimals": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 255
+              },
+              "recipient": {
+                "type": "string",
+                "minLength": 32,
+                "maxLength": 44
+              },
+              "reference": {
+                "type": "string",
+                "minLength": 32,
+                "maxLength": 44
+              },
+              "feeBps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "feePayer": {
+                "type": "string",
+                "enum": [
+                  "merchant",
+                  "customer"
+                ]
+              },
+              "feeAtomic": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "gasSponsored": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "created",
+                  "pending",
+                  "detected",
+                  "verifying",
+                  "confirmed",
+                  "completed",
+                  "expired",
+                  "underpaid",
+                  "overpaid",
+                  "wrong_token",
+                  "wrong_recipient",
+                  "duplicate",
+                  "ambiguous",
+                  "failed",
+                  "refunded"
+                ]
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "customerTotalAtomic": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "network": {
+                "type": "string",
+                "const": "solana"
+              },
+              "verificationCommitment": {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "finalized"
+                ]
+              }
             }
+          }
+        }
+      },
+      "PayInvoice": {
+        "type": "object",
+        "required": [
+          "id",
+          "merchant_id",
+          "invoice_number",
+          "title",
+          "amount_atomic",
+          "asset",
+          "fee_payer",
+          "checkout_locale",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoice_number": {
+            "type": "string"
+          },
+          "customer_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount_atomic": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "asset": {
+            "type": "string",
+            "enum": [
+              "SOL",
+              "USDC",
+              "USDT"
+            ]
+          },
+          "fee_payer": {
+            "type": "string",
+            "enum": [
+              "merchant",
+              "customer"
+            ]
+          },
+          "checkout_locale": {
+            "type": "string",
+            "enum": [
+              "fa-IR",
+              "en-US",
+              "ar",
+              "ru",
+              "auto"
+            ]
+          },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "open",
+              "paid",
+              "partially_paid",
+              "overdue",
+              "void",
+              "refunded"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PayPaymentLink": {
+        "type": "object",
+        "required": [
+          "id",
+          "merchant_id",
+          "slug",
+          "title",
+          "checkout_locale",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "fixed_amount_atomic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+$"
+          },
+          "asset": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "SOL",
+              "USDC",
+              "USDT",
+              null
+            ]
+          },
+          "fee_payer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "merchant",
+              "customer",
+              null
+            ]
+          },
+          "checkout_locale": {
+            "type": "string",
+            "enum": [
+              "fa-IR",
+              "en-US",
+              "ar",
+              "ru",
+              "auto"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PayAffiliate": {
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "referral_code",
+          "commission_rate_bps",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "referral_code": {
+            "type": "string"
+          },
+          "commission_rate_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "suspended",
+              "closed"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PayReferral": {
+        "type": "object",
+        "required": [
+          "id",
+          "affiliate_id",
+          "merchant_id",
+          "referral_code",
+          "attributed_at",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "affiliate_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referral_code": {
+            "type": "string"
+          },
+          "attributed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PayCommission": {
+        "type": "object",
+        "required": [
+          "id",
+          "referral_id",
+          "payment_id",
+          "gross_gateway_fee_atomic",
+          "commission_bps",
+          "commission_atomic",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referral_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gross_gateway_fee_atomic": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "commission_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "commission_atomic": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approved_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "paid_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       }
