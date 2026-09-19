@@ -13,7 +13,7 @@ export interface PayInvoice {
 }
 
 interface Envelope { success?: boolean; apiVersion?: string; data?: unknown; }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STATUSES = new Set<PayInvoiceStatus>(['draft','open','paid','partially_paid','overdue','void','refunded']);
 const ASSETS = new Set<PayInvoice['asset']>(['SOL','USDC','USDT']);
 const PAYERS = new Set<PayInvoiceFeePayer>(['merchant','customer']);
