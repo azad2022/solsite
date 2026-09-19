@@ -14,6 +14,7 @@ import PayTicketCenter from './components/PayTicketCenter';
 import PayTransactions from './components/PayTransactions';
 import PayInvoices from './components/PayInvoices';
 import PayReferrals from './components/PayReferrals';
+import PaySecurity from './components/PaySecurity';
 import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
 import { webhookCopy } from './components/pay-webhooks-i18n';
@@ -127,6 +128,7 @@ export function PayApp(): React.ReactElement {
   const showInvoices = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showReferrals = currentSection === 'referrals' && sessionState === 'authenticated' && sessionUser !== null;
   const showDashboard = currentSection === 'dashboard' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
+  const showSecurity = currentSection === 'security' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
 
   return (
@@ -203,11 +205,13 @@ export function PayApp(): React.ReactElement {
 
             {showReferrals ? <PayReferrals locale={locale} /> : null}
 
+            {showSecurity ? <PaySecurity locale={locale} merchant={merchant} /> : null}
+
             {showWebhooks ? <PayWebhooks locale={locale} merchantId={merchant.id} /> : null}
 
             {showTickets ? <PayTicketCenter locale={locale} sessionUser={sessionUser!} merchantId={merchant?.id || null} /> : null}
 
-            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showDashboard && !showWebhooks && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showDashboard && !showSecurity && !showWebhooks && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
