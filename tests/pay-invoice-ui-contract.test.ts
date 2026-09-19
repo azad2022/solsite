@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const app = readFileSync('src/pay/PayApp.tsx', 'utf8');
 const ui = readFileSync('src/pay/components/PayInvoices.tsx', 'utf8');
+const copy = readFileSync('src/pay/components/pay-invoices-i18n.ts', 'utf8');
 
 test('PayApp wires the invoice surface', () => {
   assert.match(app, /import PayInvoices from '.\/components\/PayInvoices'/);
@@ -13,6 +14,6 @@ test('PayApp wires the invoice surface', () => {
 
 test('Invoice UI uses the Pay service boundary and stays read-only', () => {
   assert.match(ui, /payInvoiceService\.list/);
-  assert.match(ui, /Invoice creation or mutation remains disabled until an official Backend contract is released/);
+  assert.match(copy, /Invoice creation or mutation remains disabled until an official Backend contract is released/);
   assert.doesNotMatch(ui, /fetch\(/);
 });
