@@ -13,6 +13,7 @@ import PayApiKeyManagement from './components/PayApiKeyManagement';
 import PayTicketCenter from './components/PayTicketCenter';
 import PayTransactions from './components/PayTransactions';
 import PayInvoices from './components/PayInvoices';
+import PayPaymentLinks from './components/PayPaymentLinks';
 import PayReferrals from './components/PayReferrals';
 import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
@@ -199,7 +200,7 @@ export function PayApp(): React.ReactElement {
 
             {showTransactions ? <PayTransactions locale={locale} merchantId={merchant.id} /> : null}
 
-            {showInvoices ? <PayInvoices locale={locale} merchantId={merchant.id} /> : null}
+            {showInvoices ? <><PayInvoices locale={locale} merchantId={merchant.id} /><PayPaymentLinks locale={locale} merchantId={merchant.id} /></> : null}
 
             {showReferrals ? <PayReferrals locale={locale} /> : null}
 
