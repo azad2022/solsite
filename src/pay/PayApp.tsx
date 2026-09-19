@@ -126,7 +126,6 @@ export function PayApp(): React.ReactElement {
   const showTickets = currentSection === 'tickets' && sessionState === 'authenticated' && sessionUser !== null;
   const showTransactions = currentSection === 'transactions' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showInvoices = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
-  const showPaymentLinks = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showReferrals = currentSection === 'referrals' && sessionState === 'authenticated' && sessionUser !== null;
   const showDashboard = currentSection === 'dashboard' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
