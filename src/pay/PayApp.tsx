@@ -16,6 +16,7 @@ import PayInvoices from './components/PayInvoices';
 import PayPaymentLinks from './components/PayPaymentLinks';
 import PayReferrals from './components/PayReferrals';
 import PaySecurity from './components/PaySecurity';
+import PayUnavailableFeature from './components/PayUnavailableFeature';
 import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
 import { webhookCopy } from './components/pay-webhooks-i18n';
@@ -231,7 +232,7 @@ export function PayApp(): React.ReactElement {
                 <div className="pay-panel pay-panel-lg"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'dashboard')}</span><h2>{translate(locale, 'overviewTitle')}</h2></div><span className="pay-panel-chip"><ShieldCheck size={15} /> {translate(locale, 'serverTruthValue')}</span></div><div className="pay-empty-surface"><div className="pay-empty-icon"><LayoutDashboard size={21} /></div><div><strong>{translate(locale, 'noData')}</strong><p>{translate(locale, 'readOnlyFoundation')}</p></div></div></div>
                 <div className="pay-panel"><div className="pay-panel-heading"><div><span className="pay-panel-kicker">{translate(locale, 'secureBoundary')}</span><h2>{translate(locale, 'financialState')}</h2></div><ArrowUpRight size={17} /></div><div className="pay-security-note"><div className="pay-security-note-icon"><LockKeyhole size={18} /></div><p>{translate(locale, 'apiPending')}</p></div></div>
               </section>
-            </> : <section className="pay-panel pay-section-empty"><div className="pay-section-empty-icon">{React.createElement(SECTION_ICONS[currentSection], { size: 22 })}</div><div><h2>{paySectionLabel(locale, currentSection)}</h2><p>{translate(locale, 'sectionDescription')}</p><span>{translate(locale, 'readOnlyFoundation')}</span></div></section>}
+            </> : <PayUnavailableFeature locale={locale} section={currentSection} />
             </>}
           </main>
           <footer className="pay-footer"><span>{translate(locale, 'footer')}</span><span>{translate(locale, 'secureBoundary')}</span></footer>
