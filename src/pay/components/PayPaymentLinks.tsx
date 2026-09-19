@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Clock3, Copy, Link2, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import { Check, Clock3, Link2, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
 import { PayHttpError } from '../http';
 import type { PayLocale } from '../types';
 import { payPaymentLinkService, type PayPaymentLink } from '../services/paymentLinkService';
@@ -25,7 +25,6 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const [selected,setSelected]=useState<PayPaymentLink|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<'unauthorized'|'forbidden'|'error'|null>(null);
-  const [copied,setCopied]=useState(false);
 
   const load=useCallback(async()=>{
     if(!merchantId){setRows([]);setLoading(false);return;}
@@ -36,11 +35,6 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   },[merchantId]);
 
   useEffect(()=>{void load();},[load]);
-
-  async function copyLink(slug:string){
-    const url=window.location.origin + '/pay/link/' + encodeURIComponent(slug);
-    try{await navigator.clipboard.writeText(url);setCopied(true);window.setTimeout(()=>setCopied(false),1200);}catch{setCopied(false);}
-  }
 
   return <section className="pay-payment-links" aria-label={paymentLinkT(locale,'title')}>
     <div className="pay-payment-links-heading">
@@ -60,7 +54,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
       <td>{row.fixed_amount_atomic === null ? '—' : row.fixed_amount_atomic} {row.asset || ''}</td>
       <td><span className={'pay-payment-link-status '+(row.is_active?'active':'inactive')}>{row.is_active?<Check size={13}/>:<X size={13}/>} {row.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}</span></td>
       <td>{formatDate(row.expires_at,locale)}</td>
-      <td className="pay-payment-links-actions"><button type="button" className="pay-icon-button" onClick={()=>setSelected(row)} aria-label={paymentLinkT(locale,'details')} title={paymentLinkT(locale,'details')}><Link2 size={16}/></button><button type="button" className="pay-icon-button" onClick={()=>void copyLink(row.slug)} aria-label={copied?paymentLinkT(locale,'copied'):paymentLinkT(locale,'copy')} title={copied?paymentLinkT(locale,'copied'):paymentLinkT(locale,'copy')}><Copy size={16}/></button></td>
+      <td className="pay-payment-links-actions"><button type="button" className="pay-icon-button" onClick={()=>setSelected(row)} aria-label={paymentLinkT(locale,'details')} title={paymentLinkT(locale,'details')}><Link2 size={16}/></button></td>
     </tr>)}</tbody></table></div>}
 
     {selected && <div className="pay-payment-link-detail" role="dialog" aria-modal="true" aria-label={paymentLinkT(locale,'details')}>
