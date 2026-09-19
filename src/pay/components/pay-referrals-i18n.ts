@@ -9,7 +9,7 @@ const messages = {
     affiliates:'همکاری‌ها', referrals:'ارجاع‌ها', commissions:'کمیسیون‌ها', referralCode:'کد معرفی', rate:'نرخ ثبت‌شده',
     status:'وضعیت', merchant:'پذیرنده', attributedAt:'زمان ثبت', active:'فعال', inactive:'غیرفعال',
     commissionAmount:'مبلغ کمیسیون اتمیک', payment:'Payment ID', commissionStatus:'وضعیت کمیسیون',
-    approvedAt:'تأیید شده', paidAt:'پرداخت شده', gatewayFee:'کارمزد Gateway اتمیک',
+    approvedAt:'تأیید شده', paidAt:'پرداخت شده', gatewayFee:'کارمزد Gateway اتمیک', createdAt:'ایجاد شده',
     readonly:'مقادیر کمیسیون و وضعیت‌ها مستقیماً از Backend خوانده می‌شوند؛ Frontend هیچ commission یا payout را محاسبه نمی‌کند.', stale:'آخرین داده معتبر نمایش داده می‌شود؛ به‌روزرسانی جدید ناموفق بود.',
   },
   'en-US': {
@@ -19,7 +19,7 @@ const messages = {
     affiliates:'Affiliates', referrals:'Referrals', commissions:'Commissions', referralCode:'Referral code', rate:'Recorded rate',
     status:'Status', merchant:'Merchant', attributedAt:'Attributed', active:'Active', inactive:'Inactive',
     commissionAmount:'Atomic commission', payment:'Payment ID', commissionStatus:'Commission status',
-    approvedAt:'Approved', paidAt:'Paid', gatewayFee:'Atomic gateway fee',
+    approvedAt:'Approved', paidAt:'Paid', gatewayFee:'Atomic gateway fee', createdAt:'Created',
     readonly:'Commission amounts and statuses are read directly from the Backend; the Frontend never calculates commission or payout truth.', stale:'The latest valid snapshot is retained; the newest refresh failed.',
   },
   ar: {
@@ -29,7 +29,7 @@ const messages = {
     affiliates:'الشركاء', referrals:'الإحالات', commissions:'العمولات', referralCode:'رمز الإحالة', rate:'المعدل المسجل',
     status:'الحالة', merchant:'التاجر', attributedAt:'وقت الإسناد', active:'نشط', inactive:'غير نشط',
     commissionAmount:'العمولة الذرية', payment:'معرّف الدفع', commissionStatus:'حالة العمولة',
-    approvedAt:'تمت الموافقة', paidAt:'تم الدفع', gatewayFee:'رسوم البوابة الذرية',
+    approvedAt:'تمت الموافقة', paidAt:'تم الدفع', gatewayFee:'رسوم البوابة الذرية', createdAt:'تم الإنشاء',
     readonly:'تُقرأ مبالغ العمولات وحالاتها مباشرة من Backend؛ ولا تحسب الواجهة أي عمولة أو قيمة صرف.', stale:'يتم الاحتفاظ بآخر لقطة موثوقة لأن آخر تحديث فشل.'
   },
   ru: {
@@ -39,7 +39,7 @@ const messages = {
     affiliates:'Партнёры', referrals:'Рефералы', commissions:'Комиссии', referralCode:'Реферальный код', rate:'Зафиксированная ставка',
     status:'Статус', merchant:'Мерчант', attributedAt:'Дата привязки', active:'Активен', inactive:'Неактивен',
     commissionAmount:'Комиссия в atomic units', payment:'ID платежа', commissionStatus:'Статус комиссии',
-    approvedAt:'Одобрено', paidAt:'Оплачено', gatewayFee:'Комиссия Gateway в atomic units',
+    approvedAt:'Одобрено', paidAt:'Оплачено', gatewayFee:'Комиссия Gateway в atomic units', createdAt:'Создано',
     readonly:'Суммы и статусы комиссий читаются непосредственно из Backend; Frontend не рассчитывает комиссии или выплаты.', stale:'Показан последний достоверный снимок; новое обновление не удалось.'
   },
 } as const;
