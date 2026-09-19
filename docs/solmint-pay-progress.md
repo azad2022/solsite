@@ -468,3 +468,37 @@ Next gate:
 3. If that run is green, recheck the full required PR evidence and merge `#122`.
 4. Immediately after merge, run the production deployment/runtime smoke and continue the next contract-backed Pay surface. Do not mark production-ready until the separate branch-protection and rollback/recovery release controls are also closed.
 
+
+
+## 2026-09-19 — Wallet-status contract merged and release runbook committed
+
+Status: **COMPLETED / NEXT RELEASE GATES OPEN**
+
+Authoritative merge evidence:
+
+- PR #122 `feat(pay): expose authoritative merchant receiving wallet` was squash-merged.
+- Merge commit: `85f88aaf3b44293f07a44f3031b4f9b1396f9e9c`.
+- Issue #121 was closed as **completed** after the merged contract restored persistent authoritative receiving-wallet state in Merchant UI.
+- The dedicated Devnet E2E rerun `35369298897` completed **successfully** after the existing dedicated funder was replenished.
+- The previous Devnet blocker (`0.000680 SOL` vs `0.510100 SOL` required) is therefore closed. Do not repeat funder/RPC investigation unless a new regression appears.
+- PR #123 `docs(release): add Cloudflare Pages rollback and recovery runbook` was squash-merged.
+- Merge commit for the rollback runbook: `de80ad1e2a60ad0edcc52ec47e15adbee9b31929`.
+
+Post-merge release-control state:
+
+- The receiving-wallet contract is now part of `main`.
+- The production runbook for Cloudflare Pages rollback/recovery is now part of `main`.
+- The runbook is documentation/evidence preparation only; it does **not** count as a completed controlled rollback validation.
+- GitHub main branch protection / required-status enforcement remains an open release gate (Issue #117).
+- Production rollback/recovery validation remains an open release gate (Issue #120).
+- Pre-existing site-wide security debt remains tracked separately in Issue #38.
+
+Current next engineering sequence:
+
+1. Revalidate the merged `main` against the production deployment and post-merge Pay smoke evidence.
+2. Close any deployment/runtime regression before starting a new surface.
+3. Continue the Backend-first contract pipeline for Invoices / Payment Links and then Referrals/Affiliates where the live schema provides the required source of truth.
+4. Only enable frontend surfaces after server-mediated API contract + tests exist.
+5. Keep Customers/Reports/Developer/Security/Notifications/Refunds as UNKNOWN/BLOCKED where no released API contract exists; never create placeholder financial data.
+
+Release rule remains unchanged: SolMint Pay must not be called production-ready until all applicable security, database/RLS, authentication/authorization, verification/reconciliation, deployment, rollback, branch-protection, and runtime evidence gates are green.
