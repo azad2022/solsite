@@ -50,6 +50,21 @@ const catalog = {
       'service-doc': [link(`${DOCS}#pay-payment-intent`, 'text/html')],
       status: [link(HEALTH, 'application/json')],
     },
+    {
+      anchor: `${SITE}/api/pay/v1/invoices`,
+      'service-desc': [link(OPENAPI, 'application/vnd.oai.openapi+json;version=3.1')],
+      status: [link(HEALTH, 'application/json')],
+    },
+    {
+      anchor: `${SITE}/api/pay/v1/payment-links`,
+      'service-desc': [link(OPENAPI, 'application/vnd.oai.openapi+json;version=3.1')],
+      status: [link(HEALTH, 'application/json')],
+    },
+    {
+      anchor: `${SITE}/api/pay/v1/referrals`,
+      'service-desc': [link(OPENAPI, 'application/vnd.oai.openapi+json;version=3.1')],
+      status: [link(HEALTH, 'application/json')],
+    },
   ],
 };
 
