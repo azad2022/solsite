@@ -537,3 +537,59 @@ Release controls remain separate:
 - Branch protection evidence: Issue #117.
 - Controlled rollback/recovery evidence: Issue #120.
 - Site-wide pre-existing security debt: Issue #38.
+
+
+## 2026-09-19 — Payment Links read binding merged
+
+Status: **COMPLETED / READ CONTRACT**
+
+- PR #126 `feat(pay): add authoritative payment links read surface` was squash-merged.
+- Merge commit: `4834487e9274ba64f0ea6132fd4c08a3c9607b66`.
+- Validation before merge: CI `35440046597`, Production Build `35440046559`, Database Security `35440046640`, Production API Smoke `35440046570`, Mainnet Read-only `35440046578`, Devnet E2E `35440046550` — all **PASS**.
+- The Payment Links UI reads the real `pay_payment_links` table through an authenticated server-mediated endpoint.
+- No public checkout URL, create/edit/delete action, or financial rule was invented because the live backend currently exposes no released mutation contract for Payment Links.
+
+## 2026-09-19 — Security overview merged
+
+Status: **COMPLETED / OBSERVABILITY-STYLE SECURITY UX**
+
+- PR #128 `feat(pay): add contract-backed security overview` was squash-merged.
+- Merge commit: `a2926881bddde7f08da706c97758b4288841a467`.
+- Validation before merge: CI `35440160243`, Production Build `35440160229`, Database Security `35440160232`, Production API Smoke `35440160228`, Mainnet Read-only `35440160248` — all **PASS**.
+- Security UI is intentionally descriptive rather than evaluative: it surfaces the current receiving-wallet verification snapshot, API-key status counts, and webhook signing/active state without producing a security score or guarantee.
+- No new Security API endpoint was created.
+
+Current frontend/backend binding coverage now includes:
+
+- Merchant onboarding / Wallet Ownership verification.
+- Dashboard activity.
+- Transactions and transaction detail.
+- Checkout / Payment Intent read + verification.
+- API key lifecycle.
+- Webhook read/delivery history.
+- Support Tickets.
+- Invoices — read-only.
+- Payment Links — read-only.
+- Referrals/Affiliates/Commissions — read-only.
+- Security overview — read-only configuration state.
+
+Still contract-blocked / not enabled:
+
+- Customer-specific API/surface.
+- Reports/Analytics API.
+- Developer Portal documentation/API contract surface beyond existing API-key/webhook controls.
+- Notifications.
+- Refund mutation UI.
+- Invoice creation/mutation.
+- Payment Link creation/mutation.
+- Referral enrollment/mutation and payout/withdrawal operations.
+
+These remain disabled or represented as unavailable states rather than mock functionality.
+
+Release controls remain:
+
+- Issue #117 — enforce branch protection / required-status checks on `main`.
+- Issue #120 — perform and document a controlled Cloudflare Pages rollback/recovery validation.
+- Issue #38 — separate site-wide pre-existing security debt, not closed by Pay-specific hardening.
+
+The external Cloudflare Workers Builds integration remains separate from the Pages deployment path.
