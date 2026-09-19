@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, KeyRound, Loader2, RefreshCw, ShieldCheck, Webhook, XCircle } from 'lucide-react';
 import { PayHttpError } from '../http';
 import { listMerchantApiKeys, type PayApiKey } from '../services/apiKeyService';
@@ -25,6 +25,7 @@ export default function PaySecurity({ locale, merchant }: Props): React.ReactEle
   const [loading, setLoading] = useState(true);
   const [stale, setStale] = useState(false);
   const [error, setError] = useState<SecurityError | null>(null);
+  const hasSnapshotRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,13 +39,14 @@ export default function PaySecurity({ locale, merchant }: Props): React.ReactEle
       setWebhooks(nextWebhooks);
       setWallet(merchant.receivingWallet ?? null);
       setStale(false);
+      hasSnapshotRef.current = true;
     } catch (cause) {
       setError(accessError(cause));
-      setStale(keys.length > 0 || webhooks.length > 0 || wallet !== null);
+      setStale(hasSnapshotRef.current);
     } finally {
       setLoading(false);
     }
-  }, [merchant.id, merchant.receivingWallet, keys.length, webhooks.length, wallet]);
+  }, [merchant.id, merchant.receivingWallet]);
 
   useEffect(() => { void load(); }, [load]);
 
