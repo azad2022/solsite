@@ -7,6 +7,16 @@ interface PayEnv extends PayIdentityEnv {
   PAY_APP_ORIGIN?: string;
 }
 
+interface MerchantReceivingWalletRow {
+  id: string;
+  address: string;
+  network: string;
+  wallet_role: string;
+  is_active: boolean;
+  verification_status: string;
+  verified_at: string | null;
+}
+
 interface MerchantRow {
   id: string;
   owner_user_id: string;
@@ -15,6 +25,7 @@ interface MerchantRow {
   status: string;
   created_at: string;
   updated_at: string;
+  receiving_wallet?: MerchantReceivingWalletRow | null;
 }
 
 function originAllowed(request: Request, env: PayEnv): boolean {
@@ -30,10 +41,26 @@ function validSlug(value: string): boolean {
   return /^[a-z0-9][a-z0-9-]{2,59}$/.test(value);
 }
 
+async function loadVerifiedReceivingWallet(
+  env: PayEnv,
+  merchantId: string,
+  requestAsIdentity?: { accessToken: string },
+): Promise<MerchantReceivingWalletRow | null> {
+  const path = `/rest/v1/pay_merchant_wallets?select=id,address,network,wallet_role,is_active,verification_status,verified_at&merchant_id=eq.${encodeURIComponent(merchantId)}&wallet_role=eq.receiving&is_active=eq.true&verification_status=eq.verified&limit=1`;
+  const response = requestAsIdentity
+    ? await supabaseRequestAsIdentity(env, requestAsIdentity.accessToken, path)
+    : await supabaseRequest(env, path, { headers: { Accept: 'application/json' } });
+  const rows = await response.json() as MerchantReceivingWalletRow[];
+  return rows[0] || null;
+}
+
 async function loadMerchant(env: PayEnv, userId: string): Promise<MerchantRow | null> {
   const response = await supabaseRequest(env, `/rest/v1/pay_merchants?select=id,owner_user_id,business_name,slug,status,created_at,updated_at&owner_user_id=eq.${encodeURIComponent(userId)}&limit=1`, { headers: { Accept: 'application/json' } });
   const rows = await response.json() as MerchantRow[];
-  return rows[0] || null;
+  const merchant = rows[0];
+  if (!merchant) return null;
+  merchant.receiving_wallet = await loadVerifiedReceivingWallet(env, merchant.id);
+  return merchant;
 }
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: PayEnv }) => {
@@ -86,7 +113,16 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
       `/rest/v1/pay_merchants?select=id,owner_user_id,business_name,slug,status,created_at,updated_at&owner_user_id=eq.${encodeURIComponent(identity.user.applicationUserId)}&limit=1`,
     );
     const rows = await response.json() as MerchantRow[];
-    return payJson({ merchant: rows[0] || null }, 200, id);
+    const merchant = rows[0] || null;
+    if (!merchant) return payJson({ merchant: null }, 200, id);
+
+    const receivingWallet = await loadVerifiedReceivingWallet(env, merchant.id, { accessToken: identity.accessToken });
+    return payJson({
+      merchant: {
+        ...merchant,
+        receiving_wallet: receivingWallet,
+      },
+    }, 200, id);
   } catch (error) {
     if (error instanceof PayRuntimeError) {
       return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, id);
