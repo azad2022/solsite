@@ -593,3 +593,33 @@ Release controls remain:
 - Issue #38 — separate site-wide pre-existing security debt, not closed by Pay-specific hardening.
 
 The external Cloudflare Workers Builds integration remains separate from the Pages deployment path.
+
+
+## 2026-09-19 — Production auth smoke coverage for new read contracts
+
+Status: **COMPLETED / PRODUCTION AUTH READ-CONTRACT GATE**
+
+Authoritative merge evidence:
+
+- PR #133 `test(pay): add production auth checks for new read contracts` was squash-merged.
+- Merge commit: `dbb6862af3d6e67b7b62e51bdc2649cdcb2ada84`.
+- Production API Smoke run `35440600192`: **PASS**.
+- CI run `35440600216`: **PASS**.
+- Production Build run `35440600314`: **PASS**.
+- The added checks are non-mutating and verify that unauthenticated requests to the Invoice, Payment Link, and Referral read endpoints fail closed with the real `401 UNAUTHORIZED` contract.
+- No production fixture mutation, synthetic financial state, or authentication bypass was introduced.
+
+Conclusion:
+
+The newly released read contracts now have explicit production unauthenticated-fail-closed regression coverage on `main`. This gate is completed and should not be repeated unless a regression appears.
+
+Current active release blockers remain:
+
+- Issue #117 — GitHub `main` branch protection / required-status enforcement evidence.
+- Issue #120 — controlled Cloudflare Pages rollback/recovery validation evidence.
+- Issue #38 — separate pre-existing site-wide security debt.
+
+Next engineering focus:
+
+- Continue only with backend-contract-backed Pay capabilities or release-control closure.
+- Do not fabricate Customers, Reports, Notifications, Refund mutation, Invoice/Payment-Link mutations, or Referral enrollment/payout operations without released contracts.
