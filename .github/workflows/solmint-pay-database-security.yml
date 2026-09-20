@@ -71,6 +71,15 @@ jobs:
           PGDATABASE: postgres
         run: createdb pay_api_key_security
 
+      - name: Run Pay report revenue-ledger security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: solmint_pay_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_report_revenue_ledger_security.sql
+
       - name: Run Pay API-key lifecycle security checks
         env:
           PGHOST: 127.0.0.1
