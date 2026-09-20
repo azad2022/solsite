@@ -101,6 +101,19 @@ grant select on public.pay_revenue_ledger to authenticated;
 \i :report_migration
 \i :rls_migration
 
+DO $
+begin
+  if (select prosecdef from pg_proc where oid='public.pay_read_report(uuid,timestamptz,timestamptz)'::regprocedure) then
+    raise exception 'report function must remain SECURITY INVOKER';
+  end if;
+  if has_function_privilege('anon','public.pay_read_report(uuid,timestamptz,timestamptz)','EXECUTE') then
+    raise exception 'anon must not execute report function';
+  end if;
+  if not has_function_privilege('authenticated','public.pay_read_report(uuid,timestamptz,timestamptz)','EXECUTE') then
+    raise exception 'authenticated must execute report function';
+  end if;
+end $;
+
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
