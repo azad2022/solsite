@@ -9,8 +9,8 @@ const openapi = JSON.parse(readFileSync('public/openapi.json','utf8')) as {
 const catalog = readFileSync('functions/.well-known/api-catalog.ts','utf8');
 
 test('Pay read contracts are present in OpenAPI',()=>{
-  assert.equal(openapi.info?.version,'1.2.0');
-  for(const path of ['/api/pay/v1/invoices','/api/pay/v1/payment-links','/api/pay/v1/referrals']) {
+  assert.equal(openapi.info?.version,'1.3.0');
+  for(const path of ['/api/pay/v1/invoices','/api/pay/v1/payment-links','/api/pay/v1/referrals','/api/pay/v1/customers']) {
     assert.ok(openapi.paths?.[path], path+' missing from OpenAPI');
   }
 });

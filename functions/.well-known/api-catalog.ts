@@ -65,6 +65,11 @@ const catalog = {
       'service-desc': [link(OPENAPI, 'application/vnd.oai.openapi+json;version=3.1')],
       status: [link(HEALTH, 'application/json')],
     },
+    {
+      anchor: `${SITE}/api/pay/v1/customers`,
+      'service-desc': [link(OPENAPI, 'application/vnd.oai.openapi+json;version=3.1')],
+      status: [link(HEALTH, 'application/json')],
+    },
   ],
 };
 
