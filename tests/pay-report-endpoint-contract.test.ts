@@ -1,0 +1,2 @@
+import assert from'node:assert/strict';import test from'node:test';
+test('Reports endpoint uses authenticated identity and the authoritative database function',async()=>{const code=await import('node:fs').then(({readFileSync})=>readFileSync('functions/api/pay/v1/reports.ts','utf8'));assert.match(code,/resolvePayIdentity/);assert.match(code,/supabaseRequestAsIdentity/);assert.match(code,/pay_read_report/);assert.doesNotMatch(code,/SUPABASE_SERVICE_ROLE_KEY/);});
