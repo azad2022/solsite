@@ -99,7 +99,7 @@ BEGIN
     SELECT 1
     FROM pg_proc
     WHERE oid = 'public.apply_category_default_cover_to_article()'::regprocedure
-      AND proconfig @> ARRAY['search_path=']
+      AND proconfig @> ARRAY['search_path=""']
   ) THEN
     RAISE EXCEPTION 'trigger function search_path was not pinned to empty';
   END IF;
