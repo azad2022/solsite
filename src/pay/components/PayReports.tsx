@@ -26,12 +26,12 @@ function rangeDates(range:RangeKey,fromDate:string,toDate:string){
   return {from:start.toISOString(),to:end.toISOString()};
 }
 function errorKind(error:unknown):'unauthorized'|'forbidden'|'error'{
-  if(error instanceof PayHttpError&&error.status===401)return'unuthorized';
+  if(error instanceof PayHttpError&&error.status===401)return 'unauthorized';
   if(error instanceof PayHttpError&&error.status===403)return'forbidden';
   return'error';
 }
 function formatAtomic(value:string,locale:PayLocale){
-  return Number(value).toLocaleString(locale==='fa-IR'?'fa-IR':locale);
+  return BigInt(value).toLocaleString(locale==='fa-IR'?'fa-IR':locale);
 }
 function formatDate(value:string,locale:PayLocale){
   const d=new Date(value); if(Number.isNaN(d.getTime()))return'—';
