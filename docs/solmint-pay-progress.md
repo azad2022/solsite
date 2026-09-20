@@ -571,14 +571,14 @@ Current frontend/backend binding coverage now includes:
 - Invoices — read-only.
 - Payment Links — read-only.
 - Referrals/Affiliates/Commissions — read-only.
+- Customers — read-only, merchant-scoped customer projection.
+- Reports — read-only, backend/DB-derived report summary.
 - Security overview — read-only configuration state.
 
 Still contract-blocked / not enabled:
 
-- Customer-specific API/surface.
-- Reports/Analytics API.
-- Developer Portal documentation/API contract surface beyond existing API-key/webhook controls.
 - Notifications.
+- Developer Portal documentation/API contract surface beyond existing API-key/webhook controls.
 - Refund mutation UI.
 - Invoice creation/mutation.
 - Payment Link creation/mutation.
@@ -685,6 +685,87 @@ Next engineering focus:
 - Continue with the next Backend-contract-backed Pay capability, prioritizing Reports/Analytics only after its authoritative metric sources and definitions are established.
 - Reconcile any remaining frontend/backend mismatches discovered during that implementation.
 - Record each completed capability in this ledger before moving to the next one.
+
+Release controls remain separate:
+- Issue #117 — main branch protection / required-status enforcement evidence.
+- Issue #120 — controlled Cloudflare Pages rollback/recovery evidence.
+- Issue #38 — pre-existing site-wide security debt.
+
+
+## 2026-09-20 — Reports backend/frontend contract completed
+
+Status: **COMPLETED / PRODUCTION-VERIFIED**
+
+Authoritative implementation:
+
+- PR #137 `feat(pay): add authoritative Reports read surface` was squash-merged.
+- Merge commit: `10e1f0a6a09c9ceb62974f7413b70d85e6c0f250`.
+- Added authenticated read-only `GET /api/pay/v1/reports`.
+- Added PostgreSQL `public.pay_read_report(uuid,timestamptz,timestamptz)` as `SECURITY INVOKER`, with pinned empty `search_path` and authenticated-only execution.
+- Report metrics are derived in Backend/DB from authoritative `pay_payment_intents` and visible `pay_revenue_ledger` records.
+- Financial values remain decimal strings representing atomic units; the Frontend does not calculate payment amounts or revenue.
+- Added period filters (today / 7 / 30 / 90 days / custom), daily trend, status summary, completion-rate basis points, customer count, completed payment amount, fee snapshot, and recognized revenue fields.
+- Added fa-IR/en-US/ar/ru translations and loading, empty, stale, unauthorized, forbidden, retryable states.
+- Fixed a Frontend refresh-loop risk and replaced an unsafe `Number()` financial formatter with integer-safe `BigInt` formatting before merge.
+- Published OpenAPI 1.4.0 and the API Catalog.
+
+Validation before merge:
+
+- CI run `35504527862`: **PASS**.
+- Production Build run `35504527979`: **PASS**.
+- SolMint Pay Database Security run `35504527858`: **PASS**.
+- SolMint Pay Production API Smoke run `35504527895`: **PASS**.
+- SolMint Pay Mainnet Read-only run `35504527905`: **PASS**.
+- SolMint Pay Devnet E2E run `35504527872`: **PASS**.
+
+Revenue-ledger authorization completion:
+
+- Live validation initially exposed a real backend permission gap: authenticated report execution reached `pay_revenue_ledger` but had no SELECT grant.
+- PR #138 `fix(pay): secure report revenue ledger access` was merged as `88a35f5cd4fa37e37302715fe2086e9a654c1ef8`.
+- Added authenticated SELECT + merchant-scoped RLS on `pay_revenue_ledger`; anonymous access and mutation privileges remain denied.
+- Added an isolated adversarial security fixture covering the exact report function, authenticated/anonymous function privileges, revenue-ledger access, and merchant A/B isolation.
+- CI run `35504967068`: **PASS**.
+- Production Build run `35504966996`: **PASS**.
+- Database Security run `35504967044`: **PASS**.
+- Live Supabase migration recorded the RLS change as version `20260920102516`.
+
+Migration lineage:
+
+- The already-applied report function was recorded live as `20260920101617`; PR #138/PR #139 aligned the repository migration filename to that live version.
+- PR #139 `fix(pay): align revenue RLS migration with live ledger` was merged as `6d24574de2d2c0e1268c52ad0374e5a991977a8f`.
+- Repository now tracks the live revenue-ledger migration as `20260920102516_solmint_pay_report_revenue_ledger_rls.sql`.
+- Post-alignment CI run `35505112554`: **PASS**.
+- Post-alignment Production Build run `35505112560`: **PASS**.
+- Post-alignment Database Security run `35505112542`: **PASS**.
+
+Live database authorization verification:
+
+- With a real active merchant identity, `pay_read_report` returned only that merchant's Payment Intent data.
+- Requesting the second merchant with the first merchant's identity returned an empty report rather than cross-tenant data.
+- `authenticated` has EXECUTE on the report function and SELECT on the revenue ledger.
+- `anon` has neither.
+- Current E2E merchant data contains 3 Payment Intents in the tested period, all in `created` state; therefore completed amount and recognized revenue are legitimately `0` for that merchant. The Frontend does not manufacture or infer these values.
+
+Production deployment/auth evidence:
+
+- PR #140 `test(pay): verify Reports production auth boundary` was squash-merged as `b23977d0363af94a4d9a44580baf5d3b325c7497`.
+- Production API Smoke run `35505158498`: **PASS**.
+- The deployed production Reports endpoint returned the expected `401 UNAUTHORIZED` contract to an unauthenticated request.
+- CI run `35505158516`: **PASS**.
+- Production Build run `35505158495`: **PASS**.
+
+Conclusion:
+
+The **Reports section is now a real Backend/Database-backed, merchant-scoped, production-deployed read surface**. It does not invent financial KPIs, bypass RLS, or perform authoritative payment/revenue calculations in the browser.
+
+Remaining Pay capabilities intentionally not enabled because their released backend contracts are still absent:
+
+- Notifications.
+- Refund mutation UI.
+- Invoice creation/mutation.
+- Payment Link creation/mutation.
+- Referral enrollment/mutation and payout/withdrawal operations.
+- Developer Portal documentation/API contract surface beyond existing API-key/Webhook controls.
 
 Release controls remain separate:
 - Issue #117 — main branch protection / required-status enforcement evidence.
