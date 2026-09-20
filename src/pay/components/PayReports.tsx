@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {BarChart3,Loader2,RefreshCw,XCircle} from 'lucide-react';
 import {PayHttpError} from '../http';
 import type {PayLocale} from '../types';
@@ -46,16 +46,17 @@ export default function PayReports({locale,merchantId}:Props):React.ReactElement
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<'unauthorized'|'forbidden'|'error'|null>(null);
   const [stale,setStale]=useState(false);
+  const hasReportRef=useRef(false);
 
   const load=useCallback(async()=>{
     if(!merchantId){setLoading(false);setReport(null);return;}
     const dates=rangeDates(range,fromDate,toDate);
     if(!dates){setLoading(false);setReport(null);return;}
     setLoading(true);setError(null);
-    try{setReport(await payReportService.get(merchantId,dates.from,dates.to));setStale(false);}
-    catch(cause){setError(errorKind(cause));setStale(report!==null);}
+    try{setReport(await payReportService.get(merchantId,dates.from,dates.to));hasReportRef.current=true;setStale(false);}
+    catch(cause){setError(errorKind(cause));setStale(hasReportRef.current);}
     finally{setLoading(false);}
-  },[merchantId,range,fromDate,toDate,report]);
+  },[merchantId,range,fromDate,toDate]);
   useEffect(()=>{void load();},[load]);
 
   return <section className="pay-reports" aria-label={reportT(locale,'title')}>
