@@ -226,7 +226,7 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showDashboard && !showWebhooks && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showCustomers && !showDashboard && !showSecurity && !showWebhooks && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
