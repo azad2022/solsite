@@ -771,3 +771,30 @@ Release controls remain separate:
 - Issue #117 — main branch protection / required-status enforcement evidence.
 - Issue #120 — controlled Cloudflare Pages rollback/recovery evidence.
 - Issue #38 — pre-existing site-wide security debt.
+
+## 2026-09-20 — Pre-existing site security debt remediation
+
+Status: **COMPLETED / PRODUCTION HARDENED**
+
+Issue: #38
+
+Production evidence:
+
+- Supabase migration 20260920131133 was applied successfully to the live project nvopkbiedorfshwbmyhn.
+- The five pre-existing category/media SECURITY DEFINER functions no longer expose EXECUTE to PUBLIC, anon, or authenticated.
+- Their search_path is pinned to the empty path (search_path="") to remove public-schema path-shadowing risk.
+- Direct INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, and TRIGGER privileges were removed from anon and authenticated on article_categories and category_default_media_assets; required read access remains.
+- All direct privileges on private_service_secrets were removed from anon and authenticated.
+- A transactional production preflight passed before the permanent migration was applied.
+- Post-migration live privilege verification passed for function execution and table DML/read boundaries.
+- Security Advisor no longer reports the five pre-existing anonymous SECURITY DEFINER executable findings. Remaining Advisor findings are separate existing debt/intentional Pay SECURITY DEFINER boundaries and the existing pg_net extension placement; they are not claimed as resolved by this checkpoint.
+
+Regression coverage:
+
+- supabase/tests/site_security_hardening.sql verifies the exact client privilege boundary.
+- The existing SolMint Pay Database Security workflow now executes this regression fixture.
+- Corrected CI run 35512939739 — PASS.
+- Production Build run 35512939751 — PASS.
+- CI run 35512939852 — PASS.
+
+Conclusion: Issue #38 core site-wide public RPC/secret-table exposure has been remediated without changing Pay business rules or inventing client contracts.
