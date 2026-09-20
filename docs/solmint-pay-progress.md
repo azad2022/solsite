@@ -623,3 +623,70 @@ Next engineering focus:
 
 - Continue only with backend-contract-backed Pay capabilities or release-control closure.
 - Do not fabricate Customers, Reports, Notifications, Refund mutation, Invoice/Payment-Link mutations, or Referral enrollment/payout operations without released contracts.
+
+
+## 2026-09-20 — Customers backend/frontend contract completed
+
+Status: **COMPLETED / PRODUCTION-VERIFIED**
+
+Authoritative implementation:
+
+- PR #134 `feat(pay): add authoritative Customers read surface` was squash-merged.
+- Merge commit: `ef4aa73111d7061a8517ed63ba62c84fce46ab5a`.
+- Added `GET /api/pay/v1/customers` as an authenticated, read-only, merchant-scoped server contract.
+- Customer identity is derived only from the persisted non-empty `customer_wallet_address` on authoritative `pay_payment_intents` records.
+- Added the read-only `public.pay_customer_projection` PostgreSQL view using `security_invoker = true`, preserving the underlying Pay RLS boundary.
+- Added the central frontend service, Customers UI, responsive styling, and fa-IR/en-US/ar/ru translations.
+- Removed the previous unavailable/placeholder rendering path for the now-real Customers section.
+- Published the contract in OpenAPI 1.3.0 and the API Catalog.
+- No customer financial calculation, payment-success inference, private-key data, or service-role credential was introduced into the client.
+
+Validation before merge:
+
+- CI run `35503836414`: **PASS**.
+- Production Build run `35503836358`: **PASS**.
+- SolMint Pay Database Security run `35503836312`: **PASS**.
+- SolMint Pay Production API Smoke run `35503836391`: **PASS**.
+- SolMint Pay Mainnet Read-only run `35503836345`: **PASS**.
+- SolMint Pay Devnet E2E run `35503836399`: **PASS**.
+
+Production database validation:
+
+- The customer projection migration was applied successfully to live Supabase project `nvopkbiedorfshwbmyhn`.
+- Live migration ledger recorded the applied version as `20260920100630`.
+- Repository migration filename was corrected in PR #135 to `20260920100630_solmint_pay_customer_projection.sql` so repository and live migration history remain aligned.
+- PR #135 merge commit: `e1a846cc79c341457ac37d251f71ed3b10c8f203`.
+- Post-rename Database Security run `35504157799`: **PASS**.
+- Post-rename Production Build run `35504157818`: **PASS**.
+- Post-rename CI run `35504157797`: **PASS**.
+- Live verification confirmed `pay_customer_projection` is a PostgreSQL VIEW with SELECT granted to `authenticated`; `anon` has no SELECT grant.
+- A transactionally isolated SQL validation was performed against the live PostgreSQL version before permanent application and rolled back successfully.
+
+Production deployment/auth evidence:
+
+- PR #136 added the non-mutating production unauthenticated Customers regression check.
+- Production API Smoke run `35504239098`: **PASS**.
+- The deployed production endpoint returned the expected `401 UNAUTHORIZED` contract for an unauthenticated Customers read request.
+- CI run `35504239083`: **PASS**.
+- Production Build run `35504239109`: **PASS**.
+- PR #136 merge commit: `350bc80e9ac59364b71f6af04011117ca2cfecdf`.
+
+Security note:
+
+- Supabase Security Advisor still reports pre-existing site-wide findings (including RLS-enabled/no-policy findings and public SECURITY DEFINER functions). These were observed after the Customers migration and are not newly introduced by this feature.
+- The Pay-specific Customer projection uses `security_invoker` and does not weaken existing Pay RLS.
+
+Conclusion:
+
+The **Customers section is now a real Backend-backed, RLS-mediated, production-deployed read surface**. It is no longer an unavailable placeholder. Customer mutations, profiles, names, email/CRM data, or customer-level financial analytics remain outside the released contract and were intentionally not invented.
+
+Next engineering focus:
+
+- Continue with the next Backend-contract-backed Pay capability, prioritizing Reports/Analytics only after its authoritative metric sources and definitions are established.
+- Reconcile any remaining frontend/backend mismatches discovered during that implementation.
+- Record each completed capability in this ledger before moving to the next one.
+
+Release controls remain separate:
+- Issue #117 — main branch protection / required-status enforcement evidence.
+- Issue #120 — controlled Cloudflare Pages rollback/recovery evidence.
+- Issue #38 — pre-existing site-wide security debt.
