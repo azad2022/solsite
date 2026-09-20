@@ -168,6 +168,15 @@ test('production Pay Customers read API requires an authenticated session', asyn
   assert.equal(typeof body.requestId, 'string');
 });
 
+test('production Pay Reports read API requires an authenticated session', async () => {
+  const response = await request('/api/pay/v1/reports?merchantId=00000000-0000-4000-8000-000000000001&from=2026-09-01T00:00:00.000Z&to=2026-09-02T00:00:00.000Z');
+  assert.equal(response.status, 401);
+  const body = await readJson(response);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 'UNAUTHORIZED');
+  assert.equal(typeof body.requestId, 'string');
+});
+
 test('production Pay API requires an authenticated session for merchant API-key listing', async () => {
   const response = await request('/api/pay/v1/merchants/00000000-0000-4000-8000-000000000001/api-keys', {
     headers: { Origin: ORIGIN },
