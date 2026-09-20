@@ -1,11 +1,11 @@
 -- Report revenue-ledger RLS fixture.
 -- Verifies the exact production migration permits merchant-scoped reads only.
 
-DO $
+DO $report$
 begin
   if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if;
   if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
-end $;
+end $report$;
 
 create table public.users (id text primary key, is_active boolean not null);
 create table public.pay_merchant_members (
@@ -104,7 +104,7 @@ grant select on public.pay_revenue_ledger to authenticated;
 \i :report_migration
 \i :rls_migration
 
-DO $
+DO $report$
 begin
   if (select prosecdef from pg_proc where oid='public.pay_read_report(uuid,timestamptz,timestamptz)'::regprocedure) then
     raise exception 'report function must remain SECURITY INVOKER';
@@ -115,27 +115,27 @@ begin
   if not has_function_privilege('authenticated','public.pay_read_report(uuid,timestamptz,timestamptz)','EXECUTE') then
     raise exception 'authenticated must execute report function';
   end if;
-end $;
+end $report$;
 
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
 
-DO $
+DO $report$
 declare own_count bigint;
 begin
   select count(*) into own_count from public.pay_revenue_ledger;
   if own_count <> 1 then raise exception 'user-a must see exactly one revenue row, got %', own_count; end if;
-end $;
+end $report$;
 
-DO $
+DO $report$
 declare report jsonb;
 begin
   select public.pay_read_report('00000000-0000-0000-0000-000000000001', now() - interval '1 day', now() + interval '1 day') into report;
   if report->>'paymentIntentCount' <> '1' or report->>'netGatewayRevenueAtomic' <> '9' then
     raise exception 'user-a report must contain only merchant A data: %', report;
   end if;
-end $;
+end $report$;
 
 DO $$
 begin
@@ -153,21 +153,21 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-b"}',true);
 
-DO $
+DO $report$
 declare own_count bigint;
 begin
   select count(*) into own_count from public.pay_revenue_ledger;
   if own_count <> 1 then raise exception 'user-b must see exactly one revenue row, got %', own_count; end if;
-end $;
+end $report$;
 
-DO $
+DO $report$
 declare report jsonb;
 begin
   select public.pay_read_report('00000000-0000-0000-0000-000000000002', now() - interval '1 day', now() + interval '1 day') into report;
   if report->>'paymentIntentCount' <> '1' or report->>'netGatewayRevenueAtomic' <> '18' then
     raise exception 'user-b report must contain only merchant B data: %', report;
   end if;
-end $;
+end $report$;
 rollback;
 
 select 'pay_report_revenue_ledger_security_ok' as result;
