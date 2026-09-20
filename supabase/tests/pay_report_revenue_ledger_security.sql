@@ -102,7 +102,7 @@ using (user_id=public.pay_request_user_id());
 grant select on public.pay_revenue_ledger to authenticated;
 
 \set report_migration 'supabase/migrations/20260920101617_solmint_pay_report_read_function.sql'
-\set rls_migration 'supabase/migrations/20260920104500_solmint_pay_report_revenue_ledger_rls.sql'
+\set rls_migration 'supabase/migrations/20260920102516_solmint_pay_report_revenue_ledger_rls.sql'
 \i :report_migration
 \i :rls_migration
 
