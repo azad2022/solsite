@@ -1,8 +1,11 @@
 -- Report revenue-ledger RLS fixture.
 -- Verifies the exact production migration permits merchant-scoped reads only.
 
-create role anon;
-create role authenticated;
+DO $
+begin
+  if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if;
+  if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
+end $;
 
 create table public.users (id text primary key, is_active boolean not null);
 create table public.pay_merchant_members (
