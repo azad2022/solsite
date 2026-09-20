@@ -89,6 +89,7 @@ $$;
 
 revoke execute on function public.pay_request_user_id() from public,anon,authenticated;
 revoke execute on function public.pay_has_merchant_access(uuid,text[]) from public,anon,authenticated;
+grant execute on function public.pay_has_merchant_access(uuid,text[]) to authenticated;
 
 create policy pay_pi_read on public.pay_payment_intents
 for select to authenticated
