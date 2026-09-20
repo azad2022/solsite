@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Solmint Public API",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, wallet analysis, and the public Pay checkout snapshot. These APIs do not accept seed phrases, private keys, passwords, or signing credentials. Authenticated merchant Pay read contracts for invoices, payment links, and referral records are also documented here; they require an authenticated Solmint session and preserve merchant/affiliate authorization."
   },
   "servers": [
@@ -353,6 +353,47 @@
           },
           "503": {
             "description": "Referral service temporarily unavailable"
+          }
+        }
+      }
+    },
+    "/api/pay/v1/customers": {
+      "get": {
+        "operationId": "listPayCustomers",
+        "summary": "Read merchant customer projection",
+        "description": "Authenticated read-only customer projection derived from persisted customer wallet addresses on the merchant's Payment Intents. Access is enforced through the server identity boundary and underlying Pay RLS. No private wallet material or payment-secret data is returned.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayMerchantIdQuery"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PayLimitQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative merchant-scoped customer projection"
+          },
+          "400": {
+            "description": "Invalid merchant identifier, search, or limit"
+          },
+          "401": {
+            "description": "Authenticated Solmint session required"
+          },
+          "403": {
+            "description": "Merchant access denied"
+          },
+          "503": {
+            "description": "Customer service temporarily unavailable"
           }
         }
       }
@@ -980,6 +1021,45 @@
               "null"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "PayCustomer": {
+        "type": "object",
+        "required": [
+          "merchant_id",
+          "customer_wallet_address",
+          "first_seen_at",
+          "last_seen_at",
+          "payment_intent_count",
+          "completed_payment_count"
+        ],
+        "properties": {
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customer_wallet_address": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 44,
+            "description": "Public customer Solana wallet address stored on Payment Intent records."
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "payment_intent_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed_payment_count": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }
