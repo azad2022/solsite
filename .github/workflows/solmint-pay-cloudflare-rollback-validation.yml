@@ -1,0 +1,220 @@
+name: SolMint Pay Cloudflare Rollback Validation
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: solmint-production-cloudflare-rollback-validation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rollback-validation:
+    if: contains(github.event.head_commit.message, '[cloudflare-rollback-validation]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID }}
+      PROJECT_NAME: solmint
+      PRODUCTION_URL: https://solmint.ir
+      EXPECTED_COMMIT: ${{ github.sha }}
+
+    steps:
+      - name: Validate Cloudflare credentials are configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN}" || { echo "::error::No Cloudflare API token secret is configured for rollback validation."; exit 1; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID}" || { echo "::error::No Cloudflare account ID secret is configured for rollback validation."; exit 1; }
+          echo "Cloudflare credential presence check passed (secret values are never printed)."
+
+      - name: Wait for this main commit to become the successful canonical Pages deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}"
+          PROJECT_JSON="${RUNNER_TEMP}/project-before.json"
+
+          for attempt in $(seq 1 60); do
+            curl -fsS               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"               "${API_ROOT}" > "${PROJECT_JSON}"
+
+            if jq -e --arg expected "${EXPECTED_COMMIT}" '
+              .success == true
+              and .result.canonical_deployment.environment == "production"
+              and .result.canonical_deployment.latest_stage.status == "success"
+              and .result.canonical_deployment.deployment_trigger.metadata.commit_hash == $expected
+            ' "${PROJECT_JSON}" >/dev/null; then
+              break
+            fi
+
+            if [ "${attempt}" -eq 60 ]; then
+              echo "::error::Cloudflare Pages did not expose a successful canonical production deployment for commit ${EXPECTED_COMMIT} within the validation window."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          jq -r '
+            "current_id=(.result.canonical_deployment.id)",
+            "current_short_id=(.result.canonical_deployment.short_id)",
+            "current_commit=(.result.canonical_deployment.deployment_trigger.metadata.commit_hash)",
+            "current_created_on=(.result.canonical_deployment.created_on)",
+            "current_stage=(.result.canonical_deployment.latest_stage.status)"
+          ' "${PROJECT_JSON}" | tee "${RUNNER_TEMP}/current.txt"
+
+          cp "${PROJECT_JSON}" "${RUNNER_TEMP}/current-canonical.json"
+
+      - name: Identify the previous successful production deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}"
+          current_id=$(jq -r '.result.canonical_deployment.id' "${RUNNER_TEMP}/current-canonical.json")
+          current_created=$(jq -r '.result.canonical_deployment.created_on' "${RUNNER_TEMP}/current-canonical.json")
+          current_hash=$(jq -r '.result.canonical_deployment.deployment_trigger.metadata.commit_hash' "${RUNNER_TEMP}/current-canonical.json")
+
+          curl -fsS             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"             "${API_ROOT}/deployments?env=production&per_page=100" > "${RUNNER_TEMP}/deployments.json"
+
+          jq -e '.success == true' "${RUNNER_TEMP}/deployments.json" >/dev/null
+
+          jq -r --arg current_id "${current_id}" --arg current_created "${current_created}" --arg current_hash "${current_hash}" '
+            .result
+            | map(select(
+                .environment == "production"
+                and .latest_stage.status == "success"
+                and (.is_skipped // false) == false
+                and .id != $current_id
+                and .created_on < $current_created
+                and .deployment_trigger.metadata.commit_hash != $current_hash
+              ))
+            | sort_by(.created_on)
+            | reverse
+            | .[0]
+          ' "${RUNNER_TEMP}/deployments.json" > "${RUNNER_TEMP}/rollback-target.json"
+
+          jq -e 'type == "object" and (.id | length) > 0' "${RUNNER_TEMP}/rollback-target.json" >/dev/null || {
+            echo "::error::No previous successful production deployment was found."
+            exit 1
+          }
+
+          jq -r '
+            "target_id=(.id)",
+            "target_short_id=(.short_id)",
+            "target_commit=(.deployment_trigger.metadata.commit_hash)",
+            "target_created_on=(.created_on)",
+            "target_stage=(.latest_stage.status)"
+          ' "${RUNNER_TEMP}/rollback-target.json" | tee "${RUNNER_TEMP}/target.txt"
+
+      - name: Roll back production to the previous successful deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}"
+          target_id=$(jq -r '.id' "${RUNNER_TEMP}/rollback-target.json")
+          curl -fsS -X POST             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"             -H "Content-Type: application/json"             --data '{}'             "${API_ROOT}/deployments/${target_id}/rollback" > "${RUNNER_TEMP}/rollback-response.json"
+          jq -e '.success == true' "${RUNNER_TEMP}/rollback-response.json" >/dev/null
+
+      - name: Verify rollback and run non-mutating production smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}"
+          target_id=$(jq -r '.id' "${RUNNER_TEMP}/rollback-target.json")
+
+          for attempt in $(seq 1 30); do
+            curl -fsS               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"               "${API_ROOT}" > "${RUNNER_TEMP}/project-after-rollback.json"
+            if jq -e --arg target "${target_id}" '
+              .success == true
+              and .result.canonical_deployment.id == $target
+              and .result.canonical_deployment.environment == "production"
+              and .result.canonical_deployment.latest_stage.status == "success"
+            ' "${RUNNER_TEMP}/project-after-rollback.json" >/dev/null; then
+              break
+            fi
+            if [ "${attempt}" -eq 30 ]; then
+              echo "::error::Cloudflare did not confirm the rollback target as canonical production."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          curl -fsS -o "${RUNNER_TEMP}/rollback-home.html" -w "%{http_code}" "${PRODUCTION_URL}/" | grep -qx "200"
+
+          status=$(curl -sS -o "${RUNNER_TEMP}/rollback-pay-response.json" -w "%{http_code}"             "${PRODUCTION_URL}/api/pay/v1/reports?merchantId=00000000-0000-0000-0000-000000000000&from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z")
+          test "${status}" = "401"
+
+          echo "Rollback smoke passed: production home=200, authenticated Reports endpoint=401."
+
+      - name: Restore the newest validated deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}"
+          current_id=$(jq -r '.result.canonical_deployment.id' "${RUNNER_TEMP}/current-canonical.json")
+
+          curl -fsS -X POST             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"             -H "Content-Type: application/json"             --data '{}'             "${API_ROOT}/deployments/${current_id}/rollback" > "${RUNNER_TEMP}/recovery-response.json"
+          jq -e '.success == true' "${RUNNER_TEMP}/recovery-response.json" >/dev/null
+
+      - name: Verify recovery and write validation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_ROOT="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}"
+          current_id=$(jq -r '.result.canonical_deployment.id' "${RUNNER_TEMP}/current-canonical.json")
+          current_hash=$(jq -r '.result.canonical_deployment.deployment_trigger.metadata.commit_hash' "${RUNNER_TEMP}/current-canonical.json")
+          target_id=$(jq -r '.id' "${RUNNER_TEMP}/rollback-target.json")
+          target_hash=$(jq -r '.deployment_trigger.metadata.commit_hash' "${RUNNER_TEMP}/rollback-target.json")
+
+          for attempt in $(seq 1 30); do
+            curl -fsS               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"               "${API_ROOT}" > "${RUNNER_TEMP}/project-after-recovery.json"
+            if jq -e --arg current "${current_id}" '
+              .success == true
+              and .result.canonical_deployment.id == $current
+              and .result.canonical_deployment.environment == "production"
+              and .result.canonical_deployment.latest_stage.status == "success"
+            ' "${RUNNER_TEMP}/project-after-recovery.json" >/dev/null; then
+              break
+            fi
+            if [ "${attempt}" -eq 30 ]; then
+              echo "::error::Cloudflare did not confirm recovery to the newest validated deployment."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          curl -fsS -o "${RUNNER_TEMP}/recovery-home.html" -w "%{http_code}" "${PRODUCTION_URL}/" | grep -qx "200"
+
+          status=$(curl -sS -o "${RUNNER_TEMP}/recovery-pay-response.json" -w "%{http_code}"             "${PRODUCTION_URL}/api/pay/v1/reports?merchantId=00000000-0000-0000-0000-000000000000&from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z")
+          test "${status}" = "401"
+
+          {
+            echo "# Cloudflare Pages rollback/recovery validation"
+            echo
+            echo "- Validation commit: ${EXPECTED_COMMIT}"
+            echo "- Newest validated production deployment: ${current_id}"
+            echo "- Newest validated production commit: ${current_hash}"
+            echo "- Rollback target deployment: ${target_id}"
+            echo "- Rollback target commit: ${target_hash}"
+            echo "- Rollback target was a successful production deployment: yes"
+            echo "- Rollback production smoke: PASS (home 200; authenticated Reports endpoint 401)"
+            echo "- Recovery production smoke: PASS (home 200; authenticated Reports endpoint 401)"
+            echo "- Supabase migration rollback performed: no"
+            echo "- Recovery restored deployment: ${current_id}"
+            echo
+            echo "The Cloudflare Pages rollback API was used only against successful production deployments. No preview deployment was used as a rollback target."
+          } | tee "${RUNNER_TEMP}/rollback-validation.md"
+
+      - name: Upload rollback validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-cloudflare-rollback-validation
+          path: |
+            ${{ runner.temp }}/rollback-validation.md
+            ${{ runner.temp }}/current.txt
+            ${{ runner.temp }}/target.txt
+          if-no-files-found: error

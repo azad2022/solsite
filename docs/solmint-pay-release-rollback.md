@@ -107,3 +107,21 @@ Minimum evidence to capture:
 `Incident → identify last known-good production deployment → verify DB/app compatibility → rollback Pages → run smoke checks → record evidence → either restore newest release or keep recovered version`
 
 This procedure must remain separate from Pay financial truth. No recovery action may rewrite authoritative payment status, merchant balances, reconciliation state, ledger history, or blockchain verification records from the frontend.
+
+## Automated controlled validation path
+
+The repository now contains .github/workflows/solmint-pay-cloudflare-rollback-validation.yml.
+
+For a dedicated validation commit containing [cloudflare-rollback-validation] in the commit message, the workflow:
+
+1. waits for that exact commit to become a successful canonical production Pages deployment;
+2. selects the immediately preceding successful production deployment by Cloudflare deployment metadata;
+3. invokes the Cloudflare Pages rollback API;
+4. verifies the rollback target becomes the canonical production deployment;
+5. runs non-mutating production smoke checks;
+6. invokes the rollback API again to restore the newest validated deployment;
+7. verifies recovery and uploads deployment identifiers/commit hashes as workflow evidence.
+
+The workflow requires Cloudflare API credentials to exist as GitHub Actions secrets under either CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID or the CF_API_TOKEN / CF_ACCOUNT_ID aliases. Secret values are never printed.
+
+This automated path does not modify Supabase migration history and never uses a preview deployment as a rollback target.
