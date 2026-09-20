@@ -105,12 +105,21 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
 
-DO $$
+DO $
 declare own_count bigint;
 begin
   select count(*) into own_count from public.pay_revenue_ledger;
   if own_count <> 1 then raise exception 'user-a must see exactly one revenue row, got %', own_count; end if;
-end $$;
+end $;
+
+DO $
+declare report jsonb;
+begin
+  select public.pay_read_report('00000000-0000-0000-0000-000000000001', now() - interval '1 day', now() + interval '1 day') into report;
+  if report->>'paymentIntentCount' <> '1' or report->>'netGatewayRevenueAtomic' <> '9' then
+    raise exception 'user-a report must contain only merchant A data: %', report;
+  end if;
+end $;
 
 DO $$
 begin
@@ -128,12 +137,21 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-b"}',true);
 
-DO $$
+DO $
 declare own_count bigint;
 begin
   select count(*) into own_count from public.pay_revenue_ledger;
   if own_count <> 1 then raise exception 'user-b must see exactly one revenue row, got %', own_count; end if;
-end $$;
+end $;
+
+DO $
+declare report jsonb;
+begin
+  select public.pay_read_report('00000000-0000-0000-0000-000000000002', now() - interval '1 day', now() + interval '1 day') into report;
+  if report->>'paymentIntentCount' <> '1' or report->>'netGatewayRevenueAtomic' <> '18' then
+    raise exception 'user-b report must contain only merchant B data: %', report;
+  end if;
+end $;
 rollback;
 
 select 'pay_report_revenue_ledger_security_ok' as result;
