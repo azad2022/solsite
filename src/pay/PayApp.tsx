@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
@@ -294,7 +294,7 @@ export function PayApp(): React.ReactElement {
 
 
 function PayRuntimeStatePanel({ locale, kind, onPrimary, onSecondary }: { locale: PayLocale; kind: 'session-error' | 'merchant-loading' | 'merchant-required' | 'merchant-error'; onPrimary: () => void; onSecondary?: () => void }): React.ReactElement {
-  const config = kind === 'session-error'
+  const config: { icon: React.ReactNode; title: string; description: string; primary?: string; secondary?: string } = kind === 'session-error'
     ? { icon: <ShieldCheck size={21} />, title: translate(locale, 'sessionUnavailable'), description: translate(locale, 'sessionUnavailable'), primary: translate(locale, 'reload') }
     : kind === 'merchant-loading'
       ? { icon: <Loader2 size={21} className="pay-spin" />, title: translate(locale, 'merchantLoadingTitle'), description: translate(locale, 'merchantLoadingDescription'), primary: undefined }
