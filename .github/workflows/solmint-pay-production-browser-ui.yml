@@ -39,8 +39,17 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Wait for Pages deployment
-        run: sleep 150
+      - name: Wait for production Pay page
+        run: |
+          for attempt in $(seq 1 24); do
+            if curl -fsS --max-time 10 https://solmint.ir/pay/merchants > /tmp/pay-page.html; then
+              echo "Production Pay page is reachable."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Production Pay page did not become reachable."
+          exit 1
 
       - name: Run authenticated production browser UI E2E
         run: node e2e/pay-production-ui.e2e.mjs
