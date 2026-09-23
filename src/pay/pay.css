@@ -277,6 +277,14 @@
 .pay-section-empty h2 { margin: 0 0 7px; font-size: 19px; }
 .pay-section-empty p { margin: 0 0 8px; color: var(--pay-text-soft); font-size: 12px; line-height: 1.8; }
 .pay-section-empty span { color: var(--pay-text-faint); font-size: 10px; }
+.pay-runtime-state { display:flex; align-items:center; gap:13px; margin-bottom:18px; padding:16px 18px; border:1px solid var(--pay-border); border-radius:18px; background:var(--pay-panel); box-shadow:0 8px 24px rgba(28,32,49,.045); }
+.pay-runtime-state-icon { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; border-radius:12px; color:var(--pay-pink); background:rgba(243,77,157,.08); }
+.pay-runtime-state-copy { min-width:0; flex:1; }
+.pay-runtime-state-copy strong { display:block; margin-bottom:4px; font-size:12px; }
+.pay-runtime-state-copy p { margin:0; color:var(--pay-text-soft); font-size:10px; line-height:1.8; }
+.pay-runtime-state .pay-primary-action, .pay-runtime-state .pay-secondary-action { flex:0 0 auto; white-space:nowrap; }
+.pay-spin { animation:pay-spin 1s linear infinite; }
+@keyframes pay-spin { to { transform:rotate(360deg); } }
 
 .pay-footer { min-height: 68px; margin-top: auto; padding: 16px clamp(18px, 3vw, 34px); display: flex; justify-content: space-between; align-items: center; gap: 16px; border-top: 1px solid var(--pay-border); color: var(--pay-text-faint); font-size: 10px; }
 
@@ -318,9 +326,16 @@
 }
 
 @media (max-width: 620px) {
+  .pay-runtime-state { align-items:flex-start; flex-wrap:wrap; }
+  .pay-runtime-state-copy { flex-basis:calc(100% - 53px); }
+  .pay-runtime-state .pay-primary-action, .pay-runtime-state .pay-secondary-action { min-height:36px; }
   .pay-topbar-breadcrumb span:first-child,
   .pay-breadcrumb-separator { display: none; }
-  .pay-language-control button { min-width: 32px; }
+  .pay-language-control button { min-width:30px; height:29px; padding-inline:2px; font-size:9px; }
+  .pay-language-control { gap:1px; }
+  .pay-topbar-actions { gap:6px; }
+  .pay-icon-button { width:34px; height:34px; }
+  .pay-topbar-leading { gap:7px; flex:1; }
   .pay-hero-content { grid-template-columns: 1fr auto; }
   .pay-hero-icon { width: 44px; height: 44px; grid-column: 1 / -1; }
   .pay-hero-mark { width: 94px; height: 94px; border-radius: 22px; }
