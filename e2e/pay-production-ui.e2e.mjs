@@ -20,15 +20,15 @@ function rows(value) {
 }
 
 async function db(query, parameters = [], readOnly = false) {
-  const response = await fetch(\`https://api.supabase.com/v1/projects/\${PROJECT_REF}/database/query\`, {
+  const response = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
     method: 'POST',
     headers: {
-      authorization: \`Bearer \${SUPABASE_ACCESS_TOKEN}\`,
+      authorization: `Bearer ${SUPABASE_ACCESS_TOKEN}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({ query, parameters, read_only: readOnly }),
   });
-  if (!response.ok) throw new Error(\`Supabase Management API query failed: HTTP \${response.status}\`);
+  if (!response.ok) throw new Error(`Supabase Management API query failed: HTTP ${response.status}`);
   return response.json();
 }
 
@@ -58,9 +58,9 @@ function walletSigner() {
 
 async function provision() {
   const betterAuthUserId = crypto.randomUUID();
-  const username = \`pay_browser_\${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}\`;
-  const email = \`\${username}@solmint.invalid\`;
-  const password = \`E2E-\${randomBytes(24).toString('base64url')}\`;
+  const username = `pay_browser_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`;
+  const email = `${username}@solmint.invalid`;
+  const password = `E2E-${randomBytes(24).toString('base64url')}`;
   const passwordHash = await hashPassword(password);
   await db(
     'insert into better_auth."user" (id,name,email,email_verified,username,created_at,updated_at) values ($1,$2,$3,true,$4,now(),now())',
@@ -99,24 +99,24 @@ async function directSignIn(context, fixture) {
     headers: { Origin: ORIGIN, Accept: 'application/json', 'Content-Type': 'application/json' },
     data: { email: fixture.email, password: fixture.password },
   });
-  assert.equal(response.status(), 200, \`Browser fixture sign-in failed: \${response.status()}\`);
+  assert.equal(response.status(), 200, `Browser fixture sign-in failed: ${response.status()}`);
   const body = await response.json();
   assert.ok(body.user, 'Better Auth sign-in must return user');
 }
 
 async function signWalletChallenge(context, merchantId, signer) {
   const challengeResponse = await context.request.post(
-    \`/api/pay/v1/merchants/\${encodeURIComponent(merchantId)}/wallet-challenges\`,
+    `/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges`,
     { headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, data: { walletAddress: signer.address } },
   );
-  assert.equal(challengeResponse.status(), 201, \`Wallet challenge failed: \${await challengeResponse.text()}\`);
+  assert.equal(challengeResponse.status(), 201, `Wallet challenge failed: ${await challengeResponse.text()}`);
   const challenge = (await challengeResponse.json()).challenge;
   const signature = sign(null, Buffer.from(challenge.message, 'utf8'), signer.privateKey);
   const verifyResponse = await context.request.post(
-    \`/api/pay/v1/merchants/\${encodeURIComponent(merchantId)}/wallet-challenges/\${encodeURIComponent(challenge.id)}\`,
+    `/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges/${encodeURIComponent(challenge.id)}`,
     { headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, data: { walletAddress: signer.address, signature: encodeBase58(signature) } },
   );
-  assert.equal(verifyResponse.status(), 200, \`Wallet verification failed: \${await verifyResponse.text()}\`);
+  assert.equal(verifyResponse.status(), 200, `Wallet verification failed: ${await verifyResponse.text()}`);
   const body = await verifyResponse.json();
   assert.equal(body.verified, true);
 }
@@ -138,16 +138,16 @@ const routes = [
 
 async function routeAudit(page, path, label, evidenceDir, apiEvents) {
   apiEvents.length = 0;
-  const response = await page.goto(\`\${ORIGIN}\${path}\`, { waitUntil: 'domcontentloaded' });
-  assert.ok(response && response.ok(), \`Navigation failed for \${path}: \${response?.status()}\`);
+  const response = await page.goto(`${ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
+  assert.ok(response && response.ok(), `Navigation failed for ${path}: ${response?.status()}`);
   await page.waitForTimeout(1100);
   const title = await page.title();
   const bodyText = await page.locator('body').innerText();
-  assert.ok(bodyText.trim().length > 80, \`\${path} rendered too little content\`);
-  assert.equal(await page.locator('.pay-app-shell').count(), 1, \`\${path} must render the Pay shell\`);
+  assert.ok(bodyText.trim().length > 80, `${path} rendered too little content`);
+  assert.equal(await page.locator('.pay-app-shell').count(), 1, `${path} must render the Pay shell`);
   const bad = apiEvents.filter((event) => event.status >= 400);
-  if (bad.length) throw new Error(\`\${path} produced Pay API errors: \${JSON.stringify(bad)}\`);
-  await page.screenshot({ path: \`\${evidenceDir}/\${label}.png\`, fullPage: false });
+  if (bad.length) throw new Error(`${path} produced Pay API errors: ${JSON.stringify(bad)}`);
+  await page.screenshot({ path: `${evidenceDir}/${label}.png`, fullPage: false });
   return { path, title, apiEvents: [...apiEvents], excerpt: bodyText.slice(0, 800) };
 }
 
@@ -165,14 +165,14 @@ try {
 
   const page = await context.newPage();
   page.on('console', (message) => {
-    if (message.type() === 'error') console.log(\`BROWSER_CONSOLE_ERROR \${message.text()}\`);
+    if (message.type() === 'error') console.log(`BROWSER_CONSOLE_ERROR ${message.text()}`);
   });
   page.on('response', async (response) => {
     if (!response.url().includes('/api/pay/')) return;
     apiEvents.push({ url: response.url(), status: response.status(), method: response.request().method() });
   });
 
-  await page.goto(\`\${ORIGIN}/pay/merchants\`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1000);
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
   const onboardingForm = page.locator('.pay-onboarding-form');
@@ -208,13 +208,13 @@ try {
   assert.match(apiSecret, /^sk_pay_[A-Za-z0-9_-]{64,}$/);
 
   const intentResponse = await context.request.post('/api/pay/v1/payment-intents', {
-    headers: { 'Content-Type': 'application/json', Authorization: \`Bearer \${apiSecret}\`, 'Idempotency-Key': \`browser-ui-e2e-\${crypto.randomUUID()}\` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiSecret}`, 'Idempotency-Key': `browser-ui-e2e-${crypto.randomUUID()}` },
     data: {
       amountAtomic: '1000000',
       asset: 'SOL',
       feePayer: 'merchant',
       expiresInSeconds: 300,
-      externalOrderId: \`browser-ui-\${Date.now()}\`,
+      externalOrderId: `browser-ui-${Date.now()}`,
       metadata: {},
     },
   });
@@ -228,25 +228,25 @@ try {
     routeResults.push(await routeAudit(page, path, label, '/tmp/pay-ui-evidence', apiEvents));
   }
 
-  await page.goto(\`\${ORIGIN}/pay/checkout/\${encodeURIComponent(intentId)}\`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${ORIGIN}/pay/checkout/${encodeURIComponent(intentId)}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(900);
   assert.ok((await page.locator('body').innerText()).includes('SolMint Browser Test Merchant'));
   assert.ok((await page.locator('body').innerText()).includes('1 SOL') || (await page.locator('body').innerText()).includes('0.001 SOL'));
 
   // RTL/mobile regression: FA and AR must switch direction and keep the drawer on-screen.
   for (const localeButton of [0, 2]) {
-    await page.goto(\`\${ORIGIN}/pay\`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${ORIGIN}/pay`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
     await page.locator('.pay-language-control button').nth(localeButton).click();
     await page.waitForTimeout(150);
     assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
     await page.locator('.pay-mobile-menu').click();
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
-    assert.ok(box, \`RTL drawer did not open for locale index \${localeButton}\`);
-    assert.ok(box.x >= VIEWPORT.width - box.width - 2, \`RTL drawer is off-screen: x=\${box.x} width=\${box.width}\`);
+    assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
+    assert.ok(box.x >= VIEWPORT.width - box.width - 2, `RTL drawer is off-screen: x=${box.x} width=${box.width}`);
     assert.ok(box.x < VIEWPORT.width - 10, 'RTL drawer did not occupy the expected right edge');
     assert.ok(await page.locator('.pay-nav-item').first().isVisible());
-    await page.screenshot({ path: \`/tmp/pay-ui-evidence/mobile-rtl-\${localeButton}.png\`, fullPage: false });
+    await page.screenshot({ path: `/tmp/pay-ui-evidence/mobile-rtl-${localeButton}.png`, fullPage: false });
     await page.locator('.pay-mobile-close').click();
   }
 
