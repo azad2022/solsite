@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'e2e/pay-production-ui.e2e.mjs'
+      - 'src/pay/**'
+      - 'functions/api/pay/**'
+      - 'functions/api/auth/**'
       - '.github/workflows/solmint-pay-production-browser-ui.yml'
       - '.github/solmint-pay-production-ui-e2e.trigger'
   workflow_dispatch:
