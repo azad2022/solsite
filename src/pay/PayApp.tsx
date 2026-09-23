@@ -155,7 +155,8 @@ export function PayApp(): React.ReactElement {
     : translate(locale, 'account');
   const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
   const showGettingStartedGuide = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants');
-  const showMerchantOnboarding = sessionState === 'authenticated' && merchantLoadState === 'ready' && ((currentSection === 'overview' && merchant === null) || currentSection === 'merchants');
+  const canRenderMerchantSetup = sessionState === 'authenticated' && (merchantLoadState === 'ready' || merchantLoadState === 'error');
+  const showMerchantOnboarding = canRenderMerchantSetup && ((currentSection === 'overview' && merchant === null && merchantLoadState === 'ready') || currentSection === 'merchants' && merchant === null);
   const showTickets = currentSection === 'tickets' && sessionState === 'authenticated' && sessionUser !== null;
   const showTransactions = currentSection === 'transactions' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showInvoices = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;

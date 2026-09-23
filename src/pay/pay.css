@@ -212,9 +212,9 @@
 .pay-icon-button:hover { border-color: var(--pay-border-strong); color: var(--pay-text); transform: translateY(-1px); }
 .pay-icon-button:focus-visible { outline: 3px solid rgba(243, 77, 157, 0.18); outline-offset: 2px; }
 .pay-mobile-menu { display: none; }
-.pay-language-control { padding: 3px; border: 1px solid var(--pay-border); border-radius: 11px; background: var(--pay-panel-solid); }
+.pay-language-control { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--pay-border); border-radius: 11px; background: var(--pay-panel-solid); flex: 0 0 auto; overflow: hidden; }
 .pay-language-control button {
-  min-width: 35px;
+  min-width: 34px;
   height: 30px;
   border: 0;
   border-radius: 8px;

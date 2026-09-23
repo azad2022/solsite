@@ -90,3 +90,56 @@ test('Pay HTTP preserves structured HTTP failures', async () => {
     (error: unknown) => error instanceof PayHttpError && error.status === 401 && error.requestId === 'r-1',
   );
 });
+
+
+test('Merchant lookup retries a transient Pay service failure before succeeding', async () => {
+  let calls = 0;
+  const client = new PayHttpClient({
+    fetchImpl: (async () => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response(JSON.stringify({ message: 'temporary' }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({
+        success: true,
+        merchant: {
+          id: 'merchant-1',
+          owner_user_id: 'user-1',
+          business_name: 'Test Store',
+          slug: 'test-store',
+          status: 'pending',
+          created_at: '2026-09-08T00:00:00Z',
+          updated_at: '2026-09-08T00:00:00Z',
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch,
+  });
+
+  const merchant = await getMyMerchant(client, 2);
+  assert.equal(calls, 2);
+  assert.equal(merchant?.id, 'merchant-1');
+});
+
+test('Merchant lookup does not retry a real unauthorized response', async () => {
+  let calls = 0;
+  const client = new PayHttpClient({
+    fetchImpl: (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch,
+  });
+
+  await assert.rejects(() => getMyMerchant(client, 3), (error: unknown) =>
+    error instanceof PayHttpError && error.status === 401
+  );
+  assert.equal(calls, 1);
+});
