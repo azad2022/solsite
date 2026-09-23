@@ -139,6 +139,23 @@ function approximateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
+function isPayHtmlPath(request: Request): boolean {
+  const pathname = new URL(request.url).pathname;
+  return pathname === '/pay' || pathname.startsWith('/pay/');
+}
+
+function withPayHtmlNoStore(request: Request, response: Response): Response {
+  const contentType = response.headers.get('Content-Type') || '';
+  if (!isPayHtmlPath(request) || !contentType.toLowerCase().includes('text/html')) return response;
+
+  const headers = new Headers(response.headers);
+  headers.set('Cache-Control', 'no-store, max-age=0');
+  headers.set('Pragma', 'no-cache');
+  headers.delete('ETag');
+  headers.delete('Last-Modified');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 const markdownMiddleware: MiddlewareHandler = async (context) => {
   if (isSensitivePath(context.request)) {
     return new Response('Not Found', {
@@ -151,7 +168,7 @@ const markdownMiddleware: MiddlewareHandler = async (context) => {
     });
   }
 
-  if (!acceptsMarkdown(context.request)) return context.next();
+  if (!acceptsMarkdown(context.request)) return withPayHtmlNoStore(context.request, await context.next());
 
   const origin = await context.next();
   const contentType = origin.headers.get('Content-Type') || '';
