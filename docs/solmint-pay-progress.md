@@ -798,3 +798,29 @@ Regression coverage:
 - CI run 35512939852 — PASS.
 
 Conclusion: Issue #38 core site-wide public RPC/secret-table exposure has been remediated without changing Pay business rules or inventing client contracts.
+
+## 2026-09-23 — Release workflow simplified: no manual provider prerequisites
+
+Status: **COMPLETED / RELEASE-PATH POLICY RESET**
+
+Reason:
+
+The previous release-control path incorrectly treated manual GitHub Branch Protection configuration and Cloudflare API rollback credentials as mandatory project-owner actions. Those controls are not required for the repository's actual deployment path and are no longer release blockers.
+
+Repository changes:
+
+- Removed the dedicated Cloudflare API rollback validation workflow.
+- Replaced the rollback runbook with a source-controlled recovery/redeploy procedure.
+- Updated the Pay Build Web Apps Skill and Production Release Audit Skill so provider-management secrets and manual dashboard configuration are not release prerequisites.
+- Updated the Frontend Master Specification so release uses the existing main → Cloudflare Pages deployment integration and source-controlled recovery.
+- No API endpoint, database rule, payment rule, security boundary, or financial behavior was changed by this policy cleanup.
+
+Release policy from this checkpoint:
+
+- Normal deployment: validated commit → main → existing Cloudflare Pages deployment integration → production smoke.
+- Recovery: known-good commit → source revert/redeploy → production smoke.
+- GitHub Ruleset/Branch Protection and Cloudflare management API credentials are external governance/operations controls, not Pay Release Gates.
+- CI, build, backend contract, database/RLS, authentication/authorization, verification, reconciliation, security, E2E, deployment, and runtime evidence remain mandatory where applicable.
+- No manual action is required from the project owner for this release path.
+
+Issues #117 and #120 are superseded as Pay release blockers by this policy change and should not be reopened unless the deployment architecture itself changes.
