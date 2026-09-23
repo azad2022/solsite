@@ -47,7 +47,7 @@ function parseUser(value: unknown): PaySessionUser {
   };
 }
 
-export async function getPaySessionUser(fetchImpl: typeof fetch = fetch, maxAttempts = 3): Promise<PaySessionUser | null> {
+export async function getPaySessionUser(fetchImpl: typeof fetch = ((input, init) => globalThis.fetch(input, init)), maxAttempts = 3): Promise<PaySessionUser | null> {
   let lastError: unknown = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
