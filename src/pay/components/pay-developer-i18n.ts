@@ -1,0 +1,78 @@
+import type { PayLocale } from '../types';
+
+const messages = {
+  'fa-IR': {
+    kicker: 'Developer',
+    title: 'مرکز توسعه‌دهندگان',
+    description: 'مستندات و قراردادهای منتشرشده فعلی SolMint Pay را از همان منابع رسمی پروژه دنبال کنید.',
+    contractBacked: 'فقط Contract موجود',
+    docs: 'API Docs',
+    docsDescription: 'مستندات قابل مشاهده برای APIهای منتشرشده.',
+    openapi: 'OpenAPI',
+    openapiDescription: 'سند OpenAPI فعلی پروژه با نسخه و مسیرهای منتشرشده.',
+    catalog: 'API Catalog',
+    catalogDescription: 'فهرست machine-readable سرویس‌ها و قراردادهای قابل کشف.',
+    surfaceKicker: 'Pay API',
+    surfaceTitle: 'قراردادهای خواندنی فعلی',
+    surfaceDescription: 'این فهرست فقط endpointهایی را نشان می‌دهد که در Backend و API Catalog فعلی وجود دارند.',
+    readOnly: 'Read only',
+    boundaryNotice: 'قابلیت‌های mutation، credential و عملیات مالی تا زمان وجود Contract منتشرشده و اعتبارسنجی کامل، در این بخش فعال نمی‌شوند.',
+  },
+  'en-US': {
+    kicker: 'Developer',
+    title: 'Developer Center',
+    description: 'Follow the currently published SolMint Pay documentation and contracts from the project’s official sources.',
+    contractBacked: 'Existing contracts only',
+    docs: 'API Docs',
+    docsDescription: 'Browsable documentation for published APIs.',
+    openapi: 'OpenAPI',
+    openapiDescription: 'The current project OpenAPI document and its published routes.',
+    catalog: 'API Catalog',
+    catalogDescription: 'Machine-readable discovery metadata for published services and contracts.',
+    surfaceKicker: 'Pay API',
+    surfaceTitle: 'Current read contracts',
+    surfaceDescription: 'Only endpoints that exist in the Backend and current API Catalog are listed here.',
+    readOnly: 'Read only',
+    boundaryNotice: 'Mutations, credentials, and financial operations remain unavailable until a published and fully validated contract exists.',
+  },
+  ar: {
+    kicker: 'Developer',
+    title: 'مركز المطورين',
+    description: 'اطّلع على توثيق وعقود SolMint Pay المنشورة حاليًا من المصادر الرسمية للمشروع.',
+    contractBacked: 'العقود الموجودة فقط',
+    docs: 'API Docs',
+    docsDescription: 'توثيق قابل للتصفح لواجهات API المنشورة.',
+    openapi: 'OpenAPI',
+    openapiDescription: 'ملف OpenAPI الحالي للمشروع ومساراته المنشورة.',
+    catalog: 'API Catalog',
+    catalogDescription: 'بيانات اكتشاف قابلة للقراءة آليًا للخدمات والعقود المنشورة.',
+    surfaceKicker: 'Pay API',
+    surfaceTitle: 'عقود القراءة الحالية',
+    surfaceDescription: 'تظهر هنا فقط نقاط النهاية الموجودة في Backend وكتالوج API الحالي.',
+    readOnly: 'للقراءة فقط',
+    boundaryNotice: 'تبقى عمليات التعديل وبيانات الاعتماد والعمليات المالية غير متاحة حتى وجود عقد منشور ومتحقق منه بالكامل.',
+  },
+  ru: {
+    kicker: 'Developer',
+    title: 'Центр разработчика',
+    description: 'Используйте текущую опубликованную документацию и контракты SolMint Pay из официальных источников проекта.',
+    contractBacked: 'Только существующие контракты',
+    docs: 'API Docs',
+    docsDescription: 'Просматриваемая документация опубликованных API.',
+    openapi: 'OpenAPI',
+    openapiDescription: 'Текущий OpenAPI-документ проекта и опубликованные маршруты.',
+    catalog: 'API Catalog',
+    catalogDescription: 'Машиночитаемые метаданные для обнаружения опубликованных сервисов и контрактов.',
+    surfaceKicker: 'Pay API',
+    surfaceTitle: 'Текущие read-контракты',
+    surfaceDescription: 'Здесь перечислены только endpoint, существующие в Backend и текущем API Catalog.',
+    readOnly: 'Только чтение',
+    boundaryNotice: 'Мутации, учетные данные и финансовые операции остаются недоступными до публикации и полной проверки соответствующего контракта.',
+  },
+} as const;
+
+type DeveloperTranslationKey = keyof typeof messages['fa-IR'];
+
+export function developerT(locale: PayLocale, key: DeveloperTranslationKey): string {
+  return messages[locale][key];
+}
