@@ -1,6 +1,12 @@
 name: SolMint Pay Production Browser UI E2E
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'e2e/pay-production-ui.e2e.mjs'
+      - '.github/workflows/solmint-pay-production-browser-ui.yml'
+      - '.github/solmint-pay-production-ui-e2e.trigger'
   push:
     branches: [main]
     paths:
