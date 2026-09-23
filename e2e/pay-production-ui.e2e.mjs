@@ -2,11 +2,14 @@ import assert from 'node:assert/strict';
 import { randomBytes, generateKeyPairSync, sign } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
 import { chromium } from 'playwright';
+import { mkdirSync } from 'node:fs';
 
 const ORIGIN = (process.env.SOLMINT_PAY_PRODUCTION_ORIGIN || 'https://solmint.ir').replace(/\/$/, '');
 const SUPABASE_ACCESS_TOKEN = (process.env.SUPABASE_ACCESS_TOKEN || '').trim();
 const PROJECT_REF = 'nvopkbiedorfshwbmyhn';
 const VIEWPORT = { width: 390, height: 844 };
+const EVIDENCE_DIR = '/tmp/pay-ui-evidence';
+mkdirSync(EVIDENCE_DIR, { recursive: true });
 
 function rows(value) {
   if (Array.isArray(value)) return value.filter((item) => item && typeof item === 'object');
@@ -167,22 +170,95 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') console.log(`BROWSER_CONSOLE_ERROR ${message.text()}`);
   });
+  page.on('pageerror', (error) => {
+    console.log(`BROWSER_PAGE_ERROR ${error.message}`);
+  });
+  const browserRequests = [];
+  page.on('request', (request) => {
+    if (!request.url().includes('/api/')) return;
+    browserRequests.push({ url: request.url(), method: request.method() });
+  });
   page.on('response', async (response) => {
-    if (!response.url().includes('/api/pay/')) return;
+    if (!response.url().includes('/api/')) return;
     apiEvents.push({ url: response.url(), status: response.status(), method: response.request().method() });
   });
 
   await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(1200);
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
   const onboardingForm = page.locator('.pay-onboarding-form');
   await onboardingForm.waitFor({ state: 'visible', timeout: 10000 });
-  await onboardingForm.locator('input').nth(0).fill('SolMint Browser Test Merchant');
-  const createResponsePromise = page.waitForResponse((response) =>
-    response.url().endsWith('/api/pay/v1/merchants') && response.request().method() === 'POST'
+
+  const formDiagnosticsBefore = await onboardingForm.locator('input').evaluateAll((inputs) =>
+    inputs.map((input) => ({
+      name: input.name,
+      value: input.value,
+      placeholder: input.getAttribute('placeholder') || '',
+      disabled: input.disabled,
+      required: input.required,
+      type: input.type,
+    }))
   );
-  await onboardingForm.locator('.pay-primary-action').click();
-  const createResponse = await createResponsePromise;
+  const createButton = onboardingForm.locator('.pay-primary-action');
+  const buttonBefore = await createButton.evaluate((button) => ({
+    text: button.textContent?.trim() || '',
+    disabled: button.disabled,
+    type: button.getAttribute('type'),
+    ariaDisabled: button.getAttribute('aria-disabled'),
+  }));
+  console.log(`MERCHANT_FORM_BEFORE ${JSON.stringify({ formDiagnosticsBefore, buttonBefore })}`);
+
+  await onboardingForm.locator('input').nth(0).fill('SolMint Browser Test Merchant');
+  await page.waitForTimeout(100);
+  const formDiagnosticsAfterFill = await onboardingForm.locator('input').evaluateAll((inputs) =>
+    inputs.map((input) => ({ name: input.name, value: input.value, disabled: input.disabled, required: input.required, type: input.type }))
+  );
+  console.log(`MERCHANT_FORM_AFTER_FILL ${JSON.stringify(formDiagnosticsAfterFill)}`);
+
+  const merchantPost = (request) =>
+    request.url().endsWith('/api/pay/v1/merchants') && request.method() === 'POST';
+  const createRequestPromise = page.waitForRequest(merchantPost, { timeout: 10000 });
+  const createResponsePromise = page.waitForResponse((response) => merchantPost(response.request()), { timeout: 15000 });
+
+  await createButton.click();
+
+  let createRequest;
+  try {
+    createRequest = await createRequestPromise;
+  } catch (error) {
+    const diagnostics = {
+      stageText: await page.locator('.pay-onboarding-progress').allTextContents(),
+      formVisible: await onboardingForm.isVisible().catch(() => false),
+      formDiagnosticsAfterClick: await onboardingForm.locator('input').evaluateAll((inputs) =>
+        inputs.map((input) => ({ name: input.name, value: input.value, disabled: input.disabled, type: input.type }))
+      ).catch(() => []),
+      buttonAfterClick: await createButton.evaluate((button) => ({
+        text: button.textContent?.trim() || '', disabled: button.disabled, type: button.getAttribute('type'),
+      })).catch(() => null),
+      apiEvents,
+      browserRequests,
+      bodyExcerpt: (await page.locator('body').innerText()).slice(0, 2500),
+    };
+    await page.screenshot({ path: `${EVIDENCE_DIR}/merchant-create-no-request.png`, fullPage: false });
+    console.log(`MERCHANT_CREATE_NO_REQUEST ${JSON.stringify(diagnostics)}`);
+    throw error;
+  }
+
+  console.log(`MERCHANT_CREATE_REQUEST ${JSON.stringify({ url: createRequest.url(), method: createRequest.method() })}`);
+
+  let createResponse;
+  try {
+    createResponse = await createResponsePromise;
+  } catch (error) {
+    await page.screenshot({ path: `${EVIDENCE_DIR}/merchant-create-no-response.png`, fullPage: false });
+    console.log(`MERCHANT_CREATE_NO_RESPONSE ${JSON.stringify({
+      request: { url: createRequest.url(), method: createRequest.method() },
+      apiEvents,
+      browserRequests,
+      bodyExcerpt: (await page.locator('body').innerText()).slice(0, 2500),
+    })}`);
+    throw error;
+  }
   assert.equal(createResponse.status(), 201, await createResponse.text());
   const createBody = await createResponse.json();
   merchantId = createBody.merchant.id;
