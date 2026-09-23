@@ -41,7 +41,9 @@ jobs:
         run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
 
       - name: Install Chromium
-        run: npx playwright install --with-      - name: Compare Pages Preview with custom production domain
+        run: npx playwright install --with-deps chromium
+
+      - name: Compare Pages Preview with custom production domain
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
