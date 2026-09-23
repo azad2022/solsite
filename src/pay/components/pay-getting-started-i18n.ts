@@ -25,7 +25,7 @@ type GuideCopy = {
   developer: string;
 };
 
-const copy: Record<PayLocale, GuideCopy> = {
+export const guideCopy: Record<PayLocale, GuideCopy> = {
   'fa-IR': {
     kicker: 'راهنمای شروع',
     title: 'برای شروع چه کاری انجام دهید؟',
