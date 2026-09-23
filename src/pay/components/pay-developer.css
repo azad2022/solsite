@@ -1,0 +1,23 @@
+.pay-developer{display:flex;flex-direction:column;gap:22px;padding:24px;border:1px solid #eaecf0;border-radius:20px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.03)}
+.pay-developer-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.pay-developer-header h2{margin:4px 0 7px;font-size:24px;line-height:1.25;color:#101828}
+.pay-developer-header p{margin:0;max-width:760px;color:#667085;line-height:1.75}
+.pay-developer-status,.pay-developer-read-only{display:inline-flex;align-items:center;gap:7px;flex:none;padding:7px 10px;border-radius:999px;background:#f9fafb;border:1px solid #eaecf0;color:#475467;font-size:11px;font-weight:700}
+.pay-developer-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.pay-developer-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-width:0;padding:16px;border:1px solid #eaecf0;border-radius:16px;text-decoration:none;color:inherit;background:#fff;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.pay-developer-card:hover{transform:translateY(-1px);border-color:#d0d5dd;box-shadow:0 8px 24px rgba(16,24,40,.06)}
+.pay-developer-card:focus-visible{outline:3px solid rgba(236,72,153,.22);outline-offset:2px}
+.pay-developer-card-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff1f2;color:#be185d}
+.pay-developer-card-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pay-developer-card-copy strong{font-size:14px;color:#101828}
+.pay-developer-card-copy span{font-size:12px;line-height:1.6;color:#667085}
+.pay-developer-contracts{padding:20px;border:1px solid #eaecf0;border-radius:16px;background:#fcfcfd}
+.pay-developer-contracts-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.pay-developer-contracts h3{margin:3px 0 0;font-size:18px;color:#101828}
+.pay-developer-contracts>p{margin:10px 0 14px;color:#667085;line-height:1.7;font-size:13px}
+.pay-developer-endpoints{display:grid;gap:8px}
+.pay-developer-endpoints code{display:block;padding:9px 11px;border:1px solid #eaecf0;border-radius:10px;background:#fff;color:#344054;font:600 12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:auto}
+.pay-developer-boundary{display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border:1px solid #fce7f3;border-radius:14px;background:#fff7fb;color:#9d174d}
+.pay-developer-boundary p{margin:0;font-size:12px;line-height:1.75}
+@media(max-width:900px){.pay-developer-grid{grid-template-columns:1fr}.pay-developer-header{flex-direction:column}.pay-developer-status{align-self:flex-start}}
+@media(prefers-reduced-motion:reduce){.pay-developer-card{transition:none}.pay-developer-card:hover{transform:none}}
