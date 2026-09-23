@@ -92,10 +92,30 @@ function parseMerchant(value: unknown): PayMerchant {
   };
 }
 
-export async function getMyMerchant(client: PayHttpClient = defaultPayHttpClient): Promise<PayMerchant | null> {
-  const payload = await client.request<MerchantEnvelope>('/api/pay/v1/merchants');
-  if (payload.success !== true || payload.merchant == null) return null;
-  return parseMerchant(payload.merchant);
+export async function getMyMerchant(
+  client: PayHttpClient = defaultPayHttpClient,
+  maxAttempts = 3,
+): Promise<PayMerchant | null> {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const payload = await client.request<MerchantEnvelope>('/api/pay/v1/merchants');
+      if (payload.success !== true || payload.merchant == null) return null;
+      return parseMerchant(payload.merchant);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof PayHttpError && error.status < 500) throw error;
+      if (error instanceof TypeError && !(error instanceof PayHttpError)) throw error;
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 150 * attempt));
+    }
+  }
+
+  if (lastError instanceof Error) throw lastError;
+  throw new Error('Merchant lookup failed.');
 }
 
 export async function createMyMerchant(
