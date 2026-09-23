@@ -2107,7 +2107,7 @@ AI نباید با مشاهده نبودن variable در source code نتیجه 
 
 ## 135. Final Release Gates
 
-قبل از release اصلی SolMint Pay باید این gateها پاس شوند:
+قبل از release اصلی SolMint Pay باید gateهای فنی و عملیاتیِ قابل اثبات در خود repository و production پاس شوند:
 
 ### Product
 
@@ -2158,7 +2158,7 @@ AI نباید با مشاهده نبودن variable در source code نتیجه 
 - Android SDK
 - documentation
 
-### Quality
+### Quality / Operations
 
 - unit
 - component
@@ -2169,9 +2169,32 @@ AI نباید با مشاهده نبودن variable در source code نتیجه 
 - responsive
 - performance
 - CI
-- deployment
-- rollback
+- production build
+- production deployment evidence
+- post-deployment smoke checks
+- source-controlled recovery/redeploy path
 
+### Release Automation Rule
+
+- Release نباید به اقدام دستی مالک پروژه در GitHub یا Cloudflare وابسته باشد.
+- ساخت Ruleset/Branch Protection، تغییر تنظیمات Dashboard، ایجاد Cloudflare API Token یا وارد کردن Secret جدید، پیش‌شرط Release نیست.
+- استقرار معمولی باید از مسیر موجود repository → main → Cloudflare Pages انجام شود.
+- در صورت نیاز به بازیابی، نسخه کد به آخرین commit سالم برگردانده و همان مسیر عادی deployment مجدداً اجرا شود.
+- Cloudflare API rollback validation و هر workflowای که برای اجرا به Cloudflare management secret نیاز دارد، جزء Release Gate نیست.
+- نبودن evidence برای یک provider-level control خارجی باید به‌عنوان «خارج از این release workflow» ثبت شود، نه اینکه کاری دستی به مالک پروژه تحمیل شود.
+- هیچ‌یک از این موارد نباید با دور زدن CI، امنیت، RLS، authentication، verification یا smoke checks تفسیر شود.
+
+## 135.1 Release Deployment and Recovery Policy
+
+SolMint Pay از یک مسیر ساده و source-controlled برای انتشار استفاده می‌کند:
+
+validated commit → main → existing Cloudflare Pages deployment integration → production smoke
+
+Recovery نیز در همان مرز انجام می‌شود:
+
+known-good commit → source revert/redeploy → production smoke
+
+این سیاست عمداً به Cloudflare management API، Cloudflare API Token، Account ID، Ruleset یا تغییر دستی Dashboard وابسته نیست. این کنترل‌ها ممکن است برای governance یا عملیات مستقل مفید باشند، اما Release Gate پروژه نیستند و نباید از مالک پروژه خواسته شوند.
 ## 136. Final Architecture Target
 
 معماری هدف:
