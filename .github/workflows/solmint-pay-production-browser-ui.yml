@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 20
     env:
       SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
-      SUPABASE_ACCESS_TOKEN: \${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v5
