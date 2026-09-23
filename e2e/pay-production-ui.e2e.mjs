@@ -303,8 +303,22 @@ try {
 
   await signWalletChallenge(context, merchantId, signer);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(900);
-  assert.ok((await page.locator('body').innerText()).includes(signer.address.slice(0, 8)));
+  await page.waitForFunction(
+    (addressPrefix) => document.body.innerText.includes(addressPrefix),
+    signer.address.slice(0, 8),
+    { timeout: 10000 },
+  );
+  const walletAfterReload = await page.evaluate(async (addressPrefix) => {
+    const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
+    return {
+      status: response.status,
+      text: (await response.text()).slice(0, 2000),
+      addressVisible: document.body.innerText.includes(addressPrefix),
+    };
+  }, signer.address.slice(0, 8));
+  console.log(`WALLET_AFTER_RELOAD ${JSON.stringify(walletAfterReload)}`);
+  assert.equal(walletAfterReload.status, 200);
+  assert.equal(walletAfterReload.addressVisible, true);
   assert.ok((await page.locator('body').innerText()).includes('active') || (await page.locator('body').innerText()).includes('فعال'));
 
   const secretBefore = apiEvents.length;
