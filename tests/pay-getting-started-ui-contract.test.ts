@@ -30,6 +30,8 @@ test('Pay keeps Merchant lookup failures distinct from the create state', () => 
   assert.match(app, /type MerchantLoadState = 'loading' \| 'ready' \| 'error'/);
   assert.match(app, /merchantLoadState === 'ready'/);
   assert.match(app, /setMerchantLoadState\('error'\)/);
+  assert.match(app, /merchantLoadState === 'error'/);
+  assert.match(app, /currentSection === 'merchants'/);
 });
 
 test('Pay mobile drawer is fully off-canvas in both directions and clips horizontal overflow', () => {
@@ -37,6 +39,7 @@ test('Pay mobile drawer is fully off-canvas in both directions and clips horizon
   assert.match(payCss, /transform: translate3d\(100%, 0, 0\)/);
   assert.match(payCss, /\.solmint-pay\[dir='rtl'\] \.pay-sidebar/);
   assert.match(payCss, /overflow-x: clip/);
+  assert.match(payCss, /gap: 2px/);
   assert.match(payCss, /touch-action: none/);
 });
 
