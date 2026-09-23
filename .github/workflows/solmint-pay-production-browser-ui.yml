@@ -52,18 +52,39 @@ jobs:
           const repository = process.env.GITHUB_REPOSITORY;
           const sha = process.env.GITHUB_SHA;
           const customOrigin = process.env.SOLMINT_PAY_PRODUCTION_ORIGIN;
-          const checksResponse = await fetch(
-            'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
-            { headers: { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json' } },
-          );
-          if (!checksResponse.ok) throw new Error('GitHub check-runs lookup failed: ' + checksResponse.status);
-          const checks = await checksResponse.json();
-          const pagesCheck = (checks.check_runs || []).find(
-            (check) => check.name === 'Cloudflare Pages' && /Deploy successful/.test(check.output?.summary || ''),
-          );
-          const previewMatch = (pagesCheck?.output?.summary || '').match(/https:\/\/[^<\s]+\.solsite-9uh\.pages\.dev/);
-          if (!previewMatch) throw new Error('Current commit has no successful Cloudflare Pages preview URL.');
-          const previewOrigin = previewMatch[0];
+          const headers = {
+            authorization: 'Bearer ' + process.env.GITHUB_TOKEN,
+            accept: 'application/vnd.github+json',
+          };
+          let previewOrigin = '';
+          let lastPagesState = '';
+          for (let attempt = 1; attempt <= 30; attempt += 1) {
+            const checksResponse = await fetch(
+              'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
+              { headers },
+            );
+            if (!checksResponse.ok) throw new Error('GitHub check-runs lookup failed: ' + checksResponse.status);
+            const checks = await checksResponse.json();
+            const pagesChecks = (checks.check_runs || []).filter((check) => check.name === 'Cloudflare Pages');
+            const pagesCheck = pagesChecks.find((check) => check.output?.summary);
+            const summary = pagesCheck?.output?.summary || '';
+            const previewMatch = summary.match(/https:\/\/[^<\s'"]+\.solsite-9uh\.pages\.dev/);
+            lastPagesState = pagesCheck
+              ? `status=${pagesCheck.status} conclusion=${pagesCheck.conclusion}`
+              : 'missing';
+            console.log(`CLOUDFLARE_PAGES_CHECK attempt=${attempt} ${lastPagesState}`);
+            if (pagesCheck?.conclusion === 'success' && previewMatch) {
+              previewOrigin = previewMatch[0];
+              break;
+            }
+            if (pagesCheck?.conclusion === 'failure') {
+              throw new Error('Cloudflare Pages deployment failed for current commit.');
+            }
+            if (attempt === 30) {
+              throw new Error(`Current commit has no successful Cloudflare Pages preview URL. Last: ${lastPagesState}`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
           console.log('PAGES_PREVIEW_ORIGIN ' + previewOrigin);
           const browser = await chromium.launch({ headless: true });
           try {
