@@ -32,6 +32,7 @@ type GuideCopy = {
   lookupFailed: string;
   retry: string;
   merchantNotReady: string;
+  merchantNotActive: string;
   merchantActive: string;
   walletVerified: string;
   walletPending: string;
@@ -57,6 +58,7 @@ const copy: Record<PayLocale, GuideCopy> = {
     lookupFailed: 'وضعیت Merchant از سرویس Pay دریافت نشد؛ در این حالت فرم ساخت Merchant نمایش داده نمی‌شود.',
     retry: 'تلاش دوباره',
     merchantNotReady: 'Merchant هنوز راه‌اندازی نشده است.',
+    merchantNotActive: 'Merchant هنوز فعال نیست.',
     merchantActive: 'Merchant فعال است.',
     walletVerified: 'کیف پول دریافت تأیید شده است.',
     walletPending: 'کیف پول دریافت هنوز تأیید نشده است.',
@@ -80,6 +82,7 @@ const copy: Record<PayLocale, GuideCopy> = {
     lookupFailed: 'The Pay service did not return the Merchant state, so the creation form is not shown.',
     retry: 'Retry',
     merchantNotReady: 'The Merchant has not been set up yet.',
+    merchantNotActive: 'The Merchant is not active.',
     merchantActive: 'The Merchant is active.',
     walletVerified: 'The receiving wallet is verified.',
     walletPending: 'The receiving wallet is not verified yet.',
@@ -103,6 +106,7 @@ const copy: Record<PayLocale, GuideCopy> = {
     lookupFailed: 'لم تُرجع خدمة Pay حالة Merchant، لذلك لا يتم عرض نموذج الإنشاء.',
     retry: 'إعادة المحاولة',
     merchantNotReady: 'لم يتم إعداد Merchant بعد.',
+    merchantNotActive: 'Merchant غير نشط.',
     merchantActive: 'Merchant نشط.',
     walletVerified: 'تم التحقق من محفظة الاستلام.',
     walletPending: 'لم يتم التحقق من محفظة الاستلام بعد.',
@@ -126,6 +130,7 @@ const copy: Record<PayLocale, GuideCopy> = {
     lookupFailed: 'Сервис Pay не вернул состояние Merchant, поэтому форма создания не показывается.',
     retry: 'Повторить',
     merchantNotReady: 'Merchant ещё не настроен.',
+    merchantNotActive: 'Merchant ещё не активен.',
     merchantActive: 'Merchant активен.',
     walletVerified: 'Кошелёк для приёма подтверждён.',
     walletPending: 'Кошелёк для приёма ещё не подтверждён.',
@@ -172,7 +177,7 @@ export default function PayGettingStartedGuide({ locale, merchant, merchantLoadS
         <div className="pay-getting-started-steps">
           <GuideStep number="1" icon={<Store size={16} />} title={t.step1} text={t.step1Text} done={merchantReady} active={!merchantReady} onClick={!merchantReady ? () => onNavigate('merchants') : undefined} status={merchantReady ? t.ready : t.pending} />
           <GuideStep number="2" icon={<WalletCards size={16} />} title={t.step2} text={t.step2Text} done={walletVerified} active={merchantReady && !walletVerified} onClick={merchantReady && !walletVerified ? () => onNavigate('merchants') : undefined} status={walletVerified ? t.ready : merchantReady ? t.pending : t.pending} />
-          <GuideStep number="3" icon={<ShieldCheck size={16} />} title={t.step3} text={merchantActive ? t.merchantActive : walletVerified ? t.merchantActive : t.merchantNotReady} done={merchantActive} active={walletVerified && !merchantActive} status={merchantActive ? t.ready : t.pending} />
+          <GuideStep number="3" icon={<ShieldCheck size={16} />} title={t.step3} text={merchantActive ? t.merchantActive : merchantReady ? t.merchantNotActive : t.merchantNotReady} done={merchantActive} active={walletVerified && !merchantActive} status={merchantActive ? t.ready : t.pending} />
           <GuideStep number="4" icon={<BookOpen size={16} />} title={t.step4} text={merchantActive ? t.walletVerified : walletVerified ? t.walletVerified : t.walletPending} done={merchantActive && walletVerified} active={merchantActive && walletVerified} onClick={() => onNavigate('developer')} status={merchantActive && walletVerified ? t.ready : t.pending} />
         </div>
       )}
@@ -198,7 +203,7 @@ function GuideStep({ number, icon, title, text: body, done, active, onClick, sta
         <strong>{title}</strong>
         <p>{body}</p>
       </div>
-      <span className="pay-getting-started-step-status">{active ? status : done ? status : status}</span>
+      <span className="pay-getting-started-step-status">{status}</span>
       {onClick ? <ArrowUpRight className="pay-getting-started-step-action" size={16} aria-hidden="true" /> : null}
     </>
   );
