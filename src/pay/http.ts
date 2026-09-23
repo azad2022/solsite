@@ -27,7 +27,7 @@ export class PayHttpClient {
   private readonly credentials: RequestCredentials;
 
   constructor(options: PayHttpClientOptions = {}) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.credentials = options.credentials ?? 'include';
   }
 
