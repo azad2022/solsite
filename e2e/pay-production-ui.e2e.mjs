@@ -353,3 +353,15 @@ try {
   await browser.close();
 } finally {
   if (merchantId) {
+    const result = await db('select id from public.pay_merchants where id = $1', [merchantId], true);
+    const found = rows(result).length;
+    if (found) await cleanup(fixture, merchantId);
+    else {
+      await db('delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
+      await db('delete from public.users where id = $1', [fixture.applicationUserId]).catch(() => {});
+      await db('delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]).catch(() => {});
+    }
+  } else {
+    await cleanup(fixture, '').catch(() => {});
+  }
+}
