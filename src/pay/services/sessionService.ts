@@ -78,7 +78,7 @@ export async function getPaySessionUser(fetchImpl: typeof fetch = fetch, maxAtte
     }
 
     if (attempt < maxAttempts) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 150 * attempt));
+      await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 150 * attempt));
     }
   }
 
