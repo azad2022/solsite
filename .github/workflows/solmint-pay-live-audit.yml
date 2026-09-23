@@ -1,0 +1,48 @@
+name: SolMint Pay — Live Browser Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/solmint-pay-live-audit.yml'
+      - '.github/solmint-pay-live-audit.trigger'
+      - 'e2e/pay-production-ui.e2e.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  live-audit:
+    if: contains(github.event.head_commit.message, 'live browser audit') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install project dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install Playwright
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Live browser audit
+        run: node e2e/pay-production-ui.e2e.mjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-live-browser-audit
+          path: /tmp/pay-ui-evidence
+          if-no-files-found: warn
