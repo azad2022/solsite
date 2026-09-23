@@ -187,8 +187,27 @@ try {
   await page.waitForTimeout(1200);
   assert.ok(merchantPageResponse && merchantPageResponse.ok(), 'Production Merchant page must be reachable.');
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
-  assert.equal(await page.locator('[data-pay-runtime="transport-v2"]').count(), 1, 'Production must serve the current Pay runtime bundle.');
-  console.log(`PAY_DOCUMENT_HEADERS ${JSON.stringify({ cacheControl: merchantPageResponse.headers()['cache-control'] || '', etag: merchantPageResponse.headers()['etag'] || '', age: merchantPageResponse.headers()['age'] || '', cfCacheStatus: merchantPageResponse.headers()['cf-cache-status'] || '' })}`);
+  const runtimeMarkerCount = await page.locator('[data-pay-runtime="transport-v2"]').count();
+  const documentDiagnostics = await page.evaluate(() => ({
+    url: location.href,
+    payRuntimeCount: document.querySelectorAll('[data-pay-runtime="transport-v2"]').length,
+    scriptSrcs: Array.from(document.scripts).map(script => script.src).filter(Boolean),
+    htmlStart: document.documentElement.outerHTML.slice(0, 3500),
+  }));
+  console.log(`PAY_RUNTIME_PROBE ${JSON.stringify({ runtimeMarkerCount, documentDiagnostics, headers: { cacheControl: merchantPageResponse.headers()['cache-control'] || '', etag: merchantPageResponse.headers()['etag'] || '', age: merchantPageResponse.headers()['age'] || '', cfCacheStatus: merchantPageResponse.headers()['cf-cache-status'] || '', cfRay: merchantPageResponse.headers()['cf-ray'] || '', server: merchantPageResponse.headers()['server'] || '' } })}`);
+  if (runtimeMarkerCount !== 1) {
+    const probeUrl = `${ORIGIN}/pay/merchants?__pay_runtime_probe=${encodeURIComponent(crypto.randomUUID())}`;
+    const probeResponse = await page.goto(probeUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
+    const probeDiagnostics = await page.evaluate(() => ({
+      url: location.href,
+      payRuntimeCount: document.querySelectorAll('[data-pay-runtime="transport-v2"]').length,
+      scriptSrcs: Array.from(document.scripts).map(script => script.src).filter(Boolean),
+      htmlStart: document.documentElement.outerHTML.slice(0, 1800),
+    }));
+    console.log(`PAY_RUNTIME_CACHE_BYPASS_PROBE ${JSON.stringify({ ok: Boolean(probeResponse?.ok()), status: probeResponse?.status(), diagnostics: probeDiagnostics, headers: { cacheControl: probeResponse?.headers()['cache-control'] || '', etag: probeResponse?.headers()['etag'] || '', age: probeResponse?.headers()['age'] || '', cfCacheStatus: probeResponse?.headers()['cf-cache-status'] || '', cfRay: probeResponse?.headers()['cf-ray'] || '', server: probeResponse?.headers()['server'] || '' } })}`);
+  }
+  assert.equal(runtimeMarkerCount, 1, 'Production must serve the current Pay runtime bundle.');
   const directMerchantApi = await page.evaluate(async () => {
     try {
       const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
