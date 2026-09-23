@@ -297,11 +297,11 @@
   .pay-sidebar { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(84vw, 320px); min-width: min(84vw, 320px); transform: translate3d(-100%, 0, 0); will-change: transform; box-shadow: 0 22px 55px rgba(28, 32, 49, 0.18); }
   .solmint-pay[dir='rtl'] .pay-sidebar { inset-inline-start: auto; inset-inline-end: 0; transform: translate3d(100%, 0, 0); }
   .pay-sidebar.is-mobile-open { transform: translate3d(0, 0, 0); }
-  .pay-sidebar.is-mobile-open .pay-brand-copy,
-  .pay-sidebar.is-mobile-open .pay-sidebar-section-label,
-  .pay-sidebar.is-mobile-open .pay-nav-item span:not(.pay-nav-active-dot),
-  .pay-sidebar.is-mobile-open .pay-sidebar-security,
-  .pay-sidebar.is-mobile-open .pay-collapse-button span { display: initial; }
+  .pay-sidebar.is-mobile-open .pay-brand-copy { display: flex; }
+  .pay-sidebar.is-mobile-open .pay-sidebar-section-label { display: block; }
+  .pay-sidebar.is-mobile-open .pay-nav-item span:not(.pay-nav-active-dot) { display: inline; }
+  .pay-sidebar.is-mobile-open .pay-sidebar-security { display: flex; }
+  .pay-sidebar.is-mobile-open .pay-collapse-button span { display: inline; }
   .pay-sidebar.is-mobile-open .pay-sidebar-brand { justify-content: flex-start; }
   .pay-sidebar.is-mobile-open .pay-nav-item,
   .pay-sidebar.is-mobile-open .pay-collapse-button { justify-content: flex-start; }
