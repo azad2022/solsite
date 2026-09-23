@@ -8,6 +8,7 @@ export interface RouteSeoInfo {
   h1: string;
   breadcrumbs: { name: string; url: string }[];
   is404?: boolean;
+  noindex?: boolean;
 }
 
 export const SITE_DOMAIN = 'https://solmint.ir';
@@ -217,6 +218,41 @@ export function getRouteSeoInfo(path: string, articleData?: ArticleSeoData): Rou
   let normalizedPath = path.split('?')[0].replace(/\/+$/, '') || '/';
   let info = ROUTES_SEO_MAP[normalizedPath];
 
+  // Pay is an authenticated application boundary. Its routes must render the
+  // application shell with a normal HTTP 200 response, while remaining noindex.
+  if (!info && (normalizedPath === '/pay' || normalizedPath.startsWith('/pay/'))) {
+    const payRouteNames: Record<string, string> = {
+      '/pay': 'SolMint Pay',
+      '/pay/merchants': 'Merchants',
+      '/pay/dashboard': 'Dashboard',
+      '/pay/transactions': 'Transactions',
+      '/pay/customers': 'Customers',
+      '/pay/invoices': 'Invoices',
+      '/pay/referrals': 'Referrals',
+      '/pay/reports': 'Reports',
+      '/pay/tickets': 'Support Tickets',
+      '/pay/developer': 'Developer',
+      '/pay/security': 'Security',
+      '/pay/webhooks': 'Webhooks',
+    };
+    const routeName = payRouteNames[normalizedPath] || 'SolMint Pay';
+    info = {
+      path: normalizedPath,
+      title: `${routeName} | SolMint Pay`,
+      description: 'Authenticated SolMint Pay application.',
+      canonical: `${SITE_DOMAIN}${normalizedPath}`,
+      ogType: 'website',
+      ogImage: `${SITE_DOMAIN}/images/solmint-banner.jpg`,
+      h1: routeName,
+      breadcrumbs: [
+        { name: 'خانه', url: `${SITE_DOMAIN}/` },
+        { name: 'SolMint Pay', url: `${SITE_DOMAIN}/pay` },
+        ...(normalizedPath === '/pay' ? [] : [{ name: routeName, url: `${SITE_DOMAIN}${normalizedPath}` }]),
+      ],
+      noindex: true,
+    };
+  }
+
   if (!info && (normalizedPath.startsWith('/article/') || normalizedPath.startsWith('/blog/')) && articleData) {
     info = {
       path: `/article/${articleData.slug}`,
@@ -321,7 +357,7 @@ export function updateRouteSeo(path: string, articleData?: ArticleSeoData) {
   document.title = info.title;
 
   setMetaName('description', info.description);
-  setMetaName('robots', info.is404 ? 'noindex, follow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+  setMetaName('robots', info.is404 || info.noindex ? 'noindex, follow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
   if (articleData?.author?.name) setMetaName('author', articleData.author.name);
 
   let canonicalLink = document.querySelector('link[rel="canonical"]');
