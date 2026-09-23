@@ -175,6 +175,7 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
   try {
     await fixture.db.query('delete from public.pay_merchant_members where merchant_id = $1', [fixture.merchantId]);
     await fixture.db.query('delete from public.pay_merchants where id = $1', [fixture.merchantId]);
+    await fixture.db.query('delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]);
     await fixture.db.query('delete from public.users where id = $1', [fixture.applicationUserId]);
     await fixture.db.query('delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]);
   } finally {
