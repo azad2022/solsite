@@ -122,6 +122,7 @@ async function signWalletChallenge(context, merchantId, signer) {
   assert.equal(verifyResponse.status(), 200, `Wallet verification failed: ${await verifyResponse.text()}`);
   const body = await verifyResponse.json();
   assert.equal(body.verified, true);
+  return body;
 }
 
 const routes = [
@@ -301,13 +302,34 @@ try {
   merchantId = createBody.merchant.id;
   await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
 
-  const preWalletRouteResults = [];
-  for (const [path, label] of routes) {
-    preWalletRouteResults.push(await routeAudit(page, path, `prewallet-${label}`, '/tmp/pay-ui-evidence', apiEvents));
-  }
-  console.log(`PREWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: preWalletRouteResults.length, paths: preWalletRouteResults.map(result => result.path) })}`);
+  await routeAudit(page, '/pay/merchants', 'prewallet-merchants', '/tmp/pay-ui-evidence', apiEvents);
 
-  await signWalletChallenge(context, merchantId, signer);
+  const verifiedWalletResponse = await signWalletChallenge(context, merchantId, signer);
+  const authoritativeAfterVerify = await context.request.get('/api/pay/v1/merchants', {
+    headers: { Origin: ORIGIN, Accept: 'application/json', 'Cache-Control': 'no-cache' },
+  });
+  const authoritativeAfterVerifyText = await authoritativeAfterVerify.text();
+  let databaseWalletState;
+  try {
+    databaseWalletState = rows(await db(
+      `select w.merchant_id, w.wallet_role, w.verification_status, w.is_active
+         from public.pay_merchant_wallets w
+        where w.merchant_id = $1
+          and w.wallet_role = 'receiving'
+        order by w.verified_at desc nulls last`,
+      [merchantId],
+      true,
+    ));
+  } catch (error) {
+    databaseWalletState = { error: error instanceof Error ? error.message : String(error) };
+  }
+  console.log(`WALLET_AUTHORITATIVE_AFTER_VERIFY ${JSON.stringify({
+    verifiedWalletResponse,
+    api: { status: authoritativeAfterVerify.status, body: authoritativeAfterVerifyText.slice(0, 3000) },
+    databaseWalletState,
+  })}`);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
     (addressPrefix) => document.body.innerText.includes(addressPrefix),
@@ -318,14 +340,21 @@ try {
     const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
     return {
       status: response.status,
-      text: (await response.text()).slice(0, 2000),
+      text: (await response.text()).slice(0, 3000),
       addressVisible: document.body.innerText.includes(addressPrefix),
     };
   }, signer.address.slice(0, 8));
   console.log(`WALLET_AFTER_RELOAD ${JSON.stringify(walletAfterReload)}`);
   assert.equal(walletAfterReload.status, 200);
-  assert.equal(walletAfterReload.addressVisible, true);
+  assert.equal(walletAfterReload.addressVisible, true,
+    `Verified wallet must survive reload. Authoritative GET: ${walletAfterReload.text}`);
   assert.ok((await page.locator('body').innerText()).includes('active') || (await page.locator('body').innerText()).includes('فعال'));
+
+  const postWalletRouteResults = [];
+  for (const [path, label] of routes) {
+    postWalletRouteResults.push(await routeAudit(page, path, `postwallet-${label}`, '/tmp/pay-ui-evidence', apiEvents));
+  }
+  console.log(`POSTWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: postWalletRouteResults.length, results: postWalletRouteResults.map(result => ({ path: result.path, apiEvents: result.apiEvents, excerpt: result.excerpt.slice(0, 300) })) })}`);
 
   const secretBefore = apiEvents.length;
   const apiName = page.locator('.pay-api-create input').nth(0);
