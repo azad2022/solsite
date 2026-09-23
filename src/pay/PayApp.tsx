@@ -130,7 +130,7 @@ export function PayApp(): React.ReactElement {
 
   if (route.kind === 'not-found') {
     return (
-      <div className="solmint-pay" dir={direction} lang={locale}>
+      <div className="solmint-pay" dir={direction} lang={locale} data-pay-runtime="transport-v2">
         <main className="pay-not-found" aria-labelledby="pay-not-found-title">
           <div className="pay-not-found-card">
             <div className="pay-empty-icon"><LayoutDashboard size={21} /></div>
