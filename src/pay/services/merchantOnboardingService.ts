@@ -1,4 +1,4 @@
-import { defaultPayHttpClient, type PayHttpClient } from '../http';
+import { defaultPayHttpClient, PayHttpError, type PayHttpClient } from '../http';
 
 export interface PayMerchantReceivingWallet {
   id: string;
