@@ -353,14 +353,30 @@ try {
     await page.locator('.pay-language-control button').nth(localeButton).click();
     await page.waitForTimeout(150);
     assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+    const widthDiagnostics = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    assert.ok(widthDiagnostics.scrollWidth <= widthDiagnostics.clientWidth + 1,
+      `RTL page has horizontal overflow: scrollWidth=${widthDiagnostics.scrollWidth} clientWidth=${widthDiagnostics.clientWidth}`);
+    const topbar = await page.locator('.pay-topbar').boundingBox();
+    assert.ok(topbar, `RTL topbar missing for locale index ${localeButton}`);
+    assert.ok(topbar.x >= -1 && topbar.x + topbar.width <= VIEWPORT.width + 1,
+      `RTL topbar is outside viewport: x=${topbar.x} width=${topbar.width}`);
+    const languageBox = await page.locator('.pay-language-control').boundingBox();
+    assert.ok(languageBox, 'RTL language selector is missing');
+    assert.ok(languageBox.x >= -1 && languageBox.x + languageBox.width <= VIEWPORT.width + 1,
+      `RTL language selector is outside viewport: x=${languageBox.x} width=${languageBox.width}`);
     await page.locator('.pay-mobile-menu').click();
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
     assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
     assert.ok(box.x >= VIEWPORT.width - box.width - 2, `RTL drawer is off-screen: x=${box.x} width=${box.width}`);
     assert.ok(box.x < VIEWPORT.width - 10, 'RTL drawer did not occupy the expected right edge');
+    assert.ok(box.x + box.width <= VIEWPORT.width + 1, `RTL drawer right edge is outside viewport: x=${box.x} width=${box.width}`);
     assert.ok(await page.locator('.pay-nav-item').first().isVisible());
     await page.screenshot({ path: `/tmp/pay-ui-evidence/mobile-rtl-${localeButton}.png`, fullPage: false });
     await page.locator('.pay-mobile-close').click();
+    assert.equal(await page.locator('.pay-sidebar.is-mobile-open').count(), 0, 'RTL drawer did not close');
   }
 
   console.log(JSON.stringify({
