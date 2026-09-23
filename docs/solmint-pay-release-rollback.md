@@ -1,8 +1,8 @@
-# SolMint Pay — Production Rollback / Recovery Runbook
+# SolMint Pay — Production Recovery / Redeploy Runbook
 
 ## Scope
 
-This runbook covers the existing Solmint production deployment architecture:
+This runbook covers the existing SolMint production deployment architecture:
 
 - Cloudflare Pages with Pages Functions for the deployed web/API boundary.
 - Production branch: `main`.
@@ -10,118 +10,90 @@ This runbook covers the existing Solmint production deployment architecture:
 - Supabase Production remains the authoritative database and migration state.
 - The separate Node/Express runtime is not the production Pay deployment target.
 
-This document is an operational recovery procedure. It does not authorize a database rollback or invent a second deployment platform.
+This runbook is intentionally source-controlled and requires no manual Cloudflare dashboard action, Cloudflare API token, Account ID entry, GitHub Ruleset configuration, or other operator-created provider secret.
 
 ## Release provenance
 
-A production release is a Git commit on `main` that has passed the repository release gates and has been deployed successfully by Cloudflare Pages.
+A production release is a validated Git commit on `main` that has passed the applicable repository checks and has been deployed by the existing Cloudflare Pages integration.
 
-Before any rollback decision, record:
+Record, through repository/CI evidence where available:
 
-1. current production commit/deployment identifier;
-2. current known-good production commit/deployment identifier;
-3. the first failing or suspect release identifier;
-4. the relevant GitHub checks and production smoke evidence.
+1. release commit;
+2. deployment/build evidence;
+3. post-deployment production smoke evidence;
+4. relevant application/runtime regression evidence.
 
-A rollback target must be a previously successful **production** Pages deployment. Preview deployments are not valid Pages rollback targets.
+## Normal deployment path
 
-## Cloudflare Pages rollback
+The normal path is:
 
-Cloudflare's documented Pages rollback flow is:
+`validated change → main → existing Cloudflare Pages deployment integration → production smoke`
 
-1. Open the Cloudflare dashboard.
-2. Open **Workers & Pages** and select the production Pages project.
-3. Open **Deployments** and locate the known-good successful production deployment.
-4. Open its actions menu.
-5. Select **Rollback to this deployment**.
-6. Confirm the rollback.
+No separate deployment platform or provider-management API is required.
 
-The production deployment changes immediately after confirmation.
+## Recovery strategy
 
-Cloudflare also exposes an API rollback operation for Pages deployments. It requires a token with **Pages Write** permission and accepts only successful production builds as rollback targets.
+Recovery uses the same source-controlled deployment path rather than a provider-management rollback API.
 
-Do not add a Cloudflare API token to the browser, repository, URL, logs, or telemetry. Any API-driven rollback must remain an operator-side secret-controlled action.
+1. Identify the last known-good application commit from Git history and CI/deployment evidence.
+2. Revert the faulty application change, or restore the known-good commit through the repository's normal change workflow.
+3. Allow the existing Cloudflare Pages integration to deploy the resulting `main` state.
+4. Run the existing non-mutating production checks against `https://solmint.ir`.
+5. Record the recovery commit and smoke evidence in `docs/solmint-pay-progress.md`.
 
-Official references:
-- https://developers.cloudflare.com/pages/configuration/rollbacks/
-- https://developers.cloudflare.com/api/go/resources/pages/subresources/projects/subresources/deployments/methods/rollback/
+For a multi-commit incident, prefer a minimal corrective commit or an explicit revert that preserves migration compatibility. Do not rewrite authoritative payment, reconciliation, ledger, or verification history.
 
 ## Database compatibility rule
 
-A Pages rollback changes the application deployment, not the Supabase migration history.
+A source rollback/redeploy changes the application deployment, not the Supabase migration history.
 
 Therefore:
 
-- Do **not** run destructive SQL or reverse migrations merely to restore an older application build.
-- Before selecting an older deployment, confirm that its code is compatible with the migration state currently recorded in Production.
-- If the suspected incident is caused by a forward database migration that the older application cannot tolerate, do not perform an application-only rollback and declare recovery complete. Use a forward-compatible repair/release.
-- Preserve all authoritative payment, reconciliation, ledger, and verification data.
+- Do not run destructive SQL or reverse migrations merely to restore an older application build.
+- Before restoring older application code, verify compatibility with the live migration state.
+- If an older application build is not compatible with the current schema, create a forward-compatible repair instead of forcing a database rollback.
+- Preserve authoritative payment, reconciliation, ledger, and blockchain verification data.
 
-This project treats the live Supabase migration ledger as authoritative and intentionally does not rely on destructive Production migration rollback.
+## Post-recovery verification
 
-## Post-rollback verification
-
-After Cloudflare confirms the rollback, run the existing non-mutating production checks against `https://solmint.ir`:
+After the recovered application is deployed, run the existing checks that apply to the changed surface, including:
 
 1. SolMint Pay Production API Smoke.
 2. SolMint Pay Live Smoke.
-3. Authentication/session verification applicable to the Pay boundary.
-4. Mainnet read-only checks applicable to the affected deployment.
-5. Any feature-specific regression check associated with the incident.
+3. Authentication/session checks applicable to the Pay boundary.
+4. Mainnet read-only checks where applicable.
+5. Feature-specific regression/E2E checks.
 
-For a payment-related incident, verify that the frontend still reads Payment Intent state from the backend and does not infer success from browser submission, signatures, references, or webhook delivery.
+For payment-related incidents, verify that frontend state remains backend-authoritative and that submitted signatures, references, browser state, or webhook delivery are never treated as payment success.
 
-For Merchant/Wallet incidents, verify that the Merchant and Wallet Ownership contracts remain authenticated and tenant-isolated.
+For Merchant/Wallet incidents, verify authenticated server mediation and merchant tenant isolation.
 
 ## Recovery completion criteria
 
-Recovery is **not complete** merely because the previous deployment is visible in Cloudflare.
+Recovery is complete only when:
 
-A rollback can be recorded as successfully validated only when:
-
-- the selected production deployment is confirmed active;
-- the deployment is compatible with the current live Supabase migration state;
-- post-rollback Pay API Smoke passes;
-- non-mutating Live Smoke passes;
+- the recovered commit is deployed;
+- production health/smoke checks pass;
 - affected authentication/authorization checks pass;
+- application/schema compatibility is confirmed;
 - no new critical database/security error is observed;
-- the recovered deployment identifier and validation run identifiers are recorded in `docs/solmint-pay-progress.md`.
+- recovery commit and validation evidence are recorded.
 
-## Controlled rollback evidence
+## What is deliberately not a Release Gate
 
-Issue #120 remains open until an operator performs a controlled rollback/recovery validation on the actual production Pages project and records the evidence.
+The following are outside the SolMint Pay release workflow and must not be assigned as mandatory manual steps to the project owner:
 
-Minimum evidence to capture:
+- GitHub Ruleset / Branch Protection setup;
+- Cloudflare dashboard configuration for rollback;
+- Cloudflare API Token creation;
+- Cloudflare Account ID entry;
+- provider-management secrets created only to validate rollback;
+- a dedicated Cloudflare API rollback test.
 
-- previous production deployment identifier;
-- rollback target deployment identifier;
-- timestamp;
-- confirmation that the target was a successful production deployment;
-- post-rollback Production API Smoke result;
-- post-rollback Live Smoke result;
-- confirmation that no destructive Supabase migration rollback was performed;
-- final decision to restore the newest release or retain the rollback.
+These may be useful operational controls in an environment that supports them, but they are not required to deploy or recover this repository through its existing source-controlled path.
 
-## Normal release recovery sequence
+## Release safety invariant
 
-`Incident → identify last known-good production deployment → verify DB/app compatibility → rollback Pages → run smoke checks → record evidence → either restore newest release or keep recovered version`
+Removing these manual prerequisites does not permit bypassing engineering gates. CI, build, backend contracts, database/RLS, authentication/authorization, payment verification, reconciliation, accounting, security, E2E evidence, deployment evidence, and production smoke checks remain authoritative where applicable.
 
-This procedure must remain separate from Pay financial truth. No recovery action may rewrite authoritative payment status, merchant balances, reconciliation state, ledger history, or blockchain verification records from the frontend.
-
-## Automated controlled validation path
-
-The repository now contains .github/workflows/solmint-pay-cloudflare-rollback-validation.yml.
-
-For a dedicated validation commit containing [cloudflare-rollback-validation] in the commit message, the workflow:
-
-1. waits for that exact commit to become a successful canonical production Pages deployment;
-2. selects the immediately preceding successful production deployment by Cloudflare deployment metadata;
-3. invokes the Cloudflare Pages rollback API;
-4. verifies the rollback target becomes the canonical production deployment;
-5. runs non-mutating production smoke checks;
-6. invokes the rollback API again to restore the newest validated deployment;
-7. verifies recovery and uploads deployment identifiers/commit hashes as workflow evidence.
-
-The workflow requires Cloudflare API credentials to exist as GitHub Actions secrets under either CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID or the CF_API_TOKEN / CF_ACCOUNT_ID aliases. Secret values are never printed.
-
-This automated path does not modify Supabase migration history and never uses a preview deployment as a rollback target.
+No production-ready claim may be made without positive evidence for the critical technical and runtime gates.
