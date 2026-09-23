@@ -186,6 +186,21 @@ try {
   await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
+  const directMerchantApi = await page.evaluate(async () => {
+    try {
+      const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
+      return { status: response.status, body: (await response.text()).slice(0, 1200) };
+    } catch (error) {
+      return { status: 0, body: error instanceof Error ? error.message : String(error) };
+    }
+  });
+  const perfPayRequests = await page.evaluate(() =>
+    performance.getEntriesByType('resource')
+      .map(entry => entry.name)
+      .filter(name => name.includes('/api/pay/'))
+  );
+  console.log(`DIRECT_MERCHANT_API ${JSON.stringify({ directMerchantApi, perfPayRequests })}`);
+
   const onboardingForm = page.locator('.pay-onboarding-form');
   await onboardingForm.waitFor({ state: 'visible', timeout: 10000 });
 
@@ -338,15 +353,3 @@ try {
   await browser.close();
 } finally {
   if (merchantId) {
-    const result = await db('select id from public.pay_merchants where id = $1', [merchantId], true);
-    const found = rows(result).length;
-    if (found) await cleanup(fixture, merchantId);
-    else {
-      await db('delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
-      await db('delete from public.users where id = $1', [fixture.applicationUserId]).catch(() => {});
-      await db('delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]).catch(() => {});
-    }
-  } else {
-    await cleanup(fixture, '').catch(() => {});
-  }
-}
