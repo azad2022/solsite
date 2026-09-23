@@ -169,7 +169,7 @@ export function PayApp(): React.ReactElement {
   const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
 
   return (
-    <div className="solmint-pay" dir={direction} lang={locale}>
+    <div className="solmint-pay" dir={direction} lang={locale} data-pay-runtime="transport-v2">
       <a className="pay-skip-link" href="#pay-main">{translate(locale, 'dashboard')}</a>
       <div className="pay-app-shell">
         <aside className={`pay-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobileNavOpen ? 'is-mobile-open' : ''}`} aria-label={translate(locale, 'menu')}>
