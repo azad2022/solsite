@@ -824,3 +824,22 @@ Release policy from this checkpoint:
 - No manual action is required from the project owner for this release path.
 
 Issues #117 and #120 are superseded as Pay release blockers by this policy change and should not be reopened unless the deployment architecture itself changes.
+
+## 2026-09-23 — Developer documentation surface merged
+
+Status: **COMPLETED / CONTRACT-BACKED DOCUMENTATION SURFACE**
+
+Authoritative merge evidence:
+
+- PR #145 `feat(pay): add contract-backed developer docs surface` was squash-merged.
+- Merge commit: `9d312451625e9260eb77486adf9d5a9cac14a53f`.
+- Added a real Pay Developer section using only repository-published documentation sources.
+- The UI links to the existing API Docs, OpenAPI document, and API Catalog.
+- The page lists only the currently documented Pay read contracts: Payment Intent, Invoices, Payment Links, Referrals, Customers, and Reports.
+- No new API, mutation, credential flow, financial rule, database rule, or security boundary was introduced.
+- Added fa-IR/en-US/ar/ru localization, responsive accessibility-conscious styling, and a UI contract regression test.
+- PR validation passed for CI, Database Security, Mainnet Read-only, and Production API Smoke. CI also passed TypeScript, production build, and unit tests.
+
+Boundary:
+
+This is a documentation/read surface, not a claim that the full Developer Portal or merchant API platform is implemented. API-key/Webhook controls remain governed by their existing released contracts.
