@@ -37,6 +37,34 @@ jobs:
         run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Wait for Cloudflare Pages deployment of this commit
+        run: |
+          node --input-type=module <<'NODE'
+          const token = process.env.GITHUB_TOKEN;
+          const repository = process.env.GITHUB_REPOSITORY;
+          const sha = process.env.GITHUB_SHA;
+          let last = '';
+          for (let attempt = 1; attempt <= 60; attempt += 1) {
+            const response = await fetch(
+              'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
+              { headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json' } },
+            );
+            if (!response.ok) throw new Error('GitHub check-runs lookup failed: ' + response.status);
+            const data = await response.json();
+            const check = (data.check_runs || []).find((item) => item.name === 'Cloudflare Pages');
+            last = check ? 'status=' + check.status + ' conclusion=' + check.conclusion : 'Cloudflare Pages check not visible yet';
+            console.log('PAGES_DEPLOY_WAIT attempt=' + attempt + ' ' + last);
+            if (check?.status === 'completed' && check.conclusion === 'success') break;
+            if (check?.status === 'completed' && check.conclusion !== 'success') {
+              throw new Error('Cloudflare Pages deployment failed: ' + check.conclusion);
+            }
+            if (attempt === 60) throw new Error('Cloudflare Pages deployment did not complete. Last: ' + last);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          NODE
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
       - name: Live browser audit
         run: node e2e/pay-production-ui.e2e.mjs
       - name: Upload browser evidence
