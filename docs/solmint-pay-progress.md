@@ -847,7 +847,7 @@ This is a documentation/read surface, not a claim that the full Developer Portal
 
 ## 2026-09-23 — Merchant onboarding, auth propagation and RTL drawer hardening
 
-Status: **COMPLETED / AWAITING FINAL MERGE**
+Status: **COMPLETED / MERGED / PRODUCTION-VERIFIED**
 
 Root causes addressed:
 
@@ -866,7 +866,7 @@ Changes:
 - Hardened mobile RTL/LTR drawer behavior, body scroll locking, backdrop interaction and Escape handling.
 - Added regression tests for localized slugging, onboarding guide/i18n, session propagation, mobile drawer contracts, and the real production origin/auth boundary.
 
-Validation at final branch head before merge:
+Validation before merge at branch head:
 
 - Production Build: **PASS**
 - CI: **PASS**
@@ -881,4 +881,6 @@ Scope boundary:
 - No new Merchant API, field, database rule, financial rule, payment state, or security assumption was introduced.
 - Unsupported mutation areas remain intentionally unavailable until their authoritative Backend contracts exist: refund mutation, invoice mutation, payment-link mutation, referral enrollment/payout/withdrawal, notifications, and the full Developer Portal.
 - Exact browser/session state of the owner's Google account is not directly accessible to repository automation; live database evidence shows Better Auth application identities are linked, and Pay now retries transient identity propagation failures.
+- PR #147 was squash-merged into main as `3756862f717c905f94c418ad4bd7874e0e07adf2`.
+- Post-merge main validation: CI, Production Build, Database Security, Mainnet Read-only, Devnet E2E, Production API Smoke, Authentication build verification, and SolMint Pay Live Smoke all passed.
 
