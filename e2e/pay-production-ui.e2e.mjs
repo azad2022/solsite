@@ -183,9 +183,12 @@ try {
     apiEvents.push({ url: response.url(), status: response.status(), method: response.request().method() });
   });
 
-  await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
+  const merchantPageResponse = await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
+  assert.ok(merchantPageResponse && merchantPageResponse.ok(), 'Production Merchant page must be reachable.');
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
+  assert.equal(await page.locator('[data-pay-runtime="transport-v2"]').count(), 1, 'Production must serve the current Pay runtime bundle.');
+  console.log(`PAY_DOCUMENT_HEADERS ${JSON.stringify({ cacheControl: merchantPageResponse.headers()['cache-control'] || '', etag: merchantPageResponse.headers()['etag'] || '', age: merchantPageResponse.headers()['age'] || '', cfCacheStatus: merchantPageResponse.headers()['cf-cache-status'] || '' })}`);
   const directMerchantApi = await page.evaluate(async () => {
     try {
       const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
