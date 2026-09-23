@@ -147,6 +147,7 @@ async function routeAudit(page, path, label, evidenceDir, apiEvents) {
   await page.waitForTimeout(1100);
   const title = await page.title();
   const bodyText = await page.locator('body').innerText();
+  assert.ok(!/404|یافت نشد|not found/i.test(title), `${path} must not serve a 404 document: ${title}`);
   assert.ok(bodyText.trim().length > 80, `${path} rendered too little content`);
   assert.equal(await page.locator('.pay-app-shell').count(), 1, `${path} must render the Pay shell`);
   const bad = apiEvents.filter((event) => event.status >= 400);
