@@ -269,6 +269,40 @@ function assertRedactedError(body: Record<string, unknown>): void {
   assert.equal('trace' in body, false);
 }
 
+test('authenticated Merchant creation uses the production session and existing POST contract', { timeout: 120_000 }, async () => {
+  requireConfig();
+  const fixture = await provisionFixture();
+  try {
+    await fixture.db.query('delete from public.pay_merchant_members where merchant_id = $1', [fixture.merchantId]);
+    await fixture.db.query('delete from public.pay_merchants where id = $1', [fixture.merchantId]);
+
+    const cookie = await signIn(fixture.email, fixture.password);
+    const me = await request('/api/users/me', {}, cookie);
+    assert.equal(me.status, 200);
+
+    const slug = `pay-create-e2e-${crypto.randomUUID().replaceAll('-', '').slice(0, 24)}`;
+    const response = await request('/api/pay/v1/merchants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ businessName: 'SolMint Pay Create E2E', slug }),
+    }, cookie);
+    const body = await readJson(response);
+
+    assert.equal(response.status, 201, `Merchant creation failed with code=${String(body.code || 'unknown')}, requestId=${String(body.requestId || 'unknown')}.`);
+    assert.equal(body.success, true);
+    assert.equal(body.created, true);
+    assert.ok(body.merchant && typeof body.merchant === 'object');
+    const merchant = body.merchant as Record<string, unknown>;
+    assert.equal(merchant.owner_user_id, fixture.applicationUserId);
+    assert.equal(merchant.business_name, 'SolMint Pay Create E2E');
+    assert.equal(merchant.slug, slug);
+    assert.equal(merchant.status, 'pending');
+    assertRedactedError(body);
+  } finally {
+    await cleanupFixture(fixture);
+  }
+});
+
 test('authenticated Wallet Ownership Lifecycle is isolated and server-authoritative', { timeout: 240_000 }, async () => {
   requireConfig();
   const fixture = await provisionFixture();
