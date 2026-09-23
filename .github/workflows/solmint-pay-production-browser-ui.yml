@@ -1,0 +1,54 @@
+name: SolMint Pay Production Browser UI E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'e2e/pay-production-ui.e2e.mjs'
+      - '.github/workflows/solmint-pay-production-browser-ui.yml'
+      - '.github/solmint-pay-production-ui-e2e.trigger'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
+      SUPABASE_ACCESS_TOKEN: \${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install project dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Install Playwright
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for Pages deployment
+        run: sleep 150
+
+      - name: Run authenticated production browser UI E2E
+        run: node e2e/pay-production-ui.e2e.mjs
+
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-pay-production-browser-ui
+          path: /tmp/pay-ui-evidence
+          if-no-files-found: warn
