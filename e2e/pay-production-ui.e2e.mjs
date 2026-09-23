@@ -301,6 +301,12 @@ try {
   merchantId = createBody.merchant.id;
   await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
 
+  const preWalletRouteResults = [];
+  for (const [path, label] of routes) {
+    preWalletRouteResults.push(await routeAudit(page, path, `prewallet-${label}`, '/tmp/pay-ui-evidence', apiEvents));
+  }
+  console.log(`PREWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: preWalletRouteResults.length, paths: preWalletRouteResults.map(result => result.path) })}`);
+
   await signWalletChallenge(context, merchantId, signer);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
