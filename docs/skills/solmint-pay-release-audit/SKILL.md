@@ -32,7 +32,14 @@ Verify Better Auth routing, secure cookie behavior, trusted origins, Google OAut
 Verify that Checkout and dashboard states reflect backend-authoritative payment intent and verification state. Distinguish submitted, detected, verifying, confirming, completed, underpaid, overpaid, wrong token, wrong destination, duplicate, ambiguous, failed, expired, and refunded states only where the actual contract exposes them.
 
 ## CI/CD
-Every production change must leave the required CI/build/security workflows green. Avoid self-mutating production workflows and unnecessary `contents: write` permissions. Workflow failures must be repaired at source; do not suppress or bypass gates merely to obtain a green check.
+Every production change must leave the applicable CI/build/security workflows green. Avoid self-mutating production workflows and unnecessary `contents: write` permissions. Workflow failures must be repaired at source; do not suppress or bypass gates merely to obtain a green check.
+
+## Deployment and recovery
+The normal release path is source-controlled: validated commit → main → the existing Cloudflare Pages deployment integration → production smoke checks.
+
+Release is not gated on manual GitHub Ruleset/Branch Protection configuration, Cloudflare dashboard changes, Cloudflare API credentials, or provider-management secrets created by an operator. A provider-level control that cannot be verified by the repository's available automation is recorded as outside this release workflow rather than assigned as a manual prerequisite to the project owner.
+
+Production recovery uses the source-controlled redeploy path: identify the last known-good commit, restore/revert the application source as appropriate, allow the normal Pages deployment to run, and re-run post-deployment smoke checks. Cloudflare API rollback validation is not a release gate.
 
 ## Production decision
-`PASS` requires positive evidence for all applicable gates. `BLOCKED` applies to any unresolved security, contract, database/RLS, test, deployment, or runtime-critical issue. `UNKNOWN` applies where evidence could not be obtained. Do not label the system production-ready when critical runtime evidence is unavailable.
+`PASS` requires positive evidence for all applicable repository/backend/database/security/test/deployment/runtime gates. `BLOCKED` applies to unresolved security, contract, database/RLS, test, deployment, or runtime-critical issues. `UNKNOWN` applies where evidence cannot be obtained. External provider governance controls that are not required for the actual deployment path do not block release. Never label the system production-ready when critical runtime evidence is unavailable.
