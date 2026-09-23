@@ -8,9 +8,10 @@ const app = readFileSync('src/pay/PayApp.tsx', 'utf8');
 const payCss = readFileSync('src/pay/pay.css', 'utf8');
 
 test('Pay getting-started guide is localized for the supported Pay locales', () => {
-  for (const locale of ['fa-IR', 'en-US', 'ar', 'ru']) {
-    assert.ok(guide.includes(`'${locale}':`), `Missing localized guide entry for ${locale}`);
-  }
+  assert.ok(guide.includes("'fa-IR':"), 'Missing localized guide entry for fa-IR');
+  assert.ok(guide.includes("'en-US':"), 'Missing localized guide entry for en-US');
+  assert.ok(guide.includes('ar:'), 'Missing localized guide entry for ar');
+  assert.ok(guide.includes('ru:'), 'Missing localized guide entry for ru');
   assert.ok(guide.includes("merchantLoadState === 'loading'"));
   assert.ok(guide.includes("merchantLoadState === 'error'"));
   assert.match(guide, /onRetryMerchant/);
