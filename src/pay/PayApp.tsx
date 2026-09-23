@@ -18,6 +18,7 @@ import PayReferrals from './components/PayReferrals';
 import PayCustomers from './components/PayCustomers';
 import PayReports from './components/PayReports';
 import PaySecurity from './components/PaySecurity';
+import PayDeveloper from './components/PayDeveloper';
 import PayUnavailableFeature from './components/PayUnavailableFeature';
 import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
@@ -135,6 +136,7 @@ export function PayApp(): React.ReactElement {
   const showReports = currentSection === 'reports' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showDashboard = currentSection === 'dashboard' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showSecurity = currentSection === 'security' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
+  const showDeveloper = currentSection === 'developer';
   const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
 
   return (
@@ -217,11 +219,13 @@ export function PayApp(): React.ReactElement {
 
             {showSecurity ? <PaySecurity locale={locale} merchant={merchant} /> : null}
 
+            {showDeveloper ? <PayDeveloper locale={locale} /> : null}
+
             {showWebhooks ? <PayWebhooks locale={locale} merchantId={merchant.id} /> : null}
 
             {showTickets ? <PayTicketCenter locale={locale} sessionUser={sessionUser!} merchantId={merchant?.id || null} /> : null}
 
-            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showCustomers && !showReports && !showDashboard && !showSecurity && !showWebhooks && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showCustomers && !showReports && !showDashboard && !showSecurity && !showDeveloper && !showWebhooks && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
@@ -230,7 +234,7 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showCustomers && !showReports && !showDashboard && !showSecurity && !showWebhooks && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && !showTransactions && !showInvoices && !showReferrals && !showCustomers && !showReports && !showDashboard && !showSecurity && !showDeveloper && !showWebhooks && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
