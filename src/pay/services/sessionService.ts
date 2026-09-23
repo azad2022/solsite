@@ -47,18 +47,41 @@ function parseUser(value: unknown): PaySessionUser {
   };
 }
 
-export async function getPaySessionUser(fetchImpl: typeof fetch = fetch): Promise<PaySessionUser | null> {
-  const response = await fetchImpl('/api/users/me', {
-    method: 'GET',
-    credentials: 'include',
-    cache: 'no-store',
-    headers: { Accept: 'application/json' },
-  });
-  const payload = (await response.json().catch(() => null)) as SessionEnvelope | null;
-  if (response.status === 401) return null;
-  if (!response.ok) throw new PayHttpError('Authentication service is temporarily unavailable.', response.status);
-  if (!payload || payload.success !== true || payload.user === undefined) {
-    throw new TypeError('Invalid authentication session response envelope.');
+export async function getPaySessionUser(fetchImpl: typeof fetch = fetch, maxAttempts = 3): Promise<PaySessionUser | null> {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetchImpl('/api/users/me', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      const payload = (await response.json().catch(() => null)) as SessionEnvelope | null;
+
+      if (response.status === 401) return null;
+      if (response.ok) {
+        if (!payload || payload.success !== true || payload.user === undefined) {
+          throw new TypeError('Invalid authentication session response envelope.');
+        }
+        return parseUser(payload.user);
+      }
+      if (response.status < 500) {
+        throw new PayHttpError('Authentication service is temporarily unavailable.', response.status);
+      }
+      lastError = new PayHttpError('Authentication service is temporarily unavailable.', response.status);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof PayHttpError && error.status < 500) throw error;
+      if (error instanceof TypeError && !(error instanceof PayHttpError)) throw error;
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 150 * attempt));
+    }
   }
-  return parseUser(payload.user);
+
+  if (lastError instanceof PayHttpError) throw lastError;
+  throw lastError instanceof Error ? lastError : new Error('Authentication service is temporarily unavailable.');
 }
