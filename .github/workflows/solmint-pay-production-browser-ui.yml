@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   browser-ui:
@@ -37,7 +38,69 @@ jobs:
         run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-      - name: Compare Pages Preview with custom production domain
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          const repository = process.env.GITHUB_REPOSITORY;
+          const sha = process.env.GITHUB_SHA;
+          const customOrigin = process.env.SOLMINT_PAY_PRODUCTION_ORIGIN;
+          const checksResponse = await fetch(
+            'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
+            { headers: { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, accept: 'application/vnd.github+json' } },
+          );
+          if (!checksResponse.ok) throw new Error('GitHub check-runs lookup failed: ' + checksResponse.status);
+          const checks = await checksResponse.json();
+          const pagesCheck = (checks.check_runs || []).find(
+            (check) => check.name === 'Cloudflare Pages' && /Deploy successful/.test(check.output?.summary || ''),
+          );
+          const previewMatch = (pagesCheck?.output?.summary || '').match(/https:\/\/[^<\s]+\.solsite-9uh\.pages\.dev/);
+          if (!previewMatch) throw new Error('Current commit has no successful Cloudflare Pages preview URL.');
+          const previewOrigin = previewMatch[0];
+          console.log('PAGES_PREVIEW_ORIGIN ' + previewOrigin);
+          const browser = await chromium.launch({ headless: true });
+          try {
+            for (const [label, targetOrigin] of [['pages-preview', previewOrigin], ['custom-domain', customOrigin]]) {
+              const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+              try {
+                const probeUrl = targetOrigin + '/pay/merchants?__pay_runtime_probe=' + encodeURIComponent(crypto.randomUUID());
+                const response = await page.goto(probeUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+                await page.waitForTimeout(1000);
+                const diagnostics = await page.evaluate(() => ({
+                  url: location.href,
+                  title: document.title,
+                  marker: document.querySelectorAll('[data-pay-runtime="transport-v2"]').length,
+                  shell: document.querySelectorAll('.pay-app-shell').length,
+                }));
+                console.log('PAY_ORIGIN_PROBE ' + JSON.stringify({
+                  label,
+                  targetOrigin,
+                  status: response?.status() || 0,
+                  diagnostics,
+                  headers: {
+                    cacheControl: response?.headers()['cache-control'] || '',
+                    etag: response?.headers()['etag'] || '',
+                    cfCacheStatus: response?.headers()['cf-cache-status'] || '',
+                    cfRay: response?.headers()['cf-ray'] || '',
+                    server: response?.headers()['server'] || '',
+                  },
+                }));
+                if (label === 'pages-preview' && (!response?.ok() || diagnostics.marker !== 1 || diagnostics.shell !== 1)) {
+                  throw new Error('Current Pay runtime does not render on Pages Preview.');
+                }
+                if (label === 'custom-domain' && (diagnostics.marker !== 1 || diagnostics.shell !== 1)) {
+                  throw new Error('Custom production domain is not serving the current Pay runtime.');
+                }
+              } finally {
+                await page.close();
+              }
+            }
+          } finally {
+            await browser.close();
+          }
+          NODE
 
       - name: Wait for current production Pay runtime
         run: |
