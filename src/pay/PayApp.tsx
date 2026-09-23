@@ -9,6 +9,7 @@ import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
 import PayMerchantOnboarding from './components/PayMerchantOnboarding';
+import PayGettingStartedGuide from './components/PayGettingStartedGuide';
 import PayApiKeyManagement from './components/PayApiKeyManagement';
 import PayTicketCenter from './components/PayTicketCenter';
 import PayTransactions from './components/PayTransactions';
@@ -33,6 +34,7 @@ const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; str
 };
 
 type SessionState = 'loading' | 'authenticated' | 'anonymous' | 'error';
+type MerchantLoadState = 'loading' | 'ready' | 'error';
 
 function localeFromNavigator(): PayLocale {
   if (typeof navigator === 'undefined') return DEFAULT_PAY_LOCALE;
@@ -51,6 +53,7 @@ export function PayApp(): React.ReactElement {
   const [sessionState, setSessionState] = useState<SessionState>('loading');
   const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(null);
   const [merchant, setMerchant] = useState<PayMerchant | null>(null);
+  const [merchantLoadState, setMerchantLoadState] = useState<MerchantLoadState>('loading');
   const direction = directionFor(locale);
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
@@ -63,6 +66,18 @@ export function PayApp(): React.ReactElement {
   }, [locale, direction]);
 
   useEffect(() => {
+    if (!mobileNavOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileNavOpen(false); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
     const onPopState = () => setCurrentPath(normalizePayPath(window.location.pathname || '/pay'));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -73,17 +88,18 @@ export function PayApp(): React.ReactElement {
     setSessionState('loading');
     setSessionUser(null);
     setMerchant(null);
+    setMerchantLoadState('loading');
 
     void getPaySessionUser().then(async user => {
       if (cancelled) return;
       setSessionUser(user);
       setSessionState(user ? 'authenticated' : 'anonymous');
-      if (!user) return;
+      if (!user) { setMerchantLoadState('ready'); return; }
       try {
         const existingMerchant = await getMyMerchant();
-        if (!cancelled) setMerchant(existingMerchant);
+        if (!cancelled) { setMerchant(existingMerchant); setMerchantLoadState('ready'); }
       } catch {
-        // Merchant onboarding retains its own retryable error state.
+        if (!cancelled) setMerchantLoadState('error');
       }
     }).catch(() => {
       if (cancelled) return;
@@ -92,6 +108,17 @@ export function PayApp(): React.ReactElement {
 
     return () => { cancelled = true; };
   }, []);
+
+  const retryMerchantLookup = () => {
+    if (sessionState !== 'authenticated') return;
+    setMerchantLoadState('loading');
+    void getMyMerchant().then(existingMerchant => {
+      setMerchant(existingMerchant);
+      setMerchantLoadState('ready');
+    }).catch(() => {
+      setMerchantLoadState('error');
+    });
+  };
 
   const navigate = (section: PaySection) => {
     const target = pathForPaySection(section);
@@ -127,7 +154,8 @@ export function PayApp(): React.ReactElement {
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
   const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
-  const showMerchantOnboarding = sessionState === 'authenticated' && ((currentSection === 'overview' && merchant === null) || currentSection === 'merchants');
+  const showGettingStartedGuide = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants');
+  const showMerchantOnboarding = sessionState === 'authenticated' && merchantLoadState === 'ready' && ((currentSection === 'overview' && merchant === null) || currentSection === 'merchants');
   const showTickets = currentSection === 'tickets' && sessionState === 'authenticated' && sessionUser !== null;
   const showTransactions = currentSection === 'transactions' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showInvoices = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
@@ -201,7 +229,9 @@ export function PayApp(): React.ReactElement {
               <div className="pay-heading-meta" aria-label={translate(locale, 'timeRange')}><span>{translate(locale, 'timeRange')}</span><div className="pay-range-control" role="group" aria-label={translate(locale, 'timeRange')}><button type="button" className="is-active" aria-pressed="true">{translate(locale, 'today')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'sevenDays')}</button><button type="button" disabled aria-disabled="true">{translate(locale, 'thirtyDays')}</button></div></div>
             </div>
 
-            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} initialMerchant={currentSection === 'merchants' ? merchant : null} onMerchantReady={setMerchant} /> : null}
+            {showGettingStartedGuide ? <PayGettingStartedGuide locale={locale} merchant={merchant} merchantLoadState={merchantLoadState} onNavigate={navigate} onRetryMerchant={retryMerchantLookup} /> : null}
+
+            {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} initialMerchant={currentSection === 'merchants' ? merchant : null} onMerchantReady={(ready) => { setMerchant(ready); setMerchantLoadState('ready'); }} /> : null}
 
             {currentSection === 'merchants' && sessionState === 'authenticated' && merchant ? <PayApiKeyManagement locale={locale} merchantId={merchant.id} merchantStatus={merchant.status} /> : null}
 
