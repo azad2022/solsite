@@ -4,9 +4,11 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 const componentPath = resolve(process.cwd(), 'src/pay/components/PayMerchantOnboarding.tsx');
+const cssPath = resolve(process.cwd(), 'src/pay/components/pay-merchant-onboarding.css');
 const i18nPath = resolve(process.cwd(), 'src/pay/components/pay-merchant-onboarding-i18n.ts');
 const component = readFileSync(componentPath, 'utf8');
 const i18n = readFileSync(i18nPath, 'utf8');
+const css = readFileSync(cssPath, 'utf8');
 
 test('merchant onboarding refreshes the authoritative Merchant after wallet verification', () => {
   assert.match(component, /const verified = await verifyWalletChallenge\(/);
@@ -43,4 +45,14 @@ test('merchant onboarding keeps user-facing status/progress copy localized', () 
   ]) {
       assert.match(i18n, new RegExp('\\b' + key + '\\b'));
   }
+});
+
+
+test('merchant onboarding generates an editable technical identifier for localized business names', () => {
+  assert.match(component, /slugifyMerchantName/);
+  assert.match(component, /slugTouched/);
+  assert.match(component, /handleBusinessNameChange/);
+  assert.match(component, /pay-merchant-slug-hint/);
+  assert.match(i18n, /slugHint/);
+  assert.match(css, /direction:ltr/);
 });

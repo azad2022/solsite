@@ -69,6 +69,22 @@ test('production Pay API rejects forged bearer credentials for merchant reads', 
   assert.equal(typeof body.requestId, 'string');
 });
 
+test('production Pay API accepts the configured production origin before merchant authentication', async () => {
+  const response = await request('/api/pay/v1/merchants', {
+    method: 'POST',
+    headers: {
+      Origin: ORIGIN,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ businessName: 'Smoke Merchant', slug: 'smoke-merchant' }),
+  });
+  assert.equal(response.status, 401, 'The production Pay origin must be trusted; authentication should be the next gate.');
+  const body = await readJson(response);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 'UNAUTHORIZED');
+  assert.equal(typeof body.requestId, 'string');
+});
+
 test('production Pay API rejects untrusted origin before merchant authentication', async () => {
   const response = await request('/api/pay/v1/merchants', {
     method: 'POST',

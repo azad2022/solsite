@@ -843,3 +843,42 @@ Authoritative merge evidence:
 Boundary:
 
 This is a documentation/read surface, not a claim that the full Developer Portal or merchant API platform is implemented. API-key/Webhook controls remain governed by their existing released contracts.
+
+
+## 2026-09-23 — Merchant onboarding, auth propagation and RTL drawer hardening
+
+Status: **COMPLETED / AWAITING FINAL MERGE**
+
+Root causes addressed:
+
+- Merchant onboarding previously generated a technical slug by stripping all non-ASCII letters; Persian/Arabic/Kurdish business names could therefore produce an empty slug and block creation at the UI validation step.
+- Pay Merchant lookup errors were previously swallowed, making a failed lookup indistinguishable from a genuinely missing Merchant.
+- Pay session lookup had no transient retry despite the main application session layer already retrying the same server-owned identity endpoint; this could surface a transient post-Google-login anonymous state.
+- The mobile Pay drawer used direction-specific transforms with extra off-canvas offsets and had no body scroll lock; the CSS was hardened to exact off-canvas translation, RTL-scoped direction, horizontal overflow clipping, and touch/keyboard-safe drawer behavior.
+
+Changes:
+
+- Added server-contract-preserving localized Merchant slug generation for Persian, Arabic, Kurdish and Latin input.
+- Added editable technical-slug guidance in fa-IR/en-US/ar/ru.
+- Added a four-step Getting Started guide driven by authoritative Merchant and receiving-wallet state.
+- Added explicit Merchant lookup loading/error/retry states.
+- Added Pay session retry for transient network/5xx failures; 401 remains an immediate anonymous result and ordinary client errors fail closed.
+- Hardened mobile RTL/LTR drawer behavior, body scroll locking, backdrop interaction and Escape handling.
+- Added regression tests for localized slugging, onboarding guide/i18n, session propagation, mobile drawer contracts, and the real production origin/auth boundary.
+
+Validation at final branch head before merge:
+
+- Production Build: **PASS**
+- CI: **PASS**
+- SolMint Pay Database Security: **PASS**
+- SolMint Pay Mainnet Read-only: **PASS**
+- SolMint Pay Devnet E2E: **PASS**
+- SolMint Pay Production API Smoke: **PASS**
+- Production origin smoke confirms the official `https://solmint.ir` origin reaches the authentication gate on Merchant creation instead of being rejected by the origin policy.
+
+Scope boundary:
+
+- No new Merchant API, field, database rule, financial rule, payment state, or security assumption was introduced.
+- Unsupported mutation areas remain intentionally unavailable until their authoritative Backend contracts exist: refund mutation, invoice mutation, payment-link mutation, referral enrollment/payout/withdrawal, notifications, and the full Developer Portal.
+- Exact browser/session state of the owner's Google account is not directly accessible to repository automation; live database evidence shows Better Auth application identities are linked, and Pay now retries transient identity propagation failures.
+

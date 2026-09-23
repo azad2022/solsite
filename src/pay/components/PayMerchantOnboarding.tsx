@@ -5,6 +5,7 @@ import { PayHttpError } from '../http';
 import { encodeBase58 } from '../services/base58';
 import { translateMerchantOnboarding as t, translateMerchantStatus } from './pay-merchant-onboarding-i18n';
 import type { PayLocale } from '../types';
+import { slugifyMerchantName } from '../services/merchantSlug';
 import './pay-merchant-onboarding.css';
 
 interface SolanaPublicKeyLike { toBase58?: () => string; }
@@ -37,6 +38,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const [merchant, setMerchant] = useState<PayMerchant | null>(initialMerchant);
   const [businessName, setBusinessName] = useState('');
   const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [challenge, setChallenge] = useState<{ id: string; message: string; walletAddress: string; expiresAt: string } | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
@@ -61,6 +63,10 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   }, [initialMerchant]);
 
   const resetError = () => { setError(''); if (stage === 'error') setStage('idle'); };
+  const handleBusinessNameChange = (value: string) => {
+    setBusinessName(value);
+    if (!slugTouched) setSlug(slugifyMerchantName(value));
+  };
 
   const refreshMerchant = async () => {
     if (refreshingMerchant) return;
@@ -102,7 +108,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const ensureMerchant = async () => {
     resetError();
     if (!businessName.trim()) { setStage('error'); setError(t(locale, 'businessNameRequired')); return null; }
-    const finalSlug = (slug || slugify(businessName)).trim();
+    const finalSlug = (slug || slugifyMerchantName(businessName)).trim();
     if (!/^[a-z0-9][a-z0-9-]{2,59}$/.test(finalSlug)) { setStage('error'); setError(t(locale, 'slugInvalid')); return null; }
     setStage('creating');
     setMerchantRefreshStale(false);
@@ -199,8 +205,8 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       {stageLabel && <div className={`pay-onboarding-progress is-${stage}`} role="status" aria-live="polite"><span className="pay-onboarding-progress-dot" aria-hidden="true" />{stageLabel}</div>}
 
       {!merchant ? <div className="pay-onboarding-form">
-        <label><span>{t(locale, 'businessName')}</span><input value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder={t(locale, 'businessNamePlaceholder')} autoComplete="organization" disabled={busy} /></label>
-        <label><span>{t(locale, 'businessSlug')}</span><input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} placeholder={t(locale, 'businessSlugPlaceholder')} spellCheck={false} disabled={busy} /></label>
+        <label><span>{t(locale, 'businessName')}</span><input value={businessName} onChange={e => handleBusinessNameChange(e.target.value)} placeholder={t(locale, 'businessNamePlaceholder')} autoComplete="organization" disabled={busy} /></label>
+        <label><span>{t(locale, 'businessSlug')}</span><input value={slug} onChange={e => { setSlug(e.target.value.toLowerCase()); setSlugTouched(true); }} placeholder={t(locale, 'businessSlugPlaceholder')} spellCheck={false} disabled={busy} aria-describedby="pay-merchant-slug-hint" /><small id="pay-merchant-slug-hint" className="pay-onboarding-field-hint">{t(locale, 'slugHint')}</small></label>
         <button type="button" className="pay-primary-action" onClick={() => void ensureMerchant()} disabled={busy}>{stage === 'creating' ? <Loader2 className="animate-spin" size={17} /> : <Store size={17} />} {t(locale, 'createMerchant')}</button>
         <button type="button" className="pay-secondary-action" onClick={() => void loadExisting()} disabled={busy}>{stage === 'loading' ? <Loader2 className="animate-spin" size={17} /> : null} {t(locale, 'checkExistingMerchant')}</button>
       </div> : <div className="pay-onboarding-state">
