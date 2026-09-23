@@ -1,6 +1,11 @@
 type PagesContext = {
   request: Request;
   next: () => Promise<Response>;
+  env: {
+    ASSETS: {
+      fetch: (input: Request | URL | string, init?: RequestInit) => Promise<Response>;
+    };
+  };
 };
 
 type MiddlewareHandler = (context: PagesContext) => Promise<Response>;
@@ -144,6 +149,19 @@ function isPayHtmlPath(request: Request): boolean {
   return pathname === '/pay' || pathname.startsWith('/pay/');
 }
 
+async function servePaySpaShell(context: PagesContext): Promise<Response> {
+  const url = new URL(context.request.url);
+  url.pathname = '/';
+  url.search = '';
+  url.hash = '';
+
+  const asset = await context.env.ASSETS.fetch(new Request(url, {
+    method: context.request.method,
+    headers: context.request.headers,
+  }));
+  return withPayHtmlNoStore(context.request, asset);
+}
+
 function withPayHtmlNoStore(request: Request, response: Response): Response {
   const contentType = response.headers.get('Content-Type') || '';
   if (!isPayHtmlPath(request) || !contentType.toLowerCase().includes('text/html')) return response;
@@ -168,7 +186,13 @@ const markdownMiddleware: MiddlewareHandler = async (context) => {
     });
   }
 
-  if (!acceptsMarkdown(context.request)) return withPayHtmlNoStore(context.request, await context.next());
+  if (!acceptsMarkdown(context.request)) {
+    const pathname = new URL(context.request.url).pathname;
+    if ((context.request.method === 'GET' || context.request.method === 'HEAD') && isPayHtmlPath(context.request)) {
+      return servePaySpaShell(context);
+    }
+    return withPayHtmlNoStore(context.request, await context.next());
+  }
 
   const origin = await context.next();
   const contentType = origin.headers.get('Content-Type') || '';
