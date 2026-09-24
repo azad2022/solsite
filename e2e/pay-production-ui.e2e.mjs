@@ -331,25 +331,38 @@ try {
   })}`);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(
-    (addressPrefix) => document.body.innerText.includes(addressPrefix),
-    signer.address.slice(0, 8),
-    { timeout: 10000 },
-  );
+  await page.waitForSelector('.pay-api-keys', { state: 'visible', timeout: 10000 });
   const walletAfterReload = await page.evaluate(async (addressPrefix) => {
     const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
+    const text = (await response.text()).slice(0, 3000);
+    let body = null;
+    try { body = JSON.parse(text); } catch {}
     return {
       status: response.status,
-      text: (await response.text()).slice(0, 3000),
-      addressVisible: document.body.innerText.includes(addressPrefix),
+      text,
+      merchantStatus: body?.merchant?.status ?? null,
+      walletAddress: body?.merchant?.receiving_wallet?.address ?? null,
+      walletVerificationStatus: body?.merchant?.receiving_wallet?.verification_status ?? null,
+      addressMatches: typeof body?.merchant?.receiving_wallet?.address === 'string'
+        && body.merchant.receiving_wallet.address.startsWith(addressPrefix),
     };
   }, signer.address.slice(0, 8));
   console.log(`WALLET_AFTER_RELOAD ${JSON.stringify(walletAfterReload)}`);
-  assert.equal(walletAfterReload.status, 200);
-  assert.equal(walletAfterReload.addressVisible, true,
-    `Verified wallet must survive reload. Authoritative GET: ${walletAfterReload.text}`);
-  assert.ok((await page.locator('body').innerText()).includes('active') || (await page.locator('body').innerText()).includes('فعال'));
+  assert.equal(walletAfterReload.status, 200, `Authoritative merchant GET after reload failed: ${walletAfterReload.text}`);
+  assert.equal(walletAfterReload.merchantStatus, 'active',
+    `Merchant must remain active after reload: ${walletAfterReload.text}`);
+  assert.equal(walletAfterReload.walletVerificationStatus, 'verified',
+    `Verified wallet must survive reload: ${walletAfterReload.text}`);
+  assert.equal(walletAfterReload.addressMatches, true,
+    `Authoritative wallet address changed after reload: ${walletAfterReload.text}`);
+
+  await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(900);
+  const overviewTextAfterReload = await page.locator('body').innerText();
+  assert.ok(overviewTextAfterReload.includes('SolMint Browser Test Merchant'),
+    'Overview must render the authoritative merchant data after reload.');
+  assert.ok(/Wallet verified|محفظه.*تأیید|تم التحقق من المحفظة/i.test(overviewTextAfterReload),
+    'Overview must render the authoritative verified-wallet state after reload.');
 
   const postWalletRouteResults = [];
   for (const [path, label] of routes) {
