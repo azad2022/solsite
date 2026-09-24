@@ -51,3 +51,12 @@ test('API key revoke returns server status metadata', async () => {
   assert.equal(result.status, 'revoked');
   assert.equal(result.revokedAt, revoked.revokedAt);
 });
+
+
+test('Pay API key UI does not read keys before merchant activation', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../src/pay/components/PayApiKeyManagement.tsx', import.meta.url), 'utf8');
+  assert.match(source, /if \(!merchantId \|\| merchantStatus !== 'active'\)/);
+  assert.match(source, /useEffect\(\(\) => \{ void load\(\); \}, \[merchantId, merchantStatus\]\)/);
+  assert.match(source, /merchantStatus !== 'active' \? .*inactiveMerchant/s);
+});
