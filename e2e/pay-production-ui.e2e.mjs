@@ -369,6 +369,10 @@ try {
   }
   console.log(`POSTWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: postWalletRouteResults.length, results: postWalletRouteResults.map(result => ({ path: result.path, apiEvents: result.apiEvents, excerpt: result.excerpt.slice(0, 300) })) })}`);
 
+  await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-api-keys').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-api-create').waitFor({ state: 'visible', timeout: 10000 });
+
   const secretBefore = apiEvents.length;
   const apiName = page.locator('.pay-api-create input').nth(0);
   await apiName.fill('Browser UI Key');
@@ -404,9 +408,9 @@ try {
   }
 
   await page.goto(`${ORIGIN}/pay/checkout/${encodeURIComponent(intentId)}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(900);
-  assert.ok((await page.locator('body').innerText()).includes('SolMint Browser Test Merchant'));
-  assert.ok((await page.locator('body').innerText()).includes('1 SOL') || (await page.locator('body').innerText()).includes('0.001 SOL'));
+  await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  const checkoutText = await page.locator('body').innerText();
+  assert.ok(checkoutText.includes('1 SOL') || checkoutText.includes('0.001 SOL'));
 
   // RTL/mobile regression: FA and AR must switch direction and keep the drawer on-screen.
   for (const localeButton of [0, 2]) {
