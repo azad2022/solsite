@@ -248,6 +248,8 @@ try {
   console.log(`MERCHANT_FORM_BEFORE ${JSON.stringify({ formDiagnosticsBefore, buttonBefore })}`);
 
   await onboardingForm.locator('input').nth(0).fill('SolMint Browser Test Merchant');
+  const browserTestSlug = `solmint-browser-test-${crypto.randomUUID().slice(0, 8).toLowerCase()}`;
+  await onboardingForm.locator('input').nth(1).fill(browserTestSlug);
   await page.waitForTimeout(100);
   const formDiagnosticsAfterFill = await onboardingForm.locator('input').evaluateAll((inputs) =>
     inputs.map((input) => ({ name: input.name, value: input.value, disabled: input.disabled, required: input.required, type: input.type }))
