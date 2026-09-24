@@ -19,7 +19,7 @@ begin
     raise exception 'pay_create_api_key_unlocked is missing';
   end if;
 
-  if position('''status'',''active''::text' in v_definition) = 0 then
+  if position('''status'', ''active''::text' in v_definition) = 0 then
     v_definition := replace(
       v_definition,
       '''keyPrefix'',v_key.key_prefix,''scopes'',v_key.scopes,''expiresAt''',
