@@ -12,7 +12,7 @@ begin
 
   if v_definition is null then raise exception 'pay_create_api_key_unlocked is missing'; end if;
 
-  if position('''status'', ''active''' in v_definition)=0 then
+  if position('''status'',''active''' in v_definition)=0 then
     if position('''scopes'',v_key.scopes,''expiresAt''' in v_definition)=0 then
       raise exception 'pay_create_api_key_unlocked response contract pattern not found';
     end if;
@@ -36,7 +36,7 @@ begin
 
   if v_definition is null then raise exception 'pay_rotate_api_key_unlocked is missing'; end if;
 
-  if position('''status'', ''active''' in v_definition)=0 then
+  if position('''status'',''active''' in v_definition)=0 then
     if position('''scopes'',v_new_key.scopes,''expiresAt''' in v_definition)=0 then
       raise exception 'pay_rotate_api_key_unlocked response contract pattern not found';
     end if;
