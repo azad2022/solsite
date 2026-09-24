@@ -51,7 +51,7 @@ export default function PayApiKeyManagement({ locale, merchantId, merchantStatus
   const minDate = useMemo(localInputMin, []);
 
   const load = async () => {
-    if (!merchantId) {
+    if (!merchantId || merchantStatus !== 'active') {
       setKeys([]);
       setLoadState('ready');
       setLoadError('');
@@ -68,7 +68,7 @@ export default function PayApiKeyManagement({ locale, merchantId, merchantStatus
     }
   };
 
-  useEffect(() => { void load(); }, [merchantId]);
+  useEffect(() => { void load(); }, [merchantId, merchantStatus]);
 
   const resetForm = () => { setName(''); setExpiresAt(''); };
 
@@ -137,13 +137,14 @@ export default function PayApiKeyManagement({ locale, merchantId, merchantStatus
     <section className="pay-panel pay-api-keys" aria-labelledby="pay-api-keys-title">
       <div className="pay-panel-heading pay-api-heading">
         <div><span className="pay-panel-kicker">{apiKeyT(locale, 'scope')}</span><h2 id="pay-api-keys-title">{apiKeyT(locale, 'title')}</h2><p>{apiKeyT(locale, 'description')}</p></div>
-        <button type="button" className="pay-icon-button" onClick={() => void load()} disabled={loadState === 'loading' || mutation !== null} aria-label={apiKeyT(locale, 'retry')} title={apiKeyT(locale, 'retry')}><RefreshCw size={17} /></button>
+        <button type="button" className="pay-icon-button" onClick={() => void load()} disabled={loadState === 'loading' || mutation !== null || merchantStatus !== 'active'} aria-label={apiKeyT(locale, 'retry')} title={apiKeyT(locale, 'retry')}><RefreshCw size={17} /></button>
       </div>
 
       <div className="pay-api-scope-note"><ShieldCheck size={16} /><span>{apiKeyT(locale, 'manageHint')}</span></div>
 
       {loadError && <div className="pay-api-error" role="alert"><AlertTriangle size={17} /><span>{loadError}</span>{loadState === 'error' && <button type="button" onClick={() => void load()}>{apiKeyT(locale, 'retry')}</button>}</div>}
 
+      {merchantStatus !== 'active' ? <div className="pay-api-empty" role="status" aria-live="polite"><div className="pay-empty-icon"><KeyRound size={20} /></div><div><strong>{apiKeyT(locale, 'title')}</strong><p>{apiKeyT(locale, 'inactiveMerchant')}</p></div></div> : <>
       <div className="pay-api-create">
         <div className="pay-api-create-heading"><div><strong>{apiKeyT(locale, 'create')}</strong><span>{apiKeyT(locale, 'manageHint')}</span></div><Plus size={17} /></div>
         <div className="pay-api-form-grid">
@@ -168,6 +169,8 @@ export default function PayApiKeyManagement({ locale, merchantId, merchantStatus
           </div>
         </article>)}
       </div>}
+
+      </>}
 
       {secretResult && <div className="pay-api-secret" role="dialog" aria-modal="true" aria-labelledby="pay-api-secret-title">
         <div className="pay-api-secret-inner"><div className="pay-api-secret-icon"><CheckCircle2 size={21} /></div><div className="pay-api-secret-copy"><h3 id="pay-api-secret-title">{apiKeyT(locale, 'secretTitle')}</h3><p>{apiKeyT(locale, 'secretDescription')}</p><div className="pay-api-secret-value"><code>{secretResult.secret || apiKeyT(locale, 'replaySecretUnavailable')}</code>{secretResult.secret && <button type="button" onClick={() => void copySecret()} aria-label={apiKeyT(locale, 'copySecret')} title={apiKeyT(locale, 'copySecret')}>{copyState ? <Check size={16} /> : <Clipboard size={16} />}</button>}</div><div className="pay-api-secret-warning"><AlertTriangle size={16} /><span>{apiKeyT(locale, 'secretWarning')}</span></div></div><button type="button" className="pay-icon-button" onClick={() => setSecretResult(null)} aria-label={apiKeyT(locale, 'closeSecret')}><X size={17} /></button></div>
