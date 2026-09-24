@@ -384,6 +384,17 @@ try {
   await page.locator('.pay-api-create .pay-primary-action').click();
   const keyResponse = await keyResponsePromise;
   assert.equal(keyResponse.status(), 201, await keyResponse.text());
+  const keyResponseBody = await keyResponse.json();
+  console.log(`API_KEY_CREATE_RESPONSE_SHAPE ${JSON.stringify({
+    status: keyResponse.status(),
+    topLevelKeys: Object.keys(keyResponseBody || {}).sort(),
+    apiKeyKeys: keyResponseBody?.apiKey && typeof keyResponseBody.apiKey === 'object' ? Object.keys(keyResponseBody.apiKey).sort() : [],
+    secretPresent: typeof keyResponseBody?.secret === 'string' && keyResponseBody.secret.length > 0,
+    secretLength: typeof keyResponseBody?.secret === 'string' ? keyResponseBody.secret.length : 0,
+    secretAvailable: keyResponseBody?.secretAvailable ?? null,
+  })}`);
+  assert.equal(typeof keyResponseBody?.secret, 'string', 'Created API key response must expose the one-time secret.');
+  assert.ok(keyResponseBody.secret.length >= 64, 'Created API key secret has an unexpected length.');
   await page.locator('.pay-api-secret-value code').waitFor({ state: 'visible', timeout: 10000 });
   const apiSecret = await page.locator('.pay-api-secret-value code').innerText();
   assert.match(apiSecret, /^sk_pay_[A-Za-z0-9_-]{64,}$/);
