@@ -918,7 +918,7 @@ Next gate:
 Status: MERGED / VALIDATION CONTINUES
 
 Current main:
-- main is now 752525cc782966a4a06b9c92915200dfad82b20e.
+- main is now 80c4a4eec46706b50922b6637bcf9ea3c4200954 (including the documentation checkpoint merge).
 - PR #211 was merged to make the Production Browser workflow checkout the exact triggering github.sha that its Cloudflare Pages deployment wait targets.
 - PR #212 was merged to restore the host document's exact pre-Pay lang and dir attributes when the Pay SPA boundary unmounts, instead of unconditionally forcing fa-IR/rtl.
 - PR #213 was merged with a Production Browser regression covering SPA exit from /pay and restoration of the host application's lang=fa / dir=rtl state.
