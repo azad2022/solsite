@@ -60,9 +60,19 @@ export function PayApp(): React.ReactElement {
   const currentSection: PaySection = route.kind === 'dashboard' ? route.section : 'overview';
 
   useEffect(() => {
-    document.documentElement.lang = locale;
-    document.documentElement.dir = direction;
-    return () => { document.documentElement.lang = 'fa-IR'; document.documentElement.dir = 'rtl'; };
+    const documentElement = document.documentElement;
+    const previousLang = documentElement.getAttribute('lang');
+    const previousDir = documentElement.getAttribute('dir');
+
+    documentElement.lang = locale;
+    documentElement.dir = direction;
+
+    return () => {
+      if (previousLang === null) documentElement.removeAttribute('lang');
+      else documentElement.setAttribute('lang', previousLang);
+      if (previousDir === null) documentElement.removeAttribute('dir');
+      else documentElement.setAttribute('dir', previousDir);
+    };
   }, [locale, direction]);
 
   useEffect(() => {
