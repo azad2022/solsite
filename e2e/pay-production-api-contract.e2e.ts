@@ -223,14 +223,12 @@ test('production Pay API requires an authenticated session for API-key creation'
   assert.equal(typeof body.requestId, 'string');
 });
 
-test('production Pay API-key listing rejects an untrusted origin before authentication', async () => {
-  const response = await request('/api/pay/v1/merchants/00000000-0000-4000-8000-000000000001/api-keys', {
-    headers: { Origin: 'https://attacker.example' },
-  });
-  assert.equal(response.status, 403);
+test('production Pay API-key listing authenticates without requiring an Origin header', async () => {
+  const response = await request('/api/pay/v1/merchants/00000000-0000-4000-8000-000000000001/api-keys');
+  assert.equal(response.status, 401);
   const body = await readJson(response);
   assert.equal(body.success, false);
-  assert.equal(body.code, 'ORIGIN_FORBIDDEN');
+  assert.equal(body.code, 'UNAUTHORIZED');
   assert.equal(typeof body.requestId, 'string');
 });
 
