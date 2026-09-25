@@ -7,7 +7,7 @@ const service=readFileSync('src/pay/services/invoiceService.ts','utf8');
 
 test('Invoice GET and POST use the pay_invoices contract',()=>{
   assert.match(route,/const INVOICE_SELECT = \[/);
-  for(const field of ['id','merchant_id','invoice_number','customer_label','title','description','amount_atomic','asset','fee_payer','checkout_locale','due_at','status','created_at','updated_at']) assert.match(route,new RegExp("['\\\"]"+field+"['\\\"]"));
+  for(const field of ['id','merchant_id','invoice_number','customer_label','title','description','amount_atomic','asset','fee_payer','checkout_locale','due_at','status','created_at','updated_at']) assert.match(route,new RegExp(field === 'amount_atomic' ? /amount_atomic::text/ : "['\\\"]"+field+"['\\\"]"));
   assert.match(route,/pay_create_invoice/);
   assert.match(route,/merchant_id=eq\./);
 });
