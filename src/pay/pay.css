@@ -316,8 +316,8 @@
     box-shadow: 0 22px 55px rgba(28, 32, 49, 0.18);
   }
   .solmint-pay[dir='rtl'] .pay-sidebar {
-    inset-inline-start: 0;
-    inset-inline-end: auto;
+    inset-inline-start: auto;
+    inset-inline-end: 0;
     transform: translate3d(100%, 0, 0);
   }
   .pay-sidebar.is-mobile-open {
