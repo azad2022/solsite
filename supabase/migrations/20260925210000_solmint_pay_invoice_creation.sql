@@ -49,15 +49,9 @@ begin
     return jsonb_build_object('state','invalid');
   end if;
 
-  if not exists (
-    select 1
-      from public.users u
-      join public.pay_merchant_members m on m.user_id = u.id
-     where u.id = v_user_id
-       and u.is_active = true
-       and m.merchant_id = p_merchant_id
-       and m.status = 'active'
-       and m.role in ('owner','admin','finance')
+  if not public.pay_has_merchant_access(
+    p_merchant_id,
+    array['owner','admin','finance']::text[]
   ) then
     return jsonb_build_object('state','forbidden');
   end if;
@@ -106,6 +100,7 @@ begin
   returning * into v_invoice;
 
   v_response := jsonb_build_object(
+    'apiVersion', 'v1',
     'data', jsonb_build_object(
       'id', v_invoice.id,
       'merchant_id', v_invoice.merchant_id,
