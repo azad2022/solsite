@@ -364,6 +364,7 @@ try {
     databaseWalletState,
   })}`);
 
+  await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.pay-api-keys', { state: 'visible', timeout: 10000 });
   const walletAfterReload = await page.evaluate(async (addressPrefix) => {
