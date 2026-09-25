@@ -945,3 +945,37 @@ Next gate:
 1. Obtain positive evidence for the Production Browser workflow on current main.
 2. Re-run the final Release Audit against the resulting current-main evidence.
 3. Keep unsupported mutation capabilities disabled until real Backend contracts exist.
+
+## 2026-09-25 — Pay final application-runtime release gate passed
+
+Status: **APPLICATION RUNTIME VERIFIED / DOCUMENTATION CHECKPOINT**
+
+Final runtime commit:
+- `3c08ca0ce8b6c38814c026eae33a1c7f9161fd0e`
+- PR #216 `fix(pay): remove inert notification control` was squash-merged.
+- The change removed the inert Notifications/Bell control from `PayApp.tsx` because the live Pay backend exposes no Notifications contract. No API, database, RLS, authentication, payment, accounting, or financial behavior was changed.
+
+Post-merge release evidence for the exact runtime commit:
+- Cloudflare Pages: **PASS** — production deployment of `3c08ca0` succeeded.
+- Production Build: **PASS**.
+- CI / Quality: **PASS**.
+- Database Security: **PASS**.
+- Mainnet Read-only: **PASS**.
+- Production API Contract Smoke: **PASS**.
+- Live Smoke: **PASS**.
+- Devnet E2E: **PASS**.
+- Production Browser UI E2E: **PASS** — authenticated production browser flow completed against the deployed `3c08ca0` runtime, including the current Pay runtime marker, real merchant/wallet/API-key/Payment Intent flow, Checkout, four-locale RTL/LTR mobile drawer checks, and SPA exit restoring the host document locale.
+- The Production Browser workflow checked out the exact triggering `github.sha` and waited for the matching Cloudflare Pages deployment before exercising production.
+
+Live database/security evidence:
+- Supabase project `nvopkbiedorfshwbmyhn` is `ACTIVE_HEALTHY` in `eu-central-1`.
+- Sensitive server-mediated Pay tables continue to deny direct `anon` and `authenticated` DML.
+- `pay_payment_events`, `pay_payment_intents`, and `pay_revenue_ledger` expose authenticated `SELECT` only; `INSERT/UPDATE/DELETE` remain denied.
+- The known Pay `SECURITY DEFINER` helper boundaries remain explicitly classified and unchanged.
+- Security Advisor still reports existing `pg_net` public-schema placement, five authenticated-callable Pay SECURITY DEFINER functions, and Supabase Auth leaked-password protection disabled. These remain separately classified and are not silently marked resolved by the frontend release.
+- No live Pay Notifications or Refund backend contract was found. These capabilities remain intentionally unavailable rather than simulated.
+
+Release conclusion:
+- The application runtime represented by commit `3c08ca0` has positive evidence across build, security, database, API, deployment, live smoke, Devnet E2E, and Production Browser gates.
+- The current documentation checkpoint is intentionally documentation-only and does not alter the verified application runtime.
+- Unsupported mutation areas remain disabled until authoritative backend contracts exist.
