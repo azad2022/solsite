@@ -162,6 +162,21 @@ async function servePaySpaShell(context: PagesContext): Promise<Response> {
   return withPayHtmlNoStore(context.request, asset);
 }
 
+function createCspNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function addCspNonceToInlineScripts(html: string, nonce: string): string {
+  return html.replace(/<script\b([^>]*)>/gi, (tag, attrs: string) => {
+    if (/\bsrc\s*=\s*/i.test(attrs) || /\bnonce\s*=\s*/i.test(attrs)) return tag;
+    return `<script nonce="${nonce}"${attrs}>`;
+  });
+}
+
 function withPayHtmlNoStore(request: Request, response: Response): Response {
   const contentType = response.headers.get('Content-Type') || '';
   if (!isPayHtmlPath(request) || !contentType.toLowerCase().includes('text/html')) return response;
@@ -171,6 +186,21 @@ function withPayHtmlNoStore(request: Request, response: Response): Response {
   headers.set('Pragma', 'no-cache');
   headers.delete('ETag');
   headers.delete('Last-Modified');
+
+  const csp = headers.get('Content-Security-Policy');
+  if (csp && request.method === 'GET') {
+    const nonce = createCspNonce();
+    const updatedCsp = csp.replace(
+      /(^|;)\s*script-src\s+([^;]*)/i,
+      (match, prefix: string, sources: string) => `${prefix} script-src 'nonce-${nonce}' ${sources}`,
+    );
+    const html = addCspNonceToInlineScripts(await response.text(), nonce);
+    headers.set('Content-Security-Policy', updatedCsp);
+    headers.delete('Content-Length');
+    headers.delete('Content-Encoding');
+    return new Response(html, { status: response.status, statusText: response.statusText, headers });
+  }
+
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
