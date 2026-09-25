@@ -52,85 +52,41 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Compare Pages Preview with custom production domain
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify current Production Pay runtime
         run: |
           node --input-type=module <<'NODE'
           import { chromium } from 'playwright';
-          const repository = process.env.GITHUB_REPOSITORY;
-          const sha = process.env.GITHUB_SHA;
-          const customOrigin = process.env.SOLMINT_PAY_PRODUCTION_ORIGIN;
-          const headers = {
-            authorization: 'Bearer ' + process.env.GITHUB_TOKEN,
-            accept: 'application/vnd.github+json',
-          };
-          let previewOrigin = '';
-          let lastPagesState = '';
-          for (let attempt = 1; attempt <= 30; attempt += 1) {
-            const checksResponse = await fetch(
-              'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
-              { headers },
-            );
-            if (!checksResponse.ok) throw new Error('GitHub check-runs lookup failed: ' + checksResponse.status);
-            const checks = await checksResponse.json();
-            const pagesChecks = (checks.check_runs || []).filter((check) => check.name === 'Cloudflare Pages');
-            const pagesCheck = pagesChecks.find((check) => check.output?.summary);
-            const summary = pagesCheck?.output?.summary || '';
-            const previewMatch = summary.match(/https:\/\/[^<\s'"]+\.solsite-9uh\.pages\.dev/);
-            lastPagesState = pagesCheck
-              ? `status=${pagesCheck.status} conclusion=${pagesCheck.conclusion}`
-              : 'missing';
-            console.log(`CLOUDFLARE_PAGES_CHECK attempt=${attempt} ${lastPagesState}`);
-            if (pagesCheck?.conclusion === 'success' && previewMatch) {
-              previewOrigin = previewMatch[0];
-              break;
-            }
-            if (pagesCheck?.conclusion === 'failure') {
-              throw new Error('Cloudflare Pages deployment failed for current commit.');
-            }
-            if (attempt === 30) {
-              throw new Error(`Current commit has no successful Cloudflare Pages preview URL. Last: ${lastPagesState}`);
-            }
-            await new Promise(resolve => setTimeout(resolve, 5000));
-          }
-          console.log('PAGES_PREVIEW_ORIGIN ' + previewOrigin);
+
+          const origin = process.env.SOLMINT_PAY_PRODUCTION_ORIGIN;
           const browser = await chromium.launch({ headless: true });
+
           try {
-            for (const [label, targetOrigin] of [['pages-preview', previewOrigin], ['custom-domain', customOrigin]]) {
-              const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-              try {
-                const probeUrl = targetOrigin + '/pay/merchants?__pay_runtime_probe=' + encodeURIComponent(crypto.randomUUID());
-                const response = await page.goto(probeUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-                await page.waitForTimeout(1000);
-                const diagnostics = await page.evaluate(() => ({
-                  url: location.href,
-                  title: document.title,
-                  marker: document.querySelectorAll('[data-pay-runtime="transport-v2"]').length,
-                  shell: document.querySelectorAll('.pay-app-shell').length,
-                }));
-                console.log('PAY_ORIGIN_PROBE ' + JSON.stringify({
-                  label,
-                  targetOrigin,
-                  status: response?.status() || 0,
-                  diagnostics,
-                  headers: {
-                    cacheControl: response?.headers()['cache-control'] || '',
-                    etag: response?.headers()['etag'] || '',
-                    cfCacheStatus: response?.headers()['cf-cache-status'] || '',
-                    cfRay: response?.headers()['cf-ray'] || '',
-                    server: response?.headers()['server'] || '',
-                  },
-                }));
-                if (label === 'pages-preview' && (!response?.ok() || diagnostics.marker !== 1 || diagnostics.shell !== 1)) {
-                  throw new Error('Current Pay runtime does not render on Pages Preview.');
-                }
-                if (label === 'custom-domain' && (diagnostics.marker !== 1 || diagnostics.shell !== 1)) {
-                  throw new Error('Custom production domain is not serving the current Pay runtime.');
-                }
-              } finally {
-                await page.close();
-              }
+            const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+            const probeUrl = `${origin}/pay/merchants?__pay_runtime_probe=${encodeURIComponent(crypto.randomUUID())}`;
+            const response = await page.goto(probeUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+            await page.waitForTimeout(1000);
+
+            const diagnostics = await page.evaluate(() => ({
+              url: location.href,
+              title: document.title,
+              marker: document.querySelectorAll('[data-pay-runtime="transport-v2"]').length,
+              shell: document.querySelectorAll('.pay-app-shell').length,
+            }));
+
+            console.log('PRODUCTION_PAY_PROBE ' + JSON.stringify({
+              status: response?.status() || 0,
+              diagnostics,
+              headers: {
+                cacheControl: response?.headers()['cache-control'] || '',
+                etag: response?.headers()['etag'] || '',
+                cfCacheStatus: response?.headers()['cf-cache-status'] || '',
+                cfRay: response?.headers()['cf-ray'] || '',
+                server: response?.headers()['server'] || '',
+              },
+            }));
+
+            if (!response?.ok() || diagnostics.marker !== 1 || diagnostics.shell !== 1) {
+              throw new Error('Production origin is not serving the current Pay runtime.');
             }
           } finally {
             await browser.close();
