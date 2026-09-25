@@ -35,7 +35,7 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v5
