@@ -159,7 +159,7 @@ async function servePaySpaShell(context: PagesContext): Promise<Response> {
     method: context.request.method,
     headers: context.request.headers,
   }));
-  return withPayHtmlNoStore(context.request, asset);
+  return await withPayHtmlNoStore(context.request, asset);
 }
 
 function createCspNonce(): string {
@@ -177,7 +177,7 @@ function addCspNonceToInlineScripts(html: string, nonce: string): string {
   });
 }
 
-function withPayHtmlNoStore(request: Request, response: Response): Response {
+async function withPayHtmlNoStore(request: Request, response: Response): Promise<Response> {
   const contentType = response.headers.get('Content-Type') || '';
   if (!isPayHtmlPath(request) || !contentType.toLowerCase().includes('text/html')) return response;
 
@@ -221,7 +221,7 @@ const markdownMiddleware: MiddlewareHandler = async (context) => {
     if ((context.request.method === 'GET' || context.request.method === 'HEAD') && isPayHtmlPath(context.request)) {
       return servePaySpaShell(context);
     }
-    return withPayHtmlNoStore(context.request, await context.next());
+    return await withPayHtmlNoStore(context.request, await context.next());
   }
 
   const origin = await context.next();
