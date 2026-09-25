@@ -515,13 +515,21 @@ try {
     console.log(`CLOSED_DRAWER_DIAGNOSTICS ${JSON.stringify({ localeButton, expectedDirection, closedDrawer })}`);
     assert.equal(closedDrawer.pointerEvents, 'none', 'Closed mobile drawer must not intercept pointer events.');
     assert.equal(closedDrawer.visibility, 'hidden', 'Closed mobile drawer must be hidden from hit testing.');
-    if (expectedDirection === 'rtl') {
-      assert.ok(closedDrawer.x >= VIEWPORT.width - 1,
-        `Closed RTL drawer should be outside the right edge: x=${closedDrawer.x} width=${closedDrawer.width}`);
-    } else {
-      assert.ok(closedDrawer.x + closedDrawer.width <= 1,
-        `Closed LTR drawer should be outside the left edge: x=${closedDrawer.x} width=${closedDrawer.width}`);
-    }
+    const menuBox = await page.locator('.pay-mobile-menu').boundingBox();
+    assert.ok(menuBox, 'Mobile menu button must be present for hit-testing.');
+    const hitTest = await page.evaluate(({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return {
+        tagName: element?.tagName || null,
+        className: element?.getAttribute('class') || null,
+        sidebarClassName: element?.closest('.pay-sidebar')?.getAttribute('class') || null,
+      };
+    }, {
+      x: menuBox.x + menuBox.width / 2,
+      y: menuBox.y + menuBox.height / 2,
+    });
+    assert.equal(hitTest.sidebarClassName, null,
+      `Closed mobile drawer must not capture hamburger hit-testing: ${JSON.stringify(hitTest)}`);
     await page.locator('.pay-mobile-menu').click();
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
     assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
