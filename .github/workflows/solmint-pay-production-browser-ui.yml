@@ -6,8 +6,15 @@ on:
     paths:
       - 'e2e/pay-production-ui.e2e.mjs'
       - 'src/pay/**'
+      - 'src/main.tsx'
+      - 'src/App.tsx'
+      - 'src/utils/seoManager.ts'
       - 'functions/api/pay/**'
       - 'functions/api/auth/**'
+      - 'functions/_middleware.ts'
+      - 'public/_headers'
+      - 'index.html'
+      - 'wrangler.toml'
       - '.github/workflows/solmint-pay-production-browser-ui.yml'
       - '.github/solmint-pay-production-ui-e2e.trigger'
   workflow_dispatch:
