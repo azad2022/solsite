@@ -85,6 +85,7 @@ async function provision() {
 }
 
 async function cleanup(fixture, merchantId) {
+  if (merchantId) await db('delete from public.pay_invoices where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchant_members where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchants where id = $1', [merchantId]).catch(() => {});
   await db('delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
@@ -416,6 +417,59 @@ try {
     `Verified wallet must survive reload: ${walletAfterReload.text}`);
   assert.equal(walletAfterReload.addressMatches, true,
     `Authoritative wallet address changed after reload: ${walletAfterReload.text}`);
+
+  await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-invoice-create').waitFor({ state: 'visible', timeout: 10000 });
+  const invoiceNumber = `E2E-${Date.now()}`;
+  const invoiceForm = page.locator('.pay-invoice-create');
+  await invoiceForm.locator('input').nth(0).fill(invoiceNumber);
+  await invoiceForm.locator('input').nth(1).fill('Browser E2E Invoice');
+  await invoiceForm.locator('input').nth(2).fill('E2E Customer');
+  await invoiceForm.locator('input').nth(3).fill('1000000');
+  await invoiceForm.locator('select').nth(0).selectOption('USDC');
+  await invoiceForm.locator('select').nth(1).selectOption('merchant');
+  await invoiceForm.locator('select').nth(2).selectOption('en-US');
+
+  const invoicePost = (request) =>
+    request.url().endsWith('/api/pay/v1/invoices') && request.method() === 'POST';
+  const invoiceResponsePromise = page.waitForResponse(
+    (response) => invoicePost(response.request()),
+    { timeout: 15000 },
+  );
+  await invoiceForm.locator('.pay-primary-action').click();
+  const invoiceResponse = await invoiceResponsePromise;
+  const invoiceResponseText = await invoiceResponse.text();
+  assert.equal(invoiceResponse.status(), 201, invoiceResponseText);
+  const invoiceBody = invoiceResponseText ? JSON.parse(invoiceResponseText) : {};
+  assert.equal(invoiceBody.apiVersion, 'v1');
+  assert.equal(invoiceBody.data?.merchant_id, merchantId);
+  assert.equal(invoiceBody.data?.invoice_number, invoiceNumber);
+  assert.equal(invoiceBody.data?.status, 'open');
+  assert.equal(invoiceBody.data?.amount_atomic, '1000000');
+  assert.equal(invoiceBody.data?.asset, 'USDC');
+
+  const invoiceFromDb = rows(await db(
+    `select id, merchant_id, invoice_number, amount_atomic::text as amount_atomic, asset, status
+       from public.pay_invoices
+      where merchant_id = $1 and invoice_number = $2`,
+    [merchantId, invoiceNumber],
+    true,
+  ));
+  assert.equal(invoiceFromDb.length, 1, 'Created invoice must exist in the production database.');
+  assert.equal(invoiceFromDb[0].merchant_id, merchantId);
+  assert.equal(invoiceFromDb[0].amount_atomic, '1000000');
+  assert.equal(invoiceFromDb[0].asset, 'USDC');
+  assert.equal(invoiceFromDb[0].status, 'open');
+  await page.getByText(invoiceNumber, { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  console.log(`INVOICE_CREATE_PRODUCTION_E2E ${JSON.stringify({
+    status: invoiceResponse.status(),
+    invoiceId: invoiceBody.data?.id,
+    merchantId,
+    invoiceNumber,
+    amountAtomic: invoiceBody.data?.amount_atomic,
+    asset: invoiceBody.data?.asset,
+    statusValue: invoiceBody.data?.status,
+  })}`);
 
   await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
   await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
