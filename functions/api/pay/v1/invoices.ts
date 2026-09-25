@@ -1,7 +1,7 @@
 import { PayRuntimeError, assertIdempotencyKey, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody } from '../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
 
-interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; }
+interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; PAY_APP_ORIGIN?: string; }
 
 const STATUSES = new Set(['draft', 'open', 'paid', 'partially_paid', 'overdue', 'void', 'refunded']);
 const FEE_PAYERS = new Set(['merchant', 'customer']);
