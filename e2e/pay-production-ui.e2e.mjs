@@ -145,6 +145,7 @@ async function routeAudit(page, path, label, evidenceDir, apiEvents, isExpectedA
   apiEvents.length = 0;
   const navigationStartedAt = Date.now();
   const response = await page.goto(`${ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
   assert.ok(response && response.ok(), `Navigation failed for ${path}: ${response?.status()}`);
   await page.waitForTimeout(1400);
   if (['/pay','/pay/merchants','/pay/dashboard','/pay/transactions','/pay/customers','/pay/invoices','/pay/reports','/pay/security','/pay/webhooks','/pay/tickets'].includes(path)) {
@@ -191,6 +192,26 @@ try {
     }
     if (!request.url().includes('/api/')) return;
     browserRequests.push({ url: request.url(), method: request.method() });
+  });
+  const scriptRequests = new Set();
+  page.on('request', (request) => {
+    if (/\/assets\/.*\.(?:js|mjs)(?:[?#].*)?$/.test(request.url())) scriptRequests.add(request.url());
+  });
+  page.on('response', async (response) => {
+    const url = response.url();
+    if (!/\/assets\/.*\.(?:js|mjs)(?:[?#].*)?$/.test(url)) return;
+    if (response.status() !== 200 || !/javascript|ecmascript/i.test(response.headers()['content-type'] || '')) {
+      console.log(`PAY_ASSET_RESPONSE ${JSON.stringify({
+        url,
+        status: response.status(),
+        contentType: response.headers()['content-type'] || '',
+        cacheControl: response.headers()['cache-control'] || '',
+        etag: response.headers()['etag'] || '',
+        cfCacheStatus: response.headers()['cf-cache-status'] || '',
+        cfRay: response.headers()['cf-ray'] || '',
+        server: response.headers()['server'] || '',
+      })}`);
+    }
   });
   page.on('response', async (response) => {
     if (!response.url().includes('/api/')) return;
