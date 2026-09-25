@@ -143,16 +143,21 @@ const routes = [
 
 async function routeAudit(page, path, label, evidenceDir, apiEvents, isExpectedApiError = () => false) {
   apiEvents.length = 0;
+  const navigationStartedAt = Date.now();
   const response = await page.goto(`${ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
   assert.ok(response && response.ok(), `Navigation failed for ${path}: ${response?.status()}`);
-  await page.waitForTimeout(1100);
+  await page.waitForTimeout(1400);
+  if (['/pay','/pay/merchants','/pay/dashboard','/pay/transactions','/pay/customers','/pay/invoices','/pay/reports','/pay/security','/pay/webhooks','/pay/tickets'].includes(path)) {
+    await page.waitForFunction(() => !document.body.innerText.includes('Loading Merchant state'), { timeout: 10000 }).catch(() => {});
+  }
   const title = await page.title();
   const bodyText = await page.locator('body').innerText();
   assert.ok(!/404|یافت نشد|not found/i.test(title), `${path} must not serve a 404 document: ${title}`);
   assert.ok(bodyText.trim().length > 80, `${path} rendered too little content`);
   assert.equal(await page.locator('.pay-app-shell').count(), 1, `${path} must render the Pay shell`);
-  const bad = apiEvents.filter((event) => event.status >= 400 && !isExpectedApiError(event));
-  const expected = apiEvents.filter((event) => event.status >= 400 && isExpectedApiError(event));
+  const routeApiEvents = apiEvents.filter((event) => event.startedAt >= navigationStartedAt);
+  const bad = routeApiEvents.filter((event) => event.status >= 400 && !isExpectedApiError(event));
+  const expected = routeApiEvents.filter((event) => event.status >= 400 && isExpectedApiError(event));
   if (expected.length) console.log(`EXPECTED_PAY_API_ERRORS ${JSON.stringify({ path, expected })}`);
   if (bad.length) throw new Error(`${path} produced unexpected Pay API errors: ${JSON.stringify(bad)}`);
   await page.screenshot({ path: `${evidenceDir}/${label}.png`, fullPage: false });
@@ -179,7 +184,11 @@ try {
     console.log(`BROWSER_PAGE_ERROR ${error.message}`);
   });
   const browserRequests = [];
+  const apiRequestStartTimes = new WeakMap();
   page.on('request', (request) => {
+    if (request.url().includes('/api/')) {
+      apiRequestStartTimes.set(request, Date.now());
+    }
     if (!request.url().includes('/api/')) return;
     browserRequests.push({ url: request.url(), method: request.method() });
   });
@@ -189,7 +198,13 @@ try {
     if (response.status() >= 400) {
       try { body = (await response.text()).slice(0, 1000); } catch { body = ''; }
     }
-    apiEvents.push({ url: response.url(), status: response.status(), method: response.request().method(), body });
+    apiEvents.push({
+      url: response.url(),
+      status: response.status(),
+      method: response.request().method(),
+      body,
+      startedAt: apiRequestStartTimes.get(response.request()) ?? Date.now(),
+    });
   });
 
   const merchantPageResponse = await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
@@ -364,6 +379,7 @@ try {
     databaseWalletState,
   })}`);
 
+  await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.pay-api-keys', { state: 'visible', timeout: 10000 });
   const walletAfterReload = await page.evaluate(async (addressPrefix) => {

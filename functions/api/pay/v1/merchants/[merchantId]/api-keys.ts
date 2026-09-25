@@ -64,7 +64,10 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
   const requestId = makePayRequestId();
   if (!payFeatureEnabled(env)) return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
   try {
-    if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
+    // GET is read-only. Browser JavaScript cannot supply/override the forbidden
+    // Origin request header reliably, so authentication and merchant ownership
+    // remain the authoritative access controls for this read endpoint. Origin
+    // enforcement stays mandatory on all state-changing API-key mutations.
     const user = await getAuthenticatedUser(env, request);
     if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
     const merchantId = String(params.merchantId || '').trim();

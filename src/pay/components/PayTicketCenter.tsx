@@ -21,7 +21,28 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
   const [loading,setLoading]=useState(true); const [detailLoading,setDetailLoading]=useState(false); const [error,setError]=useState<'error'|'forbidden'|'unauthorized'|null>(null); const [detailError,setDetailError]=useState<'error'|'forbidden'|'unauthorized'|null>(null);
   const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null);
 
-  async function loadTickets(selectFirst=true) { setLoading(true); setError(null); try { const rows=await listPayTickets({merchantId:isAdmin?undefined:merchantId}); setTickets(rows); if (selectFirst && rows[0]) setSelectedId(current=>current && rows.some(item=>item.id===current)?current:rows[0].id); else if (!rows.length) { setSelectedId(null); setDetail(null); } } catch (e) { setError(accessError(e)); } finally { setLoading(false); } }
+  async function loadTickets(selectFirst=true) {
+    if (!isAdmin && !merchantId) {
+      setTickets([]);
+      setSelectedId(null);
+      setDetail(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const rows=await listPayTickets({merchantId:isAdmin?undefined:merchantId});
+      setTickets(rows);
+      if (selectFirst && rows[0]) setSelectedId(current=>current && rows.some(item=>item.id===current)?current:rows[0].id);
+      else if (!rows.length) { setSelectedId(null); setDetail(null); }
+    } catch (e) {
+      setError(accessError(e));
+    } finally {
+      setLoading(false);
+    }
+  }
   async function loadDetail(id:string) { setDetailLoading(true); setDetailError(null); try { setDetail(await getPayTicket(id)); } catch(e) { setDetailError(accessError(e)); } finally { setDetailLoading(false); } }
   useEffect(()=>{ void loadTickets(); },[merchantId,isAdmin]);
   useEffect(()=>{ if(selectedId) void loadDetail(selectedId); else setDetail(null); },[selectedId]);
