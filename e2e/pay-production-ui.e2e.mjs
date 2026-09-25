@@ -494,6 +494,22 @@ try {
     assert.ok(languageBox, 'RTL language selector is missing');
     assert.ok(languageBox.x >= -1 && languageBox.x + languageBox.width <= VIEWPORT.width + 1,
       `RTL language selector is outside viewport: x=${languageBox.x} width=${languageBox.width}`);
+    const closedDrawer = await page.locator('.pay-sidebar').evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return {
+        className: element.className,
+        x: rect.x,
+        width: rect.width,
+        right: rect.right,
+        pointerEvents: style.pointerEvents,
+        visibility: style.visibility,
+        transform: style.transform,
+      };
+    });
+    console.log(`RTL_CLOSED_DRAWER_DIAGNOSTICS ${JSON.stringify({ localeButton, closedDrawer })}`);
+    assert.equal(closedDrawer.pointerEvents, 'none', 'Closed RTL drawer must not intercept pointer events.');
+    assert.equal(closedDrawer.visibility, 'hidden', 'Closed RTL drawer must be hidden from hit testing.');
     await page.locator('.pay-mobile-menu').click();
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
     assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
