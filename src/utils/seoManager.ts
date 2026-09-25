@@ -551,6 +551,8 @@ function injectJsonLdSchema(info: RouteSeoInfo, articleData?: ArticleSeoData) {
   const script = document.createElement('script');
   script.id = 'solmint-dynamic-jsonld';
   script.type = 'application/ld+json';
+  const cspNonce = document.querySelector('script[nonce]')?.getAttribute('nonce');
+  if (cspNonce) script.setAttribute('nonce', cspNonce);
   script.text = JSON.stringify(schemas);
   document.head.appendChild(script);
 }
