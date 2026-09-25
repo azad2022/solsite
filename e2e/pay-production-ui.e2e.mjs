@@ -215,10 +215,15 @@ try {
   const documentDiagnostics = await page.evaluate(() => ({
     url: location.href,
     payRuntimeCount: document.querySelectorAll('[data-pay-runtime="transport-v2"]').length,
-    scriptSrcs: Array.from(document.scripts).map(script => script.src).filter(Boolean),
+    scripts: Array.from(document.scripts).map(script => ({
+      src: script.src,
+      type: script.type,
+      inlineLength: script.src ? 0 : script.textContent?.length ?? 0,
+      inlinePreview: script.src ? '' : (script.textContent || '').trim().slice(0, 180),
+    })),
     htmlStart: document.documentElement.outerHTML.slice(0, 3500),
   }));
-  console.log(`PAY_RUNTIME_PROBE ${JSON.stringify({ runtimeMarkerCount, documentDiagnostics, headers: { cacheControl: merchantPageResponse.headers()['cache-control'] || '', etag: merchantPageResponse.headers()['etag'] || '', age: merchantPageResponse.headers()['age'] || '', cfCacheStatus: merchantPageResponse.headers()['cf-cache-status'] || '', cfRay: merchantPageResponse.headers()['cf-ray'] || '', server: merchantPageResponse.headers()['server'] || '' } })}`);
+  console.log(`PAY_RUNTIME_PROBE ${JSON.stringify({ runtimeMarkerCount, documentDiagnostics, headers: { cacheControl: merchantPageResponse.headers()['cache-control'] || '', etag: merchantPageResponse.headers()['etag'] || '', age: merchantPageResponse.headers()['age'] || '', cfCacheStatus: merchantPageResponse.headers()['cf-cache-status'] || '', cfRay: merchantPageResponse.headers()['cf-ray'] || '', server: merchantPageResponse.headers()['server'] || '', contentSecurityPolicy: merchantPageResponse.headers()['content-security-policy'] || '' } })}`);
   if (runtimeMarkerCount !== 1) {
     const probeUrl = `${ORIGIN}/pay/merchants?__pay_runtime_probe=${encodeURIComponent(crypto.randomUUID())}`;
     const probeResponse = await page.goto(probeUrl, { waitUntil: 'domcontentloaded' });
@@ -493,7 +498,30 @@ try {
     const languageBox = await page.locator('.pay-language-control').boundingBox();
     assert.ok(languageBox, 'RTL language selector is missing');
     assert.ok(languageBox.x >= -1 && languageBox.x + languageBox.width <= VIEWPORT.width + 1,
-      `RTL language selector is outside viewport: x=${languageBox.x} width=${languageBox.width}`);
+      `Language selector is outside viewport: x=${languageBox.x} width=${languageBox.width}`);
+    const closedDrawer = await page.locator('.pay-sidebar').evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return {
+        className: element.className,
+        x: rect.x,
+        width: rect.width,
+        right: rect.right,
+        pointerEvents: style.pointerEvents,
+        visibility: style.visibility,
+        transform: style.transform,
+      };
+    });
+    console.log(`CLOSED_DRAWER_DIAGNOSTICS ${JSON.stringify({ localeButton, expectedDirection, closedDrawer })}`);
+    assert.equal(closedDrawer.pointerEvents, 'none', 'Closed mobile drawer must not intercept pointer events.');
+    assert.equal(closedDrawer.visibility, 'hidden', 'Closed mobile drawer must be hidden from hit testing.');
+    if (expectedDirection === 'rtl') {
+      assert.ok(closedDrawer.x >= VIEWPORT.width - 1,
+        `Closed RTL drawer should be outside the right edge: x=${closedDrawer.x} width=${closedDrawer.width}`);
+    } else {
+      assert.ok(closedDrawer.x + closedDrawer.width <= 1,
+        `Closed LTR drawer should be outside the left edge: x=${closedDrawer.x} width=${closedDrawer.width}`);
+    }
     await page.locator('.pay-mobile-menu').click();
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
     assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
@@ -535,3 +563,4 @@ try {
     await cleanup(fixture, '').catch(() => {});
   }
 }
+
