@@ -912,3 +912,36 @@ Next gate:
 1. Obtain the post-merge Production Browser E2E result on current main.
 2. If green, reconcile the result into this ledger and perform the final Pay release audit against the current repository/backend/database state.
 3. Keep unsupported mutation areas disabled until real backend contracts exist; do not manufacture Refund, Invoice mutation, Payment Link mutation, Referral payout/withdrawal, Notifications, or broader Developer Portal contracts.
+
+## 2026-09-25 — Pay SPA boundary hardening and current release checkpoint
+
+Status: MERGED / VALIDATION CONTINUES
+
+Current main:
+- main is now 752525cc782966a4a06b9c92915200dfad82b20e.
+- PR #211 was merged to make the Production Browser workflow checkout the exact triggering github.sha that its Cloudflare Pages deployment wait targets.
+- PR #212 was merged to restore the host document's exact pre-Pay lang and dir attributes when the Pay SPA boundary unmounts, instead of unconditionally forcing fa-IR/rtl.
+- PR #213 was merged with a Production Browser regression covering SPA exit from /pay and restoration of the host application's lang=fa / dir=rtl state.
+
+Validation:
+- PR #212 branch CI: PASS.
+- PR #212 Production Build: PASS.
+- PR #212 Database Security: PASS.
+- PR #212 Mainnet Read-only: PASS.
+- PR #213 is test-only and the diff is limited to the production browser E2E harness.
+- The previously recorded Production Browser Audit run #80 passed on runtime commit 766fc0a7a81577ad5938966c480a5591e4dd047d; that evidence predates PRs #212 and #213, so it is not substituted for current-main evidence.
+
+Current release gate:
+- The current-main post-merge Production Browser workflow result is PENDING / UNKNOWN in this engineering session because the available GitHub integration does not expose the push-triggered workflow run for the current merge commit.
+- The release is therefore not marked fully production-ready from repository evidence alone.
+- PR #210 was superseded and closed because it recorded final-release evidence for the older 766fc0a runtime and would have contradicted the current checkpoint.
+
+Live database/security observation:
+- Supabase Production remains ACTIVE_HEALTHY.
+- The current Security Advisor still reports existing Pay SECURITY DEFINER boundaries, the pg_net public-schema placement, and the Supabase Auth leaked-password-protection warning; no new migration was introduced in this checkpoint.
+- These findings remain separately classified and are not silently treated as resolved.
+
+Next gate:
+1. Obtain positive evidence for the Production Browser workflow on current main.
+2. Re-run the final Release Audit against the resulting current-main evidence.
+3. Keep unsupported mutation capabilities disabled until real Backend contracts exist.
