@@ -473,13 +473,13 @@ try {
   const checkoutText = await page.locator('body').innerText();
   assert.ok(checkoutText.includes('1 SOL') || checkoutText.includes('0.001 SOL'));
 
-  // RTL/mobile regression: FA and AR must switch direction and keep the drawer on-screen.
-  for (const localeButton of [0, 2]) {
+  // Mobile regression: RTL drawers must anchor to the right; LTR drawers to the left.
+  for (const [localeButton, expectedDirection] of [[0, 'rtl'], [1, 'ltr'], [2, 'rtl'], [3, 'ltr']]) {
     await page.goto(`${ORIGIN}/pay`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
     await page.locator('.pay-language-control button').nth(localeButton).click();
     await page.waitForTimeout(150);
-    assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+    assert.equal(await page.locator('html').getAttribute('dir'), expectedDirection);
     const widthDiagnostics = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
@@ -497,9 +497,14 @@ try {
     await page.locator('.pay-mobile-menu').click();
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
     assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
-    assert.ok(box.x >= VIEWPORT.width - box.width - 2, `RTL drawer is off-screen: x=${box.x} width=${box.width}`);
-    assert.ok(box.x < VIEWPORT.width - 10, 'RTL drawer did not occupy the expected right edge');
-    assert.ok(box.x + box.width <= VIEWPORT.width + 1, `RTL drawer right edge is outside viewport: x=${box.x} width=${box.width}`);
+    if (expectedDirection === 'rtl') {
+      assert.ok(box.x >= VIEWPORT.width - box.width - 2, `RTL drawer is off-screen: x=${box.x} width=${box.width}`);
+      assert.ok(box.x < VIEWPORT.width - 10, 'RTL drawer did not occupy the expected right edge');
+      assert.ok(box.x + box.width <= VIEWPORT.width + 1, `RTL drawer right edge is outside viewport: x=${box.x} width=${box.width}`);
+    } else {
+      assert.ok(box.x >= -1, `LTR drawer left edge is outside viewport: x=${box.x} width=${box.width}`);
+      assert.ok(box.x + box.width <= VIEWPORT.width + 1, `LTR drawer right edge is outside viewport: x=${box.x} width=${box.width}`);
+    }
     assert.ok(await page.locator('.pay-nav-item').first().isVisible());
     await page.screenshot({ path: `/tmp/pay-ui-evidence/mobile-rtl-${localeButton}.png`, fullPage: false });
     await page.locator('.pay-mobile-close').click();
