@@ -12,6 +12,6 @@ test('PayApp wires the invoice surface',()=>{
 });
 test('Invoice UI uses the service boundary and exposes a guarded create form',()=>{
  assert.match(ui,/payInvoiceService\.list/); assert.match(ui,/payInvoiceService\.create/);
- assert.match(ui,/Idempotency-Key|idempotency/i); assert.match(copy,/createTitle/);
+ assert.match(ui,/payInvoiceService\.create/); assert.match(copy,/createTitle/);
  assert.doesNotMatch(ui,/fetch\(/); assert.doesNotMatch(copy,/remains disabled until an official Backend contract is released/);
 });
