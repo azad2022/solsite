@@ -11,7 +11,11 @@ export interface PayInvoice {
   checkout_locale: PayInvoiceLocale; due_at: string | null; status: PayInvoiceStatus;
   created_at: string; updated_at: string;
 }
-
+export interface CreatePayInvoiceInput {
+  merchantId: string; invoiceNumber: string; customerLabel?: string | null; title: string;
+  description?: string | null; amountAtomic: string; asset: PayInvoice['asset'];
+  feePayer: PayInvoiceFeePayer; checkoutLocale: PayInvoiceLocale; dueAt?: string | null;
+}
 interface Envelope { success?: boolean; apiVersion?: string; data?: unknown; }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STATUSES = new Set<PayInvoiceStatus>(['draft','open','paid','partially_paid','overdue','void','refunded']);
@@ -36,7 +40,6 @@ function atomic(value: unknown, field: string): string {
   if (!/^\d+$/.test(result)) throw new TypeError('Invalid Pay invoice field: ' + field);
   return result;
 }
-
 function parseInvoice(value: unknown): PayInvoice {
   const row = record(value);
   const id = requiredString(row.id, 'id');
@@ -53,6 +56,9 @@ function parseInvoice(value: unknown): PayInvoice {
     asset: asset as PayInvoice['asset'], fee_payer: feePayer as PayInvoiceFeePayer, checkout_locale: checkoutLocale as PayInvoiceLocale,
     due_at: row.due_at as string | null, status, created_at: requiredString(row.created_at, 'created_at'), updated_at: requiredString(row.updated_at, 'updated_at'),
   };
+}
+function positiveIntegerText(value: string, field: string): void {
+  if (!/^\d{1,78}$/.test(value) || BigInt(value) <= 0n) throw new TypeError(field + ' must be a positive atomic integer.');
 }
 
 export function createPayInvoiceService(client: PayHttpClient = defaultPayHttpClient) {
@@ -75,7 +81,32 @@ export function createPayInvoiceService(client: PayHttpClient = defaultPayHttpCl
       if (payload.success !== true || payload.apiVersion !== 'v1' || !payload.data) throw new TypeError('Invalid Pay invoice detail envelope.');
       return parseInvoice(payload.data);
     },
+    async create(input: CreatePayInvoiceInput, idempotencyKey: string): Promise<PayInvoice> {
+      if (!UUID.test(input.merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
+      if (!input.invoiceNumber.trim() || input.invoiceNumber.trim().length > 120) throw new TypeError('Invoice number is invalid.');
+      if (!input.title.trim() || input.title.trim().length > 200) throw new TypeError('Invoice title is invalid.');
+      positiveIntegerText(input.amountAtomic.trim(), 'Amount');
+      if (!ASSETS.has(input.asset) || !PAYERS.has(input.feePayer) || !LOCALES.has(input.checkoutLocale)) throw new TypeError('Invoice option is invalid.');
+      if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
+      const payload = await client.request<Envelope>('/api/pay/v1/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.trim() },
+        body: JSON.stringify({
+          merchantId: input.merchantId.trim(),
+          invoiceNumber: input.invoiceNumber.trim(),
+          customerLabel: input.customerLabel?.trim() || null,
+          title: input.title.trim(),
+          description: input.description?.trim() || null,
+          amountAtomic: input.amountAtomic.trim(),
+          asset: input.asset,
+          feePayer: input.feePayer,
+          checkoutLocale: input.checkoutLocale,
+          dueAt: input.dueAt || null,
+        }),
+      });
+      if (payload.success !== true || payload.apiVersion !== 'v1' || !payload.data) throw new TypeError('Invalid Pay invoice create envelope.');
+      return parseInvoice(payload.data);
+    },
   };
 }
-
 export const payInvoiceService = createPayInvoiceService();
