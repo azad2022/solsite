@@ -563,6 +563,14 @@ try {
     assert.equal(await page.locator('.pay-sidebar.is-mobile-open').count(), 0, 'RTL drawer did not close');
   }
 
+  // Pay must restore the host document locale after its SPA boundary unmounts.
+  await page.evaluate(() => globalThis['history']['pushState']({}, '', '/'));
+  await page.evaluate(() => globalThis.dispatchEvent(new PopStateEvent('popstate')));
+  await page.waitForTimeout(350);
+  assert.equal(await page.locator('html').getAttribute('lang'), 'fa', 'Leaving Pay must restore the host document language.');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'Leaving Pay must restore the host document direction.');
+  assert.ok((await page.locator('body').innerText()).trim().length > 80, 'Host application did not render after leaving Pay.');
+
   console.log(JSON.stringify({
     status: 'PASS',
     merchantId,
