@@ -1,15 +1,6 @@
 name: SolMint Pay Production Browser UI E2E
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'e2e/pay-production-ui.e2e.mjs'
-      - 'src/pay/**'
-      - 'functions/api/pay/**'
-      - 'functions/api/auth/**'
-      - '.github/workflows/solmint-pay-production-browser-ui.yml'
-      - '.github/solmint-pay-production-ui-e2e.trigger'
   push:
     branches: [main]
     paths:
@@ -23,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  checks: read
 
 jobs:
   browser-ui:
@@ -33,10 +23,10 @@ jobs:
       SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
-      - name: Checkout audit revision
+      - name: Checkout main
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
+          ref: main
 
       - name: Setup Node
         uses: actions/setup-node@v5
