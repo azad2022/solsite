@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
@@ -238,7 +238,6 @@ export function PayApp(): React.ReactElement {
               <div className="pay-language-control" aria-label={translate(locale, 'language')}>
                 {PAY_LOCALES.map(item => <button key={item} type="button" className={item === locale ? 'is-active' : ''} onClick={() => setLocale(item)} aria-pressed={item === locale}>{item === 'fa-IR' ? 'FA' : item === 'en-US' ? 'EN' : item.toUpperCase()}</button>)}
               </div>
-              <button type="button" className="pay-icon-button" aria-label={translate(locale, 'profile')} title={translate(locale, 'profile')}><Bell size={18} /></button>
               <div className="pay-account-chip" title={sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected')}>
                 <span className="pay-account-avatar" aria-hidden="true"><CircleDollarSign size={17} /></span>
                 <span className="pay-account-copy"><strong>{accountTitle}</strong><small>{accountSubtitle}</small></span>
