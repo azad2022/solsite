@@ -141,7 +141,7 @@ const routes = [
   ['/pay/webhooks', 'webhooks'],
 ];
 
-async function routeAudit(page, path, label, evidenceDir, apiEvents) {
+async function routeAudit(page, path, label, evidenceDir, apiEvents, isExpectedApiError = () => false) {
   apiEvents.length = 0;
   const response = await page.goto(`${ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
   assert.ok(response && response.ok(), `Navigation failed for ${path}: ${response?.status()}`);
@@ -151,8 +151,10 @@ async function routeAudit(page, path, label, evidenceDir, apiEvents) {
   assert.ok(!/404|یافت نشد|not found/i.test(title), `${path} must not serve a 404 document: ${title}`);
   assert.ok(bodyText.trim().length > 80, `${path} rendered too little content`);
   assert.equal(await page.locator('.pay-app-shell').count(), 1, `${path} must render the Pay shell`);
-  const bad = apiEvents.filter((event) => event.status >= 400);
-  if (bad.length) throw new Error(`${path} produced Pay API errors: ${JSON.stringify(bad)}`);
+  const bad = apiEvents.filter((event) => event.status >= 400 && !isExpectedApiError(event));
+  const expected = apiEvents.filter((event) => event.status >= 400 && isExpectedApiError(event));
+  if (expected.length) console.log(`EXPECTED_PAY_API_ERRORS ${JSON.stringify({ path, expected })}`);
+  if (bad.length) throw new Error(`${path} produced unexpected Pay API errors: ${JSON.stringify(bad)}`);
   await page.screenshot({ path: `${evidenceDir}/${label}.png`, fullPage: false });
   return { path, title, apiEvents: [...apiEvents], excerpt: bodyText.slice(0, 800) };
 }
@@ -183,7 +185,11 @@ try {
   });
   page.on('response', async (response) => {
     if (!response.url().includes('/api/')) return;
-    apiEvents.push({ url: response.url(), status: response.status(), method: response.request().method() });
+    let body = '';
+    if (response.status() >= 400) {
+      try { body = (await response.text()).slice(0, 1000); } catch { body = ''; }
+    }
+    apiEvents.push({ url: response.url(), status: response.status(), method: response.request().method(), body });
   });
 
   const merchantPageResponse = await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
@@ -306,9 +312,34 @@ try {
   merchantId = createBody.merchant.id;
   await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
 
-  await routeAudit(page, '/pay/merchants', 'prewallet-merchants', '/tmp/pay-ui-evidence', apiEvents);
+  const preWalletRouteResults = [];
+  for (const [path, label] of routes) {
+    preWalletRouteResults.push(await routeAudit(
+      page,
+      path,
+      `prewallet-${label}`,
+      '/tmp/pay-ui-evidence',
+      apiEvents,
+      (event) => merchantId.length > 0
+        && event.status === 403
+        && new URL(event.url).pathname === `/api/pay/v1/merchants/${merchantId}/api-keys`
+        && label === 'overview',
+    ));
+  }
+  console.log(`PREWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: preWalletRouteResults.length, paths: preWalletRouteResults.map(result => result.path) })}`);
 
   const verifiedWalletResponse = await signWalletChallenge(context, merchantId, signer);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const walletDomSnapshot = await page.evaluate(() => ({
+    text: document.body.innerText.slice(0, 3200),
+    walletCards: Array.from(document.querySelectorAll('.pay-onboarding-wallet')).map((node) => node.textContent?.trim() || ''),
+    merchantStates: Array.from(document.querySelectorAll('.pay-onboarding-success')).map((node) => node.textContent?.trim() || ''),
+  }));
+  const merchantAfterVerify = await page.evaluate(async () => {
+    const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
+    return { status: response.status, body: (await response.text()).slice(0, 2200) };
+  });
+  console.log(`WALLET_STATE_DIAGNOSTICS ${JSON.stringify({ walletDomSnapshot, merchantAfterVerify })}`);
   const authoritativeAfterVerify = await context.request.get('/api/pay/v1/merchants', {
     headers: { Origin: ORIGIN, Accept: 'application/json', 'Cache-Control': 'no-cache' },
   });
