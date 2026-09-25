@@ -121,6 +121,7 @@ async function signWalletChallenge(context, merchantId, signer) {
   );
   assert.equal(verifyResponse.status(), 200, `Wallet verification failed: ${await verifyResponse.text()}`);
   const body = await verifyResponse.json();
+  console.log(`WALLET_VERIFY_RESULT ${JSON.stringify({ status: verifyResponse.status(), verified: body.verified, merchantId: body.merchantId, walletId: body.walletId, walletAddress: body.walletAddress, verifiedAt: body.verifiedAt })}`);
   assert.equal(body.verified, true);
   return body;
 }
