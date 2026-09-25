@@ -912,3 +912,85 @@ Next gate:
 1. Obtain the post-merge Production Browser E2E result on current main.
 2. If green, reconcile the result into this ledger and perform the final Pay release audit against the current repository/backend/database state.
 3. Keep unsupported mutation areas disabled until real backend contracts exist; do not manufacture Refund, Invoice mutation, Payment Link mutation, Referral payout/withdrawal, Notifications, or broader Developer Portal contracts.
+
+## 2026-09-25 — Production Browser Audit Gate completed
+
+Status: **COMPLETED / PRODUCTION-VERIFIED**
+
+Authoritative current-main evidence:
+
+- Current Pay runtime main commit at the time of the gate: `766fc0a7a81577ad5938966c480a5591e4dd047d`.
+- Production Browser UI E2E run #80: **PASS** (workflow run `36112244629`, job `107998121878`).
+- The browser workflow first waited for the **Cloudflare Pages check attached to the exact `GITHUB_SHA`**, then verified the production Pay runtime before running the authenticated browser audit.
+- The audit passed the authenticated Pay flow, API-key creation/one-time-secret handling, Payment Intent creation, Pay route coverage, and mobile RTL/LTR drawer checks.
+- The audit exercised the deployed production origin `https://solmint.ir`; the production probes and Pay route API traffic completed successfully.
+
+Runtime defects found and fixed during this gate:
+
+1. Dynamic JSON-LD CSP nonce propagation:
+   - PR #204 added nonce propagation, but production Chromium showed the DOM nonce value was read as empty through `getAttribute('nonce')`.
+   - PR #207 changed the implementation to read `HTMLScriptElement.nonce`.
+   - PR #207 squash merge: `9aa59b923b51a44cde1d16213e6556ff915b8bf4`.
+   - Production Browser run #79 confirmed the CSP failure was removed.
+
+2. Mobile RTL drawer positioning:
+   - PR #208 corrected the logical inset so the RTL drawer is anchored to the right edge.
+   - PR #209 corrected selector specificity so the RTL open-state transform actually overrides the closed-state transform.
+   - PR #208 squash merge: `b49de3d054764cf53559f29d7a90d551d9fee1ff`.
+   - PR #209 squash merge: `766fc0a7a81577ad5938966c480a5591e4dd047d`.
+   - Production Browser run #80 passed the RTL/LTR drawer invariant after both fixes.
+
+Audit-pipeline integrity hardening:
+
+- PR #205 expanded the Production Browser workflow trigger scope so Pay HTML/CSP/deployment inputs cannot bypass the browser audit.
+- PR #206 changed the workflow to wait for the Cloudflare Pages check belonging to the exact commit under test, preventing stale-production false results.
+- PR #205 and PR #206 were both validated by CI/build/Pages before merge.
+
+## 2026-09-25 — Final Pay release audit
+
+Status: **PASS / PAY RELEASE GATE GREEN**
+
+Current main evidence:
+
+- `main` remains on the validated runtime commit `766fc0a7a81577ad5938966c480a5591e4dd047d`.
+- Cloudflare Pages deployment for that exact commit: **PASS**.
+- CI / quality: **PASS**.
+- Production Build: **PASS**.
+- Authentication build verification: **PASS**.
+- SolMint Pay Production API Contract / Smoke: **PASS**.
+- SolMint Pay Live Smoke: **PASS**.
+- SolMint Pay Database Security: **PASS**.
+- SolMint Pay Mainnet Read-only: **PASS**.
+- SolMint Pay Devnet E2E: **PASS**.
+- Production Browser UI E2E: **PASS**.
+
+Live database/RLS audit evidence:
+
+- Pay tables are RLS-enabled in the live Production database.
+- Sensitive Pay tables including `pay_api_keys`, `pay_idempotency_keys`, `pay_audit_logs`, `pay_wallet_challenges`, `pay_webhooks`, and `pay_webhook_deliveries` deny direct SELECT/INSERT/UPDATE/DELETE to both `anon` and `authenticated`.
+- `pay_payment_intents`, `pay_payment_events`, and `pay_revenue_ledger` expose authenticated SELECT only where the released contract requires it; their row access remains policy-controlled.
+- `private_service_secrets` denies direct DML/read privileges to `anon` and `authenticated`.
+- The live migration ledger includes the Wallet Ownership atomicity, Payment Intent hardening, revenue-ledger RLS, site security hardening, and API-key response migrations through `20260924111000`.
+
+Authentication/security evidence:
+
+- Production Better Auth uses HTTPS-only production URL validation, trusted-origin validation, secure HTTP-only session cookies, required email verification, password-reset session revocation, database-backed rate limiting, and Google OAuth verification requirements.
+- The internal `pay_request_user_id()` identity bridge is server-side and fail-closed for non-authenticated database roles; the relevant SECURITY DEFINER functions pin an empty `search_path`.
+- The current Supabase Security Advisor still reports 5 intentional Pay SECURITY DEFINER boundaries and the existing `pg_net` public-schema placement. These are already documented project boundaries and are not newly introduced by this release.
+- Supabase Advisor also reports leaked-password protection disabled in Supabase Auth. SolMint Pay's application authentication path is Better Auth, not the Supabase Auth sign-in flow; therefore this Advisor item is not treated as an applicable Pay authentication gate.
+
+Scope boundaries retained:
+
+- Payment success, verification, reconciliation, merchant balance, revenue, referral liability, refund success, and blockchain finality remain backend/database/blockchain authoritative.
+- Frontend does not treat submitted signatures, references, webhooks, browser state, or API-key responses as financial truth.
+- Unsupported mutation surfaces remain disabled where authoritative backend contracts do not exist: refund mutation, invoice mutation, payment-link mutation, referral enrollment/payout/withdrawal, notifications, and the broader Developer Portal mutation surface.
+
+External Cloudflare check:
+
+- `Workers Builds: solsite` continues to fail for the separate legacy Cloudflare Worker service named `solsite`.
+- Cloudflare Pages is the actual SolMint site deployment path and is green for the validated commit.
+- Per the current release policy, the unrelated Workers Build service is an external provider integration and is not a Pay release blocker.
+
+Release conclusion:
+
+The **SolMint Pay release gate is PASS** for the currently implemented and contract-backed scope. The project should not be described as implementing mutation capabilities whose authoritative backend contracts are intentionally absent.
