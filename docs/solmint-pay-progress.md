@@ -884,3 +884,31 @@ Scope boundary:
 - PR #147 was squash-merged into main as `3756862f717c905f94c418ad4bd7874e0e07adf2`.
 - Post-merge main validation: CI, Production Build, Database Security, Mainnet Read-only, Devnet E2E, Production API Smoke, Authentication build verification, and SolMint Pay Live Smoke all passed.
 
+
+## 2026-09-25 — Production Browser audit hardening aligned with current main
+
+Status: **IMPLEMENTATION MERGED / RUNTIME EVIDENCE PENDING**
+
+Authoritative merge evidence:
+
+- The current main branch had already completed the Wallet Ownership, Payment Intent, API-key, Merchant onboarding, read-surface, Developer documentation, and security-hardening stages recorded above.
+- A production browser audit path exposed one legitimate control-flow mismatch: a newly created Merchant can remain `pending` before wallet verification, and the API-key endpoint correctly returns `403` until activation. Treating that response as a generic browser-test failure stopped the audit before the remaining Pay routes could be inspected.
+- PR #190 `test(pay): continue production browser audit through pending Merchant` was rebased directly onto the then-current main and squash-merged as `a885bc375202096949ae67a0c0bf3165a4797510`.
+- The merged browser harness now audits the full pre-wallet Pay route set, accepts only the exact known inactive-Merchant API-key `403` as expected, captures bounded API error bodies for unexpected failures, and records authoritative wallet verification/reload diagnostics.
+- No API endpoint, database rule, payment rule, authorization rule, secret, or financial calculation was introduced by this change.
+
+Validation boundary:
+
+- The repository's normal CI / Production Build / Database Security / Production API Smoke workflows remain the authoritative validation path.
+- The GitHub connector available in this session does not expose push-triggered workflow runs, and direct access to the live production origin was unavailable through the browsing layer. Therefore the post-merge Production Browser E2E result is **not** claimed as PASS here.
+- This checkpoint must remain pending until a visible production-browser workflow run proves the merged audit path completes successfully.
+
+Repository hygiene:
+
+- Superseded duplicate browser-audit PRs #173, #167, #169, #174, #175, #176, #178, and #179 were closed as stale/superseded. No runtime behavior was removed by those closures.
+
+Next gate:
+
+1. Obtain the post-merge Production Browser E2E result on current main.
+2. If green, reconcile the result into this ledger and perform the final Pay release audit against the current repository/backend/database state.
+3. Keep unsupported mutation areas disabled until real backend contracts exist; do not manufacture Refund, Invoice mutation, Payment Link mutation, Referral payout/withdrawal, Notifications, or broader Developer Portal contracts.
