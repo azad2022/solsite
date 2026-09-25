@@ -460,7 +460,10 @@ try {
   assert.equal(invoiceFromDb[0].amount_atomic, '1000000');
   assert.equal(invoiceFromDb[0].asset, 'USDC');
   assert.equal(invoiceFromDb[0].status, 'open');
-  await page.getByText(invoiceNumber, { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-invoices-table-wrap').waitFor({ state: 'visible', timeout: 10000 });
+  const invoiceUiText = await page.locator('.pay-invoices-table-wrap').innerText();
+  assert.ok(invoiceUiText.includes(invoiceNumber), 'Created invoice must be visible in the Invoice UI after reload.');
   console.log(`INVOICE_CREATE_PRODUCTION_E2E ${JSON.stringify({
     status: invoiceResponse.status(),
     invoiceId: invoiceBody.data?.id,
