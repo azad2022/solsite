@@ -531,6 +531,16 @@ try {
     assert.equal(hitTest.sidebarClassName, null,
       `Closed mobile drawer must not capture hamburger hit-testing: ${JSON.stringify(hitTest)}`);
     await page.locator('.pay-mobile-menu').click();
+    await page.waitForFunction((direction) => {
+      const drawer = document.querySelector('.pay-sidebar.is-mobile-open');
+      if (!drawer) return false;
+      const rect = drawer.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      if (direction === 'rtl') {
+        return Math.abs(rect.right - window.innerWidth) < 1 && rect.left >= -1;
+      }
+      return Math.abs(rect.left) < 1 && rect.right <= window.innerWidth + 1;
+    }, expectedDirection, { timeout: 3000 });
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
     assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
     if (expectedDirection === 'rtl') {
