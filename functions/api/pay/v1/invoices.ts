@@ -10,7 +10,7 @@ const ASSETS = new Set(['SOL', 'USDC', 'USDT']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INVOICE_SELECT = [
   'id', 'merchant_id', 'invoice_number', 'customer_label', 'title', 'description',
-  'amount_atomic', 'asset', 'fee_payer', 'checkout_locale', 'due_at', 'status',
+  'amount_atomic::text', 'asset', 'fee_payer', 'checkout_locale', 'due_at', 'status',
   'created_at', 'updated_at',
 ].join(',');
 
