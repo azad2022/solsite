@@ -218,12 +218,18 @@ try {
     scripts: Array.from(document.scripts).map(script => ({
       src: script.src,
       type: script.type,
+      nonce: script.nonce || '',
       inlineLength: script.src ? 0 : script.textContent?.length ?? 0,
       inlinePreview: script.src ? '' : (script.textContent || '').trim().slice(0, 180),
     })),
     htmlStart: document.documentElement.outerHTML.slice(0, 3500),
   }));
-  console.log(`PAY_RUNTIME_PROBE ${JSON.stringify({ runtimeMarkerCount, documentDiagnostics, headers: { cacheControl: merchantPageResponse.headers()['cache-control'] || '', etag: merchantPageResponse.headers()['etag'] || '', age: merchantPageResponse.headers()['age'] || '', cfCacheStatus: merchantPageResponse.headers()['cf-cache-status'] || '', cfRay: merchantPageResponse.headers()['cf-ray'] || '', server: merchantPageResponse.headers()['server'] || '', contentSecurityPolicy: merchantPageResponse.headers()['content-security-policy'] || '' } })}`);
+  const contentSecurityPolicy = merchantPageResponse.headers()['content-security-policy'] || '';
+  assert.match(contentSecurityPolicy, /script-src[^;]*'nonce-[^']+'/, 'Pay CSP must use a response-scoped script nonce.');
+  const inlineScriptsMissingNonce = documentDiagnostics.scripts.filter((script) => script.inlineLength > 0 && !script.nonce);
+  assert.equal(inlineScriptsMissingNonce.length, 0,
+    `Pay inline scripts missing CSP nonce: ${JSON.stringify(inlineScriptsMissingNonce)}`);
+  console.log(`PAY_RUNTIME_PROBE ${JSON.stringify({ runtimeMarkerCount, documentDiagnostics, headers: { cacheControl: merchantPageResponse.headers()['cache-control'] || '', etag: merchantPageResponse.headers()['etag'] || '', age: merchantPageResponse.headers()['age'] || '', cfCacheStatus: merchantPageResponse.headers()['cf-cache-status'] || '', cfRay: merchantPageResponse.headers()['cf-ray'] || '', server: merchantPageResponse.headers()['server'] || '', contentSecurityPolicy } })}`);
   if (runtimeMarkerCount !== 1) {
     const probeUrl = `${ORIGIN}/pay/merchants?__pay_runtime_probe=${encodeURIComponent(crypto.randomUUID())}`;
     const probeResponse = await page.goto(probeUrl, { waitUntil: 'domcontentloaded' });
