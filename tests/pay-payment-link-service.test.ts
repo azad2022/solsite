@@ -79,7 +79,7 @@ test('payment link service updates a merchant link through the PATCH contract', 
   assert.equal(init?.method, 'PATCH');
   assert.equal(new Headers(init?.headers).get('Idempotency-Key'), 'link-update-e2e-key');
   const body = JSON.parse(String(init?.body));
-  assert.equal(body.amountAtomic, '2000000');
+  assert.equal(body.fixedAmountAtomic, '2000000');
 });
 
 test('payment link service deletes only through the authenticated merchant mutation contract', async () => {
