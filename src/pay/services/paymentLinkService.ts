@@ -4,7 +4,6 @@ export interface CreatePayPaymentLinkInput {
   merchantId: string;
   slug: string;
   title: string;
-  description: string | null;
   description?: string | null;
   fixedAmountAtomic: string;
   asset: 'SOL' | 'USDC' | 'USDT';
@@ -30,6 +29,7 @@ export interface PayPaymentLink {
   merchant_id: string;
   slug: string;
   title: string;
+  description: string | null;
   fixed_amount_atomic: string | null;
   asset: 'SOL' | 'USDC' | 'USDT' | null;
   fee_payer: 'merchant' | 'customer' | null;
