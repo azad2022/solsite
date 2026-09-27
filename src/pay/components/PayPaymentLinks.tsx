@@ -141,4 +141,4 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     </div>}
   </section>;
 }
-function Detail({label,value}:{label:string;value:string}):React.ReactElement{return <div className="pay-payment-link-detail-cell"><span>{label}</span><strong>{value}</strong></div>;>}
+function Detail({label,value}:{label:string;value:string}):React.ReactElement{return <div className="pay-payment-link-detail-cell"><span>{label}</span><strong>{value}</strong></div>;}
