@@ -258,7 +258,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
         </div>}
         {deleteError === 'hasPayments' ? <button type="button" className="pay-secondary-action" onClick={()=>beginEdit({...selected,is_active:false})}>{paymentLinkT(locale,'deactivate')}</button> : null}
       </>}
-    </div>
+    </div>}
   </section>;
 }
 function Detail({label,value}:{label:string;value:string}):React.ReactElement{return <div className="pay-payment-link-detail-cell"><span>{label}</span><strong>{value}</strong></div>;}
