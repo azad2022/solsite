@@ -57,3 +57,37 @@ test('public payment link service creates a Payment Intent only through the publ
   assert.equal(init?.method, 'POST');
   assert.equal(new Headers(init?.headers).get('Idempotency-Key'), 'link-checkout-e2e-key');
 });
+
+
+test('payment link service updates a merchant link through the PATCH contract', async () => {
+  let path = ''; let init: RequestInit | undefined;
+  const result = await createPayPaymentLinkService(clientFor({ success:true, apiVersion:'v1', data:link }, (p,i) => { path=p; init=i; })).update({
+    merchantId,
+    linkId,
+    slug:'solmint-store-renamed',
+    title:'Updated store payment',
+    description:'Updated payment link',
+    fixedAmountAtomic:'2000000',
+    asset:'USDC',
+    feePayer:'customer',
+    checkoutLocale:'fa-IR',
+    isActive:true,
+    expiresAt:null,
+  }, 'link-update-e2e-key');
+  assert.equal(result.id, linkId);
+  assert.equal(path, '/api/pay/v1/payment-links?merchantId=11111111-1111-4111-8111-111111111111&linkId=22222222-2222-4222-8222-222222222222');
+  assert.equal(init?.method, 'PATCH');
+  assert.equal(new Headers(init?.headers).get('Idempotency-Key'), 'link-update-e2e-key');
+  const body = JSON.parse(String(init?.body));
+  assert.equal(body.amountAtomic, '2000000');
+});
+
+test('payment link service deletes only through the authenticated merchant mutation contract', async () => {
+  let path = ''; let init: RequestInit | undefined;
+  const payload = { success:true, apiVersion:'v1', data:{ id:linkId, merchantId, deleted:true } };
+  const result = await createPayPaymentLinkService(clientFor(payload, (p,i) => { path=p; init=i; })).remove(merchantId, linkId, 'link-delete-e2e-key');
+  assert.deepEqual(result, { id:linkId, merchantId, deleted:true });
+  assert.equal(path, '/api/pay/v1/payment-links?merchantId=11111111-1111-4111-8111-111111111111&linkId=22222222-2222-4222-8222-222222222222');
+  assert.equal(init?.method, 'DELETE');
+  assert.equal(new Headers(init?.headers).get('Idempotency-Key'), 'link-delete-e2e-key');
+});
