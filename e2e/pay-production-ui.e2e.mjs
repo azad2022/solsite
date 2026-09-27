@@ -531,15 +531,10 @@ try {
   const paymentLinkUrl = `${ORIGIN}/pay/link/${encodeURIComponent(paymentLinkSlug)}`;
   const publicContext = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-US' });
   const publicPage = await publicContext.newPage();
-  const publicApiResponse = await publicContext.request.get('/api/pay/v1/payment-links/' + encodeURIComponent(paymentLinkSlug), { headers: { Accept: 'application/json' } });
-  const publicApiText = await publicApiResponse.text();
-  console.log(`PAYMENT_LINK_PUBLIC_GET_PROBE ${JSON.stringify({ status: publicApiResponse.status(), body: publicApiText.slice(0, 3000), paymentLinkUrl, paymentLinkSlug })}`);
   const publicResponse = await publicPage.goto(paymentLinkUrl, { waitUntil: 'domcontentloaded' });
   assert.ok(publicResponse && publicResponse.ok(), `Public payment link must be reachable: ${publicResponse?.status()}`);
   await publicPage.locator('.pay-public-link-card').waitFor({ state: 'visible', timeout: 10000 });
-  const publicPageText = await publicPage.locator('.pay-public-link-card').innerText();
-  console.log(`PAYMENT_LINK_PUBLIC_UI_PROBE ${JSON.stringify({ url: publicPage.url(), text: publicPageText.slice(0, 3000) })}`);
-  assert.ok(publicPageText.includes('2 USDC'), 'Public payment link must render the authoritative fixed amount and asset.');
+  assert.ok((await publicPage.locator('.pay-public-link-card').innerText()).includes('2 USDC'));
 
   const publicCheckoutPost = (request) =>
     request.url().endsWith('/api/pay/v1/payment-links/' + encodeURIComponent(paymentLinkSlug))
