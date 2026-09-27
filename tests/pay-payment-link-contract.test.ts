@@ -6,6 +6,7 @@ const route = readFileSync('functions/api/pay/v1/payment-links.ts', 'utf8');
 const publicRoute = readFileSync('functions/api/pay/v1/payment-links/[slug].ts', 'utf8');
 const migration = readFileSync('supabase/migrations/20260927000100_solmint_pay_payment_link_end_to_end.sql', 'utf8');
 const mutations = readFileSync('supabase/migrations/20260927150000_solmint_pay_payment_link_mutations.sql', 'utf8');
+const openapi = JSON.parse(readFileSync('public/openapi.json', 'utf8'));
 
 test('Payment Link merchant route exposes the real DB fields and creation mutation', () => {
   assert.match(route, /amount_atomic::text/);
@@ -76,4 +77,13 @@ test('Payment Link mutation DB contract preserves payment history and client exe
   assert.match(mutations, /revoke all on function public\.pay_update_payment_link[\s\S]*from public,anon/);
   assert.match(mutations, /revoke all on function public\.pay_delete_payment_link[\s\S]*from public,anon/);
   assert.match(mutations, /search_path = ''/);
+});
+
+
+test('OpenAPI documents the released Payment Link mutation surface', () => {
+  const paymentLinks = openapi.paths['/api/pay/v1/payment-links'];
+  assert.equal(paymentLinks?.patch?.operationId, 'updatePayPaymentLink');
+  assert.equal(paymentLinks?.delete?.operationId, 'deletePayPaymentLink');
+  assert.match(String(paymentLinks?.patch?.description || ''), /Historical Payment Intent snapshots remain unchanged/);
+  assert.match(String(paymentLinks?.delete?.description || ''), /deactivate/);
 });
