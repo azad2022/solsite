@@ -20,6 +20,7 @@ test('payment link service parses authoritative atomic and description fields', 
   assert.equal(result[0]?.slug, 'solmint-store');
   assert.equal(result[0]?.description, 'Pay for your order');
   assert.equal(result[0]?.fixed_amount_atomic, '1000000');
+  assert.equal(result[0]?.description, 'Pay for your order');
 });
 
 test('payment link service rejects non-integer financial data', async () => {
