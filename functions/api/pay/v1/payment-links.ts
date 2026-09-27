@@ -158,7 +158,7 @@ async function readPaymentLinkForMutation(env: PayEnv, identity: Awaited<ReturnT
   const response = await supabaseRequestAsIdentity(
     env,
     identity.accessToken,
-    '/rest/v1/pay_payment_links?select=' + encodeURIComponent(SELECT.join(',')) +
+    '/rest/v1/pay_payment_links?select=' + SELECT +
       '&id=eq.' + encodeURIComponent(linkId) +
       '&merchant_id=eq.' + encodeURIComponent(merchantId) +
       '&limit=1',
