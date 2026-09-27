@@ -4,6 +4,7 @@ import type { PaySection } from './types';
 export type PayRoute =
   | { kind: 'dashboard'; section: PaySection }
   | { kind: 'checkout'; intentId?: string }
+  | { kind: 'payment-link'; slug: string }
   | { kind: 'not-found' };
 
 export function matchPayRoute(pathname: string): PayRoute {
@@ -12,6 +13,12 @@ export function matchPayRoute(pathname: string): PayRoute {
 
   if (isPayCheckoutPath(normalized)) {
     return { kind: 'checkout', intentId: checkoutIntentIdFromPath(normalized) };
+  }
+
+  if (normalized.startsWith(`${PAY_PREFIX}/link/`)) {
+    const slug = normalized.slice(`${PAY_PREFIX}/link/`.length);
+    if (slug && !slug.includes('/') && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return { kind: 'payment-link', slug };
+    return { kind: 'not-found' };
   }
 
   if (normalized.startsWith(`${PAY_PREFIX}/`)) {

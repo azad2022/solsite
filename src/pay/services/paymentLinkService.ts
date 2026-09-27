@@ -1,10 +1,36 @@
 import { defaultPayHttpClient, type PayHttpClient } from '../http';
 
+export interface CreatePayPaymentLinkInput {
+  merchantId: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  fixedAmountAtomic: string;
+  asset: 'SOL' | 'USDC' | 'USDT';
+  feePayer: 'merchant' | 'customer';
+  checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
+  expiresAt?: string | null;
+}
+
+export interface PublicPayPaymentLink {
+  slug: string;
+  title: string;
+  description: string | null;
+  amountAtomic: string;
+  amountDecimals: number;
+  asset: 'SOL' | 'USDC' | 'USDT';
+  feePayer: 'merchant' | 'customer';
+  checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
+  expiresAt: string | null;
+  merchant: { businessName: string };
+}
+
 export interface PayPaymentLink {
   id: string;
   merchant_id: string;
   slug: string;
   title: string;
+  description: string | null;
   fixed_amount_atomic: string | null;
   asset: 'SOL' | 'USDC' | 'USDT' | null;
   fee_payer: 'merchant' | 'customer' | null;
@@ -59,6 +85,7 @@ function parseLink(value: unknown): PayPaymentLink {
     merchant_id: merchantId,
     slug: requiredString(row, 'slug'),
     title: requiredString(row, 'title'),
+    description: nullableString(row, 'description'),
     fixed_amount_atomic: atomicNullable(row, 'fixed_amount_atomic'),
     asset: enumNullable(row.asset, 'asset', ASSETS),
     fee_payer: enumNullable(row.fee_payer, 'fee_payer', PAYERS),
@@ -72,6 +99,73 @@ function parseLink(value: unknown): PayPaymentLink {
 
 export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHttpClient) {
   return {
+    async create(input: CreatePayPaymentLinkInput, idempotencyKey: string): Promise<PayPaymentLink> {
+      if (!UUID.test(input.merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
+      const slug = input.slug.trim().toLowerCase();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120) throw new TypeError('Payment link slug is invalid.');
+      if (!input.title.trim() || input.title.trim().length > 200) throw new TypeError('Payment link title is invalid.');
+      if (input.description && input.description.trim().length > 5000) throw new TypeError('Payment link description is too long.');
+      if (!/^\d{1,78}$/.test(input.fixedAmountAtomic.trim()) || BigInt(input.fixedAmountAtomic.trim()) <= 0n) throw new TypeError('Payment link amount is invalid.');
+      if (!ASSETS.has(input.asset) || !PAYERS.has(input.feePayer) || !LOCALES.has(input.checkoutLocale)) throw new TypeError('Payment link option is invalid.');
+      if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
+      const payload = await client.request<Envelope>('/api/pay/v1/payment-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.trim() },
+        body: JSON.stringify({
+          merchantId: input.merchantId.trim(),
+          slug,
+          title: input.title.trim(),
+          description: input.description?.trim() || null,
+          fixedAmountAtomic: input.fixedAmountAtomic.trim(),
+          asset: input.asset,
+          feePayer: input.feePayer,
+          checkoutLocale: input.checkoutLocale,
+          expiresAt: input.expiresAt || null,
+        }),
+      });
+      if (payload.success !== true || payload.apiVersion !== 'v1' || !payload.data) throw new TypeError('Invalid Pay payment link create envelope.');
+      return parseLink(payload.data);
+    },
+    async getPublic(slug: string): Promise<PublicPayPaymentLink> {
+      const normalized = slug.trim();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized) || normalized.length < 3 || normalized.length > 120) throw new TypeError('Payment link slug is invalid.');
+      const payload = await client.request<Envelope>('/api/pay/v1/payment-links/' + encodeURIComponent(normalized));
+      const row = record(payload.data);
+      const amount = requiredString(row, 'amountAtomic');
+      const asset = requiredString(row, 'asset');
+      const feePayer = requiredString(row, 'feePayer');
+      const checkoutLocale = requiredString(row, 'checkoutLocale');
+      const amountDecimals = row.amountDecimals;
+      if (typeof amountDecimals !== 'number' || !Number.isInteger(amountDecimals) || amountDecimals < 0 || amountDecimals > 255) throw new TypeError('Invalid public Pay payment link amount decimals.');
+      if (payload.success !== true || payload.apiVersion !== 'v1' || !/^\d{1,78}$/.test(amount) || !ASSETS.has(asset as PayPaymentLink['asset']) || !PAYERS.has(feePayer as PayPaymentLink['fee_payer']) || !LOCALES.has(checkoutLocale as PayPaymentLink['checkout_locale'])) throw new TypeError('Invalid public Pay payment link envelope.');
+      const merchant = record(row.merchant);
+      return {
+        slug: requiredString(row, 'slug'),
+        title: requiredString(row, 'title'),
+        description: nullableString(row, 'description'),
+        amountAtomic: amount,
+        amountDecimals,
+        asset: asset as PublicPayPaymentLink['asset'],
+        feePayer: feePayer as PublicPayPaymentLink['feePayer'],
+        checkoutLocale: checkoutLocale as PublicPayPaymentLink['checkoutLocale'],
+        expiresAt: nullableString(row, 'expiresAt'),
+        merchant: { businessName: requiredString(merchant, 'businessName') },
+      };
+    },
+    async createFromPublic(slug: string, idempotencyKey: string): Promise<{ id: string }> {
+      const normalized = slug.trim();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized) || normalized.length < 3 || normalized.length > 120) throw new TypeError('Payment link slug is invalid.');
+      if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
+      const payload = await client.request<Envelope>('/api/pay/v1/payment-links/' + encodeURIComponent(normalized), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.trim() },
+        body: '{}',
+      });
+      const row = record(payload.data);
+      const id = requiredString(row, 'id');
+      if (payload.success !== true || payload.apiVersion !== 'v1' || !UUID.test(id)) throw new TypeError('Invalid Pay payment intent envelope.');
+      return { id };
+    },
     async list(merchantId: string, limit = 50): Promise<PayPaymentLink[]> {
       if (!UUID.test(merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
       if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new TypeError('Payment link limit is invalid.');

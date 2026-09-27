@@ -3,26 +3,41 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const route = readFileSync('functions/api/pay/v1/payment-links.ts', 'utf8');
-const service = readFileSync('src/pay/services/paymentLinkService.ts', 'utf8');
+const publicRoute = readFileSync('functions/api/pay/v1/payment-links/[slug].ts', 'utf8');
+const migration = readFileSync('supabase/migrations/20260927000100_solmint_pay_payment_link_end_to_end.sql', 'utf8');
 
-test('Payment Link GET uses only released fields and merchant scope', () => {
-  assert.match(route, /const SELECT = \[/);
-  for (const field of ['id','merchant_id','slug','title','fixed_amount_atomic','asset','fee_payer','checkout_locale','is_active','expires_at','created_at','updated_at']) {
-    assert.match(route, new RegExp("['\\\"]" + field + "['\\\"]"));
+test('Payment Link merchant route exposes the real DB fields and creation mutation', () => {
+  assert.match(route, /amount_atomic::text/);
+  for (const field of ['id','merchant_id','slug','title','description','asset','fee_payer','checkout_locale','is_active','expires_at']) {
+    assert.match(route, new RegExp(field === 'description' ? field : "['\\\"]" + field + "['\\\"]"));
   }
-  assert.match(route, /merchant_id=eq\./);
-  assert.match(route, /order=created_at\.desc/);
-});
-
-test('Payment Link GET is authenticated and identity-mediated', () => {
+  assert.match(route, /pay_create_payment_link/);
   assert.match(route, /resolvePayIdentity\(request, env\)/);
+  assert.match(route, /assertIdempotencyKey\(request\)/);
+  assert.match(route, /enforcePayRateLimit/);
+  assert.match(route, /hashCanonicalRequest/);
   assert.match(route, /supabaseRequestAsIdentity\(/);
+  assert.match(route, /Origin/);
   assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY/);
 });
 
-test('Payment Link service keeps atomic amounts as strings and allowlists optional enums', () => {
-  assert.match(service, /!\/\^\\d\+\$\/\.test\(value\)/);
-  assert.match(service, /ASSETS/);
-  assert.match(service, /PAYERS/);
-  assert.match(service, /LOCALES/);
+test('Public Payment Link route is anonymous GET plus origin-protected checkout creation', () => {
+  assert.match(publicRoute, /export const onRequestGet/);
+  assert.match(publicRoute, /export const onRequestPost/);
+  assert.match(publicRoute, /pay_create_payment_intent_from_link/);
+  assert.match(publicRoute, /assertIdempotencyKey\(request\)/);
+  assert.match(publicRoute, /PAYMENT_LINK_EXPIRED/);
+  assert.match(publicRoute, /PAYMENT_LINK_NOT_CONFIGURED/);
+  assert.match(publicRoute, /PAY_APP_ORIGIN/);
+  assert.match(publicRoute, /PAYMENT_LINKS_RATE|payment-links:checkout/);
+  assert.doesNotMatch(publicRoute, /authenticateMerchantApi/);
+});
+
+test('Payment Link migration binds descriptions and public checkout intents to link ids', () => {
+  assert.match(migration, /add column if not exists description text/);
+  assert.match(migration, /pay_create_payment_link/);
+  assert.match(migration, /payment-links:create/);
+  assert.match(migration, /pay_create_payment_intent_from_link/);
+  assert.match(migration, /grant execute on function public\.pay_create_payment_intent_from_link[\s\S]*to service_role/);
+  assert.match(migration, /search_path = ''/);
 });

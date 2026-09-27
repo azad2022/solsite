@@ -1,18 +1,23 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { matchPayRoute } from '../src/pay/route-match';
 
-const app = readFileSync('src/pay/PayApp.tsx','utf8');
-const ui = readFileSync('src/pay/components/PayPaymentLinks.tsx','utf8');
+const app = readFileSync('src/pay/PayApp.tsx', 'utf8');
+const ui = readFileSync('src/pay/components/PayPaymentLinks.tsx', 'utf8');
 
-test('PayApp wires Payment Links into the existing invoice management surface', () => {
-  assert.match(app,/import PayPaymentLinks from '.\/components\/PayPaymentLinks'/);
-  assert.match(app,/showInvoices/);
-  assert.match(app,/<PayPaymentLinks locale=\{locale\} merchantId=\{merchant\.id\}/);
+test('PayApp exposes the public payment link route and keeps it outside merchant dashboard rendering', () => {
+  assert.match(app, /PayPublicPaymentLink/);
+  assert.match(app, /route\.kind === 'payment-link'/);
+  const route = matchPayRoute('/pay/link/solmint-store');
+  assert.deepEqual(route, { kind: 'payment-link', slug: 'solmint-store' });
+  assert.deepEqual(matchPayRoute('/pay/link/invalid_slug'), { kind: 'not-found' });
 });
 
-test('Payment Link UI stays behind the Pay service boundary and exposes no guessed public route', () => {
-  assert.match(ui,/payPaymentLinkService\.list/);
-  assert.doesNotMatch(ui,/fetch\(/);
-  assert.doesNotMatch(ui,/\/pay\/link\//);
+test('Payment Link UI uses the service boundary and provides create/share actions', () => {
+  assert.match(ui, /payPaymentLinkService\.list/);
+  assert.match(ui, /payPaymentLinkService\.create/);
+  assert.match(ui, /publicUrl/);
+  assert.match(ui, /navigator\.clipboard/);
+  assert.doesNotMatch(ui, /fetch\(/);
 });
