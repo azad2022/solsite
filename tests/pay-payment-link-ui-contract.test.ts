@@ -14,9 +14,12 @@ test('PayApp exposes the public payment link route and keeps it outside merchant
   assert.deepEqual(matchPayRoute('/pay/link/invalid_slug'), { kind: 'not-found' });
 });
 
-test('Payment Link UI uses the service boundary and provides create/share actions', () => {
+test('Payment Link UI uses the service boundary and provides create/edit/deactivate/delete/share actions', () => {
   assert.match(ui, /payPaymentLinkService\.list/);
   assert.match(ui, /payPaymentLinkService\.create/);
+  assert.match(ui, /payPaymentLinkService\.update/);
+  assert.match(ui, /payPaymentLinkService\.remove/);
+  assert.match(ui, /deleteConfirm/);
   assert.match(ui, /publicUrl/);
   assert.match(ui, /navigator\.clipboard/);
   assert.doesNotMatch(ui, /fetch\(/);
