@@ -7,10 +7,10 @@ import {
   makePayRequestId,
   payFeatureEnabled,
   payJson,
-  supabaseRequest,
   type PayRuntimeEnv,
 } from '../../_shared/runtime';
 import { resolveAssetFromEnvironment } from '../../../../../src/pay/services/assetPolicy';
+import { supabaseSecret } from '../../../v1/_shared';
 import { randomReferenceAddress } from '../../../../../src/pay/services/walletSignature';
 
 interface PayEnv extends PayRuntimeEnv {
