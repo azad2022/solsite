@@ -85,6 +85,7 @@ function parseLink(value: unknown): PayPaymentLink {
     merchant_id: merchantId,
     slug: requiredString(row, 'slug'),
     title: requiredString(row, 'title'),
+    description: nullableString(row, 'description'),
     fixed_amount_atomic: atomicNullable(row, 'fixed_amount_atomic'),
     asset: enumNullable(row.asset, 'asset', ASSETS),
     fee_payer: enumNullable(row.fee_payer, 'fee_payer', PAYERS),
