@@ -17,6 +17,7 @@ export interface PublicPayPaymentLink {
   title: string;
   description: string | null;
   amountAtomic: string;
+  amountDecimals: number;
   asset: 'SOL' | 'USDC' | 'USDT';
   feePayer: 'merchant' | 'customer';
   checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
@@ -133,6 +134,8 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
       const asset = requiredString(row, 'asset');
       const feePayer = requiredString(row, 'feePayer');
       const checkoutLocale = requiredString(row, 'checkoutLocale');
+      const amountDecimals = row.amountDecimals;
+      if (typeof amountDecimals !== 'number' || !Number.isInteger(amountDecimals) || amountDecimals < 0 || amountDecimals > 255) throw new TypeError('Invalid public Pay payment link amount decimals.');
       if (payload.success !== true || payload.apiVersion !== 'v1' || !/^\d{1,78}$/.test(amount) || !ASSETS.has(asset as PayPaymentLink['asset']) || !PAYERS.has(feePayer as PayPaymentLink['fee_payer']) || !LOCALES.has(checkoutLocale as PayPaymentLink['checkout_locale'])) throw new TypeError('Invalid public Pay payment link envelope.');
       const merchant = record(row.merchant);
       return {
@@ -140,6 +143,7 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
         title: requiredString(row, 'title'),
         description: nullableString(row, 'description'),
         amountAtomic: amount,
+        amountDecimals,
         asset: asset as PublicPayPaymentLink['asset'],
         feePayer: feePayer as PublicPayPaymentLink['feePayer'],
         checkoutLocale: checkoutLocale as PublicPayPaymentLink['checkoutLocale'],
