@@ -37,6 +37,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<'unauthorized'|'forbidden'|'error'|null>(null);
   const [draft, setDraft] = useState<CreatePayPaymentLinkInput>({ ...EMPTY_DRAFT, merchantId: merchantId || '' });
+  const [expiresInput, setExpiresInput] = useState('');
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<'invalid'|'forbidden'|'conflict'|'error'|null>(null);
   const [created, setCreated] = useState<PayPaymentLink | null>(null);
@@ -73,9 +74,10 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     }
     setCreating(true);
     try {
-      const result = await payPaymentLinkService.create({ ...draft, merchantId, slug, fixedAmountAtomic: amount }, crypto.randomUUID());
+      const result = await payPaymentLinkService.create({ ...draft, merchantId, slug, fixedAmountAtomic: amount, expiresAt: expiresInput ? new Date(expiresInput).toISOString() : null }, crypto.randomUUID());
       setCreated(result);
       setDraft({ ...EMPTY_DRAFT, merchantId });
+      setExpiresInput('');
       await load();
     } catch (cause) {
       if (cause instanceof PayHttpError && cause.status === 403) setFormError('forbidden');
@@ -109,7 +111,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
         <label><span>{paymentLinkT(locale,'asset')}</span><select value={draft.asset} onChange={e=>update('asset',e.target.value as CreatePayPaymentLinkInput['asset'])}>{ASSETS.map(asset=><option key={asset} value={asset}>{asset}</option>)}</select></label>
         <label><span>{paymentLinkT(locale,'feePayer')}</span><select value={draft.feePayer} onChange={e=>update('feePayer',e.target.value as CreatePayPaymentLinkInput['feePayer'])}>{PAYERS.map(item=><option key={item} value={item}>{paymentLinkT(locale,item==='merchant'?'merchantPayer':'customerPayer')}</option>)}</select></label>
         <label><span>{paymentLinkT(locale,'locale')}</span><select value={draft.checkoutLocale} onChange={e=>update('checkoutLocale',e.target.value as CreatePayPaymentLinkInput['checkoutLocale'])}>{LOCALES.map(item=><option key={item} value={item}>{item === 'auto' ? paymentLinkT(locale,'autoLocale') : item}</option>)}</select></label>
-        <label><span>{paymentLinkT(locale,'expires')}</span><input type="datetime-local" value={draft.expiresAt ? draft.expiresAt.slice(0,16) : ''} onChange={e=>update('expiresAt',e.target.value ? new Date(e.target.value).toISOString() : null)}/></label>
+        <label><span>{paymentLinkT(locale,'expires')}</span><input type="datetime-local" value={expiresInput} onChange={e=>{setExpiresInput(e.target.value);setCreated(null);setFormError(null);}}/></label>
         <label className="pay-payment-link-create-wide"><span>{paymentLinkT(locale,'description')}</span><textarea value={draft.description || ''} onChange={e=>update('description',e.target.value)} maxLength={5000} rows={3}/></label>
       </div>
       {formError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{formError==='invalid'?paymentLinkT(locale,'createInvalid'):formError==='forbidden'?paymentLinkT(locale,'createForbidden'):formError==='conflict'?paymentLinkT(locale,'createConflict'):paymentLinkT(locale,'createFailed')}</span></div> : null}
