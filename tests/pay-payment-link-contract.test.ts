@@ -17,6 +17,8 @@ test('Payment Link merchant route exposes the real DB fields and creation mutati
   assert.match(route, /enforcePayRateLimit/);
   assert.match(route, /hashCanonicalRequest/);
   assert.match(route, /supabaseRequestAsIdentity\(/);
+  assert.match(route, /resolveAssetFromEnvironment\(asset/);
+  assert.match(route, /PAYMENT_LINK_ASSET_NOT_CONFIGURED/);
   assert.match(route, /Origin/);
   assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY/);
 });
