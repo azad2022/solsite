@@ -9,8 +9,7 @@ import './pay-public-payment-link.css';
 
 interface Props { slug: string; initialLocale: PayLocale; }
 
-function formatAtomic(value: string, asset: PublicPayPaymentLink['asset']): string {
-  const decimals = asset === 'SOL' ? 9 : 6;
+function formatAtomic(value: string, decimals: number): string {
   try {
     const amount = BigInt(value);
     const whole = amount / (10n ** BigInt(decimals));
@@ -91,7 +90,7 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
         <span className="pay-public-link-kicker">{publicPaymentLinkT(locale,'paymentLink')}</span>
         <h1 id="pay-public-link-title">{link.title}</h1>
         <div className="pay-public-link-merchant"><span>{publicPaymentLinkT(locale,'merchant')}</span><strong>{link.merchant.businessName}</strong></div>
-        <div className="pay-public-link-amount"><span>{publicPaymentLinkT(locale,'amount')}</span><strong>{formatAtomic(link.amountAtomic, link.asset)} {link.asset}</strong></div>
+        <div className="pay-public-link-amount"><span>{publicPaymentLinkT(locale,'amount')}</span><strong>{formatAtomic(link.amountAtomic, link.amountDecimals)} {link.asset}</strong></div>
         <div className="pay-public-link-meta"><div><span>{publicPaymentLinkT(locale,'feePayer')}</span><strong>{link.feePayer==='merchant'?publicPaymentLinkT(locale,'merchant'):publicPaymentLinkT(locale,'feePayer')}</strong></div><div><span>{publicPaymentLinkT(locale,'expires')}</span><strong>{link.expiresAt ? new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : locale,{dateStyle:'medium',timeStyle:'short'}).format(new Date(link.expiresAt)) : publicPaymentLinkT(locale,'noExpiry')}</strong></div></div>
         {link.description ? <div className="pay-public-link-description"><strong>{publicPaymentLinkT(locale,'description')}</strong><div>{link.description}</div></div> : null}
         <div className="pay-public-link-actions"><button type="button" className="pay-primary-action" onClick={() => void startPayment()} disabled={creating}><ShieldCheck size={17}/>{creating?publicPaymentLinkT(locale,'creating'):publicPaymentLinkT(locale,'continue')}</button><button type="button" className="pay-secondary-action" onClick={() => void copyLink()}><Clipboard size={15}/>{copied?publicPaymentLinkT(locale,'copied'):publicPaymentLinkT(locale,'copy')}</button></div>
