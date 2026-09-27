@@ -32,7 +32,7 @@ test('payment link service rejects non-integer financial data', async () => {
 
 test('payment link service creates through the same-origin API with idempotency', async () => {
   let path = ''; let init: RequestInit | undefined;
-  const result = await createPayPaymentLinkService(clientFor({ success:true, apiVersion:'v1', data:[link] }, (p,i) => { path=p; init=i; })).create({
+  const result = await createPayPaymentLinkService(clientFor({ success:true, apiVersion:'v1', data:link }, (p,i) => { path=p; init=i; })).create({
     merchantId,
     slug:'solmint-store',
     title:'Store payment',
