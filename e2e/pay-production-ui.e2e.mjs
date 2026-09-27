@@ -85,6 +85,9 @@ async function provision() {
 }
 
 async function cleanup(fixture, merchantId) {
+  if (merchantId) await db('delete from public.pay_payment_transactions where payment_id in (select id from public.pay_payment_intents where merchant_id = $1)', [merchantId]).catch(() => {});
+  if (merchantId) await db('delete from public.pay_payment_intents where merchant_id = $1', [merchantId]).catch(() => {});
+  if (merchantId) await db('delete from public.pay_payment_links where merchant_id = $1', [merchantId]).catch(() => {});
   if (merchantId) await db('delete from public.pay_invoices where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchant_members where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchants where id = $1', [merchantId]).catch(() => {});
@@ -480,6 +483,92 @@ try {
   const overviewTextAfterReload = await page.locator('body').innerText();
   assert.ok(overviewTextAfterReload.includes('SolMint Browser Test Merchant'),
     'Overview must render the authoritative merchant data after reload.');
+
+  await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-payment-link-create').waitFor({ state: 'visible', timeout: 10000 });
+  const paymentLinkSlug = 'e2e-' + crypto.randomUUID().replaceAll('-', '').slice(0, 18).toLowerCase();
+  const paymentLinkForm = page.locator('.pay-payment-link-create');
+  await paymentLinkForm.locator('input').nth(0).fill(paymentLinkSlug);
+  await paymentLinkForm.locator('input').nth(1).fill('Browser E2E Payment Link');
+  await paymentLinkForm.locator('input').nth(2).fill('2000000');
+  await paymentLinkForm.locator('select').nth(0).selectOption('USDC');
+  await paymentLinkForm.locator('select').nth(1).selectOption('merchant');
+  await paymentLinkForm.locator('select').nth(2).selectOption('en-US');
+  await paymentLinkForm.locator('textarea').fill('Reusable fixed payment link for production E2E.');
+
+  const paymentLinkPost = (request) =>
+    request.url().endsWith('/api/pay/v1/payment-links') && request.method() === 'POST';
+  const paymentLinkResponsePromise = page.waitForResponse(
+    (response) => paymentLinkPost(response.request()),
+    { timeout: 15000 },
+  );
+  await paymentLinkForm.locator('.pay-primary-action').click();
+  const paymentLinkResponse = await paymentLinkResponsePromise;
+  const paymentLinkResponseText = await paymentLinkResponse.text();
+  assert.equal(paymentLinkResponse.status(), 201, paymentLinkResponseText);
+  const paymentLinkBody = paymentLinkResponseText ? JSON.parse(paymentLinkResponseText) : {};
+  assert.equal(paymentLinkBody.apiVersion, 'v1');
+  assert.equal(paymentLinkBody.data?.merchant_id, merchantId);
+  assert.equal(paymentLinkBody.data?.slug, paymentLinkSlug);
+  assert.equal(paymentLinkBody.data?.fixed_amount_atomic, '2000000');
+  assert.equal(paymentLinkBody.data?.asset, 'USDC');
+  assert.equal(paymentLinkBody.data?.is_active, true);
+
+  const linkFromDb = rows(await db(
+    `select id, merchant_id, slug, description, fixed_amount_atomic::text as fixed_amount_atomic, asset, fee_payer, is_active
+       from public.pay_payment_links
+      where merchant_id = $1 and slug = $2`,
+    [merchantId, paymentLinkSlug],
+    true,
+  ));
+  assert.equal(linkFromDb.length, 1, 'Created payment link must exist in the production database.');
+  assert.equal(linkFromDb[0].merchant_id, merchantId);
+  assert.equal(linkFromDb[0].description, 'Reusable fixed payment link for production E2E.');
+  assert.equal(linkFromDb[0].fixed_amount_atomic, '2000000');
+  assert.equal(linkFromDb[0].asset, 'USDC');
+  assert.equal(linkFromDb[0].is_active, true);
+
+  const paymentLinkUrl = `${ORIGIN}/pay/link/${encodeURIComponent(paymentLinkSlug)}`;
+  const publicContext = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-US' });
+  const publicPage = await publicContext.newPage();
+  const publicResponse = await publicPage.goto(paymentLinkUrl, { waitUntil: 'domcontentloaded' });
+  assert.ok(publicResponse && publicResponse.ok(), `Public payment link must be reachable: ${publicResponse?.status()}`);
+  await publicPage.locator('.pay-public-link-card').waitFor({ state: 'visible', timeout: 10000 });
+  assert.ok((await publicPage.locator('.pay-public-link-card').innerText()).includes('2 USDC'));
+
+  const publicCheckoutPost = (request) =>
+    request.url().endsWith('/api/pay/v1/payment-links/' + encodeURIComponent(paymentLinkSlug))
+    && request.method() === 'POST';
+  const publicCheckoutResponsePromise = publicPage.waitForResponse(
+    (response) => publicCheckoutPost(response.request()),
+    { timeout: 15000 },
+  );
+  await publicPage.locator('.pay-public-link-actions .pay-primary-action').click();
+  const publicCheckoutResponse = await publicCheckoutResponsePromise;
+  const publicCheckoutText = await publicCheckoutResponse.text();
+  assert.equal(publicCheckoutResponse.status(), 201, publicCheckoutText);
+  const publicCheckoutBody = publicCheckoutText ? JSON.parse(publicCheckoutText) : {};
+  assert.equal(publicCheckoutBody.apiVersion, 'v1');
+  assert.equal(typeof publicCheckoutBody.data?.id, 'string');
+  const publicIntentId = publicCheckoutBody.data.id;
+  await publicPage.locator('.pay-checkout-card').waitFor({ state: 'visible', timeout: 10000 });
+  const publicCheckoutUiText = await publicPage.locator('.pay-checkout-card').innerText();
+  assert.ok(publicCheckoutUiText.includes('2 USDC') || publicCheckoutUiText.includes('2.000000 USDC'),
+    'Public payment link must open the authoritative Checkout snapshot.');
+  const publicIntentFromDb = rows(await db(
+    `select id, merchant_id, payment_link_id, amount_atomic::text as amount_atomic, asset, status
+       from public.pay_payment_intents
+      where id = $1`,
+    [publicIntentId],
+    true,
+  ));
+  assert.equal(publicIntentFromDb.length, 1, 'Payment Intent created from public link must exist in production database.');
+  assert.equal(publicIntentFromDb[0].merchant_id, merchantId);
+  assert.equal(publicIntentFromDb[0].payment_link_id, linkFromDb[0].id);
+  assert.equal(publicIntentFromDb[0].amount_atomic, '2000000');
+  assert.equal(publicIntentFromDb[0].asset, 'USDC');
+  assert.equal(publicIntentFromDb[0].status, 'created');
+  await publicContext.close();
 
   const postWalletRouteResults = [];
   for (const [path, label] of routes) {
