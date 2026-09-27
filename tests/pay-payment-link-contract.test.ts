@@ -29,7 +29,8 @@ test('Public Payment Link route is anonymous GET plus origin-protected checkout 
   assert.match(publicRoute, /PAYMENT_LINK_EXPIRED/);
   assert.match(publicRoute, /PAYMENT_LINK_NOT_CONFIGURED/);
   assert.match(publicRoute, /PAY_APP_ORIGIN/);
-  assert.match(publicRoute, /PAYMENT_LINKS_RATE|payment-links:checkout/);
+  assert.match(publicRoute, /payment-links:checkout/);
+  assert.match(publicRoute, /supabaseSecret/);
   assert.doesNotMatch(publicRoute, /authenticateMerchantApi/);
 });
 

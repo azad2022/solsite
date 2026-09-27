@@ -7,10 +7,10 @@ import {
   makePayRequestId,
   payFeatureEnabled,
   payJson,
-  supabaseRequest,
   type PayRuntimeEnv,
 } from '../../_shared/runtime';
 import { resolveAssetFromEnvironment } from '../../../../../src/pay/services/assetPolicy';
+import { supabaseSecret } from '../../../v1/_shared';
 import { randomReferenceAddress } from '../../../../../src/pay/services/walletSignature';
 
 interface PayEnv extends PayRuntimeEnv {
@@ -31,6 +31,16 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function validSlug(value: string): boolean { return value.length >= 3 && value.length <= 120 && SLUG.test(value); }
 
+async function publicSupabaseRequest(env: PayEnv, path: string, init: RequestInit = {}): Promise<Response> {
+  let config: ReturnType<typeof supabaseSecret>;
+  try { config = supabaseSecret(env); } catch { throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay backend is not configured.'); }
+  const headers = new Headers(init.headers);
+  for (const [name, value] of Object.entries(config.headers)) headers.set(name, value);
+  const response = await fetch(`${config.base}${path}`, { ...init, headers });
+  if (!response.ok) throw new PayRuntimeError('UPSTREAM_DATABASE_ERROR', 503, 'Pay data service is unavailable.');
+  return response;
+}
+
 async function hashSubject(value: string): Promise<string> { return hashCanonicalRequest({ value }); }
 
 function nowPlusDefault(env: PayEnv): Date {
@@ -48,7 +58,7 @@ function linkIntentExpiry(env: PayEnv, linkExpiresAt: string | null): string {
 }
 
 async function readLink(env: PayEnv, slug: string) {
-  const response = await supabaseRequest(
+  const response = await publicSupabaseRequest(
     env,
     '/rest/v1/pay_payment_links?select=id,merchant_id,slug,title,description,fixed_amount_atomic::text,asset,fee_payer,checkout_locale,is_active,expires_at&slug=eq.' + encodeURIComponent(slug) + '&limit=1',
     { headers: { Accept: 'application/json' } },
@@ -77,7 +87,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     if (!validSlug(slug)) return payJson({ code: 'PAYMENT_LINK_SLUG_INVALID', message: 'Payment link is invalid.' }, 400, requestId);
     const link = await readLink(env, slug);
     const assetConfig = resolveAssetFromEnvironment(link.asset as 'SOL' | 'USDC' | 'USDT', env as Record<string, string | undefined>);
-    const merchantResponse = await supabaseRequest(env, '/rest/v1/pay_merchants?select=id,business_name,status&id=eq.' + encodeURIComponent(link.merchant_id) + '&limit=1', { headers: { Accept: 'application/json' } });
+    const merchantResponse = await publicSupabaseRequest(env, '/rest/v1/pay_merchants?select=id,business_name,status&id=eq.' + encodeURIComponent(link.merchant_id) + '&limit=1', { headers: { Accept: 'application/json' } });
     const merchants = await merchantResponse.json() as Array<{ id: string; business_name: string; status: string }>;
     const merchant = merchants[0];
     if (!merchant || merchant.status !== 'active') return payJson({ code: 'MERCHANT_UNAVAILABLE', message: 'Merchant is not available for checkout.' }, 404, requestId);
@@ -105,10 +115,10 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     const slug = String(params?.slug || '').trim();
     if (!validSlug(slug)) return payJson({ code: 'PAYMENT_LINK_SLUG_INVALID', message: 'Payment link is invalid.' }, 400, requestId);
     const link = await readLink(env, slug);
-    const merchantResponse = await supabaseRequest(env, '/rest/v1/pay_merchants?select=id,status&id=eq.' + encodeURIComponent(link.merchant_id) + '&limit=1', { headers: { Accept: 'application/json' } });
+    const merchantResponse = await publicSupabaseRequest(env, '/rest/v1/pay_merchants?select=id,status&id=eq.' + encodeURIComponent(link.merchant_id) + '&limit=1', { headers: { Accept: 'application/json' } });
     const merchants = await merchantResponse.json() as Array<{ id: string; status: string }>;
     if (merchants[0]?.status !== 'active') return payJson({ code: 'MERCHANT_UNAVAILABLE', message: 'Merchant is not available for checkout.' }, 404, requestId);
-    const walletResponse = await supabaseRequest(env, '/rest/v1/pay_merchant_wallets?select=id,address&merchant_id=eq.' + encodeURIComponent(link.merchant_id) + '&wallet_role=eq.receiving&is_active=eq.true&verification_status=eq.verified&limit=2', { headers: { Accept: 'application/json' } });
+    const walletResponse = await publicSupabaseRequest(env, '/rest/v1/pay_merchant_wallets?select=id,address&merchant_id=eq.' + encodeURIComponent(link.merchant_id) + '&wallet_role=eq.receiving&is_active=eq.true&verification_status=eq.verified&limit=2', { headers: { Accept: 'application/json' } });
     const wallets = await walletResponse.json() as Array<{ id: string; address: string }>;
     if (wallets.length !== 1) return payJson({ code: 'MERCHANT_WALLET_NOT_READY', message: 'Merchant is not ready to receive payments.' }, 409, requestId);
     if (!env.PAY_FEE_RECIPIENT?.trim()) throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay fee recipient is not configured.');
@@ -127,7 +137,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     await enforcePayRateLimit(env, 'payment-links:checkout', subject, 60, 60);
     const expiresAt = linkIntentExpiry(env, link.expires_at);
     const reference = randomReferenceAddress();
-    const rpcResponse = await supabaseRequest(env, '/rest/v1/rpc/pay_create_payment_intent_from_link', {
+    const rpcResponse = await publicSupabaseRequest(env, '/rest/v1/rpc/pay_create_payment_intent_from_link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
