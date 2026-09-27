@@ -1033,3 +1033,18 @@ Decision:
 - **SolMint Pay frontend/runtime for the currently released Backend contracts is COMPLETE and production-verified.**
 - The system must continue to expose unsupported mutation capabilities as unavailable until an authoritative Backend/API contract is actually released.
 - No further frontend implementation is justified without a new real Backend contract or a newly evidenced regression.
+## 2026-09-27 — Payment Link mutation contract and production backend completion
+
+Status: **BACKEND APPLIED / APPLICATION RELEASE GATES PENDING**
+
+- PR #226 adds the missing authenticated Payment Link update and safe-delete contracts.
+- Merchant roles owner/admin/finance are enforced server-side; anon and untrusted roles cannot execute the mutation functions.
+- Update is idempotent and preserves existing Payment Intent financial snapshots.
+- Delete is allowed only when no Payment Intent references the link; otherwise the API returns a deterministic guard and the UI offers deactivation.
+- Payment Link UI now supports edit, deactivate, delete, confirmation, localized error states, and all four locales.
+- OpenAPI and regression/security fixtures cover the mutation boundary.
+- Mainnet USDC/USDT asset metadata is now explicitly configured for the Pay asset policy.
+- Migration 20260927150000_solmint_pay_payment_link_mutations.sql was preflighted and applied to Production; live Supabase migration history now reports 87 applied migrations with this migration as the latest.
+- A direct Production SQL smoke verified update and delete through the authenticated mutation contract inside a rolled-back transaction; no test row was left behind.
+- Current PR head: 15dc1076ade22fe4d9d50c06624a8b96ea89bf94.
+- Latest PR validation is not yet final: Database Security / CI / Production Build / Mainnet Read-only were triggered for the current head; Devnet E2E remains blocked by the existing CI funder’s insufficient balance. Production Browser UI E2E runs on main after deployment, not on PR branches, so it is intentionally not claimed here.
