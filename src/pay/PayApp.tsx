@@ -8,6 +8,7 @@ import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './ty
 import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
 import PayCheckout from './PayCheckout';
+import PayPublicPaymentLink from './components/PayPublicPaymentLink';
 import PayMerchantOnboarding from './components/PayMerchantOnboarding';
 import PayGettingStartedGuide from './components/PayGettingStartedGuide';
 import PayApiKeyManagement from './components/PayApiKeyManagement';
@@ -152,6 +153,10 @@ export function PayApp(): React.ReactElement {
         </main>
       </div>
     );
+  }
+
+  if (route.kind === 'payment-link') {
+    return <PayPublicPaymentLink slug={route.slug} initialLocale={locale} />;
   }
 
   if (isCheckout) {
