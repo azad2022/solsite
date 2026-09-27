@@ -3,7 +3,7 @@
   "info": {
     "title": "Solmint Public API",
     "version": "1.4.0",
-    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, wallet analysis, and the public Pay checkout snapshot. These APIs do not accept seed phrases, private keys, passwords, or signing credentials. Authenticated merchant Pay read contracts for invoices, payment links, and referral records are also documented here; they require an authenticated Solmint session and preserve merchant/affiliate authorization."
+    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, wallet analysis, and the public Pay checkout snapshot. These APIs do not accept seed phrases, private keys, passwords, or signing credentials. Authenticated merchant Pay contracts for invoices, payment links, and referral records are also documented here; they require an authenticated Solmint session and preserve merchant/affiliate authorization."
   },
   "servers": [
     {
@@ -279,7 +279,7 @@
       "get": {
         "operationId": "listPayPaymentLinks",
         "summary": "Read merchant payment links",
-        "description": "Authenticated read-only merchant payment link records. Access is enforced server-side through the merchant identity/RLS boundary. Link mutation and public checkout URL creation are not part of this contract.",
+        "description": "Authenticated merchant payment link records and merchant mutations. Access is enforced server-side through the merchant identity/RLS boundary. Public checkout resolution remains on the /api/pay/v1/payment-links/{slug} route.",
         "parameters": [
           {
             "$ref": "#/components/parameters/PayMerchantIdQuery"
@@ -324,6 +324,178 @@
           },
           "503": {
             "description": "Payment link service temporarily unavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePayPaymentLink",
+        "summary": "Update a merchant payment link",
+        "description": "Authenticated merchant mutation for a fixed-amount payment link. Historical Payment Intent snapshots remain unchanged. Supports deactivation through isActive=false.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayMerchantIdQuery"
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "merchantId",
+                  "linkId",
+                  "slug",
+                  "title",
+                  "fixedAmountAtomic",
+                  "asset",
+                  "feePayer",
+                  "checkoutLocale",
+                  "isActive"
+                ],
+                "properties": {
+                  "merchantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "linkId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 5000
+                  },
+                  "fixedAmountAtomic": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,78}$"
+                  },
+                  "asset": {
+                    "type": "string",
+                    "enum": [
+                      "SOL",
+                      "USDC",
+                      "USDT"
+                    ]
+                  },
+                  "feePayer": {
+                    "type": "string",
+                    "enum": [
+                      "merchant",
+                      "customer"
+                    ]
+                  },
+                  "checkoutLocale": {
+                    "type": "string",
+                    "enum": [
+                      "fa-IR",
+                      "en-US",
+                      "ar",
+                      "ru",
+                      "auto"
+                    ]
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated authoritative payment link"
+          },
+          "400": {
+            "description": "Invalid mutation input"
+          },
+          "401": {
+            "description": "Authenticated Solmint session required"
+          },
+          "403": {
+            "description": "Merchant access denied"
+          },
+          "404": {
+            "description": "Payment link not found"
+          },
+          "409": {
+            "description": "Idempotency conflict, duplicate slug, or request already in progress"
+          },
+          "503": {
+            "description": "Payment link update service temporarily unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePayPaymentLink",
+        "summary": "Delete a merchant payment link",
+        "description": "Authenticated merchant deletion. Deletion is refused when a Payment Intent references the link; deactivate the link instead to preserve payment history.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayMerchantIdQuery"
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment link deleted"
+          },
+          "400": {
+            "description": "Invalid mutation identifiers"
+          },
+          "401": {
+            "description": "Authenticated Solmint session required"
+          },
+          "403": {
+            "description": "Merchant access denied"
+          },
+          "404": {
+            "description": "Payment link not found"
+          },
+          "409": {
+            "description": "Idempotency conflict or payment history prevents deletion"
+          },
+          "503": {
+            "description": "Payment link deletion service temporarily unavailable"
           }
         }
       }
