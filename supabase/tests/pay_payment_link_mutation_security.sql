@@ -96,7 +96,7 @@ as $$
   );
 $$;
 
-\\i supabase/migrations/20260927150000_solmint_pay_payment_link_mutations.sql
+\i supabase/migrations/20260927150000_solmint_pay_payment_link_mutations.sql
 
 insert into public.users(id,is_active) values
   ('user-a',true),('user-b',true),('user-viewer',true);
