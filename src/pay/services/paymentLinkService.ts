@@ -25,6 +25,26 @@ export interface PublicPayPaymentLink {
   merchant: { businessName: string };
 }
 
+export interface UpdatePayPaymentLinkInput {
+  merchantId: string;
+  linkId: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  fixedAmountAtomic: string;
+  asset: 'SOL' | 'USDC' | 'USDT';
+  feePayer: 'merchant' | 'customer';
+  checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
+  isActive: boolean;
+  expiresAt?: string | null;
+}
+
+export interface DeletePayPaymentLinkResult {
+  id: string;
+  merchantId: string;
+  deleted: true;
+}
+
 export interface PayPaymentLink {
   id: string;
   merchant_id: string;
@@ -165,6 +185,54 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
       const id = requiredString(row, 'id');
       if (payload.success !== true || payload.apiVersion !== 'v1' || !UUID.test(id)) throw new TypeError('Invalid Pay payment intent envelope.');
       return { id };
+    },
+    async update(input: UpdatePayPaymentLinkInput, idempotencyKey: string): Promise<PayPaymentLink> {
+      if (!UUID.test(input.merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
+      if (!UUID.test(input.linkId.trim())) throw new TypeError('Payment link ID is invalid.');
+      const slug = input.slug.trim().toLowerCase();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120) throw new TypeError('Payment link slug is invalid.');
+      if (!input.title.trim() || input.title.trim().length > 200) throw new TypeError('Payment link title is invalid.');
+      if (input.description && input.description.trim().length > 5000) throw new TypeError('Payment link description is too long.');
+      const amount = input.fixedAmountAtomic.trim();
+      if (!/^\d{1,78}$/.test(amount) || BigInt(amount) <= 0n) throw new TypeError('Payment link amount is invalid.');
+      if (!ASSETS.has(input.asset) || !PAYERS.has(input.feePayer) || !LOCALES.has(input.checkoutLocale)) throw new TypeError('Payment link option is invalid.');
+      if (typeof input.isActive !== 'boolean') throw new TypeError('Payment link active state is invalid.');
+      if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
+      const payload = await client.request<Envelope>('/api/pay/v1/payment-links?merchantId=' + encodeURIComponent(input.merchantId.trim()) + '&linkId=' + encodeURIComponent(input.linkId.trim()), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.trim() },
+        body: JSON.stringify({
+          merchantId: input.merchantId.trim(),
+          linkId: input.linkId.trim(),
+          slug,
+          title: input.title.trim(),
+          description: input.description?.trim() || null,
+          fixedAmountAtomic: amount,
+          asset: input.asset,
+          feePayer: input.feePayer,
+          checkoutLocale: input.checkoutLocale,
+          isActive: input.isActive,
+          expiresAt: input.expiresAt || null,
+        }),
+      });
+      if (payload.success !== true || payload.apiVersion !== 'v1' || !payload.data) throw new TypeError('Invalid Pay payment link update envelope.');
+      return parseLink(payload.data);
+    },
+    async remove(merchantId: string, linkId: string, idempotencyKey: string): Promise<DeletePayPaymentLinkResult> {
+      if (!UUID.test(merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
+      if (!UUID.test(linkId.trim())) throw new TypeError('Payment link ID is invalid.');
+      if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
+      const payload = await client.request<Envelope>('/api/pay/v1/payment-links?merchantId=' + encodeURIComponent(merchantId.trim()) + '&linkId=' + encodeURIComponent(linkId.trim()), {
+        method: 'DELETE',
+        headers: { 'Idempotency-Key': idempotencyKey.trim() },
+      });
+      const data = record(payload.data);
+      const id = requiredString(data, 'id');
+      const resultMerchantId = requiredString(data, 'merchantId');
+      if (payload.success !== true || payload.apiVersion !== 'v1' || data.deleted !== true || !UUID.test(id) || !UUID.test(resultMerchantId)) {
+        throw new TypeError('Invalid Pay payment link delete envelope.');
+      }
+      return { id, merchantId: resultMerchantId, deleted: true };
     },
     async list(merchantId: string, limit = 50): Promise<PayPaymentLink[]> {
       if (!UUID.test(merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
