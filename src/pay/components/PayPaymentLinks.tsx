@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Check, CheckCircle2, Clipboard, Clock3, ExternalLink, FilePlus2, Link2, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
 import { PayHttpError } from '../http';
 import type { PayLocale } from '../types';
-import { payPaymentLinkService, type PayPaymentLink, type CreatePayPaymentLinkInput } from '../services/paymentLinkService';
+import { payPaymentLinkService, type PayPaymentLink, type CreatePayPaymentLinkInput, type UpdatePayPaymentLinkInput } from '../services/paymentLinkService';
 import { paymentLinkT } from './pay-payment-links-i18n';
 import './pay-payment-links.css';
 
@@ -15,6 +15,20 @@ const EMPTY_DRAFT: CreatePayPaymentLinkInput = {
   merchantId: '', slug: '', title: '', description: '', fixedAmountAtomic: '',
   asset: 'USDC', feePayer: 'merchant', checkoutLocale: 'auto', expiresAt: null,
 };
+type EditDraft = Omit<UpdatePayPaymentLinkInput, 'merchantId' | 'linkId'>;
+function editDraftFromRow(row: PayPaymentLink): EditDraft {
+  return {
+    slug: row.slug,
+    title: row.title,
+    description: row.description || '',
+    fixedAmountAtomic: row.fixed_amount_atomic || '',
+    asset: row.asset || 'USDC',
+    feePayer: row.fee_payer || 'merchant',
+    checkoutLocale: row.checkout_locale,
+    isActive: row.is_active,
+    expiresAt: row.expires_at,
+  };
+}
 
 function formatDate(value: string | null, locale: PayLocale): string {
   if (!value) return '—';
@@ -42,6 +56,13 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const [formError, setFormError] = useState<'invalid'|'forbidden'|'conflict'|'error'|null>(null);
   const [created, setCreated] = useState<PayPaymentLink | null>(null);
   const [copied, setCopied] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<'invalid'|'forbidden'|'conflict'|'error'|null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<'hasPayments'|'forbidden'|'error'|null>(null);
 
   const load = useCallback(async () => {
     if (!merchantId) { setRows([]); setLoading(false); return; }
@@ -87,6 +108,77 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     } finally { setCreating(false); }
   };
 
+  const beginEdit = (row: PayPaymentLink) => {
+    setSelected(row);
+    setEditDraft(editDraftFromRow(row));
+    setEditMode(true);
+    setUpdateError(null);
+    setDeleteConfirm(false);
+    setDeleteError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setEditDraft(null);
+    setUpdateError(null);
+  };
+
+  const updateEdit = <K extends keyof EditDraft>(key: K, value: EditDraft[K]) => {
+    setEditDraft(current => current ? { ...current, [key]: value } : current);
+    setUpdateError(null);
+    setDeleteError(null);
+  };
+
+  const saveEdit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!merchantId || !selected || !editDraft) return;
+    const slug = editDraft.slug.trim().toLowerCase();
+    const amount = editDraft.fixedAmountAtomic.trim();
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120
+      || !editDraft.title.trim() || editDraft.title.trim().length > 200
+      || (editDraft.description?.length || 0) > 5000
+      || !/^\d{1,78}$/.test(amount) || BigInt(amount || '0') <= 0n
+      || !editDraft.asset || !editDraft.feePayer || !editDraft.checkoutLocale
+      || (editDraft.isActive && editDraft.expiresAt && Date.parse(editDraft.expiresAt) <= Date.now())) {
+      setUpdateError('invalid'); return;
+    }
+    setUpdating(true);
+    try {
+      const result = await payPaymentLinkService.update({
+        merchantId, linkId: selected.id, slug, title: editDraft.title, description: editDraft.description || null,
+        fixedAmountAtomic: amount, asset: editDraft.asset, feePayer: editDraft.feePayer,
+        checkoutLocale: editDraft.checkoutLocale, isActive: editDraft.isActive, expiresAt: editDraft.expiresAt || null,
+      }, crypto.randomUUID());
+      setRows(current => current.map(row => row.id === result.id ? result : row));
+      setSelected(result);
+      setEditDraft(editDraftFromRow(result));
+      setEditMode(false);
+      setUpdateError(null);
+    } catch (cause) {
+      if (cause instanceof PayHttpError && cause.status === 403) setUpdateError('forbidden');
+      else if (cause instanceof PayHttpError && cause.status === 409) setUpdateError('conflict');
+      else if (cause instanceof PayHttpError && cause.status === 400) setUpdateError('invalid');
+      else setUpdateError('error');
+    } finally { setUpdating(false); }
+  };
+
+  const deleteLink = async () => {
+    if (!merchantId || !selected || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await payPaymentLinkService.remove(merchantId, selected.id, crypto.randomUUID());
+      setRows(current => current.filter(row => row.id !== selected.id));
+      setSelected(null);
+      setDeleteConfirm(false);
+      setEditMode(false);
+    } catch (cause) {
+      if (cause instanceof PayHttpError && cause.status === 409) setDeleteError('hasPayments');
+      else if (cause instanceof PayHttpError && cause.status === 403) setDeleteError('forbidden');
+      else setDeleteError('error');
+    } finally { setDeleting(false); }
+  };
+
   const copyCreated = async () => {
     if (!created || !navigator.clipboard) return;
     try {
@@ -124,21 +216,49 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     {!loading && !error && rows.length===0 && <div className="pay-payment-links-state"><Clock3 size={22}/><span>{paymentLinkT(locale,'noData')}</span></div>}
     {!loading && !error && rows.length>0 && <div className="pay-payment-links-table-wrap"><table className="pay-payment-links-table"><thead><tr><th>{paymentLinkT(locale,'slug')}</th><th>{paymentLinkT(locale,'linkTitle')}</th><th>{paymentLinkT(locale,'amount')}</th><th>{paymentLinkT(locale,'active')}</th><th>{paymentLinkT(locale,'expires')}</th><th/></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><code>{row.slug}</code></td><td><strong>{row.title}</strong>{row.description?<small>{row.description}</small>:null}</td><td>{row.fixed_amount_atomic || '—'} {row.asset || ''}</td><td><span className={'pay-payment-link-status '+(row.is_active?'active':'inactive')}>{row.is_active?<Check size={13}/>:<X size={13}/>} {row.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}</span></td><td>{formatDate(row.expires_at,locale)}</td><td className="pay-payment-links-actions"><a className="pay-icon-button" href={publicUrl(row.slug)} target="_blank" rel="noreferrer" aria-label={paymentLinkT(locale,'open')} title={paymentLinkT(locale,'open')}><ExternalLink size={16}/></a><button type="button" className="pay-icon-button" onClick={()=>setSelected(row)} aria-label={paymentLinkT(locale,'details')} title={paymentLinkT(locale,'details')}><Link2 size={16}/></button></td></tr>)}</tbody></table></div>}
 
-    {selected && <div className="pay-payment-link-detail" role="dialog" aria-modal="true" aria-label={paymentLinkT(locale,'details')}>
-      <div className="pay-payment-link-detail-header"><div><span className="pay-panel-kicker">{paymentLinkT(locale,'details')}</span><h3>{selected.title}</h3></div><button type="button" className="pay-icon-button" onClick={()=>setSelected(null)} aria-label={paymentLinkT(locale,'close')}><X size={17}/></button></div>
-      <div className="pay-payment-link-detail-grid">
-        <Detail label={paymentLinkT(locale,'slug')} value={selected.slug}/>
-        <Detail label={paymentLinkT(locale,'linkTitle')} value={selected.title}/>
-        <Detail label={paymentLinkT(locale,'description')} value={selected.description || '—'}/>
-        <Detail label={paymentLinkT(locale,'amount')} value={(selected.fixed_amount_atomic || '—')+(selected.asset?' '+selected.asset:'')}/>
-        <Detail label={paymentLinkT(locale,'feePayer')} value={selected.fee_payer ? paymentLinkT(locale,selected.fee_payer==='merchant'?'merchantPayer':'customerPayer') : '—'}/>
-        <Detail label={paymentLinkT(locale,'locale')} value={selected.checkout_locale}/>
-        <Detail label={paymentLinkT(locale,'active')} value={selected.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}/>
-        <Detail label={paymentLinkT(locale,'expires')} value={formatDate(selected.expires_at,locale)}/>
-        <Detail label={paymentLinkT(locale,'created')} value={formatDate(selected.created_at,locale)}/>
-      </div>
-      <div className="pay-payment-links-public-url"><span>{paymentLinkT(locale,'publicUrl')}</span><code>{publicUrl(selected.slug)}</code></div>
-    </div>}
+    {selected && <div className="pay-payment-link-detail" role="dialog" aria-modal="true" aria-label={editMode ? paymentLinkT(locale,'edit') : paymentLinkT(locale,'details')}>
+      <div className="pay-payment-link-detail-header"><div><span className="pay-panel-kicker">{editMode ? paymentLinkT(locale,'edit') : paymentLinkT(locale,'details')}</span><h3>{selected.title}</h3></div><button type="button" className="pay-icon-button" onClick={()=>{setSelected(null);setEditMode(false);setDeleteConfirm(false);}} aria-label={paymentLinkT(locale,'close')} title={paymentLinkT(locale,'close')}><X size={17}/></button></div>
+
+      {editMode && editDraft ? <form className="pay-payment-link-edit" onSubmit={event=>void saveEdit(event)}>
+        <div className="pay-payment-link-edit-grid">
+          <label><span>{paymentLinkT(locale,'slug')}</span><input value={editDraft.slug} onChange={e=>updateEdit('slug',e.target.value.toLowerCase())} maxLength={120} required/></label>
+          <label><span>{paymentLinkT(locale,'linkTitle')}</span><input value={editDraft.title} onChange={e=>updateEdit('title',e.target.value)} maxLength={200} required/></label>
+          <label><span>{paymentLinkT(locale,'amount')}</span><input value={editDraft.fixedAmountAtomic} onChange={e=>updateEdit('fixedAmountAtomic',e.target.value.replace(/\D/g,''))} inputMode="numeric" maxLength={78} required/></label>
+          <label><span>{paymentLinkT(locale,'asset')}</span><select value={editDraft.asset} onChange={e=>updateEdit('asset',e.target.value as EditDraft['asset'])}>{ASSETS.map(asset=><option key={asset} value={asset}>{asset}</option>)}</select></label>
+          <label><span>{paymentLinkT(locale,'feePayer')}</span><select value={editDraft.feePayer} onChange={e=>updateEdit('feePayer',e.target.value as EditDraft['feePayer'])}>{PAYERS.map(item=><option key={item} value={item}>{paymentLinkT(locale,item==='merchant'?'merchantPayer':'customerPayer')}</option>)}</select></label>
+          <label><span>{paymentLinkT(locale,'locale')}</span><select value={editDraft.checkoutLocale} onChange={e=>updateEdit('checkoutLocale',e.target.value as EditDraft['checkoutLocale'])}>{LOCALES.map(item=><option key={item} value={item}>{item === 'auto' ? paymentLinkT(locale,'autoLocale') : item}</option>)}</select></label>
+          <label><span>{paymentLinkT(locale,'expires')}</span><input type="datetime-local" value={editDraft.expiresAt ? new Date(editDraft.expiresAt).toISOString().slice(0,16) : ''} onChange={e=>updateEdit('expiresAt',e.target.value ? new Date(e.target.value).toISOString() : null)}/></label>
+          <label><span>{paymentLinkT(locale,'active')}</span><select value={editDraft.isActive ? 'active' : 'inactive'} onChange={e=>updateEdit('isActive',e.target.value === 'active')}><option value="active">{paymentLinkT(locale,'active')}</option><option value="inactive">{paymentLinkT(locale,'inactive')}</option></select></label>
+          <label className="pay-payment-link-create-wide"><span>{paymentLinkT(locale,'description')}</span><textarea value={editDraft.description || ''} onChange={e=>updateEdit('description',e.target.value)} maxLength={5000} rows={3}/></label>
+        </div>
+        {updateError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{updateError==='invalid'?paymentLinkT(locale,'updateInvalid'):updateError==='forbidden'?paymentLinkT(locale,'updateForbidden'):updateError==='conflict'?paymentLinkT(locale,'updateConflict'):paymentLinkT(locale,'updateFailed')}</span></div> : null}
+        {deleteError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{deleteError==='hasPayments'?paymentLinkT(locale,'hasPayments'):deleteError==='forbidden'?paymentLinkT(locale,'deleteForbidden'):paymentLinkT(locale,'deleteFailed')}</span></div> : null}
+        <div className="pay-payment-link-edit-actions"><button type="submit" className="pay-primary-action" disabled={updating}>{updating?<Loader2 className="animate-spin" size={17}/>:<CheckCircle2 size={17}/>} {updating?paymentLinkT(locale,'saving'):paymentLinkT(locale,'save')}</button><button type="button" className="pay-secondary-action" onClick={cancelEdit}>{paymentLinkT(locale,'cancel')}</button></div>
+      </form> : <>
+        <div className="pay-payment-link-detail-grid">
+          <Detail label={paymentLinkT(locale,'slug')} value={selected.slug}/>
+          <Detail label={paymentLinkT(locale,'linkTitle')} value={selected.title}/>
+          <Detail label={paymentLinkT(locale,'description')} value={selected.description || '—'}/>
+          <Detail label={paymentLinkT(locale,'amount')} value={(selected.fixed_amount_atomic || '—')+(selected.asset?' '+selected.asset:'')}/>
+          <Detail label={paymentLinkT(locale,'feePayer')} value={selected.fee_payer ? paymentLinkT(locale,selected.fee_payer==='merchant'?'merchantPayer':'customerPayer') : '—'}/>
+          <Detail label={paymentLinkT(locale,'locale')} value={selected.checkout_locale}/>
+          <Detail label={paymentLinkT(locale,'active')} value={selected.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}/>
+          <Detail label={paymentLinkT(locale,'expires')} value={formatDate(selected.expires_at,locale)}/>
+          <Detail label={paymentLinkT(locale,'created')} value={formatDate(selected.created_at,locale)}/>
+        </div>
+        <div className="pay-payment-links-public-url"><span>{paymentLinkT(locale,'publicUrl')}</span><code>{publicUrl(selected.slug)}</code></div>
+        {deleteError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{deleteError==='hasPayments'?paymentLinkT(locale,'hasPayments'):deleteError==='forbidden'?paymentLinkT(locale,'deleteForbidden'):paymentLinkT(locale,'deleteFailed')}</span></div> : null}
+        {!deleteConfirm ? <div className="pay-payment-link-edit-actions">
+          <button type="button" className="pay-primary-action" onClick={()=>beginEdit(selected)}><CheckCircle2 size={17}/>{paymentLinkT(locale,'edit')}</button>
+          <button type="button" className="pay-secondary-action" onClick={()=>{setDeleteError(null);setDeleteConfirm(true)}}>{paymentLinkT(locale,'delete')}</button>
+        </div> : <div className="pay-payment-link-edit-actions" role="group" aria-label={paymentLinkT(locale,'deleteConfirm')}>
+          <span>{paymentLinkT(locale,'deleteConfirm')}</span>
+          <button type="button" className="pay-primary-action" onClick={()=>void deleteLink()} disabled={deleting}>{deleting?<Loader2 className="animate-spin" size={16}/>:null}{deleting?paymentLinkT(locale,'deleting'):paymentLinkT(locale,'confirmDelete')}</button>
+          <button type="button" className="pay-secondary-action" onClick={()=>setDeleteConfirm(false)} disabled={deleting}>{paymentLinkT(locale,'cancel')}</button>
+        </div>}
+        {deleteError === 'hasPayments' ? <button type="button" className="pay-secondary-action" onClick={()=>beginEdit({...selected,is_active:false})}>{paymentLinkT(locale,'deactivate')}</button> : null}
+      </>}
+    </div>
   </section>;
 }
 function Detail({label,value}:{label:string;value:string}):React.ReactElement{return <div className="pay-payment-link-detail-cell"><span>{label}</span><strong>{value}</strong></div>;}
