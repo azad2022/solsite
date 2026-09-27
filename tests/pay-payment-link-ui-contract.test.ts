@@ -10,7 +10,7 @@ test('PayApp exposes the public payment link route and keeps it outside merchant
   assert.match(app, /PayPublicPaymentLink/);
   assert.match(app, /route\.kind === 'payment-link'/);
   assert.match(routeMatch, /kind: 'payment-link'/);
-  assert.match(routeMatch, /PAY_PREFIX\\/link\\//);
+  assert.match(routeMatch, /PAY_PREFIX\/link\//);
 });
 
 test('Payment Link UI uses the service boundary and provides create/share actions', () => {
