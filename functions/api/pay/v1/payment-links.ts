@@ -1,7 +1,15 @@
 import { PayRuntimeError, assertIdempotencyKey, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody } from '../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
+import { resolveAssetFromEnvironment } from '../../../../../src/pay/services/assetPolicy';
 
-interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; PAY_APP_ORIGIN?: string; }
+interface PayEnv extends PayIdentityEnv {
+  PAY_API_ENABLED?: string;
+  PAY_APP_ORIGIN?: string;
+  PAY_USDC_MINT?: string;
+  PAY_USDC_DECIMALS?: string;
+  PAY_USDT_MINT?: string;
+  PAY_USDT_DECIMALS?: string;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SELECT = [
@@ -86,6 +94,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     if (description !== null && description.length > 5000) return payJson({ code: 'INVALID_PAYMENT_LINK_INPUT', message: 'Payment link description is too long.' }, 400, requestId);
     if (!/^\d{1,78}$/.test(amountAtomic) || BigInt(amountAtomic) <= 0n) return payJson({ code: 'INVALID_PAYMENT_LINK_AMOUNT', message: 'Payment link amount must be a positive integer string.' }, 400, requestId);
     if (asset !== 'SOL' && asset !== 'USDC' && asset !== 'USDT') return payJson({ code: 'INVALID_PAYMENT_LINK_INPUT', message: 'Payment link asset is invalid.' }, 400, requestId);
+    try {
+      resolveAssetFromEnvironment(asset, env as Record<string, string | undefined>);
+    } catch {
+      return payJson({ code: 'PAYMENT_LINK_ASSET_NOT_CONFIGURED', message: 'The selected payment asset is not configured for SolMint Pay.' }, 503, requestId);
+    }
     if (feePayer !== 'merchant' && feePayer !== 'customer') return payJson({ code: 'INVALID_PAYMENT_LINK_INPUT', message: 'Payment link fee payer is invalid.' }, 400, requestId);
     if (checkoutLocale !== 'fa-IR' && checkoutLocale !== 'en-US' && checkoutLocale !== 'ar' && checkoutLocale !== 'ru' && checkoutLocale !== 'auto') return payJson({ code: 'INVALID_PAYMENT_LINK_INPUT', message: 'Payment link locale is invalid.' }, 400, requestId);
 
