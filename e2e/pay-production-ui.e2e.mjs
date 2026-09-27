@@ -549,6 +549,7 @@ try {
   assert.equal(publicCheckoutResponse.status(), 201, publicCheckoutText);
   const publicCheckoutBody = publicCheckoutText ? JSON.parse(publicCheckoutText) : {};
   assert.equal(publicCheckoutBody.apiVersion, 'v1');
+  console.log(`PAYMENT_LINK_CREATE_PRODUCTION_E2E ${JSON.stringify({ status: publicCheckoutResponse.status(), paymentIntentId: publicCheckoutBody.data?.id, merchantId, paymentLinkSlug })}`);
   assert.equal(typeof publicCheckoutBody.data?.id, 'string');
   const publicIntentId = publicCheckoutBody.data.id;
   await publicPage.locator('.pay-checkout-card').waitFor({ state: 'visible', timeout: 10000 });
