@@ -196,7 +196,9 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   };
 
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
-  const isCompleted = intent?.status === 'completed' || intent?.status === 'confirmed';
+  const isCompleted = intent?.status === 'completed';
+  const isConfirmed = intent?.status === 'confirmed';
+  const statusHeadingKey = isCompleted ? 'paymentCompleted' : isConfirmed ? 'paymentConfirmed' : 'checkoutSnapshot';
   const actionDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
 
   return (
@@ -266,7 +268,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
               </div>
 
               <div className="pay-checkout-notice">
-                <strong>{translate(locale, isCompleted ? 'paymentConfirmed' : 'checkoutSnapshot')}</strong>
+                <strong>{translate(locale, statusHeadingKey)}</strong>
                 <p>{checkoutLabel(locale, 'payInstructions')}</p>
                 <div className="pay-checkout-payment-actions">
                   <div className="pay-checkout-action-row"><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div><button type="button" onClick={() => void copyValue('amount')} aria-label={checkoutLabel(locale, 'copy')} title={checkoutLabel(locale, copiedField === 'amount' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
