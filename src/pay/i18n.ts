@@ -68,14 +68,8 @@ export function normalizePayLocale(input?: string | null): PayLocale {
 export function readStoredPayLocale(storage: Pick<Storage, 'getItem'> | null | undefined): PayLocale | null {
   if (!storage) return null;
   try {
-    const stored = storage.getItem(PAY_LOCALE_STORAGE_KEY);
-    if (!stored) return null;
-    const normalized = normalizePayLocale(stored);
-    return stored.trim().toLowerCase() === normalized.toLowerCase() ||
-      (normalized === 'fa-IR' && stored.trim().toLowerCase() === 'fa') ||
-      (normalized === 'en-US' && ['en', 'en-gb'].includes(stored.trim().toLowerCase()))
-      ? normalized
-      : PAY_LOCALES.includes(stored as PayLocale) ? (stored as PayLocale) : null;
+    const stored = storage.getItem(PAY_LOCALE_STORAGE_KEY)?.trim();
+    return stored && PAY_LOCALES.includes(stored as PayLocale) ? (stored as PayLocale) : null;
   } catch {
     return null;
   }
