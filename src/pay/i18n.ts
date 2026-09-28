@@ -1,4 +1,4 @@
-import type { PayDirection, PayLocale, PaySection } from './types';
+import { PAY_LOCALES, type PayDirection, type PayLocale, type PaySection } from './types';
 
 export const DEFAULT_PAY_LOCALE: PayLocale = 'fa-IR';
 export const PAY_LOCALE_STORAGE_KEY = 'solmint-pay.locale.v1';
