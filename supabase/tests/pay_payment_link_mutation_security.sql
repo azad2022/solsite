@@ -112,7 +112,7 @@ as $pay_snapshot$
     left join public.pay_payment_intents i on i.id = p_intent_id
    where l.id = p_link_id
    limit 1;
-$$;
+$pay_snapshot$;
 
 revoke all on function public.test_payment_link_mutation_snapshot(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.test_payment_link_mutation_snapshot(uuid,uuid) to authenticated;
