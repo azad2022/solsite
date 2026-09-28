@@ -184,7 +184,7 @@ rollback;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
-DO $
+DO $$
 declare r jsonb;
 begin
   r := public.pay_update_payment_link(
