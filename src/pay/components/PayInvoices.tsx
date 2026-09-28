@@ -72,7 +72,7 @@ export default function PayInvoices({ locale, merchantId }: Props): React.ReactE
   };
 
   return <section className="pay-invoices" aria-label={invoiceT(locale,'title')}>
-    <div className="pay-invoices-heading"><div><span className="pay-panel-kicker">{invoiceT(locale,'title')}</span><h2>{invoiceT(locale,'title')}</h2><p>{invoiceT(locale,'subtitle')}</p></div><button type="button" className="pay-secondary-action" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{invoiceT(locale,'refresh')}</button></div>
+    <div className="pay-invoices-heading"><div><h2>{invoiceT(locale,'title')}</h2><p>{invoiceT(locale,'subtitle')}</p></div><button type="button" className="pay-secondary-action" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{invoiceT(locale,'refresh')}</button></div>
 
     <form className="pay-invoice-create" onSubmit={event=>void createInvoice(event)}>
       <div className="pay-invoice-create-head"><div><span className="pay-panel-kicker">{invoiceT(locale,'createTitle')}</span><h3>{invoiceT(locale,'createTitle')}</h3><p>{invoiceT(locale,'createDescription')}</p></div><FilePlus2 size={20} aria-hidden="true"/></div>
