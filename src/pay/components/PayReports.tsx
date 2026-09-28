@@ -4,6 +4,7 @@ import {PayHttpError} from '../http';
 import type {PayLocale} from '../types';
 import {payReportService,type PayReport} from '../services/reportService';
 import {reportT} from './pay-reports-i18n';
+import {translateTransactionStatus as transactionStatusT} from './pay-transactions-i18n';
 import './pay-reports.css';
 
 interface Props{locale:PayLocale;merchantId:string|null}
@@ -80,7 +81,7 @@ export default function PayReports({locale,merchantId}:Props):React.ReactElement
         <Metric title={reportT(locale,'netRevenue')} value={formatAtomic(report.netGatewayRevenueAtomic,locale)}/>
       </div>
       <div className="pay-reports-panels">
-        <section className="pay-reports-panel"><h3><BarChart3 size={17}/>{reportT(locale,'statusSummary')}</h3><div className="pay-report-statuses">{Object.entries(report.statusCounts).map(([status,count])=><div key={status}><span>{status}</span><strong>{count.toLocaleString(locale==='fa-IR'?'fa-IR':locale)}</strong></div>)}</div></section>
+        <section className="pay-reports-panel"><h3><BarChart3 size={17}/>{reportT(locale,'statusSummary')}</h3><div className="pay-report-statuses">{Object.entries(report.statusCounts).map(([status,count])=><div key={status}><span>{transactionStatusT(locale,status as Parameters<typeof transactionStatusT>[1])}</span><strong>{count.toLocaleString(locale==='fa-IR'?'fa-IR':locale)}</strong></div>)}</div></section>
         <section className="pay-reports-panel"><h3>{reportT(locale,'daily')}</h3><div className="pay-reports-table-wrap"><table><thead><tr><th>{reportT(locale,'date')}</th><th>{reportT(locale,'paymentIntents')}</th><th>{reportT(locale,'completed')}</th><th>{reportT(locale,'completedAmount')}</th></tr></thead><tbody>{report.daily.map(row=><tr key={row.date}><td>{row.date}</td><td>{row.paymentIntentCount}</td><td>{row.completedPaymentCount}</td><td>{formatAtomic(row.completedPaymentAmountAtomic,locale)}</td></tr>)}</tbody></table></div></section>
       </div>
       <p className="pay-reports-note">{reportT(locale,'truthNote')}</p>
