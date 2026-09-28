@@ -75,7 +75,11 @@ export function PayApp(): React.ReactElement {
   const currentSection: PaySection = route.kind === 'dashboard' ? route.section : 'overview';
 
   useEffect(() => {
-    persistPayLocale(window.localStorage, locale);
+    try {
+      persistPayLocale(window.localStorage, locale);
+    } catch {
+      // Locale remains in memory when browser storage is unavailable.
+    }
   }, [locale]);
 
   useEffect(() => {
