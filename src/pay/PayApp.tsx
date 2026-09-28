@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Link2, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, PAY_LOCALE_FLAGS, PAY_LOCALE_SHORT_CODES, directionFor, languageName, normalizePayLocale, persistPayLocale, readStoredPayLocale, sectionLabel, translate } from './i18n';
@@ -400,9 +400,9 @@ export function PayApp(): React.ReactElement {
             {showTransactions ? <PayTransactions locale={locale} merchantId={merchant.id} /> : null}
 
             {showBilling ? (
-              <section className="pay-billing" aria-labelledby="pay-billing-tab-title">
-                <div className="pay-billing-tabs" role="tablist" aria-label={translate(locale, 'billingTitle')}>
-                  <button id="pay-billing-tab-title" type="button" role="tab" aria-selected={billingView === 'invoices'} className={billingView === 'invoices' ? 'is-active' : ''} onClick={() => setBillingView('invoices')}>
+              <section className="pay-billing" aria-label={translate(locale, 'billingTitle')}>
+                <div className="pay-billing-tabs" role="group" aria-label={translate(locale, 'billingTitle')}>
+                  <button type="button" aria-pressed={billingView === 'invoices'} className={billingView === 'invoices' ? 'is-active' : ''} onClick={() => setBillingView('invoices')}>
                     <ReceiptText size={16} aria-hidden="true" />{translate(locale, 'invoices')}
                   </button>
                   <button type="button" role="tab" aria-selected={billingView === 'payment-links'} className={billingView === 'payment-links' ? 'is-active' : ''} onClick={() => setBillingView('payment-links')}>
