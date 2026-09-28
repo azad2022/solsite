@@ -170,7 +170,7 @@ rollback;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-viewer"}',true);
-DO $$
+DO $pay_viewer$
 declare r jsonb;
 begin
   r := public.pay_update_payment_link(
@@ -178,13 +178,13 @@ begin
     'viewer-update','Denied','',2000000,'USDC','merchant','en-US',true,null,'rbac-2',repeat('b',64)
   );
   if r->>'state' <> 'forbidden' then raise exception 'viewer update was not denied: %',r; end if;
-end $pay_test$;
+end $pay_viewer$;
 rollback;
 
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
-DO $$
+DO $
 declare r jsonb;
 begin
   r := public.pay_update_payment_link(
