@@ -41,6 +41,8 @@ function truncateAddress(value: string): string {
 
 function SnapshotValue({ value }: { value: string }): React.ReactElement { return <code className="pay-checkout-snapshot-value">{value}</code>; }
 
+const PAYMENT_INTENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const NON_TERMINAL_STATUSES: ReadonlySet<PayPaymentStatus> = new Set([
   'created', 'pending', 'detected', 'verifying', 'confirmed', 'underpaid', 'overpaid', 'ambiguous',
 ]);
@@ -60,6 +62,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const mountedRef = useRef(true);
   const currentIntentId = intent?.id;
   const currentStatus = intent?.status;
+  const [intentLookupId, setIntentLookupId] = useState('');
 
   const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
@@ -206,7 +209,50 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
         <button type="button" className="pay-checkout-back" onClick={onBack}><BackIcon size={17} />{translate(locale, 'backToPay')}</button>
         <section className="pay-checkout-card" aria-labelledby="pay-checkout-title">
           <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(locale, 'checkout')}</span><h1 id="pay-checkout-title">{intent ? intent.merchant.businessName : translate(locale, 'checkoutWaitingTitle')}</h1><p>{translate(locale, 'checkoutWaitingDescription')}</p></div></div>
-          {state !== 'ready' ? (
+          {!intentId ? (
+            <form
+              className="pay-checkout-intent-lookup"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const value = intentLookupId.trim();
+                if (!PAYMENT_INTENT_ID.test(value)) return;
+                const target = `/pay/checkout/${encodeURIComponent(value)}`;
+                window.history.pushState({}, '', target);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+            >
+              <div className="pay-checkout-lookup-icon"><ReceiptText size={19} /></div>
+              <div className="pay-checkout-lookup-copy">
+                <strong>{checkoutLabel(locale, 'intentLookupTitle')}</strong>
+                <p>{checkoutLabel(locale, 'intentLookupDescription')}</p>
+              </div>
+              <label className="pay-checkout-intent-input">
+                <span>{checkoutLabel(locale, 'intentLookupLabel')}</span>
+                <input
+                  value={intentLookupId}
+                  onChange={(event) => setIntentLookupId(event.target.value)}
+                  placeholder={checkoutLabel(locale, 'intentLookupPlaceholder')}
+                  spellCheck={false}
+                  autoComplete="off"
+                  inputMode="text"
+                  aria-label={checkoutLabel(locale, 'intentLookupLabel')}
+                />
+              </label>
+              <button
+                type="submit"
+                className="pay-primary-action"
+                disabled={!PAYMENT_INTENT_ID.test(intentLookupId.trim())}
+              >
+                <ShieldCheck size={17} /> {checkoutLabel(locale, 'checkIntent')}
+              </button>
+              {intentLookupId.trim() && !PAYMENT_INTENT_ID.test(intentLookupId.trim()) ? (
+                <div className="pay-checkout-verification-message is-failed" role="alert">
+                  <XCircle size={18} />
+                  <span>{checkoutLabel(locale, 'invalidIntentId')}</span>
+                </div>
+              ) : null}
+            </form>
+          ) : state !== 'ready' ? (
             <PayDataStateView locale={locale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent(true) : undefined} />
           ) : intent ? (
             <>
