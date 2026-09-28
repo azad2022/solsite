@@ -106,7 +106,7 @@ returns table(link_title text, link_amount numeric, intent_amount numeric, inten
 language sql
 security definer
 set search_path = ''
-as $$
+as $pay_snapshot$$
   select l.title, l.fixed_amount_atomic, i.amount_atomic, i.payment_link_id
     from public.pay_payment_links l
     left join public.pay_payment_intents i on i.id = p_intent_id
@@ -151,7 +151,7 @@ end $$;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-b"}',true);
-DO $
+DO $pay_test$
 declare
   r jsonb;
   v_link_title text;
@@ -164,7 +164,7 @@ begin
     'cross-merchant','Denied','',2000000,'USDC','merchant','en-US',true,null,'rbac-1',repeat('a',64)
   );
   if r->>'state' <> 'forbidden' then raise exception 'cross-merchant update was not denied: %',r; end if;
-end $$;
+end $pay_test$;
 rollback;
 
 begin;
