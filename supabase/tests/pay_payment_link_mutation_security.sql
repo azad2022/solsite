@@ -246,7 +246,10 @@ begin
     '00000000-0000-0000-0000-000000000102','00000000-0000-0000-0000-000000000001','delete-empty',repeat('f',64)
   );
   if r->>'state' <> 'deleted' then raise exception 'unreferenced Payment Link deletion failed: %',r; end if;
-  if exists(select 1 from public.pay_payment_links where id='00000000-0000-0000-0000-000000000102') then raise exception 'deleted Payment Link still exists'; end if;
+  if exists(select 1 from public.test_payment_link_mutation_snapshot(
+    '00000000-0000-0000-0000-000000000102',
+    '00000000-0000-0000-0000-000000000202'
+  )) then raise exception 'deleted Payment Link still exists'; end if;
 end $$;
 rollback;
 
