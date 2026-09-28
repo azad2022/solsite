@@ -45,7 +45,8 @@ const PAY_NAV_GROUPS: ReadonlyArray<{ key: 'workspace' | 'payments' | 'business'
   { key: 'support', sections: ['tickets'] },
 ];
 
-const PAY_NAV_GROUP_LABELS: Record<(typeof PAY_NAV_GROUPS)[number]['key'], string> = {
+type PayMessageKey = Parameters<typeof translate>[1];
+const PAY_NAV_GROUP_LABELS: Record<(typeof PAY_NAV_GROUPS)[number]['key'], PayMessageKey> = {
   workspace: 'navWorkspace',
   payments: 'navPayments',
   business: 'navBusiness',
@@ -57,7 +58,7 @@ const PAY_NAV_GROUP_LABELS: Record<(typeof PAY_NAV_GROUPS)[number]['key'], strin
 };
 
 const PAGE_HEADER_OWNERS: ReadonlySet<PaySection> = new Set([
-  'referrals', 'customers', 'invoices', 'tickets', 'developer', 'security', 'webhooks',
+  'referrals', 'customers', 'tickets', 'developer', 'security', 'webhooks',
 ]);
 
 type SessionState = 'loading' | 'authenticated' | 'anonymous' | 'error';
@@ -229,12 +230,13 @@ export function PayApp(): React.ReactElement {
   }
 
   const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : paySectionLabel(locale, currentSection);
-  const description = currentSection === 'overview' ? translate(locale, 'overviewDescription') : translate(locale, 'sectionDescription');
   const accountTitle = sessionState === 'authenticated'
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
   const accountSubtitle = sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected');
-  const showGettingStartedGuide = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants');
+  const walletVerified = merchant?.receivingWallet?.verificationStatus === 'verified' && merchant.receivingWallet.isActive;
+  const onboardingIncomplete = merchantLoadState !== 'ready' || merchant === null || !walletVerified || merchant.status !== 'active';
+  const showGettingStartedGuide = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants') && onboardingIncomplete;
   const canRenderMerchantSetup = sessionState === 'authenticated' && (merchantLoadState === 'ready' || merchantLoadState === 'error');
   const showMerchantOnboarding = canRenderMerchantSetup && ((currentSection === 'overview' && merchant === null && merchantLoadState === 'ready') || currentSection === 'merchants' && merchant === null);
   const isSiteAdminSession = sessionUser?.role === 'admin';
@@ -248,7 +250,6 @@ export function PayApp(): React.ReactElement {
     && sessionUser !== null
     && !showTicketMerchantStatePanel;
   const showTransactions = currentSection === 'transactions' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
-  const showInvoices = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showReferrals = currentSection === 'referrals' && sessionState === 'authenticated' && sessionUser !== null;
   const showCustomers = currentSection === 'customers' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showReports = currentSection === 'reports' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
@@ -289,7 +290,7 @@ export function PayApp(): React.ReactElement {
           <nav className="pay-nav" aria-label={translate(locale, 'menu')}>
             {PAY_NAV_GROUPS.map(group => (
               <div key={group.key} className="pay-nav-group">
-                <span className="pay-nav-group-label">{translate(locale, PAY_NAV_GROUP_LABELS[group.key] as never)}</span>
+                <span className="pay-nav-group-label">{translate(locale, PAY_NAV_GROUP_LABELS[group.key])}</span>
                 {group.sections.map(section => {
                   const Icon = SECTION_ICONS[section];
                   const active = section === currentSection;
@@ -319,7 +320,7 @@ export function PayApp(): React.ReactElement {
             </div>
             <button type="button" className="pay-collapse-button" onClick={() => setSidebarCollapsed(value => !value)}>
               {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-              <span>{sidebarCollapsed ? translate(locale, 'menu') : translate(locale, 'operational')}</span>
+              <span>{sidebarCollapsed ? translate(locale, 'expandMenu') : translate(locale, 'collapseMenu')}</span>
             </button>
           </div>
         </aside>
