@@ -3,7 +3,7 @@ import type { PayAffiliate, PayCommission, PayReferral } from '../services/refer
 
 const messages = {
   'fa-IR': {
-    title:'معرفی و همکاری', subtitle:'داده‌های واقعی Affiliate، ارجاع‌ها و کمیسیون‌های ثبت‌شده در سرویس Pay.',
+    title:'معرفی و همکاری', subtitle:'Affiliate، ارجاع‌ها و کمیسیون‌های ثبت‌شده در Pay.',
     refresh:'به‌روزرسانی', noData:'داده‌ای برای نمایش وجود ندارد.', loadFailed:'دریافت اطلاعات معرفی و همکاری ناموفق بود.',
     retry:'تلاش مجدد', unauthorized:'برای مشاهده این بخش وارد شوید.', forbidden:'به این داده‌های معرفی و همکاری دسترسی ندارید.',
     affiliates:'همکاری‌ها', referrals:'ارجاع‌ها', commissions:'کمیسیون‌ها', referralCode:'کد معرفی', rate:'نرخ ثبت‌شده',
@@ -13,7 +13,7 @@ const messages = {
     readonly:'مقادیر کمیسیون و وضعیت‌ها مستقیماً از Backend خوانده می‌شوند؛ Frontend هیچ commission یا payout را محاسبه نمی‌کند.', stale:'آخرین داده معتبر نمایش داده می‌شود؛ به‌روزرسانی جدید ناموفق بود.',
   },
   'en-US': {
-    title:'Referrals', subtitle:'Real affiliate, referral, and commission records from the Pay service.',
+    title:'Referrals', subtitle:'Affiliate, referral, and commission records from the Pay service.',
     refresh:'Refresh', noData:'No data to display.', loadFailed:'Referral data could not be loaded.',
     retry:'Retry', unauthorized:'Sign in to view this section.', forbidden:'You do not have access to these referral records.',
     affiliates:'Affiliates', referrals:'Referrals', commissions:'Commissions', referralCode:'Referral code', rate:'Recorded rate',
@@ -23,7 +23,7 @@ const messages = {
     readonly:'Commission amounts and statuses are read directly from the Backend; the Frontend never calculates commission or payout truth.', stale:'The latest valid snapshot is retained; the newest refresh failed.',
   },
   ar: {
-    title:'الإحالات', subtitle:'سجلات حقيقية للشركاء والإحالات والعمولات من خدمة Pay.',
+    title:'الإحالات', subtitle:'سجلات الشركاء والإحالات والعمولات من Pay.',
     refresh:'تحديث', noData:'لا توجد بيانات للعرض.', loadFailed:'تعذر تحميل بيانات الإحالات.',
     retry:'إعادة المحاولة', unauthorized:'سجّل الدخول لعرض هذا القسم.', forbidden:'لا تملك صلاحية الوصول إلى سجلات الإحالات هذه.',
     affiliates:'الشركاء', referrals:'الإحالات', commissions:'العمولات', referralCode:'رمز الإحالة', rate:'المعدل المسجل',
@@ -33,7 +33,7 @@ const messages = {
     readonly:'تُقرأ مبالغ العمولات وحالاتها مباشرة من Backend؛ ولا تحسب الواجهة أي عمولة أو قيمة صرف.', stale:'يتم الاحتفاظ بآخر لقطة موثوقة لأن آخر تحديث فشل.'
   },
   ru: {
-    title:'Рефералы', subtitle:'Реальные записи партнёров, рефералов и комиссий из Pay.',
+    title:'Рефералы', subtitle:'Записи партнёров, рефералов и комиссий из Pay.',
     refresh:'Обновить', noData:'Нет данных для отображения.', loadFailed:'Не удалось загрузить данные рефералов.',
     retry:'Повторить', unauthorized:'Войдите, чтобы открыть этот раздел.', forbidden:'У вас нет доступа к этим реферальным данным.',
     affiliates:'Партнёры', referrals:'Рефералы', commissions:'Комиссии', referralCode:'Реферальный код', rate:'Зафиксированная ставка',
