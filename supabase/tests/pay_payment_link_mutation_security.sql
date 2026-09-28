@@ -106,7 +106,7 @@ returns table(link_title text, link_amount numeric, intent_amount numeric, inten
 language sql
 security definer
 set search_path = ''
-as $pay_snapshot$$
+as $pay_snapshot$
   select l.title, l.fixed_amount_atomic, i.amount_atomic, i.payment_link_id
     from public.pay_payment_links l
     left join public.pay_payment_intents i on i.id = p_intent_id
