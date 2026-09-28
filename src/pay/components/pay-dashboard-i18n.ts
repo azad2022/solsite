@@ -2,7 +2,7 @@ import type { PayLocale } from '../types';
 
 const COPY = {
   'fa-IR': {
-    title: 'داشبورد عملیاتی', activity: 'آخرین فعالیت‌ها', activityDesc: 'آخرین پرداخت‌های ثبت‌شده برای این پذیرنده از سرویس واقعی Pay.',
+    title: 'داشبورد عملیاتی', activity: 'آخرین فعالیت‌ها', activityDesc: 'آخرین پرداخت‌های ثبت‌شده برای این پذیرنده.',
     merchant: 'پذیرنده', merchantStatus: 'وضعیت پذیرنده', active: 'فعال', pending: 'در انتظار', suspended: 'معلق', closed: 'بسته',
     noMerchant: 'هنوز پذیرنده‌ای برای این حساب ثبت نشده است.', noActivity: 'هنوز تراکنشی برای نمایش وجود ندارد.',
     loadFailed: 'دریافت فعالیت‌های پرداخت ناموفق بود.', unauthorized: 'برای مشاهده این بخش باید وارد حساب شوید.', forbidden: 'دسترسی به این پذیرنده مجاز نیست.',
