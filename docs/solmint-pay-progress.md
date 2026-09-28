@@ -1060,3 +1060,23 @@ Current branch HEAD: `b668c4243e0ad9418e630cd63cff7fde223134c1`.
 - The live Production mutation migration `20260927150000_solmint_pay_payment_link_mutations` is already applied and recorded in the live Supabase migration history.
 - Current HEAD still requires fresh green Database Security and final current-head CI/build evidence before PR #226 can be considered merge-ready.
 - Production Browser UI E2E must run after merge/deployment because its workflow is intentionally triggered from `main`; it is not claimed as passed for the new mutation runtime yet.
+
+
+## 2026-09-28 — Pay UI/UX consolidation checkpoint
+
+Status: **UI IMPLEMENTED / VALIDATION PENDING**
+
+Current branch: `fix/pay-payment-link-stablecoin-production-config`
+
+- Preserved all existing Pay capabilities while reducing primary navigation density: Dashboard is represented through the existing Overview surface, Checkout remains directly routable from payment flows, and Invoices + Payment Links are consolidated under one Billing navigation destination with an in-page switch.
+- Primary navigation is now grouped into clearer product areas and exposes 11 merchant-facing destinations instead of presenting every route as a flat list.
+- Desktop sidebar was narrowed, compact mode remains icon-first, and each compact navigation icon now exposes its localized label through an on-hover/focus tooltip with an accessible name.
+- Navigation icons now have distinct restrained colors and a subtle active animation; `prefers-reduced-motion` disables the animation.
+- RTL layout now places the desktop shell/sidebar on the RTL side and the mobile drawer opens from the RTL edge.
+- Removed repeated shell/component page headings on Support, Security, Billing, Referrals, Customers, Reports, Developer and Webhooks surfaces.
+- Removed the repeated architectural copy pattern from normal customer-facing descriptions and removed unnecessary `real/واقعی` wording from the audited feature copy in all four locales.
+- Removed the non-functional global time-range control from the shared page chrome; Reports keeps its own functional range control.
+- Checkout secondary technical/payment snapshot details are collapsed behind a secondary details disclosure so the primary payment action stays visually dominant without removing information.
+- Transactions, Invoices, Payment Links and Reports history tables now switch to readable card-like layouts on narrow screens instead of forcing desktop-width tables.
+- Language selection remains a compact dropdown rather than a horizontal row.
+- Current UI implementation has not yet received a fresh green CI/build evidence on this new head through the available GitHub validation surface. Do not mark this checkpoint as release-green until the relevant CI/Production Build and post-deployment browser evidence are rerun and pass.
