@@ -36,7 +36,7 @@ const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; str
 
 const PAY_NAV_GROUPS: ReadonlyArray<{ key: 'workspace' | 'payments' | 'business' | 'billing' | 'growth' | 'developer' | 'security' | 'support'; sections: readonly PaySection[] }> = [
   { key: 'workspace', sections: ['overview'] },
-  { key: 'payments', sections: ['transactions'] },
+  { key: 'payments', sections: ['transactions', 'reports'] },
   { key: 'business', sections: ['merchants', 'customers'] },
   { key: 'billing', sections: ['invoices'] },
   { key: 'growth', sections: ['referrals'] },
