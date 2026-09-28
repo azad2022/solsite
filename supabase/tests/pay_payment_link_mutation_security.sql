@@ -98,6 +98,25 @@ $$;
 
 \i supabase/migrations/20260927150000_solmint_pay_payment_link_mutations.sql
 
+create or replace function public.test_payment_link_mutation_snapshot(
+  p_link_id uuid,
+  p_intent_id uuid
+)
+returns table(link_title text, link_amount numeric, intent_amount numeric, intent_link_id uuid)
+language sql
+security definer
+set search_path = ''
+as $
+  select l.title, l.fixed_amount_atomic, i.amount_atomic, i.payment_link_id
+    from public.pay_payment_links l
+    left join public.pay_payment_intents i on i.id = p_intent_id
+   where l.id = p_link_id
+   limit 1;
+$;
+
+revoke all on function public.test_payment_link_mutation_snapshot(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.test_payment_link_mutation_snapshot(uuid,uuid) to authenticated;
+
 insert into public.users(id,is_active) values
   ('user-a',true),('user-b',true),('user-viewer',true);
 
@@ -182,12 +201,23 @@ begin
   );
   if r->>'state' <> 'conflict' then raise exception 'update idempotency conflict missing: %',r; end if;
 
-  if (select amount_atomic from public.pay_payment_intents where id='00000000-0000-0000-0000-000000000201') <> 1000000 then
-    raise exception 'Payment Intent snapshot was mutated by link update';
-  end if;
-  if (select title from public.pay_payment_links where id='00000000-0000-0000-0000-000000000101') <> 'Updated title' then
-    raise exception 'Payment Link update was not persisted';
-  end if;
+  perform 1;
+  declare
+    v_link_title text;
+    v_link_amount numeric;
+    v_intent_amount numeric;
+    v_intent_link_id uuid;
+  begin
+    select t.link_title, t.link_amount, t.intent_amount, t.intent_link_id
+      into v_link_title, v_link_amount, v_intent_amount, v_intent_link_id
+      from public.test_payment_link_mutation_snapshot(
+        '00000000-0000-0000-0000-000000000101',
+        '00000000-0000-0000-0000-000000000201'
+      ) t;
+    if v_intent_amount <> 1000000 then raise exception 'Payment Intent snapshot was mutated by link update'; end if;
+    if v_intent_link_id <> '00000000-0000-0000-0000-000000000101' then raise exception 'Payment Intent link binding was mutated'; end if;
+    if v_link_title <> 'Updated title' or v_link_amount <> 2000000 then raise exception 'Payment Link update was not persisted'; end if;
+  end;
 end $$;
 rollback;
 
