@@ -1,6 +1,19 @@
 import type { PayDirection, PayLocale, PaySection } from './types';
 
 export const DEFAULT_PAY_LOCALE: PayLocale = 'fa-IR';
+export const PAY_LOCALE_STORAGE_KEY = 'solmint-pay.locale.v1';
+export const PAY_LOCALE_FLAGS: Record<PayLocale, string> = {
+  'fa-IR': '🇮🇷',
+  'en-US': '🇺🇸',
+  ar: '🇸🇦',
+  ru: '🇷🇺',
+};
+export const PAY_LOCALE_SHORT_CODES: Record<PayLocale, string> = {
+  'fa-IR': 'FA',
+  'en-US': 'EN',
+  ar: 'AR',
+  ru: 'RU',
+};
 
 const messages = {
   'fa-IR': {
@@ -50,6 +63,42 @@ export function normalizePayLocale(input?: string | null): PayLocale {
   if (value === 'ar' || value.startsWith('ar-')) return 'ar';
   if (value === 'ru' || value.startsWith('ru-')) return 'ru';
   return DEFAULT_PAY_LOCALE;
+}
+
+export function readStoredPayLocale(storage: Pick<Storage, 'getItem'> | null | undefined): PayLocale | null {
+  if (!storage) return null;
+  try {
+    const stored = storage.getItem(PAY_LOCALE_STORAGE_KEY);
+    if (!stored) return null;
+    const normalized = normalizePayLocale(stored);
+    return stored.trim().toLowerCase() === normalized.toLowerCase() ||
+      (normalized === 'fa-IR' && stored.trim().toLowerCase() === 'fa') ||
+      (normalized === 'en-US' && ['en', 'en-gb'].includes(stored.trim().toLowerCase()))
+      ? normalized
+      : PAY_LOCALES.includes(stored as PayLocale) ? (stored as PayLocale) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function persistPayLocale(storage: Pick<Storage, 'setItem'> | null | undefined, locale: PayLocale): void {
+  if (!storage) return;
+  try {
+    storage.setItem(PAY_LOCALE_STORAGE_KEY, locale);
+  } catch {
+    // Storage may be unavailable or blocked; locale state still remains in memory.
+  }
+}
+
+const PAY_LOCALE_NAMES: Record<PayLocale, string> = {
+  'fa-IR': 'فارسی',
+  'en-US': 'English',
+  ar: 'العربية',
+  ru: 'Русский',
+};
+
+export function languageName(locale: PayLocale): string {
+  return PAY_LOCALE_NAMES[locale];
 }
 
 export function sectionLabel(locale: PayLocale, section: PaySection): string {
