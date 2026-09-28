@@ -68,6 +68,7 @@
 .pay-sidebar.is-collapsed .pay-sidebar-security,
 .pay-sidebar.is-collapsed .pay-collapse-button span { display: none; }
 .pay-sidebar.is-collapsed .pay-nav-group + .pay-nav-group { margin-top: 5px; }
+.solmint-pay[dir='rtl'] .pay-app-shell { flex-direction: row-reverse; }
 .pay-sidebar.is-collapsed .pay-sidebar-brand { justify-content: center; }
 .pay-sidebar.is-collapsed .pay-nav-item,
 .pay-sidebar.is-collapsed .pay-collapse-button { justify-content: center; }
@@ -395,7 +396,8 @@
   .pay-sidebar { width: 78px; min-width: 78px; }
   .pay-brand-copy,
   .pay-sidebar-section-label,
-  .pay-nav-item span:not(.pay-nav-active-dot),
+  .pay-nav-label,
+  .pay-nav-group-label,
   .pay-sidebar-security,
   .pay-collapse-button span { display: none; }
   .pay-sidebar-brand { justify-content: center; }
@@ -410,7 +412,7 @@
     inset-block: 0;
     inset-inline-start: 0;
     width: min(86vw, 320px);
-    min-width: min(84vw, 320px);
+    min-width: min(86vw, 320px);
     transform: translate3d(-100%, 0, 0);
     transition: transform 220ms ease, visibility 0s linear 220ms;
     visibility: hidden;
@@ -466,8 +468,10 @@
   .pay-language-menu { inset-inline-end: -2px; min-width: 178px; }
   .pay-topbar-actions { gap:6px; min-width:0; }
   .pay-language-trigger { min-height:34px; padding-inline:7px; }
-  .pay-language-menu { inset-inline-end: 0; min-width: 178px; }
+  .pay-language-menu { inset-inline-end: 0; min-width: 178px; max-width: calc(100vw - 24px); }
   .pay-icon-button { width:34px; height:34px; }
+  .pay-topbar-breadcrumb { overflow:hidden; }
+  .pay-topbar-breadcrumb strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pay-page-heading h1 { font-size: 25px; }
   .pay-page-heading p { font-size: 12px; line-height: 1.75; }
   .pay-topbar-leading { gap:7px; flex:1; }
