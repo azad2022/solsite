@@ -1048,3 +1048,15 @@ Status: **BACKEND APPLIED / APPLICATION RELEASE GATES PENDING**
 - A direct Production SQL smoke verified update and delete through the authenticated mutation contract inside a rolled-back transaction; no test row was left behind.
 - Current PR head: 15dc1076ade22fe4d9d50c06624a8b96ea89bf94.
 - Latest PR validation is not yet final: Database Security / CI / Production Build / Mainnet Read-only were triggered for the current head; Devnet E2E remains blocked by the existing CI funder’s insufficient balance. Production Browser UI E2E runs on main after deployment, not on PR branches, so it is intentionally not claimed here.
+
+
+## 2026-09-28 — Payment Link mutation validation checkpoint
+
+Current branch HEAD: `b668c4243e0ad9418e630cd63cff7fde223134c1`.
+
+- The Devnet funder was replenished externally by the project owner; the exact real Devnet verification and reconciliation E2E now pass on the current validation chain.
+- Production Build, CI, and Mainnet Read-only were green on the previous validation head while the final fixture corrections were being applied.
+- The Payment Link mutation security fixture has been corrected to preserve the production table privilege boundary and to use the exact production financial column names.
+- The live Production mutation migration `20260927150000_solmint_pay_payment_link_mutations` is already applied and recorded in the live Supabase migration history.
+- Current HEAD still requires fresh green Database Security and final current-head CI/build evidence before PR #226 can be considered merge-ready.
+- Production Browser UI E2E must run after merge/deployment because its workflow is intentionally triggered from `main`; it is not claimed as passed for the new mutation runtime yet.
