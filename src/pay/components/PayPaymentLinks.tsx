@@ -190,7 +190,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
 
   return <section className="pay-payment-links" aria-label={paymentLinkT(locale, 'title')}>
     <div className="pay-payment-links-heading">
-      <div><span className="pay-panel-kicker">{paymentLinkT(locale, 'title')}</span><h2>{paymentLinkT(locale, 'title')}</h2><p>{paymentLinkT(locale, 'subtitle')}</p></div>
+      <div><h2>{paymentLinkT(locale, 'title')}</h2><p>{paymentLinkT(locale, 'subtitle')}</p></div>
       <button type="button" className="pay-secondary-action" onClick={() => void load()} disabled={loading}><RefreshCw size={16}/>{paymentLinkT(locale,'refresh')}</button>
     </div>
 
