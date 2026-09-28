@@ -6,7 +6,7 @@ const labels = {
     loadFailed: 'دریافت Payment Intent از سرویس پرداخت ناموفق بود.', expired: 'این Payment Intent منقضی شده است.',
     payInstructions: 'پرداخت را با کیف پول خود انجام دهید، سپس Signature تراکنش را وارد کنید تا سرویس پرداخت آن را روی شبکه بررسی کند.',
     walletConnect: 'اتصال کیف پول', walletConnected: 'کیف پول متصل است', walletRequired: 'برای پرداخت، ابتدا کیف پول را متصل کنید.',
-    copy: 'کپی', copied: 'کپی شد', connect: 'اتصال', disconnect: 'قطع اتصال',
+    copy: 'کپی', copied: 'کپی شد', connect: 'اتصال', disconnect: 'قطع اتصال', technicalDetails: 'جزئیات فنی پرداخت',
     signatureLabel: 'Transaction Signature', signaturePlaceholder: 'Signature تراکنش را وارد کنید', verifyPayment: 'بررسی پرداخت', verifying: 'در حال بررسی پرداخت...',
     verificationSubmitted: 'درخواست بررسی ثبت شد. تا اعلام وضعیت معتبر سرور، پرداخت موفق محسوب نمی‌شود.',
     notDetected: 'این Signature هنوز در بازه و Reference این Payment Intent پیدا نشده است.',
