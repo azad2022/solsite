@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, BookOpen, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
-import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from './i18n';
+import { DEFAULT_PAY_LOCALE, PAY_LOCALE_FLAGS, PAY_LOCALE_SHORT_CODES, directionFor, languageName, normalizePayLocale, persistPayLocale, readStoredPayLocale, sectionLabel, translate } from './i18n';
 import { PAY_SECTIONS, PAY_LOCALES, type PayLocale, type PaySection } from './types';
 import { normalizePayPath, pathForPaySection } from './routing';
 import { matchPayRoute } from './route-match';
@@ -42,15 +42,25 @@ function localeFromNavigator(): PayLocale {
   return normalizePayLocale(navigator.language);
 }
 
+function initialPayLocale(): PayLocale {
+  if (typeof window !== 'undefined') {
+    const stored = readStoredPayLocale(window.localStorage);
+    if (stored) return stored;
+  }
+  return localeFromNavigator();
+}
+
 function paySectionLabel(locale: PayLocale, section: PaySection): string {
   return section === 'webhooks' ? webhookCopy(locale).title : sectionLabel(locale, section);
 }
 
 export function PayApp(): React.ReactElement {
-  const [locale, setLocale] = useState<PayLocale>(localeFromNavigator);
+  const [locale, setLocale] = useState<PayLocale>(initialPayLocale);
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const languageControlRef = useRef<HTMLDivElement>(null);
   const [sessionState, setSessionState] = useState<SessionState>('loading');
   const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(null);
   const [merchant, setMerchant] = useState<PayMerchant | null>(null);
@@ -59,6 +69,10 @@ export function PayApp(): React.ReactElement {
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
   const currentSection: PaySection = route.kind === 'dashboard' ? route.section : 'overview';
+
+  useEffect(() => {
+    persistPayLocale(window.localStorage, locale);
+  }, [locale]);
 
   useEffect(() => {
     const documentElement = document.documentElement;
@@ -75,6 +89,22 @@ export function PayApp(): React.ReactElement {
       else documentElement.setAttribute('dir', previousDir);
     };
   }, [locale, direction]);
+
+  useEffect(() => {
+    if (!languageMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!languageControlRef.current?.contains(event.target as Node)) setLanguageMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLanguageMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [languageMenuOpen]);
 
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -240,8 +270,38 @@ export function PayApp(): React.ReactElement {
             </div>
 
             <div className="pay-topbar-actions">
-              <div className="pay-language-control" aria-label={translate(locale, 'language')}>
-                {PAY_LOCALES.map(item => <button key={item} type="button" className={item === locale ? 'is-active' : ''} onClick={() => setLocale(item)} aria-pressed={item === locale}>{item === 'fa-IR' ? 'FA' : item === 'en-US' ? 'EN' : item.toUpperCase()}</button>)}
+              <div ref={languageControlRef} className="pay-language-control">
+                <button
+                  type="button"
+                  className="pay-language-trigger"
+                  onClick={() => setLanguageMenuOpen(value => !value)}
+                  aria-label={translate(locale, 'language')}
+                  aria-haspopup="menu"
+                  aria-expanded={languageMenuOpen}
+                  title={languageName(locale)}
+                >
+                  <span className="pay-language-flag" aria-hidden="true">{PAY_LOCALE_FLAGS[locale]}</span>
+                  <span className="pay-language-code">{PAY_LOCALE_SHORT_CODES[locale]}</span>
+                  <ChevronDown size={14} aria-hidden="true" />
+                </button>
+                {languageMenuOpen ? (
+                  <div className="pay-language-menu" role="menu" aria-label={translate(locale, 'language')}>
+                    {PAY_LOCALES.map(item => (
+                      <button
+                        key={item}
+                        type="button"
+                        className={'pay-language-option' + (item === locale ? ' is-active' : '')}
+                        onClick={() => { setLocale(item); setLanguageMenuOpen(false); }}
+                        role="menuitemradio"
+                        aria-checked={item === locale}
+                      >
+                        <span className="pay-language-flag" aria-hidden="true">{PAY_LOCALE_FLAGS[item]}</span>
+                        <span className="pay-language-option-copy"><strong>{languageName(item)}</strong><small>{PAY_LOCALE_SHORT_CODES[item]}</small></span>
+                        {item === locale ? <span className="pay-language-option-check" aria-hidden="true">✓</span> : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <div className="pay-account-chip" title={sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected')}>
                 <span className="pay-account-avatar" aria-hidden="true"><CircleDollarSign size={17} /></span>
