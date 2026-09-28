@@ -69,7 +69,7 @@ export default function PaySecurity({ locale, merchant }: Props): React.ReactEle
 
   return <section className="pay-security" aria-label={securityT(locale,'title')}>
     <div className="pay-security-heading">
-      <div><span className="pay-panel-kicker">{securityT(locale,'title')}</span><h2>{securityT(locale,'title')}</h2><p>{securityT(locale,'subtitle')}</p></div>
+      <div><h2>{securityT(locale,'title')}</h2><p>{securityT(locale,'subtitle')}</p></div>
       <button type="button" className="pay-secondary-action" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{securityT(locale,'refresh')}</button>
     </div>
 
