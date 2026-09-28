@@ -17,7 +17,7 @@ const EXPECTED_FUNDER_PUBLIC_KEY = new PublicKey('EZTvPLYyjn6TnXqhiFKw59aqgAPHwx
 const PAYMENT_AMOUNT_LAMPORTS = 10_000_000;
 const MERCHANT_SETTLEMENT_LAMPORTS = 9_000_000;
 const GATEWAY_FEE_LAMPORTS = 1_000_000;
-// Fund only the payment amount + gateway fee with a small fee buffer; the previous 520M was already sufficient.
+// Keep the real Devnet fixture economical; the verification logic is unchanged.
 const FUNDER_TOP_UP_LAMPORTS = 10_100_000;
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000;
 const OBSERVATION_POLL_ATTEMPTS = 20;
