@@ -151,8 +151,13 @@ end $$;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-b"}',true);
-DO $$
-declare r jsonb;
+DO $
+declare
+  r jsonb;
+  v_link_title text;
+  v_link_amount numeric;
+  v_intent_amount numeric;
+  v_intent_link_id uuid;
 begin
   r := public.pay_update_payment_link(
     '00000000-0000-0000-0000-000000000101','00000000-0000-0000-0000-000000000001',
@@ -201,23 +206,15 @@ begin
   );
   if r->>'state' <> 'conflict' then raise exception 'update idempotency conflict missing: %',r; end if;
 
-  perform 1;
-  declare
-    v_link_title text;
-    v_link_amount numeric;
-    v_intent_amount numeric;
-    v_intent_link_id uuid;
-  begin
-    select t.link_title, t.link_amount, t.intent_amount, t.intent_link_id
-      into v_link_title, v_link_amount, v_intent_amount, v_intent_link_id
-      from public.test_payment_link_mutation_snapshot(
-        '00000000-0000-0000-0000-000000000101',
-        '00000000-0000-0000-0000-000000000201'
-      ) t;
-    if v_intent_amount <> 1000000 then raise exception 'Payment Intent snapshot was mutated by link update'; end if;
-    if v_intent_link_id <> '00000000-0000-0000-0000-000000000101' then raise exception 'Payment Intent link binding was mutated'; end if;
-    if v_link_title <> 'Updated title' or v_link_amount <> 2000000 then raise exception 'Payment Link update was not persisted'; end if;
-  end;
+  select t.link_title, t.link_amount, t.intent_amount, t.intent_link_id
+    into v_link_title, v_link_amount, v_intent_amount, v_intent_link_id
+    from public.test_payment_link_mutation_snapshot(
+      '00000000-0000-0000-0000-000000000101',
+      '00000000-0000-0000-0000-000000000201'
+    ) t;
+  if v_intent_amount <> 1000000 then raise exception 'Payment Intent snapshot was mutated by link update'; end if;
+  if v_intent_link_id <> '00000000-0000-0000-0000-000000000101' then raise exception 'Payment Intent link binding was mutated'; end if;
+  if v_link_title <> 'Updated title' or v_link_amount <> 2000000 then raise exception 'Payment Link update was not persisted'; end if;
 end $$;
 rollback;
 
