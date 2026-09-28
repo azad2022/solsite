@@ -230,6 +230,12 @@ try {
   assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'RTL direction must survive a full page refresh.');
   console.log('PAY_LANGUAGE_PERSISTENCE_E2E passed for fa-IR with compact flag dropdown.');
 
+  await page.locator('.pay-language-trigger').click();
+  await page.locator('.pay-language-menu').locator('.pay-language-option').filter({ hasText: 'English' }).click();
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en-US');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
+
+
   await page.waitForTimeout(1200);
   assert.ok(merchantPageResponse && merchantPageResponse.ok(), 'Production Merchant page must be reachable.');
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
