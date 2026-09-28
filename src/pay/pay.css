@@ -393,17 +393,9 @@
 .pay-footer { min-height: 68px; margin-top: auto; padding: 16px clamp(18px, 3vw, 34px); display: flex; justify-content: space-between; align-items: center; gap: 16px; border-top: 1px solid var(--pay-border); color: var(--pay-text-faint); font-size: 10px; }
 
 @media (max-width: 1200px) and (min-width: 821px) {
-  .pay-sidebar { width: 78px; min-width: 78px; }
-  .pay-brand-copy,
-  .pay-sidebar-section-label,
-  .pay-nav-label,
-  .pay-nav-group-label,
-  .pay-sidebar-security,
-  .pay-collapse-button span { display: none; }
-  .pay-sidebar-brand { justify-content: center; }
-  .pay-nav-item,
-  .pay-collapse-button { justify-content: center; }
   .pay-operational-grid { grid-template-columns: 1fr; }
+  .pay-sidebar { width: 228px; min-width: 228px; }
+  .pay-sidebar.is-collapsed { width: 78px; min-width: 78px; }
 }
 
 @media (max-width: 820px) {
