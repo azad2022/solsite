@@ -2,7 +2,7 @@ import type { PayLocale } from '../types';
 
 const messages = {
   'fa-IR': {
-    title:'لینک‌های پرداخت', subtitle:'لینک‌های پرداخت واقعی و قابل استفاده برای این پذیرنده.', refresh:'به‌روزرسانی',
+    title:'لینک‌های پرداخت', subtitle:'لینک‌های پرداخت این پذیرنده.', refresh:'به‌روزرسانی',
     noData:'هنوز لینک پرداختی ثبت نشده است.', loadFailed:'دریافت لینک‌های پرداخت ناموفق بود.', retry:'تلاش مجدد',
     unauthorized:'برای مشاهده لینک‌های پرداخت وارد شوید.', forbidden:'به لینک‌های پرداخت این پذیرنده دسترسی ندارید.',
     slug:'شناسه لینک', linkTitle:'عنوان', amount:'مبلغ اتمیک', asset:'دارایی', feePayer:'پرداخت‌کننده کارمزد',
@@ -22,7 +22,7 @@ const messages = {
     publicUrl:'آدرس عمومی', autoLocale:'خودکار', merchantPayer:'پذیرنده', customerPayer:'مشتری',
   },
   'en-US': {
-    title:'Payment Links', subtitle:'Real, usable payment links for this merchant.', refresh:'Refresh',
+    title:'Payment Links', subtitle:'Payment links for this merchant.', refresh:'Refresh',
     noData:'No payment links yet.', loadFailed:'Payment links could not be loaded.', retry:'Retry',
     unauthorized:'Sign in to view payment links.', forbidden:'You do not have access to these merchant payment links.',
     slug:'Link slug', linkTitle:'Title', amount:'Atomic amount', asset:'Asset', feePayer:'Fee payer',
@@ -42,7 +42,7 @@ const messages = {
     publicUrl:'Public URL', autoLocale:'Auto', merchantPayer:'Merchant', customerPayer:'Customer',
   },
   ar: {
-    title:'روابط الدفع', subtitle:'روابط دفع حقيقية وقابلة للاستخدام لهذا التاجر.', refresh:'تحديث',
+    title:'روابط الدفع', subtitle:'روابط الدفع لهذا التاجر.', refresh:'تحديث',
     noData:'لا توجد روابط دفع بعد.', loadFailed:'تعذر تحميل روابط الدفع.', retry:'إعادة المحاولة',
     unauthorized:'سجّل الدخول لعرض روابط الدفع.', forbidden:'لا تملك صلاحية الوصول إلى روابط دفع هذا التاجر.',
     slug:'معرّف الرابط', linkTitle:'العنوان', amount:'المبلغ الذري', asset:'الأصل', feePayer:'دافع الرسوم',
@@ -62,7 +62,7 @@ const messages = {
     publicUrl:'الرابط العام', autoLocale:'تلقائي', merchantPayer:'التاجر', customerPayer:'العميل',
   },
   ru: {
-    title:'Платёжные ссылки', subtitle:'Реальные рабочие платёжные ссылки этого мерчанта.', refresh:'Обновить',
+    title:'Платёжные ссылки', subtitle:'Платёжные ссылки этого мерчанта.', refresh:'Обновить',
     noData:'Платёжных ссылок пока нет.', loadFailed:'Не удалось загрузить платёжные ссылки.', retry:'Повторить',
     unauthorized:'Войдите, чтобы видеть платёжные ссылки.', forbidden:'У вас нет доступа к платёжным ссылкам этого мерчанта.',
     slug:'Идентификатор ссылки', linkTitle:'Название', amount:'Сумма в atomic units', asset:'Актив', feePayer:'Плательщик комиссии',
