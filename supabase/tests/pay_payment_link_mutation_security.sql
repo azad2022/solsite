@@ -185,7 +185,12 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
 DO $$
-declare r jsonb;
+declare
+  r jsonb;
+  v_link_title text;
+  v_link_amount numeric;
+  v_intent_amount numeric;
+  v_intent_link_id uuid;
 begin
   r := public.pay_update_payment_link(
     '00000000-0000-0000-0000-000000000101','00000000-0000-0000-0000-000000000001',
