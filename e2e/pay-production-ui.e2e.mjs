@@ -656,6 +656,23 @@ try {
   console.log(`PAYMENT_LINK_CREATE_PRODUCTION_E2E ${JSON.stringify({ status: publicCheckoutResponse.status(), paymentIntentId: publicCheckoutBody.data?.id, merchantId, paymentLinkSlug })}`);
   assert.equal(typeof publicCheckoutBody.data?.id, 'string');
   const publicIntentId = publicCheckoutBody.data.id;
+
+  await page.goto(ORIGIN + '/pay/checkout', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-checkout-intent-lookup').waitFor({ state: 'visible', timeout: 10000 });
+  const intentLookup = page.locator('.pay-checkout-intent-lookup');
+  await intentLookup.locator('input').fill(publicIntentId);
+  const intentLookupResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/pay/v1/payment-intents/' + encodeURIComponent(publicIntentId))
+    && response.request().method() === 'GET'
+  );
+  await intentLookup.locator('.pay-primary-action').click();
+  const intentLookupResponse = await intentLookupResponsePromise;
+  assert.equal(intentLookupResponse.status(), 200, await intentLookupResponse.text());
+  await page.locator('.pay-checkout-status-grid').first().waitFor({ state: 'visible', timeout: 10000 });
+  assert.ok((await page.locator('.pay-checkout-card').innerText()).includes('2 USDC'));
+  assert.ok((await page.locator('.pay-checkout-intent-id').innerText()).includes(publicIntentId));
+  console.log('PAYMENT_INTENT_LOOKUP_PRODUCTION_E2E passed through /pay/checkout.');
+
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   const linkedRow = page.locator('.pay-payment-links-table tbody tr').filter({ hasText: paymentLinkSlug });
   await linkedRow.locator('.pay-payment-links-actions .pay-icon-button').nth(1).click();
