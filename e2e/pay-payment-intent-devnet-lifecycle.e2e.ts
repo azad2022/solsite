@@ -87,19 +87,21 @@ test('SolMint Pay Payment Intent reconciliation reuses the real Devnet transacti
     assert.equal(typeof value, 'string', 'Devnet payment fixture field ' + key + ' must be a string.');
   }
 
-  const {
-    signature,
-    merchantDestination,
-    feeDestination,
-    reference,
-    paymentAmountLamports,
-    merchantSettlementLamports,
-    gatewayFeeLamports,
-    createdAt,
-    expiresAt,
-  } = fixture;
+  const requireFixtureString = (value: string | undefined, field: string): string => {
+    assert.equal(typeof value, 'string', 'Devnet payment fixture field ' + field + ' is required and must be a string.');
+    assert.ok(value.length > 0, 'Devnet payment fixture field ' + field + ' must not be empty.');
+    return value;
+  };
 
-  assert.ok(signature && merchantDestination && feeDestination && reference && paymentAmountLamports && merchantSettlementLamports && gatewayFeeLamports && createdAt && expiresAt, 'Native Devnet verification must publish a complete payment fixture before reconciliation.');
+  const signature = requireFixtureString(fixture.signature, 'signature');
+  const merchantDestination = requireFixtureString(fixture.merchantDestination, 'merchantDestination');
+  const feeDestination = requireFixtureString(fixture.feeDestination, 'feeDestination');
+  const reference = requireFixtureString(fixture.reference, 'reference');
+  const paymentAmountLamports = requireFixtureString(fixture.paymentAmountLamports, 'paymentAmountLamports');
+  const merchantSettlementLamports = requireFixtureString(fixture.merchantSettlementLamports, 'merchantSettlementLamports');
+  const gatewayFeeLamports = requireFixtureString(fixture.gatewayFeeLamports, 'gatewayFeeLamports');
+  const createdAt = requireFixtureString(fixture.createdAt, 'createdAt');
+  const expiresAt = requireFixtureString(fixture.expiresAt, 'expiresAt');
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
   const observation = await waitForFinalizedObservation(provider, signature);
