@@ -44,8 +44,12 @@ function localeFromNavigator(): PayLocale {
 
 function initialPayLocale(): PayLocale {
   if (typeof window !== 'undefined') {
-    const stored = readStoredPayLocale(window.localStorage);
-    if (stored) return stored;
+    try {
+      const stored = readStoredPayLocale(window.localStorage);
+      if (stored) return stored;
+    } catch {
+      // Storage can be unavailable in restrictive browser modes; use navigator locale.
+    }
   }
   return localeFromNavigator();
 }
