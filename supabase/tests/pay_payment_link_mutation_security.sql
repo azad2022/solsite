@@ -106,13 +106,13 @@ returns table(link_title text, link_amount numeric, intent_amount numeric, inten
 language sql
 security definer
 set search_path = ''
-as $
+as $$
   select l.title, l.fixed_amount_atomic, i.amount_atomic, i.payment_link_id
     from public.pay_payment_links l
     left join public.pay_payment_intents i on i.id = p_intent_id
    where l.id = p_link_id
    limit 1;
-$;
+$$;
 
 revoke all on function public.test_payment_link_mutation_snapshot(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.test_payment_link_mutation_snapshot(uuid,uuid) to authenticated;
