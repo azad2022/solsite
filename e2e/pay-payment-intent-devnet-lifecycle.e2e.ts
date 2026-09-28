@@ -15,7 +15,7 @@ const EXPECTED_FUNDER_PUBLIC_KEY = 'EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV
 const PAYMENT_AMOUNT_LAMPORTS = 10_000_000n;
 const MERCHANT_SETTLEMENT_LAMPORTS = 9_000_000n;
 const GATEWAY_FEE_LAMPORTS = 1_000_000n;
-// Fund only the payment amount + gateway fee with a small fee buffer; this test does not need an extra reserve.
+// Keep the real Devnet fixture economical; the reconciliation logic is unchanged.
 const FUNDER_TOP_UP_LAMPORTS = 10_100_000n;
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000n;
 const OBSERVATION_POLL_ATTEMPTS = 20;
