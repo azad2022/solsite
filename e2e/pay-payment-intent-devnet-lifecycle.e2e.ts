@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { Connection } from '@solana/web3.js';
 import test from 'node:test';
 import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../src/pay/services/reconciliationEngine';
 import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
