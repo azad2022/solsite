@@ -151,7 +151,7 @@ end $$;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-b"}',true);
-DO $pay_test$pay_test$
+DO $pay_test$
 declare
   r jsonb;
   v_link_title text;
