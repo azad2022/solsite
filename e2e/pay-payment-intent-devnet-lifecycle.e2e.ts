@@ -1,93 +1,18 @@
 import assert from 'node:assert/strict';
-import { Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { readFileSync } from 'node:fs';
+import { Connection } from '@solana/web3.js';
 import test from 'node:test';
 import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../src/pay/services/reconciliationEngine';
 import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
 import type { ObservedPaymentTransaction, ObservedTransfer } from '../src/pay/services/verificationPolicy';
 
 const DEVNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim();
-const DEVNET_FUNDER_SECRET_KEY = process.env.DEVNET_E2E_FUNDER_SECRET_KEY_B64?.trim();
 if (!DEVNET_RPC_URL) throw new Error('SOLANA_RPC_URL is required for the funded Devnet Payment Intent lifecycle E2E.');
 if (!DEVNET_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must use HTTPS for the funded Devnet Payment Intent lifecycle E2E.');
-if (!DEVNET_FUNDER_SECRET_KEY) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for the funded Devnet Payment Intent lifecycle E2E.');
 
-const EXPECTED_FUNDER_PUBLIC_KEY = 'EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV';
-const PAYMENT_AMOUNT_LAMPORTS = 10_000_000n;
-const MERCHANT_SETTLEMENT_LAMPORTS = 9_000_000n;
-const GATEWAY_FEE_LAMPORTS = 1_000_000n;
-// Keep the real Devnet fixture economical; the reconciliation logic is unchanged.
-const PAYER_RENT_RESERVE_LAMPORTS = 2_000_000n;
-const FUNDER_TOP_UP_LAMPORTS = PAYMENT_AMOUNT_LAMPORTS + PAYER_RENT_RESERVE_LAMPORTS;
-const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000n;
+const DEVNET_PAYMENT_FIXTURE_PATH = process.env.DEVNET_PAYMENT_FIXTURE_PATH?.trim() || '/tmp/solmint-pay-devnet-fixture.json';
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
-const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
-const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-const BASE58_INDEX = new Map([...BASE58_ALPHABET].map((char, index) => [char, index]));
-
-function decodeBase58(value: string): Buffer {
-  let result = 0n;
-  for (const char of value) {
-    const index = BASE58_INDEX.get(char);
-    if (index === undefined) throw new Error('Invalid Base58 key material.');
-    result = result * 58n + BigInt(index);
-  }
-  let hex = result.toString(16);
-  if (hex.length % 2) hex = `0${hex}`;
-  const decoded = hex ? Buffer.from(hex, 'hex') : Buffer.alloc(0);
-  let leadingZeros = 0;
-  for (const char of value) {
-    if (char !== '1') break;
-    leadingZeros += 1;
-  }
-  return Buffer.concat([Buffer.alloc(leadingZeros), decoded]);
-}
-
-function decodeFunderSecret(value: string): Uint8Array {
-  const candidates: Buffer[] = [];
-  const base64 = Buffer.from(value, 'base64');
-  if (base64.length === 64) candidates.push(base64);
-  try {
-    const base58 = decodeBase58(value);
-    if (base58.length === 64) candidates.push(base58);
-  } catch {}
-  for (const candidate of candidates) {
-    try {
-      const keypair = Keypair.fromSecretKey(candidate);
-      if (Buffer.from(candidate.subarray(32)).equals(Buffer.from(keypair.publicKey.toBytes()))) return candidate;
-    } catch {}
-  }
-  throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must contain a valid 64-byte Solana keypair encoded as Base64 or Base58.');
-}
-
-function createFunder(): Keypair {
-  return Keypair.fromSecretKey(decodeFunderSecret(DEVNET_FUNDER_SECRET_KEY));
-}
-
-function createMemoInstruction(reference: PublicKey): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: MEMO_PROGRAM,
-    keys: [{ pubkey: reference, isSigner: true, isWritable: false }],
-    data: Buffer.from(`solmint-pay-intent:${reference.toBase58()}`, 'utf8'),
-  });
-}
-
-async function confirmFinalized(connection: Connection, signature: string, blockhash: string, lastValidBlockHeight: number): Promise<void> {
-  const confirmation = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'finalized');
-  if (confirmation.value.err) throw new Error(`Devnet transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-}
-
-async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair): Promise<void> {
-  const balance = await connection.getBalance(funder.publicKey, 'finalized');
-  if (balance < Number(MIN_FUNDER_BALANCE_LAMPORTS)) throw new Error(`Devnet funder ${funder.publicKey.toBase58()} has ${(balance / 1e9).toFixed(6)} SOL; at least ${(Number(MIN_FUNDER_BALANCE_LAMPORTS) / 1e9).toFixed(6)} SOL is required for this flow.`);
-  const latest = await connection.getLatestBlockhash('finalized');
-  const transaction = new Transaction({ feePayer: funder.publicKey, recentBlockhash: latest.blockhash }).add(
-    SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: payer.publicKey, lamports: Number(FUNDER_TOP_UP_LAMPORTS) }),
-  );
-  transaction.sign(funder);
-  const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
-  await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
-}
 
 async function waitForFinalizedObservation(
   provider: ReturnType<typeof createSolanaRpcProvider>,
@@ -98,7 +23,7 @@ async function waitForFinalizedObservation(
     if (observation) return observation;
     if (attempt < OBSERVATION_POLL_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, OBSERVATION_POLL_DELAY_MS));
   }
-  throw new Error(`FINALIZED_TRANSACTION_OBSERVATION_TIMEOUT after ${OBSERVATION_POLL_ATTEMPTS} attempts`);
+  throw new Error('FINALIZED_TRANSACTION_OBSERVATION_TIMEOUT after ' + OBSERVATION_POLL_ATTEMPTS + ' attempts');
 }
 
 class MemoryReconciliationRepository implements ReconciliationRepository {
@@ -145,48 +70,57 @@ class MemoryReconciliationRepository implements ReconciliationRepository {
   }
 }
 
-test('SolMint Pay Payment Intent reconciliation verifies a real Devnet transaction and rejects replay', { timeout: 300_000 }, async () => {
-  const connection = new Connection(DEVNET_RPC_URL, { commitment: 'confirmed' });
-  const funder = createFunder();
-  assert.equal(funder.publicKey.toBase58(), EXPECTED_FUNDER_PUBLIC_KEY, 'Devnet E2E funder secret must match the documented CI wallet.');
+test('SolMint Pay Payment Intent reconciliation reuses the real Devnet transaction and rejects replay', { timeout: 300_000 }, async () => {
+  const fixture = JSON.parse(readFileSync(DEVNET_PAYMENT_FIXTURE_PATH, 'utf8')) as {
+    signature?: string;
+    merchantDestination?: string;
+    feeDestination?: string;
+    reference?: string;
+    paymentAmountLamports?: string;
+    merchantSettlementLamports?: string;
+    gatewayFeeLamports?: string;
+    createdAt?: string;
+    expiresAt?: string;
+  };
 
-  const payer = Keypair.generate();
-  const merchant = Keypair.generate();
-  const feeRecipient = Keypair.generate();
-  const reference = Keypair.generate();
-  await fundPayer(connection, funder, payer);
+  for (const [key, value] of Object.entries(fixture)) {
+    assert.equal(typeof value, 'string', 'Devnet payment fixture field ' + key + ' must be a string.');
+  }
 
-  const latest = await connection.getLatestBlockhash('finalized');
-  const transaction = new Transaction({ feePayer: payer.publicKey, recentBlockhash: latest.blockhash })
-    .add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: merchant.publicKey, lamports: Number(MERCHANT_SETTLEMENT_LAMPORTS) }))
-    .add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: feeRecipient.publicKey, lamports: Number(GATEWAY_FEE_LAMPORTS) }))
-    .add(createMemoInstruction(reference.publicKey));
-  transaction.sign(payer, reference);
+  const {
+    signature,
+    merchantDestination,
+    feeDestination,
+    reference,
+    paymentAmountLamports,
+    merchantSettlementLamports,
+    gatewayFeeLamports,
+    createdAt,
+    expiresAt,
+  } = fixture;
 
-  const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
-  await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
+  assert.ok(signature && merchantDestination && feeDestination && reference && paymentAmountLamports && merchantSettlementLamports && gatewayFeeLamports && createdAt && expiresAt, 'Native Devnet verification must publish a complete payment fixture before reconciliation.');
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
   const observation = await waitForFinalizedObservation(provider, signature);
   assert.equal(observation.success, true);
+  assert.equal(observation.commitment, 'finalized');
 
-  const createdAt = new Date(Date.now() - 2 * 60_000).toISOString();
-  const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
   const payment: ReconciliationPayment = {
     id: crypto.randomUUID(),
     merchantId: crypto.randomUUID(),
     createdAt,
-    amountAtomic: PAYMENT_AMOUNT_LAMPORTS.toString(),
-    customerTotalAtomic: PAYMENT_AMOUNT_LAMPORTS.toString(),
-    merchantSettlementAtomic: MERCHANT_SETTLEMENT_LAMPORTS.toString(),
-    gatewayFeeAtomic: GATEWAY_FEE_LAMPORTS.toString(),
+    amountAtomic: paymentAmountLamports,
+    customerTotalAtomic: paymentAmountLamports,
+    merchantSettlementAtomic: merchantSettlementLamports,
+    gatewayFeeAtomic: gatewayFeeLamports,
     asset: 'SOL',
     tokenMint: null,
     tokenProgram: null,
     tokenDecimals: null,
-    recipient: merchant.publicKey.toBase58(),
-    feeRecipient: feeRecipient.publicKey.toBase58(),
-    reference: reference.publicKey.toBase58(),
+    recipient: merchantDestination,
+    feeRecipient: feeDestination,
+    reference,
     verificationCommitment: 'finalized',
     expiresAt,
     status: 'pending',
@@ -206,8 +140,8 @@ test('SolMint Pay Payment Intent reconciliation verifies a real Devnet transacti
   assert.equal(repository.applied.length, 1);
 
   const window = { createdAt, expiresAt };
-  const discovered = await provider.findTransactionsByReference(reference.publicKey.toBase58(), 'finalized', window);
+  const discovered = await provider.findTransactionsByReference(reference, 'finalized', window);
   assert.ok(discovered.some((candidate) => candidate.signature === signature));
-  assert.equal(PAYMENT_AMOUNT_LAMPORTS, MERCHANT_SETTLEMENT_LAMPORTS + GATEWAY_FEE_LAMPORTS);
-  assert.equal(observation.commitment, 'finalized');
+  assert.equal(BigInt(payment.amountAtomic), BigInt(payment.merchantSettlementAtomic) + BigInt(payment.gatewayFeeAtomic));
+  console.log('PAYMENT_INTENT_DEVNET_RECONCILIATION_REUSED_REAL_TRANSACTION ' + signature);
 });
