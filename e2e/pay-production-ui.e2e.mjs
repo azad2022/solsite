@@ -212,6 +212,24 @@ try {
   });
 
   const merchantPageResponse = await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
+
+  const languageTrigger = page.locator('.pay-language-trigger');
+  await languageTrigger.waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-language-control').count(), 1, 'Pay language control must be compact and singular.');
+  await languageTrigger.click();
+  const languageMenu = page.locator('.pay-language-menu');
+  await languageMenu.waitFor({ state: 'visible', timeout: 5000 });
+  assert.equal(await languageMenu.locator('.pay-language-option').count(), 4, 'Pay selector must expose the four active locales.');
+  assert.equal(await languageMenu.locator('.pay-language-flag').count(), 4, 'Every active locale must have a flag marker.');
+  await languageMenu.locator('.pay-language-option').filter({ hasText: 'فارسی' }).click();
+  assert.equal(await page.locator('html').getAttribute('lang'), 'fa-IR');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('html').getAttribute('lang'), 'fa-IR', 'Selected locale must survive a full page refresh.');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'RTL direction must survive a full page refresh.');
+  console.log('PAY_LANGUAGE_PERSISTENCE_E2E passed for fa-IR with compact flag dropdown.');
+
   await page.waitForTimeout(1200);
   assert.ok(merchantPageResponse && merchantPageResponse.ok(), 'Production Merchant page must be reachable.');
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
