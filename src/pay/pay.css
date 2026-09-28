@@ -190,6 +190,8 @@
 .pay-topbar-breadcrumb,
 .pay-account-chip,
 .pay-language-control,
+.pay-language-trigger,
+.pay-language-option,
 .pay-range-control,
 .pay-eyebrow-row { display: flex; align-items: center; }
 .pay-topbar-leading { gap: 12px; min-width: 0; }
@@ -212,20 +214,75 @@
 .pay-icon-button:hover { border-color: var(--pay-border-strong); color: var(--pay-text); transform: translateY(-1px); }
 .pay-icon-button:focus-visible { outline: 3px solid rgba(243, 77, 157, 0.18); outline-offset: 2px; }
 .pay-mobile-menu { display: none; }
-.pay-language-control { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--pay-border); border-radius: 11px; background: var(--pay-panel-solid); flex: 0 0 auto; overflow: hidden; }
-.pay-language-control button {
-  min-width: 34px;
-  height: 30px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--pay-text-faint);
+.pay-language-control {
+  position: relative;
+  flex: 0 0 auto;
+}
+.pay-language-trigger {
+  min-height: 38px;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid var(--pay-border);
+  border-radius: 12px;
+  background: var(--pay-panel-solid);
+  color: var(--pay-text);
   font: inherit;
   font-size: 10px;
   font-weight: 900;
   cursor: pointer;
+  box-shadow: 0 2px 10px rgba(28, 32, 49, 0.035);
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
 }
-.pay-language-control button.is-active { background: #171923; color: #fff; }
+.pay-language-trigger:hover { border-color: var(--pay-border-strong); background: #fff; transform: translateY(-1px); }
+.pay-language-trigger:focus-visible,
+.pay-language-option:focus-visible { outline: 3px solid rgba(243, 77, 157, 0.18); outline-offset: 2px; }
+.pay-language-flag {
+  width: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 20px;
+  font-size: 17px;
+  line-height: 1;
+}
+.pay-language-code { min-width: 19px; text-align: center; letter-spacing: 0.04em; }
+.pay-language-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-end: 0;
+  z-index: 80;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--pay-border);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 45px rgba(28, 32, 49, 0.14);
+  backdrop-filter: blur(18px);
+}
+.pay-language-option {
+  width: 100%;
+  min-height: 44px;
+  gap: 9px;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--pay-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.pay-language-option:hover { background: #fafafd; border-color: var(--pay-border); }
+.pay-language-option.is-active { background: rgba(243, 77, 157, 0.07); border-color: rgba(243, 77, 157, 0.12); }
+.pay-language-option-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pay-language-option-copy strong { font-size: 11px; }
+.pay-language-option-copy small { color: var(--pay-text-faint); font-size: 9px; }
+.pay-language-option-check { color: var(--pay-pink); font-size: 14px; font-weight: 900; }
 .pay-account-chip { gap: 9px; max-width: 210px; padding-inline: 2px 6px; }
 .pay-account-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; color: var(--pay-purple); background: rgba(142, 105, 255, 0.09); }
 .pay-account-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -355,8 +412,8 @@
   .pay-runtime-state .pay-primary-action, .pay-runtime-state .pay-secondary-action { min-height:36px; }
   .pay-topbar-breadcrumb span:first-child,
   .pay-breadcrumb-separator { display: none; }
-  .pay-language-control button { min-width:30px; height:29px; padding-inline:2px; font-size:9px; }
-  .pay-language-control { gap:1px; }
+  .pay-language-trigger { min-height: 36px; padding-inline: 8px; }
+  .pay-language-menu { inset-inline-end: -2px; min-width: 178px; }
   .pay-topbar-actions { gap:6px; }
   .pay-icon-button { width:34px; height:34px; }
   .pay-topbar-leading { gap:7px; flex:1; }
