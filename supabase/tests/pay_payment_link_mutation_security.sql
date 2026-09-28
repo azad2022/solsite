@@ -182,7 +182,7 @@ begin
   );
   if r->>'state' <> 'conflict' then raise exception 'update idempotency conflict missing: %',r; end if;
 
-  if (select fixed_amount_atomic from public.pay_payment_intents where id='00000000-0000-0000-0000-000000000201') <> 1000000 then
+  if (select amount_atomic from public.pay_payment_intents where id='00000000-0000-0000-0000-000000000201') <> 1000000 then
     raise exception 'Payment Intent snapshot was mutated by link update';
   end if;
   if (select title from public.pay_payment_links where id='00000000-0000-0000-0000-000000000101') <> 'Updated title' then
