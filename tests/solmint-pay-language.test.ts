@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_PAY_LOCALE,
-  PAY_LOCALES,
   PAY_LOCALE_FLAGS,
   PAY_LOCALE_SHORT_CODES,
   PAY_LOCALE_STORAGE_KEY,
@@ -12,6 +11,7 @@ import {
   persistPayLocale,
   readStoredPayLocale,
 } from '../src/pay/i18n.ts';
+import { PAY_LOCALES } from '../src/pay/types';
 
 test('Pay locale preference persists only canonical supported locales', () => {
   const values = new Map<string, string>();
