@@ -31,11 +31,15 @@ test('Header does not show login/register while a Better Auth session exists', (
 });
 
 
-test('Pay entry is authenticated at the application navigation boundary', () => {
+test('Pay entry stays authenticated while valid public payment links bypass the auth gate', () => {
   assert.ok(headerSource.includes('data-nav-key="pay" href="/pay"'));
   assert.ok(headerSource.includes('>درگاه پرداخت</a>') || headerSource.includes('>درگاه پرداخت</button>'));
   assert.ok(appSource.includes("const isPayPath = (path: string) => path === '/pay' || path.startsWith('/pay/')"));
-  assert.ok(appSource.includes("if (isPayPath(normalizedPath) && (authPending || !applicationSessionUser))"));
+  assert.ok(appSource.includes("const isPublicPayPath = (path: string) => isPayPath(path) && matchPayRoute(path).kind === 'payment-link'"));
+  assert.ok(appSource.includes("if (isPayPath(normalizedPath) && !isPublicPayPath(normalizedPath) && (authPending || !applicationSessionUser))"));
+  assert.ok(appSource.includes("if (!isPayPath(currentPath) || isPublicPayPath(currentPath) || authPending || applicationSessionUser) return;"));
+  assert.ok(appSource.includes("if (payRouteActive && !isPublicPayPath(currentPath) && authPending)"));
+  assert.ok(appSource.includes("if (payRouteActive && !isPublicPayPath(currentPath) && !applicationSessionUser)"));
   assert.ok(appSource.includes('setPendingPayPath(normalizedPath)'));
   assert.ok(appSource.includes('setIsAdminModalOpen(true)'));
   assert.ok(appSource.includes("setCurrentPath('/');"));
