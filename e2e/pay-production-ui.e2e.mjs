@@ -11,6 +11,15 @@ const VIEWPORT = { width: 390, height: 844 };
 const EVIDENCE_DIR = '/tmp/pay-ui-evidence';
 mkdirSync(EVIDENCE_DIR, { recursive: true });
 
+async function openPaymentLinksView(page) {
+  const switchButton = page.locator('.pay-billing-tabs button').filter({ hasText: /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные ссылки/i });
+  await switchButton.waitFor({ state: 'visible', timeout: 10000 });
+  await switchButton.click();
+  await switchButton.evaluate((button) => {
+    if (button.getAttribute('aria-pressed') !== 'true') throw new Error('Payment Links billing view did not become active.');
+  });
+}
+
 function rows(value) {
   if (Array.isArray(value)) return value.filter((item) => item && typeof item === 'object');
   if (!value || typeof value !== 'object') return [];
@@ -510,6 +519,7 @@ try {
     'Completed onboarding must not keep the Getting Started guide visible on Overview.');
 
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  await openPaymentLinksView(page);
   await page.locator('.pay-payment-link-create').waitFor({ state: 'visible', timeout: 10000 });
   const paymentLinkSlug = 'e2e-' + crypto.randomUUID().replaceAll('-', '').slice(0, 18).toLowerCase();
   const paymentLinkForm = page.locator('.pay-payment-link-create');
@@ -593,6 +603,7 @@ try {
 
   const disposableLinkSlug = 'e2e-del-' + crypto.randomUUID().replaceAll('-', '').slice(0, 16).toLowerCase();
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  await openPaymentLinksView(page);
   const disposableForm = page.locator('.pay-payment-link-create');
   await disposableForm.locator('input').nth(0).fill(disposableLinkSlug);
   await disposableForm.locator('input').nth(1).fill('Disposable Browser E2E Link');
@@ -675,6 +686,7 @@ try {
   console.log('PAYMENT_INTENT_LOOKUP_PRODUCTION_E2E passed through /pay/checkout.');
 
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  await openPaymentLinksView(page);
   const linkedRow = page.locator('.pay-payment-links-table tbody tr').filter({ hasText: paymentLinkSlug });
   await linkedRow.locator('.pay-payment-links-actions .pay-icon-button').nth(1).click();
   await page.locator('.pay-payment-link-detail').waitFor({ state: 'visible', timeout: 10000 });
