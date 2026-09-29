@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { authClient } from '../utils/authClient';
 import { SolanaStatus, UserAccount } from '../types';
-import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone, Wrench, ChevronDown, Search, Activity } from 'lucide-react';
+import { Menu, X, BookOpen, User, LogOut, ShieldCheck, Smartphone } from 'lucide-react';
 import { HeaderMarketTicker } from './HeaderMarketTicker';
 
 export const SolanaLogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -32,11 +32,8 @@ type HeaderAuthSession = {
 
 export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdminModal, currentUser, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const handleNav = (path: string) => { setMobileMenuOpen(false); setToolsOpen(false); onNavigate(path); };
+  const handleNav = (path: string) => { setMobileMenuOpen(false); onNavigate(path); };
   const canManageShowcase = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
-  const toolsActive = currentPath.startsWith('/tools/');
-  const walletAnalyzerActive = currentPath === '/wallet-analyzer';
   const authSession = authClient.useSession() as unknown as HeaderAuthSession;
   const isAuthenticated = Boolean(authSession.data?.user);
   const displayName = currentUser?.fullName || authSession.data?.user?.name || authSession.data?.user?.email || 'حساب کاربری';
@@ -53,25 +50,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
               <div className="hidden sm:flex flex-col"><span className="flex items-center gap-1.5 text-lg font-extrabold tracking-tight text-white">سولمینت <span className="rounded-full border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[#14F195]">Solmint</span></span></div>
             </div>
 
-            <nav className="hidden items-center gap-0.5 overflow-visible whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] p-1 lg:flex">
-              <a href="/" onClick={e => { e.preventDefault(); handleNav('/'); }} className={navClass(currentPath === '/')}>صفحه اصلی</a>
-              <a href="/solana-wallet" onClick={e => { e.preventDefault(); handleNav('/solana-wallet'); }} className={navClass(currentPath === '/solana-wallet')}>کیف پول سولانا</a>
-              <a href="/wallet-analyzer" onClick={e => { e.preventDefault(); handleNav('/wallet-analyzer'); }} className={`${navClass(walletAnalyzerActive)} inline-flex items-center gap-1.5 ${walletAnalyzerActive ? 'border border-[#14F195]/25 bg-[#14F195]/10 text-[#14F195]' : ''}`}><Activity className="h-3.5 w-3.5" /><span>تحلیل کیف پول</span></a>
-              <a href="/solana-price" onClick={e => { e.preventDefault(); handleNav('/solana-price'); }} className={`${navClass(currentPath === '/solana-price')} ${currentPath === '/solana-price' ? 'border border-[#14F195]/30 bg-[#14F195]/15 text-[#14F195]' : ''}`}>قیمت لحظه‌ای سولانا</a>
-              <a href="/solana-token" onClick={e => { e.preventDefault(); handleNav('/solana-token'); }} className={navClass(currentPath === '/solana-token')}>ساخت توکن</a>
-              <a href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
-              <a href="/security" onClick={e => { e.preventDefault(); handleNav('/security'); }} className={navClass(currentPath === '/security')}>امنیت</a>
-              <div className="relative flex items-center" onMouseEnter={() => setToolsOpen(true)} onMouseLeave={() => setToolsOpen(false)}>
-                <a href="/tools/solana-token-tools" onClick={e => { e.preventDefault(); handleNav('/tools/solana-token-tools'); }} className={`${navClass(toolsActive)} inline-flex items-center gap-1.5 ${toolsActive ? 'border border-[#14F195]/25 bg-[#14F195]/10 text-[#14F195]' : ''}`} aria-label="ابزارهای سولمینت"><Wrench className="h-3.5 w-3.5" /><span>ابزارها</span></a>
-                <button type="button" aria-haspopup="menu" aria-expanded={toolsOpen} aria-label="نمایش فهرست ابزارها" onClick={() => setToolsOpen(v => !v)} className={`${navClass(toolsActive)} !px-1 inline-flex items-center ${toolsActive ? 'bg-[#14F195]/10 text-[#14F195]' : ''}`}><ChevronDown className={`h-3 w-3 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} /></button>
-                {toolsOpen && <div role="menu" className="absolute right-0 top-full z-50 w-72 pt-2"><div className="rounded-2xl border border-white/10 bg-[#0a0a12]/98 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl">
-                  <button type="button" onClick={() => handleNav('/tools/solana-token-tools')} className="w-full rounded-xl px-3 py-3 text-right transition-colors hover:bg-white/5" role="menuitem"><span className="flex items-center gap-2 text-sm font-black text-white"><Wrench className="h-4 w-4 text-[#14F195]" />ابزارهای توکن سولانا</span><span className="mt-1 block pr-6 text-[11px] leading-5 text-slate-500">مرکز ابزارهای بررسی فنی توکن‌ها</span></button>
-                  <button type="button" onClick={() => handleNav('/tools/solana-token-scanner')} className="w-full rounded-xl px-3 py-3 text-right transition-colors hover:bg-white/5" role="menuitem"><span className="flex items-center gap-2 text-sm font-bold text-slate-200"><Search className="h-4 w-4 text-cyan-300" />بررسی توکن سولانا</span><span className="mt-1 block pr-6 text-[11px] leading-5 text-slate-500">Authority، Supply، Metadata و توزیع</span></button>
-                  <button type="button" onClick={() => handleNav('/tools/token-2022-inspector')} className="w-full rounded-xl px-3 py-3 text-right transition-colors hover:bg-white/5" role="menuitem"><span className="flex items-center gap-2 text-sm font-bold text-slate-200"><ShieldCheck className="h-4 w-4 text-[#9945FF]" />Token-2022 Inspector</span><span className="mt-1 block pr-6 text-[11px] leading-5 text-slate-500">بررسی Extensionهای Token-2022</span></button>
-                </div></div>}
-              </div>
-              <a href="/faq" onClick={e => { e.preventDefault(); handleNav('/faq'); }} className={navClass(currentPath === '/faq')}>سوالات متداول</a>
-              <a href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-bold transition-all ${currentPath === '/blog' || currentPath.startsWith('/article/') ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black shadow-md' : 'text-slate-300 hover:text-white'}`}><BookOpen className="h-3.5 w-3.5" />وبلاگ</a>
+            <nav data-header-primary-nav className="hidden items-center justify-center gap-0.5 overflow-visible whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] p-1 lg:flex">
+              <a data-nav-key="wallet" href="/solana-wallet" onClick={e => { e.preventDefault(); handleNav('/solana-wallet'); }} className={navClass(currentPath === '/solana-wallet')}>کیف پول سولانا</a>
+              <a data-nav-key="price" href="/solana-price" onClick={e => { e.preventDefault(); handleNav('/solana-price'); }} className={navClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</a>
+              <a data-nav-key="token" href="/solana-token" onClick={e => { e.preventDefault(); handleNav('/solana-token'); }} className={navClass(currentPath === '/solana-token')}>ساخت توکن</a>
+              <a data-nav-key="meme" href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
+              <a data-nav-key="pay" href="/pay" onClick={e => { e.preventDefault(); handleNav('/pay'); }} className={navClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</a>
+              <a data-nav-key="blog" href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={navClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}><BookOpen className="h-3.5 w-3.5" />وبلاگ</a>
             </nav>
 
             <div className="hidden shrink-0 items-center gap-2.5 sm:flex">
@@ -89,26 +74,17 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
 
           {mobileMenuOpen && <div className="border-t border-white/10 bg-[#08080f]/98 px-4 py-5 backdrop-blur-2xl lg:hidden">
             <div className="space-y-2">
-              <button onClick={() => handleNav('/')} className={mobileNavClass(currentPath === '/')}>صفحه اصلی</button>
-              <button onClick={() => handleNav('/solana-wallet')} className={mobileNavClass(currentPath === '/solana-wallet')}>کیف پول سولانا</button>
-              <button onClick={() => handleNav('/wallet-analyzer')} className={mobileNavClass(walletAnalyzerActive)}>تحلیل کیف پول ارز دیجیتال</button>
-              <button onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
-              <button onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
-              <button onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>ساخت میم کوین</button>
-              <button onClick={() => handleNav('/security')} className={mobileNavClass(currentPath === '/security')}>معماری امنیتی غیرامانی</button>
-              <div className={`rounded-2xl border p-2 ${toolsActive ? 'border-[#14F195]/30 bg-[#14F195]/5' : 'border-white/10 bg-white/[0.02]'}`}>
-                <div className="flex items-center gap-2 px-3 py-2"><Wrench className="h-4 w-4 text-[#14F195]" /><span className="text-xs font-black text-white">ابزارهای Solmint</span></div>
-                <button onClick={() => handleNav('/tools/solana-token-tools')} className="w-full rounded-xl px-3 py-2.5 text-right text-xs font-bold text-slate-300 hover:bg-white/5">مرکز ابزارهای توکن سولانا</button>
-                <button onClick={() => handleNav('/tools/solana-token-scanner')} className="w-full rounded-xl px-3 py-2.5 text-right text-xs font-semibold text-slate-300 hover:bg-white/5">بررسی توکن سولانا</button>
-                <button onClick={() => handleNav('/tools/token-2022-inspector')} className="w-full rounded-xl px-3 py-2.5 text-right text-xs font-semibold text-slate-300 hover:bg-white/5">Token-2022 Inspector</button>
-              </div>
-              <button onClick={() => handleNav('/download')} className={mobileNavClass(currentPath === '/download')}>دانلود نسخه اندروید</button>
-              <button onClick={() => handleNav('/faq')} className={mobileNavClass(currentPath === '/faq')}>سوالات متداول</button>
-              <button onClick={() => handleNav('/blog')} className={`flex w-full items-center gap-2 rounded-xl px-4 py-2.5 text-right text-xs font-bold ${currentPath === '/blog' ? 'border border-[#9945FF]/40 bg-[#9945FF]/20 text-[#14F195]' : 'bg-white/5 text-slate-300'}`}><BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ و آکادمی solmint.ir</button>
+              <button data-nav-key="wallet" onClick={() => handleNav('/solana-wallet')} className={mobileNavClass(currentPath === '/solana-wallet')}>کیف پول سولانا</button>
+              <button data-nav-key="price" onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
+              <button data-nav-key="token" onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
+              <button data-nav-key="meme" onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>میم کوین</button>
+              <button data-nav-key="pay" onClick={() => handleNav('/pay')} className={mobileNavClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</button>
+              <button data-nav-key="blog" onClick={() => handleNav('/blog')} className={mobileNavClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}><BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ</button>
               {currentUser && canManageShowcase && <button onClick={() => handleNav('/showcase-admin')} className="flex w-full items-center gap-2 rounded-xl border border-[#14F195]/25 bg-[#14F195]/10 px-4 py-2.5 text-right text-xs font-bold text-[#14F195]"><Smartphone className="h-4 w-4" />مدیریت نمایش اپلیکیشن</button>}
               {currentUser ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><button onClick={openAdminModal} className="flex items-center gap-2 text-xs font-bold text-slate-200">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span></button><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : isAuthenticated ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><div className="flex items-center gap-2 text-xs font-bold text-slate-200"><User className="h-4 w-4 text-sky-400" /><span>{displayName}</span></div><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
+
             </div>
-          </div>}
+          </div>
         </div>
       </div>
     </header>
