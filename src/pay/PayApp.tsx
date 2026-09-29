@@ -405,7 +405,7 @@ export function PayApp(): React.ReactElement {
                   <button type="button" aria-pressed={billingView === 'invoices'} className={billingView === 'invoices' ? 'is-active' : ''} onClick={() => setBillingView('invoices')}>
                     <ReceiptText size={16} aria-hidden="true" />{translate(locale, 'invoices')}
                   </button>
-                  <button type="button" role="tab" aria-selected={billingView === 'payment-links'} className={billingView === 'payment-links' ? 'is-active' : ''} onClick={() => setBillingView('payment-links')}>
+                  <button type="button" aria-pressed={billingView === 'payment-links'} className={billingView === 'payment-links' ? 'is-active' : ''} onClick={() => setBillingView('payment-links')}>
                     <Link2 size={16} aria-hidden="true" />{translate(locale, 'paymentLinks')}
                   </button>
                 </div>
