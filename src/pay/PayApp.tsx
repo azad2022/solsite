@@ -256,7 +256,8 @@ export function PayApp(): React.ReactElement {
   const showDashboard = currentSection === 'overview' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showSecurity = currentSection === 'security' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showDeveloper = currentSection === 'developer';
-  const showBilling = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
+  const showInvoices = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
+  const showBilling = showInvoices;
   const showPageHeader = !PAGE_HEADER_OWNERS.has(currentSection);
   const pageDescription = currentSection === 'overview'
     ? translate(locale, 'overviewDescription')
