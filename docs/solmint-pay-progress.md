@@ -1243,3 +1243,106 @@ The two actual regressions discovered in this continuation were both resolved at
 No unresolved contradiction remains between the existing public Payment Link backend contract, public Payment Link component, Customer Checkout flow, and the global authentication boundary evidenced by the current production browser tests.
 
 This checkpoint does not declare unsupported future mutation capabilities available. Refund mutation, Notifications, and any other capability without an authoritative backend contract remain unavailable rather than simulated.
+
+## 2026-09-29 — Pay Merchant receiving-wallet discoverability checkpoint
+
+Status: **COMPLETED / PRODUCTION VERIFIED**
+
+### Confirmed contradiction
+
+A real UX/runtime contradiction existed in the Merchant onboarding flow.
+
+The Pay Backend contract and existing Merchant onboarding component already exposed the receiving-wallet ownership verification flow:
+- connect a browser-compatible Solana wallet;
+- request a wallet challenge from the authenticated Merchant endpoint;
+- sign the one-time ownership message;
+- verify the signature through the authenticated wallet-challenge endpoint;
+- refresh the authoritative Merchant snapshot.
+
+However, after a Merchant had already been created, the main Pay application stopped rendering the existing PayMerchantOnboarding component on /pay/merchants. The component was therefore unavailable exactly when the user needed to verify the receiving wallet. The Getting Started guide correctly sent the user to the Merchant surface for step 2, but the destination did not expose the verification control.
+
+A second semantic mismatch was also fixed: when the authoritative Merchant response contained no active verified receiving wallet, the UI displayed a generic wallet status unavailable message. The actual meaning of the server snapshot was that an active verified receiving wallet was not present, so the UI now presents the state as not verified yet.
+
+### Implementation
+
+PR #242 fix(pay): expose merchant receiving wallet verification was squash-merged as runtime commit:
+5fade418d4a660f2774e48801815db44cc1ec4d4
+
+Runtime changes were deliberately limited to the existing frontend boundary:
+- /pay/merchants now renders the existing Merchant setup/wallet panel whenever the authenticated Merchant state is successfully loaded, including for an already-created Merchant.
+- The existing challenge/sign/verify flow is unchanged and still uses the existing Backend contracts.
+- The Merchant navigation label is now explicit in all four locales:
+  - fa-IR: مرچنت و کیف پول دریافت
+  - en-US: Merchant & receiving wallet
+  - ar: التاجر ومحفظة الاستلام
+  - ru: Мерчант и кошелёк для приёма
+- Unverified wallet state now uses the existing localized walletNotVerified copy instead of implying that the server failed to provide a status.
+- No Backend, API, Database, RLS, authorization, payment, accounting, or financial rule was changed.
+
+### Fresh Production Browser evidence
+
+The real production browser audit passed the new boundary.
+
+Before wallet verification:
+- MERCHANT_WALLET_VERIFICATION_UI_BEFORE → PASS.
+- The rendered Merchant page showed:
+  Receiving wallet
+  Not verified yet
+  Connect and verify wallet
+- The verification action was visible and unique.
+
+Wallet verification:
+- Existing wallet ownership challenge flow returned HTTP 200 with verified=true.
+- The authoritative Merchant response returned the verified receiving wallet with verification_status=verified and is_active=true.
+- Production E2E logged the verified wallet state from the real API/database-backed flow.
+
+After verification and reload:
+- MERCHANT_WALLET_VERIFICATION_UI_AFTER → PASS.
+- The same Merchant page displayed the verified receiving wallet address, verification timestamp, and Verified.
+- The authoritative Merchant GET after reload still reported verification_status=verified.
+
+The full Production Browser E2E completed with status PASS, including the complete Pay route audit and the existing Payment Link/Payment Intent checks.
+
+### Additional production gates
+
+For runtime 5fade418d4a660f2774e48801815db44cc1ec4d4:
+- Production Build: PASS
+- CI / Quality: PASS
+- Database Security / RLS: PASS
+- Mainnet Read-only: PASS
+- Production API Contract: PASS
+- Devnet E2E: PASS
+- Live Smoke: PASS
+- Cloudflare Pages: PASS
+- Production Browser UI E2E after the code release: PASS
+- Live Browser Audit rerun after the code release: PASS
+
+The Browser and Live Audit reruns were required because the first post-merge attempt encountered external production reachability timeouts before the Pay flow executed. Those failures were not accepted as code evidence; both gates were rerun successfully.
+
+### Current repository state
+
+Current main after the production validation triggers:
+d58f5dc5b301d02e2cc9fe0d12dfcf7cc79c039d
+
+A direct comparison against runtime 5fade418d4a660f2774e48801815db44cc1ec4d4 shows the only later changes are:
+- .github/solmint-pay-live-audit.trigger
+- .github/solmint-pay-production-ui-e2e.trigger
+
+Both are trigger-only and contain no application/runtime source changes.
+
+### External integration warnings
+
+These remain separately classified:
+- Supabase Preview: FAIL due to the existing Preview migration-history drift.
+- Workers Builds: solsite: FAIL for the separate Workers integration. The production application path is Cloudflare Pages / Pages Functions, and the current Pages deployment is PASS.
+
+During the successful Live Audit, the browser also reported CSP-blocked third-party badge images (Product Hunt / CheckWeb / GreenWeb). This does not affect the Merchant wallet verification flow or Pay API behavior, but remains a separate frontend CSP cleanup item and is not silently marked resolved.
+
+### Checkpoint conclusion
+
+The Merchant receiving-wallet workflow is now discoverable and usable after Merchant creation.
+
+The intended user path is now explicit:
+Pay → Merchant & receiving wallet → Receiving wallet → Connect and verify wallet → sign the one-time ownership message → authoritative verification result.
+
+The actual Backend contract, not the frontend, remains authoritative for wallet ownership and Merchant activation state.
