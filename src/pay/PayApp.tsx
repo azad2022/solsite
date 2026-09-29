@@ -238,7 +238,7 @@ export function PayApp(): React.ReactElement {
   const onboardingIncomplete = merchantLoadState !== 'ready' || merchant === null || !walletVerified || merchant.status !== 'active';
   const showGettingStartedGuide = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants') && onboardingIncomplete;
   const canRenderMerchantSetup = sessionState === 'authenticated' && (merchantLoadState === 'ready' || merchantLoadState === 'error');
-  const showMerchantOnboarding = canRenderMerchantSetup && ((currentSection === 'overview' && merchant === null && merchantLoadState === 'ready') || currentSection === 'merchants' && merchant === null);
+  const showMerchantOnboarding = sessionState === 'authenticated' && currentSection === 'merchants' && merchantLoadState === 'ready';
   const isSiteAdminSession = sessionUser?.role === 'admin';
   const showTicketMerchantStatePanel = currentSection === 'tickets'
     && sessionState === 'authenticated'
