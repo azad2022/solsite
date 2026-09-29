@@ -1182,7 +1182,7 @@ This checkpoint closes the two production-browser regressions discovered after t
 
 ### Fresh production evidence
 
-For runtime 7325c7d, SolMint Pay Production Browser UI E2E #106 completed successfully after the exact commit's Cloudflare Pages deployment.
+For runtime 7325c7d, SolMint Pay Production Browser UI E2E #108 completed successfully after the exact commit's Cloudflare Pages deployment.
 
 Evidence reached all of the previously failing boundaries:
 - Guest Pay navigation guard: PASS.
@@ -1196,7 +1196,7 @@ Evidence reached all of the previously failing boundaries:
 
 ### Live Audit evidence
 
-The repository's separate SolMint Pay Live Browser Audit #43 was explicitly triggered through the existing .github/solmint-pay-live-audit.trigger mechanism after the runtime validation.
+The repository's separate SolMint Pay Live Browser Audit #44 was explicitly triggered through the existing .github/solmint-pay-live-audit.trigger mechanism after the runtime validation.
 
 Current main is now:
 fd4fbe504814d114f1d9e6d1c606f37d98d662d4
