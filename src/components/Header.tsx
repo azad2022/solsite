@@ -51,13 +51,12 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
             </div>
 
             <nav data-header-primary-nav aria-label="منوی اصلی" className="hidden items-center gap-0.5 overflow-visible whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] p-1 lg:flex">
-              <a href="/solana-wallet" onClick={e => { e.preventDefault(); handleNav('/solana-wallet'); }} className={navClass(currentPath === '/solana-wallet')}>کیف پول سولانا</a>
-              <a href="/solana-price" onClick={e => { e.preventDefault(); handleNav('/solana-price'); }} className={`${navClass(currentPath === '/solana-price')} ${currentPath === '/solana-price' ? 'border border-[#14F195]/30 bg-[#14F195]/15 text-[#14F195]' : ''}`}>قیمت لحظه‌ای سولانا</a>
-              <a href="/solana-token" onClick={e => { e.preventDefault(); handleNav('/solana-token'); }} className={navClass(currentPath === '/solana-token')}>ساخت توکن</a>
-              <a href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
-              </div>
+              <a data-nav-key="wallet" href="/solana-wallet" onClick={e => { e.preventDefault(); handleNav('/solana-wallet'); }} className={navClass(currentPath === '/solana-wallet')}>کیف پول سولانا</a>
+              <a data-nav-key="price" href="/solana-price" onClick={e => { e.preventDefault(); handleNav('/solana-price'); }} className={`${navClass(currentPath === '/solana-price')} ${currentPath === '/solana-price' ? 'border border-[#14F195]/30 bg-[#14F195]/15 text-[#14F195]' : ''}`}>قیمت لحظه‌ای سولانا</a>
+              <a data-nav-key="token" href="/solana-token" onClick={e => { e.preventDefault(); handleNav('/solana-token'); }} className={navClass(currentPath === '/solana-token')}>ساخت توکن</a>
+              <a data-nav-key="meme" href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
               <a data-nav-key="pay" href="/pay" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</a>
-              <a href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-bold transition-all ${currentPath === '/blog' || currentPath.startsWith('/article/') ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black shadow-md' : 'text-slate-300 hover:text-white'}`}><BookOpen className="h-3.5 w-3.5" />وبلاگ</a>
+              <a data-nav-key="blog" href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-bold transition-all ${currentPath === '/blog' || currentPath.startsWith('/article/') ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black shadow-md' : 'text-slate-300 hover:text-white'}`}><BookOpen className="h-3.5 w-3.5" />وبلاگ</a>
             </nav>
 
             <div className="hidden shrink-0 items-center gap-2.5 sm:flex">
@@ -75,13 +74,12 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
 
           {mobileMenuOpen && <div className="border-t border-white/10 bg-[#08080f]/98 px-4 py-5 backdrop-blur-2xl lg:hidden">
             <div className="space-y-2">
-              <button onClick={() => handleNav('/solana-wallet')} className={mobileNavClass(currentPath === '/solana-wallet')}>کیف پول سولانا</button>
-              <button onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
-              <button onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
-              <button onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>ساخت میم کوین</button>
-              </div>
+              <button data-nav-key="wallet" onClick={() => handleNav('/solana-wallet')} className={mobileNavClass(currentPath === '/solana-wallet')}>کیف پول سولانا</button>
+              <button data-nav-key="price" onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
+              <button data-nav-key="token" onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
+              <button data-nav-key="meme" onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>ساخت میم کوین</button>
               <button data-nav-key="pay" onClick={() => handleNav('/pay')} className={mobileNavClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</button>
-              <button onClick={() => handleNav('/blog')} className={`flex w-full items-center gap-2 rounded-xl px-4 py-2.5 text-right text-xs font-bold ${currentPath === '/blog' ? 'border border-[#9945FF]/40 bg-[#9945FF]/20 text-[#14F195]' : 'bg-white/5 text-slate-300'}`}><BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ و آکادمی solmint.ir</button>
+              <button data-nav-key="blog" onClick={() => handleNav('/blog')} className={mobileNavClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}><BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ</button>
               {currentUser && canManageShowcase && <button onClick={() => handleNav('/showcase-admin')} className="flex w-full items-center gap-2 rounded-xl border border-[#14F195]/25 bg-[#14F195]/10 px-4 py-2.5 text-right text-xs font-bold text-[#14F195]"><Smartphone className="h-4 w-4" />مدیریت نمایش اپلیکیشن</button>}
               {currentUser ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><button onClick={openAdminModal} className="flex items-center gap-2 text-xs font-bold text-slate-200">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span></button><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : isAuthenticated ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><div className="flex items-center gap-2 text-xs font-bold text-slate-200"><User className="h-4 w-4 text-sky-400" /><span>{displayName}</span></div><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
             </div>
