@@ -1113,3 +1113,41 @@ Release control:
 - This checkpoint records positive PR/runtime evidence only.
 - Production Browser UI E2E for the new runtime is still a post-merge/main deployment gate and is not claimed here.
 - This documentation commit does not alter runtime behavior.
+
+
+## 2026-09-29 — Pay mobile drawer runtime verification checkpoint
+
+Status: **APPLICATION RUNTIME VERIFIED / RELEASE GATES PASS / EXTERNAL INTEGRATION WARNINGS CLASSIFIED**
+
+Runtime release commit: `856df6e89f48c86f89f65c7bb51f2b5685309be7`
+
+Mobile drawer regression:
+- PR #233 moved the drawer direction boundary from a parent selector to an explicit `dir={direction}` on the `<aside>`.
+- Post-merge Production Browser E2E then exposed a real RTL positioning defect: with `dir="rtl"` on the drawer, `inset-inline-end: 0` placed the drawer on the physical left edge.
+- PR #234 corrected the RTL mobile drawer to use `inset-inline-start: 0` / `inset-inline-end: auto` on the directly-directed drawer and added a regression contract for the logical inset boundary.
+- PR #234 was squash-merged to main as `856df6e89f48c86f89f65c7bb51f2b5685309be7`.
+
+Post-merge production evidence for `856df6e`:
+- Cloudflare Pages deployment: **PASS** — production deployment completed for the exact release commit.
+- CI / Quality: **PASS**.
+- Production Build: **PASS**.
+- Database Security / RLS / Payment Link mutation security / API-key lifecycle security: **PASS**.
+- Mainnet Read-only: **PASS**.
+- Production API Contract: **PASS**.
+- Devnet E2E: **PASS**.
+- Production Live Smoke: **PASS**.
+- Production Browser UI E2E: **PASS** — authenticated Pay flow completed, all audited Pay routes were exercised, the four supported locales were checked for RTL/LTR behavior, the mobile drawer edge/width/visibility contract passed, and the host document locale was restored after leaving the Pay SPA.
+- Browser evidence artifact was uploaded by the production workflow with 40 screenshots; the RTL `fa-IR` mobile drawer evidence is present in the successful artifact.
+
+Observed non-release-path integration warnings:
+- `Supabase Preview` reports: “Remote migration versions not found in local migrations directory.” The authoritative Database Security workflow and production database/runtime checks are green; no migration rollback or invented migration was introduced to satisfy this preview integration.
+- `Workers Builds: solsite` continues to report a separate integration failure. The production deployment path is Cloudflare Pages / Pages Functions for the `solmint` application, as documented by the repository deployment runbook and current `wrangler.toml`; the Pages production deployment for `856df6e` is green. This separate Workers integration is recorded as an external warning, not a Pay runtime blocker.
+
+Scope:
+- PR #234 changed only `src/pay/pay.css` and the related UI regression test.
+- No Backend/API, payment, accounting, verification, database, RLS, authentication, authorization, or financial business rule was changed.
+- The current Checkout/Payment Intent boundary remains unchanged: no transaction-construction/payment-submit endpoint was invented.
+
+Release interpretation:
+- The currently deployed SolMint Pay application runtime has positive evidence across build, CI, database/security, API, Devnet, Mainnet read-only, deployment, live smoke, and Production Browser UI gates.
+- Supabase Preview migration-history drift and the separate Workers integration failure remain explicitly classified and are not silently treated as resolved.
