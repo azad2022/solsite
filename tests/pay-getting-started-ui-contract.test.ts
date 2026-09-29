@@ -38,6 +38,7 @@ test('Pay mobile drawer is fully off-canvas in both directions and clips horizon
   assert.match(payCss, /transform: translate3d\(-100%, 0, 0\)/);
   assert.match(payCss, /transform: translate3d\(100%, 0, 0\)/);
   assert.match(payCss, /\.pay-sidebar\[dir='rtl'\]/);
+  assert.match(payCss, /inset-inline-start: 0;[\s\S]*inset-inline-end: auto;/);
   assert.match(payCss, /overflow-x: clip/);
   assert.match(payCss, /gap: 2px/);
   assert.match(payCss, /touch-action: none/);
