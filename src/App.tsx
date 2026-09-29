@@ -141,6 +141,7 @@ export default function App() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isShowcaseAdminOpen, setIsShowcaseAdminOpen] = useState(false);
   const [isMemeTickerAdminOpen, setIsMemeTickerAdminOpen] = useState(false);
+  const [pendingPayPath, setPendingPayPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (authPending) return;
@@ -168,14 +169,38 @@ export default function App() {
     });
   };
 
+  const isPayPath = (path: string) => path === '/pay' || path.startsWith('/pay/');
+
   const handleNavigate = (path: string) => {
     const normalizedPath = normalizePath(path);
+    if (isPayPath(normalizedPath) && (authPending || !applicationSessionUser)) {
+      setPendingPayPath(normalizedPath);
+      setIsAdminModalOpen(true);
+      return;
+    }
     setCurrentPath(normalizedPath);
     if (normalizePath(window.location.pathname) !== normalizedPath) window.history.pushState({}, '', normalizedPath);
   };
 
   useEffect(() => { scrollToRouteTop(); }, [currentPath]);
   useEffect(() => { const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname || '/')); window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState); }, []);
+
+  useEffect(() => {
+    if (!isPayPath(currentPath) || authPending || applicationSessionUser) return;
+    setPendingPayPath(currentPath);
+    setCurrentPath('/');
+    if (normalizePath(window.location.pathname) !== '/') window.history.replaceState({}, '', '/');
+    setIsAdminModalOpen(true);
+  }, [applicationSessionUser, authPending, currentPath]);
+
+  useEffect(() => {
+    if (!pendingPayPath || authPending || !applicationSessionUser) return;
+    const target = pendingPayPath;
+    setPendingPayPath(null);
+    setIsAdminModalOpen(false);
+    setCurrentPath(target);
+    if (normalizePath(window.location.pathname) !== target) window.history.pushState({}, '', target);
+  }, [applicationSessionUser, authPending, pendingPayPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,7 +269,14 @@ export default function App() {
   const isPrivilegedAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'admin' || currentUser?.username === 'admin';
   const scrollToFeatures = () => { if (currentPath !== '/') { handleNavigate('/'); setTimeout(() => document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }), 150); } else document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }); };
 
-  if (currentPath === '/pay' || currentPath.startsWith('/pay/')) {
+  const payRouteActive = isPayPath(currentPath);
+  if (payRouteActive && authPending) {
+    return <Suspense fallback={<SuspenseFallback />}><SuspenseFallback /></Suspense>;
+  }
+  if (payRouteActive && !applicationSessionUser) {
+    return <Suspense fallback={<SuspenseFallback />}><SuspenseFallback /></Suspense>;
+  }
+  if (payRouteActive) {
     return <Suspense fallback={<SuspenseFallback />}><PayApp /></Suspense>;
   }
 
