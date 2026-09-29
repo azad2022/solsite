@@ -100,7 +100,7 @@ export function PayApp(): React.ReactElement {
   const direction = directionFor(locale);
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
-  const currentSection: PaySection = route.kind === 'dashboard' ? route.section : 'overview';
+  const currentSection: PaySection = route.kind === 'dashboard' && route.section !== 'dashboard' ? route.section : 'overview';
 
   useEffect(() => {
     try {
@@ -253,7 +253,7 @@ export function PayApp(): React.ReactElement {
   const showReferrals = currentSection === 'referrals' && sessionState === 'authenticated' && sessionUser !== null;
   const showCustomers = currentSection === 'customers' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showReports = currentSection === 'reports' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
-  const showDashboard = (currentSection === 'dashboard' || currentSection === 'overview') && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
+  const showDashboard = currentSection === 'overview' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showSecurity = currentSection === 'security' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showDeveloper = currentSection === 'developer';
   const showBilling = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
@@ -270,14 +270,14 @@ export function PayApp(): React.ReactElement {
             ? translate(locale, 'billingDescription')
             : '';
   const pageTitle = currentSection === 'invoices' ? translate(locale, 'billingTitle') : title;
-  const merchantBoundSection = ['dashboard', 'transactions', 'customers', 'invoices', 'reports', 'security', 'webhooks'].includes(currentSection);
+  const merchantBoundSection = ['transactions', 'customers', 'invoices', 'reports', 'security', 'webhooks'].includes(currentSection);
   const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showMerchantStatePanel = sessionState === 'authenticated' && merchantBoundSection && (merchantLoadState !== 'ready' || merchant === null);
   const showSessionErrorPanel = sessionState === 'error';
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale} data-pay-runtime="transport-v2">
-      <a className="pay-skip-link" href="#pay-main">{translate(locale, 'dashboard')}</a>
+      <a className="pay-skip-link" href="#pay-main">{translate(locale, 'skipToContent')}</a>
       <div className="pay-app-shell">
         <aside className={`pay-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobileNavOpen ? 'is-mobile-open' : ''}`} aria-label={translate(locale, 'menu')}>
           <div className="pay-sidebar-brand">
@@ -286,7 +286,6 @@ export function PayApp(): React.ReactElement {
             <button type="button" className="pay-icon-button pay-mobile-close" onClick={() => setMobileNavOpen(false)} aria-label={translate(locale, 'closeMenu')}><X size={18} /></button>
           </div>
 
-          <div className="pay-sidebar-section-label">{translate(locale, 'menu')}</div>
           <nav className="pay-nav" aria-label={translate(locale, 'menu')}>
             {PAY_NAV_GROUPS.map(group => (
               <div key={group.key} className="pay-nav-group">
@@ -378,7 +377,6 @@ export function PayApp(): React.ReactElement {
             {showPageHeader ? (
               <div className="pay-page-heading">
                 <div>
-                  <div className="pay-eyebrow-row"><span className="pay-status-dot" aria-hidden="true" />{currentSection === 'invoices' ? translate(locale, 'navBilling') : translate(locale, 'payWorkspace')}</div>
                   <h1>{pageTitle}</h1>
                   {pageDescription ? <p>{pageDescription}</p> : null}
                 </div>
