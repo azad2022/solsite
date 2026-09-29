@@ -831,11 +831,21 @@ try {
   assert.ok(checkoutText.includes('1 SOL') || checkoutText.includes('0.001 SOL'));
 
   // Mobile regression: RTL drawers must anchor to the right; LTR drawers to the left.
-  for (const [localeButton, expectedDirection] of [[0, 'rtl'], [1, 'ltr'], [2, 'rtl'], [3, 'ltr']]) {
+  const localeDirections = [['fa-IR', 'rtl'], ['en-US', 'ltr'], ['ar', 'rtl'], ['ru', 'ltr']];
+  for (const [targetLocale, expectedDirection] of localeDirections) {
     await page.goto(`${ORIGIN}/pay`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
-    await page.locator('.pay-language-control button').nth(localeButton).click();
-    await page.waitForTimeout(150);
+    const languageTrigger = page.locator('.pay-language-trigger');
+    await languageTrigger.click();
+    const optionLabel = targetLocale === 'fa-IR' ? 'فارسی' : targetLocale === 'en-US' ? 'English' : targetLocale === 'ar' ? 'العربية' : 'Русский';
+    const option = page.locator('.pay-language-option').filter({ hasText: optionLabel }).first();
+    await option.waitFor({ state: 'visible', timeout: 10000 });
+    await option.click();
+    await page.waitForFunction(
+      (direction) => document.documentElement.getAttribute('dir') === direction,
+      expectedDirection,
+      { timeout: 10000 },
+    );
     assert.equal(await page.locator('html').getAttribute('dir'), expectedDirection);
     const widthDiagnostics = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
