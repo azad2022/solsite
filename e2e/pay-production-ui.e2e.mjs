@@ -202,7 +202,9 @@ try {
   const guestHeader = guestPage.locator('[data-header-primary-nav]');
   await guestHeader.waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await guestHeader.locator('[data-nav-key]').count(), 6, 'Desktop primary header must expose exactly six destinations.');
-  await guestPage.getByRole('button', { name: 'ورود / ثبت‌نام', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  const guestLoginButton = guestPage.locator('header button[aria-label="ورود / ثبت‌نام"]:visible');
+  await guestLoginButton.waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await guestLoginButton.count(), 1, 'Desktop header must expose exactly one visible login/register control.');
   await guestPage.getByRole('link', { name: 'درگاه پرداخت', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
   await guestPage.getByRole('link', { name: 'درگاه پرداخت', exact: true }).click();
   assert.equal(new URL(await guestPage.url()).pathname, '/', 'Guest Pay navigation must not enter /pay.');
