@@ -120,12 +120,12 @@ export default function PayWebhooks({ locale, merchantId }: Props): React.ReactE
                 <table className="pay-webhook-table">
                   <thead><tr><th>{text.event}</th><th>{text.status}</th><th>{text.attempts}</th><th>{text.response}</th><th>{text.lastAttempt}</th><th>{text.error}</th></tr></thead>
                   <tbody>{deliveries.map(delivery => <tr key={delivery.id}>
-                    <td><strong>{delivery.event_type}</strong><small>{shortHash(delivery.event_id)}</small></td>
-                    <td><span className={`pay-webhook-delivery-status ${delivery.status}`}>{delivery.status}</span></td>
-                    <td>{delivery.attempt_count}</td>
-                    <td>{delivery.response_status ?? '—'}</td>
-                    <td>{formatDate(delivery.last_attempt_at ?? delivery.created_at, locale)}</td>
-                    <td>{delivery.error_code ?? '—'}</td>
+                    <td data-label={text.event}><strong>{delivery.event_type}</strong><small>{shortHash(delivery.event_id)}</small></td>
+                    <td data-label={text.status}><span className={`pay-webhook-delivery-status ${delivery.status}`}>{delivery.status}</span></td>
+                    <td data-label={text.attempts}>{delivery.attempt_count}</td>
+                    <td data-label={text.response}>{delivery.response_status ?? '—'}</td>
+                    <td data-label={text.lastAttempt}>{formatDate(delivery.last_attempt_at ?? delivery.created_at, locale)}</td>
+                    <td data-label={text.error}>{delivery.error_code ?? '—'}</td>
                   </tr>)}</tbody>
                 </table>
               </div>}
