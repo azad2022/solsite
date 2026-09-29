@@ -1198,7 +1198,7 @@ Evidence reached all of the previously failing boundaries:
 
 The repository's separate SolMint Pay Live Browser Audit #44 was explicitly triggered through the existing .github/solmint-pay-live-audit.trigger mechanism after the runtime validation.
 
-Current main is now:
+The Live Browser Audit was executed on main commit:
 fd4fbe504814d114f1d9e6d1c606f37d98d662d4
 
 Live Audit:
@@ -1210,7 +1210,7 @@ Live Audit:
 A direct commit comparison proves fd4fbe5 is exactly one commit ahead of runtime 7325c7d and changes only:
 .github/solmint-pay-live-audit.trigger
 
-Therefore the verified application/runtime source remains 7325c7d; fd4fbe5 is trigger-only and does not alter application behavior.
+After the Live Audit, main received only documentation commits 26d1a1106107994da324bb04454ee9cb3de4306c and 44d96c21e7003088d20a72fe07289fcbc5fe72a3. Those commits contain no application/runtime changes. Therefore the verified application/runtime source remains 7325c7d; the later commits are documentation-only in addition to the trigger-only fd4fbe5.
 
 ### Security / architecture reconciliation
 
@@ -1228,7 +1228,7 @@ Current route boundary is now explicit and consistent with the actual Pay produc
 The following remain separately classified and are not Pay runtime blockers:
 
 - Supabase Preview: FAIL because the external Preview integration reports migration-history drift. Production Database Security/RLS remains the authoritative project gate.
-- Workers Builds: solsite: FAIL for the separate Cloudflare Workers integration. The actual application deployment path is Cloudflare Pages / Pages Functions, and the exact current Pages deployment is PASS.
+- Workers Builds: solsite: FAIL for the separate Cloudflare Workers integration. The actual application deployment path is Cloudflare Pages / Pages Functions. The Cloudflare Pages deployments for fd4fbe5 and the later documentation-only main commits are PASS.
 
 These checks are intentionally not relabeled as resolved and do not invalidate the positive evidence above.
 
