@@ -194,6 +194,32 @@ const signer = walletSigner();
 
 try {
   const browser = await chromium.launch({ headless: true });
+  const guestContext = await browser.newContext({
+    baseURL: ORIGIN,
+    viewport: { width: 1440, height: 900 },
+    locale: 'fa-IR',
+  });
+  const guestPage = await guestContext.newPage();
+  await guestPage.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  await guestPage.getByRole('link', { name: 'درگاه پرداخت', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await guestPage.getByRole('link', { name: 'درگاه پرداخت', exact: true }).click();
+  assert.equal(new URL(await guestPage.url()).pathname, '/', 'Guest Pay navigation must not enter /pay.');
+  const authDialog = guestPage.getByRole('dialog');
+  await authDialog.waitFor({ state: 'visible', timeout: 10000 });
+  await authDialog.getByRole('heading', { name: 'ورود به حساب', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await authDialog.getByRole('button', { name: 'ساخت حساب جدید', exact: true }).click();
+  await authDialog.getByRole('heading', { name: 'ایجاد حساب', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await guestPage.locator('[aria-label="بستن پنجره ورود"]').click();
+
+  await guestPage.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
+  await guestPage.waitForFunction(() => window.location.pathname === '/', { timeout: 10000 });
+  assert.equal(new URL(await guestPage.url()).pathname, '/', 'Direct guest /pay navigation must return to the public site.');
+  const directAuthDialog = guestPage.getByRole('dialog');
+  await directAuthDialog.waitFor({ state: 'visible', timeout: 10000 });
+  await directAuthDialog.getByRole('heading', { name: 'ورود به حساب', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  console.log('PAY_GUEST_NAVIGATION_GUARD_PRODUCTION_E2E PASS');
+  await guestContext.close();
+
   const context = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-US' });
   const apiEvents = [];
   context.on('request', () => {});
