@@ -32,11 +32,11 @@ test('Header does not show login/register while a Better Auth session exists', (
 
 
 test('Pay entry is authenticated at the application navigation boundary', () => {
-  assert.match(headerSource, /data-nav-key="pay" href="\\/pay"/);
-  assert.match(headerSource, />درگاه پرداخت<\\//);
-  assert.match(appSource, /const isPayPath = \\(path: string\\) => path === '\\/pay' \\|\\| path\\.startsWith\\('\\/pay\\/'\\)/);
-  assert.match(appSource, /if \\(isPayPath\\(normalizedPath\\) && \\(authPending \\|\\| !applicationSessionUser\\)\\)/);
-  assert.match(appSource, /setPendingPayPath\\(normalizedPath\\)/);
-  assert.match(appSource, /setIsAdminModalOpen\\(true\\)/);
+  assert.ok(headerSource.includes('data-nav-key="pay" href="/pay"'));
+  assert.ok(headerSource.includes('>درگاه پرداخت</a>') || headerSource.includes('>درگاه پرداخت</button>'));
+  assert.ok(appSource.includes("const isPayPath = (path: string) => path === '/pay' || path.startsWith('/pay/')"));
+  assert.ok(appSource.includes("if (isPayPath(normalizedPath) && (authPending || !applicationSessionUser))"));
+  assert.ok(appSource.includes('setPendingPayPath(normalizedPath)'));
+  assert.ok(appSource.includes('setIsAdminModalOpen(true)'));
   assert.match(appSource, /setCurrentPath\\('\/'\\)/);
 });
