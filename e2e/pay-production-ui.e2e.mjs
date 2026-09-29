@@ -169,10 +169,8 @@ async function routeAudit(page, path, label, evidenceDir, apiEvents, isExpectedA
   const navigationStartedAt = Date.now();
   const response = await page.goto(`${ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
   assert.ok(response && response.ok(), `Navigation failed for ${path}: ${response?.status()}`);
-  await page.waitForTimeout(1400);
-  if (['/pay','/pay/merchants','/pay/dashboard','/pay/transactions','/pay/customers','/pay/invoices','/pay/reports','/pay/security','/pay/webhooks','/pay/tickets'].includes(path)) {
-    await page.waitForFunction(() => !document.body.innerText.includes('Loading Merchant state'), { timeout: 10000 }).catch(() => {});
-  }
+  await page.locator('.pay-app-shell').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => document.body.innerText.trim().length > 80, null, { timeout: 10000 });
   const title = await page.title();
   const bodyText = await page.locator('body').innerText();
   assert.ok(!/404|یافت نشد|not found/i.test(title), `${path} must not serve a 404 document: ${title}`);
@@ -201,6 +199,10 @@ try {
   });
   const guestPage = await guestContext.newPage();
   await guestPage.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  const guestHeader = guestPage.locator('[data-header-primary-nav]');
+  await guestHeader.waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await guestHeader.locator('[data-nav-key]').count(), 6, 'Desktop primary header must expose exactly six destinations.');
+  await guestPage.getByRole('button', { name: 'ورود / ثبت‌نام', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
   await guestPage.getByRole('link', { name: 'درگاه پرداخت', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
   await guestPage.getByRole('link', { name: 'درگاه پرداخت', exact: true }).click();
   assert.equal(new URL(await guestPage.url()).pathname, '/', 'Guest Pay navigation must not enter /pay.');
