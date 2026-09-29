@@ -12,6 +12,7 @@ import { updateRouteSeo } from './utils/seoManager';
 import { getArticleCategoryTaxonomy, getArticleTagTaxonomy } from './utils/articleTaxonomy';
 import { updateTaxonomySeo } from './utils/taxonomySeo';
 import { signOutAllAuthSessions, useApplicationSession } from './utils/authClient';
+import { matchPayRoute } from './pay/route-match';
 
 const ParticleCanvas = lazy(() => import('./components/ParticleCanvas').then(m => ({ default: m.ParticleCanvas })));
 const AppShowcase = lazy(() => import('./components/AppShowcase').then(m => ({ default: m.AppShowcase })));
@@ -170,10 +171,11 @@ export default function App() {
   };
 
   const isPayPath = (path: string) => path === '/pay' || path.startsWith('/pay/');
+  const isPublicPayPath = (path: string) => isPayPath(path) && matchPayRoute(path).kind === 'payment-link';
 
   const handleNavigate = (path: string) => {
     const normalizedPath = normalizePath(path);
-    if (isPayPath(normalizedPath) && (authPending || !applicationSessionUser)) {
+    if (isPayPath(normalizedPath) && !isPublicPayPath(normalizedPath) && (authPending || !applicationSessionUser)) {
       setPendingPayPath(normalizedPath);
       setIsAdminModalOpen(true);
       return;
@@ -186,7 +188,7 @@ export default function App() {
   useEffect(() => { const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname || '/')); window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState); }, []);
 
   useEffect(() => {
-    if (!isPayPath(currentPath) || authPending || applicationSessionUser) return;
+    if (!isPayPath(currentPath) || isPublicPayPath(currentPath) || authPending || applicationSessionUser) return;
     setPendingPayPath(currentPath);
     setCurrentPath('/');
     if (normalizePath(window.location.pathname) !== '/') window.history.replaceState({}, '', '/');
@@ -270,10 +272,10 @@ export default function App() {
   const scrollToFeatures = () => { if (currentPath !== '/') { handleNavigate('/'); setTimeout(() => document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }), 150); } else document.getElementById('app-features')?.scrollIntoView({ behavior: 'smooth' }); };
 
   const payRouteActive = isPayPath(currentPath);
-  if (payRouteActive && authPending) {
+  if (payRouteActive && !isPublicPayPath(currentPath) && authPending) {
     return <Suspense fallback={<SuspenseFallback />}><SuspenseFallback /></Suspense>;
   }
-  if (payRouteActive && !applicationSessionUser) {
+  if (payRouteActive && !isPublicPayPath(currentPath) && !applicationSessionUser) {
     return <Suspense fallback={<SuspenseFallback />}><SuspenseFallback /></Suspense>;
   }
   if (payRouteActive) {
