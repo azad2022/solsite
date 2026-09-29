@@ -229,6 +229,13 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') console.log(`BROWSER_CONSOLE_ERROR ${message.text()}`);
   });
+
+  const runtimeResponse = await page.goto(`${ORIGIN}/pay/merchants?__pay_runtime_probe=${encodeURIComponent(crypto.randomUUID())}`, { waitUntil: 'domcontentloaded' });
+  assert.ok(runtimeResponse && runtimeResponse.ok(), `Authenticated Pay runtime navigation failed: ${runtimeResponse?.status()}`);
+  await page.locator('[data-pay-runtime="transport-v2"]').waitFor({ state: 'attached', timeout: 10000 });
+  assert.equal(await page.locator('[data-pay-runtime="transport-v2"]').count(), 1);
+  assert.equal(await page.locator('.pay-app-shell').count(), 1);
+  console.log(`AUTHENTICATED_PAY_RUNTIME_PROBE ${JSON.stringify({ status: runtimeResponse.status(), marker: 1, shell: 1 })}`);
   page.on('pageerror', (error) => {
     console.log(`BROWSER_PAGE_ERROR ${error.message}`);
   });

@@ -10,6 +10,7 @@ test('primary header navigation stays compact and keeps critical destinations', 
   for (const label of expected) assert.ok(header.includes(label), 'Missing primary header destination: ' + label);
   assert.equal((header.match(/data-header-primary-nav/g) || []).length, 1);
   assert.equal((header.match(/data-nav-key="pay"/g) || []).length, 2, 'Pay entry must exist in desktop and mobile navigation.');
+  assert.ok(header.includes(`data-nav-key="pay" href="/pay" onClick={e => { e.preventDefault(); handleNav('/pay'); }}`), 'Desktop Pay navigation handler must target /pay.');
 });
 
 test('secondary destinations are not duplicated in the primary header', () => {

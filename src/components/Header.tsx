@@ -55,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
               <a data-nav-key="price" href="/solana-price" onClick={e => { e.preventDefault(); handleNav('/solana-price'); }} className={`${navClass(currentPath === '/solana-price')} ${currentPath === '/solana-price' ? 'border border-[#14F195]/30 bg-[#14F195]/15 text-[#14F195]' : ''}`}>قیمت لحظه‌ای سولانا</a>
               <a data-nav-key="token" href="/solana-token" onClick={e => { e.preventDefault(); handleNav('/solana-token'); }} className={navClass(currentPath === '/solana-token')}>ساخت توکن</a>
               <a data-nav-key="meme" href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
-              <a data-nav-key="pay" href="/pay" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</a>
+              <a data-nav-key="pay" href="/pay" onClick={e => { e.preventDefault(); handleNav('/pay'); }} className={navClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</a>
               <a data-nav-key="blog" href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-bold transition-all ${currentPath === '/blog' || currentPath.startsWith('/article/') ? 'bg-gradient-to-r from-[#9945FF] to-[#14F195] text-black shadow-md' : 'text-slate-300 hover:text-white'}`}><BookOpen className="h-3.5 w-3.5" />وبلاگ</a>
             </nav>
 
