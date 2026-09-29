@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Copy, LockKeyhole, ReceiptText, RefreshCcw, ShieldCheck, WalletCards, XCircle } from 'lucide-react';
 import { checkoutLabel } from './checkout-i18n';
 import { directionFor, translate } from './i18n';
+import { translateTransactionStatus } from './components/pay-transactions-i18n';
 import { PayHttpError } from './http';
 import { payPaymentIntentService, type PayPaymentIntent, type PayPaymentStatus } from './payment-intent-service';
 import { payPaymentVerificationService } from './payment-verification-service';
@@ -198,7 +199,6 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
   const isCompleted = intent?.status === 'completed';
   const isConfirmed = intent?.status === 'confirmed';
-  const statusHeadingKey = isCompleted ? 'paymentCompleted' : isConfirmed ? 'paymentConfirmed' : 'checkoutSnapshot';
   const actionDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
 
   return (
@@ -263,12 +263,12 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(locale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'intentStatus')}</span><SnapshotValue value={intent.status} /></div></div>
+                <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'intentStatus')}</span><strong>{translateTransactionStatus(locale, intent.status)}</strong></div></div>
                 <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(locale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
               </div>
 
               <div className="pay-checkout-notice">
-                <strong>{translate(locale, statusHeadingKey)}</strong>
+                <strong>{translateTransactionStatus(locale, intent.status)}</strong>
                 <p>{checkoutLabel(locale, 'payInstructions')}</p>
                 <div className="pay-checkout-payment-actions">
                   <div className="pay-checkout-action-row"><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div><button type="button" onClick={() => void copyValue('amount')} aria-label={checkoutLabel(locale, 'copy')} title={checkoutLabel(locale, copiedField === 'amount' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
