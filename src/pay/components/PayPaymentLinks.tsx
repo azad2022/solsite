@@ -216,7 +216,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     {!loading && !error && rows.length===0 && <div className="pay-payment-links-state"><Clock3 size={22}/><span>{paymentLinkT(locale,'noData')}</span></div>}
     {!loading && !error && rows.length>0 && <div className="pay-payment-links-table-wrap"><table className="pay-payment-links-table"><thead><tr><th>{paymentLinkT(locale,'slug')}</th><th>{paymentLinkT(locale,'linkTitle')}</th><th>{paymentLinkT(locale,'amount')}</th><th>{paymentLinkT(locale,'active')}</th><th>{paymentLinkT(locale,'expires')}</th><th/></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td data-label={paymentLinkT(locale,'slug')}><code>{row.slug}</code></td><td data-label={paymentLinkT(locale,'linkTitle')}><strong>{row.title}</strong>{row.description?<small>{row.description}</small>:null}</td><td data-label={paymentLinkT(locale,'amount')}>{row.fixed_amount_atomic || '—'} {row.asset || ''}</td><td data-label={paymentLinkT(locale,'active')}><span className={'pay-payment-link-status '+(row.is_active?'active':'inactive')}>{row.is_active?<Check size={13}/>:<X size={13}/>} {row.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}</span></td><td data-label={paymentLinkT(locale,'expires')}>{formatDate(row.expires_at,locale)}</td><td className="pay-payment-links-actions"><a className="pay-icon-button" href={publicUrl(row.slug)} target="_blank" rel="noreferrer" aria-label={paymentLinkT(locale,'open')} title={paymentLinkT(locale,'open')}><ExternalLink size={16}/></a><button type="button" className="pay-icon-button" onClick={()=>setSelected(row)} aria-label={paymentLinkT(locale,'details')} title={paymentLinkT(locale,'details')}><Link2 size={16}/></button></td></tr>)}</tbody></table></div>}
 
-    {selected && <div className="pay-payment-link-detail" role="dialog" aria-modal="true" aria-label={editMode ? paymentLinkT(locale,'edit') : paymentLinkT(locale,'details')}>
+    {selected && <section className="pay-payment-link-detail" aria-label={editMode ? paymentLinkT(locale,'edit') : paymentLinkT(locale,'details')}>
       <div className="pay-payment-link-detail-header"><div><span className="pay-panel-kicker">{editMode ? paymentLinkT(locale,'edit') : paymentLinkT(locale,'details')}</span><h3>{selected.title}</h3></div><button type="button" className="pay-icon-button" onClick={()=>{setSelected(null);setEditMode(false);setDeleteConfirm(false);}} aria-label={paymentLinkT(locale,'close')} title={paymentLinkT(locale,'close')}><X size={17}/></button></div>
 
       {editMode && editDraft ? <form className="pay-payment-link-edit" onSubmit={event=>void saveEdit(event)}>
@@ -258,7 +258,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
         </div>}
         {deleteError === 'hasPayments' ? <button type="button" className="pay-secondary-action" onClick={()=>beginEdit({...selected,is_active:false})}>{paymentLinkT(locale,'deactivate')}</button> : null}
       </>}
-    </div>}
+    </section>}
   </section>;
 }
 function Detail({label,value}:{label:string;value:string}):React.ReactElement{return <div className="pay-payment-link-detail-cell"><span>{label}</span><strong>{value}</strong></div>;}
