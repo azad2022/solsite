@@ -503,10 +503,11 @@ try {
 
   await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
   await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.locator('.pay-getting-started-footnote').waitFor({ state: 'visible', timeout: 10000 });
   const overviewTextAfterReload = await page.locator('body').innerText();
   assert.ok(overviewTextAfterReload.includes('SolMint Browser Test Merchant'),
     'Overview must render the authoritative merchant data after reload.');
+  assert.equal(await page.locator('.pay-getting-started').count(), 0,
+    'Completed onboarding must not keep the Getting Started guide visible on Overview.');
 
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-payment-link-create').waitFor({ state: 'visible', timeout: 10000 });
