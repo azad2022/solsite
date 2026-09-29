@@ -1151,3 +1151,95 @@ Scope:
 Release interpretation:
 - The currently deployed SolMint Pay application runtime has positive evidence across build, CI, database/security, API, Devnet, Mainnet read-only, deployment, live smoke, and Production Browser UI gates.
 - Supabase Preview migration-history drift and the separate Workers integration failure remain explicitly classified and are not silently treated as resolved.
+
+## 2026-09-29 — Pay public customer checkout boundary reconciliation checkpoint
+
+Status: **COMPLETED / CURRENT RUNTIME VERIFIED / EXTERNAL INTEGRATION WARNINGS CLASSIFIED**
+
+This checkpoint closes the two production-browser regressions discovered after the 2026-09-29 Pay UI/UX work and reconciles the previous pending browser evidence without changing any Backend/API/Database financial contract.
+
+### Root-cause sequence and resolution
+
+1. **PR #238 / main b0069407 — Browser E2E selector failure**
+   - Production Browser UI E2E and Live Browser Audit both failed because the Playwright strict-mode locator for the guest login/register control matched two elements.
+   - The failure was in the browser test selector, not the Header runtime.
+   - **PR #239** scoped the assertion to the visible login control inside the site header and asserted uniqueness.
+   - PR #239 passed Quality, Build and Cloudflare Pages checks and was squash-merged to main as 2ff34013a9be07ecc3f687a801c5fa95929affbc.
+
+2. **PR #240 / main runtime 5822800b — public Payment Link auth-boundary contradiction exposed**
+   - After PR #239, the browser audit reached the real public Payment Link flow and exposed the next failure: the existing public Payment Link component and public GET/POST Payment Link contract were reachable only through a global application gate that required an authenticated session for every /pay/* path.
+   - This prevented the public Payment Link route from issuing its documented public API request.
+   - **PR #240** used the existing matchPayRoute contract to exempt only valid payment-link routes from the application auth gate.
+   - A static authentication-boundary contract test was updated accordingly.
+   - PR #240 passed Quality, Build and Cloudflare Pages checks and was squash-merged to main as 5822800ba28fa83f61bc9ca5ace7c4241e94bdd1.
+
+3. **PR #241 / runtime 7325c7d — public checkout transition contradiction exposed**
+   - The public Payment Link flow correctly created a real Payment Intent with HTTP 201 and then navigated to /pay/checkout/:intentId.
+   - The global auth gate still treated this checkout route as protected, so the public customer flow could not complete.
+   - **PR #241** refined the same existing route boundary: valid public Payment Link routes and only checkout routes carrying an actual intentId bypass the application auth gate. The bare /pay/checkout route remains protected.
+   - No new endpoint, field, payment rule, or financial calculation was introduced.
+   - PR #241 passed Quality, Build and Cloudflare Pages checks and was squash-merged to main as 7325c7d5d171e44f9cf1c0bf8d2678713445be12.
+
+### Fresh production evidence
+
+For runtime 7325c7d, SolMint Pay Production Browser UI E2E #106 completed successfully after the exact commit's Cloudflare Pages deployment.
+
+Evidence reached all of the previously failing boundaries:
+- Guest Pay navigation guard: PASS.
+- Authenticated Pay runtime probe: PASS.
+- Four-locale locale persistence and RTL/LTR browser checks: PASS.
+- Public Payment Link rendered authoritative 2 USDC snapshot: PASS.
+- Public Payment Link created a real Payment Intent with HTTP 201: PASS.
+- The public flow reached /pay/checkout/:intentId and authoritative Payment Intent lookup passed: PASS.
+- Payment Link delete guard returned HTTP 409 after payment history and deactivation returned HTTP 200: PASS.
+- The complete Production Browser UI E2E concluded with status PASS.
+
+### Live Audit evidence
+
+The repository's separate SolMint Pay Live Browser Audit #43 was explicitly triggered through the existing .github/solmint-pay-live-audit.trigger mechanism after the runtime validation.
+
+Current main is now:
+fd4fbe504814d114f1d9e6d1c606f37d98d662d4
+
+Live Audit:
+- Cloudflare Pages deployment: PASS.
+- Live Browser Audit: PASS.
+- Quality: PASS.
+- Production Build: PASS.
+
+A direct commit comparison proves fd4fbe5 is exactly one commit ahead of runtime 7325c7d and changes only:
+.github/solmint-pay-live-audit.trigger
+
+Therefore the verified application/runtime source remains 7325c7d; fd4fbe5 is trigger-only and does not alter application behavior.
+
+### Security / architecture reconciliation
+
+Current route boundary is now explicit and consistent with the actual Pay product behavior:
+
+- Merchant Pay surfaces under /pay/* remain authenticated.
+- Valid public Payment Link routes /pay/link/:slug are public.
+- Customer checkout routes /pay/checkout/:intentId are public when an authoritative Payment Intent ID is present.
+- Bare /pay/checkout remains within the protected merchant Pay application boundary.
+- The public checkout path still uses the existing server-mediated Payment Link contract and authoritative Payment Intent state.
+- No client-side payment-success inference, RPC access, sensitive Supabase access, new API contract, secret exposure, or financial-rule duplication was introduced.
+
+### External integration warnings
+
+The following remain separately classified and are not Pay runtime blockers:
+
+- Supabase Preview: FAIL because the external Preview integration reports migration-history drift. Production Database Security/RLS remains the authoritative project gate.
+- Workers Builds: solsite: FAIL for the separate Cloudflare Workers integration. The actual application deployment path is Cloudflare Pages / Pages Functions, and the exact current Pages deployment is PASS.
+
+These checks are intentionally not relabeled as resolved and do not invalidate the positive evidence above.
+
+### Checkpoint conclusion
+
+The browser-validation gap that remained after the Pay UI/UX consolidation is now closed.
+
+The two actual regressions discovered in this continuation were both resolved at their correct boundary:
+- test selector collision → test harness correction;
+- public customer checkout auth contradiction → application routing-boundary correction.
+
+No unresolved contradiction remains between the existing public Payment Link backend contract, public Payment Link component, Customer Checkout flow, and the global authentication boundary evidenced by the current production browser tests.
+
+This checkpoint does not declare unsupported future mutation capabilities available. Refund mutation, Notifications, and any other capability without an authoritative backend contract remain unavailable rather than simulated.
