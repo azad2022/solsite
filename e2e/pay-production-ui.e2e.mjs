@@ -674,7 +674,7 @@ try {
   assert.equal(typeof publicLinkApiBody.data?.amountDecimals, 'number');
   const expectedPublicAmount = `${formatAtomicForE2e(publicLinkApiBody.data.amountAtomic, publicLinkApiBody.data.amountDecimals)} ${publicLinkApiBody.data.asset}`;
   await publicPage.locator('.pay-public-link-card').waitFor({ state: 'visible', timeout: 10000 });
-  const publicLinkText = (await publicPage.locator('.pay-public-link-card').innerText()).replace(/\\s+/g, ' ').trim();
+  const publicLinkText = (await publicPage.locator('.pay-public-link-card').innerText()).replace(/\s+/g, ' ').trim();
   console.log(`PUBLIC_PAYMENT_LINK_RENDER ${JSON.stringify({ amountAtomic: publicLinkApiBody.data.amountAtomic, amountDecimals: publicLinkApiBody.data.amountDecimals, asset: publicLinkApiBody.data.asset, expectedPublicAmount, cardText: publicLinkText.slice(0, 1000) })}`);
   assert.ok(publicLinkText.includes(expectedPublicAmount), `Public payment link must render the authoritative amount as ${expectedPublicAmount}. Body: ${publicLinkText}`);
 
