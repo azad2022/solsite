@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 
 const authClientSource = readFileSync(resolve(process.cwd(), 'src/utils/authClient.ts'), 'utf8');
 const headerSource = readFileSync(resolve(process.cwd(), 'src/components/Header.tsx'), 'utf8');
+const appSource = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
 
 test('Better Auth session is an authenticated UI signal independent of application profile resolution', () => {
   assert.match(authClientSource, /authClient\.useSession\(\)/);
@@ -27,4 +28,15 @@ test('Header does not show login/register while a Better Auth session exists', (
   const guestLoginBranch = /: <button[^>]*title="ورود \/ ثبت‌نام"/g;
   const guestBranches = [...headerSource.matchAll(guestLoginBranch)].length;
   assert.equal(guestBranches, 2, 'desktop and mobile guest branches must remain explicit fallback branches');
+});
+
+
+test('Pay entry is authenticated at the application navigation boundary', () => {
+  assert.match(headerSource, /data-nav-key="pay" href="\\/pay"/);
+  assert.match(headerSource, />درگاه پرداخت<\\//);
+  assert.match(appSource, /const isPayPath = \\(path: string\\) => path === '\\/pay' \\|\\| path\\.startsWith\\('\\/pay\\/'\\)/);
+  assert.match(appSource, /if \\(isPayPath\\(normalizedPath\\) && \\(authPending \\|\\| !applicationSessionUser\\)\\)/);
+  assert.match(appSource, /setPendingPayPath\\(normalizedPath\\)/);
+  assert.match(appSource, /setIsAdminModalOpen\\(true\\)/);
+  assert.match(appSource, /setCurrentPath\\('\/'\\)/);
 });
