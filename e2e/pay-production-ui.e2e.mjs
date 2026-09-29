@@ -278,8 +278,9 @@ try {
   assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(500);
+  await page.waitForFunction(() => document.documentElement.getAttribute('lang') === 'fa-IR', null, { timeout: 10000 });
   assert.equal(await page.locator('html').getAttribute('lang'), 'fa-IR', 'Selected locale must survive a full page refresh.');
-  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'RTL direction must survive a full page refresh.');
+  await page.waitForFunction(() => document.documentElement.getAttribute('dir') === 'rtl', null, { timeout: 10000 });
   console.log('PAY_LANGUAGE_PERSISTENCE_E2E passed for fa-IR with compact flag dropdown.');
 
   await page.locator('.pay-language-trigger').click();
