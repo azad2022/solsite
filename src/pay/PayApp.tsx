@@ -316,7 +316,7 @@ export function PayApp(): React.ReactElement {
               <div className="pay-sidebar-security-icon" aria-hidden="true"><LockKeyhole size={16} /></div>
               <div><strong>{translate(locale, 'secureBoundary')}</strong><span>{translate(locale, 'secureBoundaryText')}</span></div>
             </div>
-            <button type="button" className="pay-collapse-button" onClick={() => setSidebarCollapsed(value => !value)}>
+            <button type="button" className="pay-collapse-button" onClick={() => setSidebarCollapsed(value => !value)} aria-label={sidebarCollapsed ? translate(locale, 'expandMenu') : translate(locale, 'collapseMenu')} title={sidebarCollapsed ? translate(locale, 'expandMenu') : translate(locale, 'collapseMenu')}>
               {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
               <span>{sidebarCollapsed ? translate(locale, 'expandMenu') : translate(locale, 'collapseMenu')}</span>
             </button>
