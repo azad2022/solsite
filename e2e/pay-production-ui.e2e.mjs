@@ -904,7 +904,9 @@ try {
       return Math.abs(rect.left) < 1 && rect.right <= window.innerWidth + 1;
     }, expectedDirection, { timeout: 3000 });
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
-    assert.ok(box, `RTL drawer did not open for locale index ${targetLocale}`);
+    assert.ok(box, `Mobile drawer did not open for locale ${targetLocale}`);
+    assert.ok(box.width >= Math.min(VIEWPORT.width * 0.86, 320) - 2,
+      `Mobile drawer opened in compact width: width=${box.width}`);
     if (expectedDirection === 'rtl') {
       assert.ok(box.x >= VIEWPORT.width - box.width - 2, `RTL drawer is off-screen: x=${box.x} width=${box.width}`);
       assert.ok(box.x < VIEWPORT.width - 10, 'RTL drawer did not occupy the expected right edge');
