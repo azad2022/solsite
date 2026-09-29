@@ -11,6 +11,16 @@ const VIEWPORT = { width: 390, height: 844 };
 const EVIDENCE_DIR = '/tmp/pay-ui-evidence';
 mkdirSync(EVIDENCE_DIR, { recursive: true });
 
+function formatAtomicForE2e(value, decimals) {
+  const amount = BigInt(value);
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) throw new Error('Invalid public Payment Link decimals: ' + decimals);
+  if (decimals === 0) return amount.toString();
+  const scale = 10n ** BigInt(decimals);
+  const whole = amount / scale;
+  const fraction = (amount % scale).toString().padStart(decimals, '0').replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : whole.toString();
+}
+
 async function openPaymentLinksView(page) {
   const switchButton = page.locator('.pay-billing-tabs button').filter({ hasText: /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные ссылки/i });
   await switchButton.waitFor({ state: 'visible', timeout: 10000 });
@@ -647,10 +657,26 @@ try {
   const paymentLinkUrl = `${ORIGIN}/pay/link/${encodeURIComponent(paymentLinkSlug)}`;
   const publicContext = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-US' });
   const publicPage = await publicContext.newPage();
+  const publicLinkApiPromise = publicPage.waitForResponse(
+    (response) => response.url().endsWith('/api/pay/v1/payment-links/' + encodeURIComponent(paymentLinkSlug))
+      && response.request().method() === 'GET',
+    { timeout: 15000 },
+  );
   const publicResponse = await publicPage.goto(paymentLinkUrl, { waitUntil: 'domcontentloaded' });
   assert.ok(publicResponse && publicResponse.ok(), `Public payment link must be reachable: ${publicResponse?.status()}`);
+  const publicLinkApiResponse = await publicLinkApiPromise;
+  const publicLinkApiText = await publicLinkApiResponse.text();
+  assert.equal(publicLinkApiResponse.status(), 200, publicLinkApiText);
+  const publicLinkApiBody = publicLinkApiText ? JSON.parse(publicLinkApiText) : {};
+  assert.equal(publicLinkApiBody.apiVersion, 'v1');
+  assert.equal(publicLinkApiBody.data?.amountAtomic, '2000000');
+  assert.equal(publicLinkApiBody.data?.asset, 'USDC');
+  assert.equal(typeof publicLinkApiBody.data?.amountDecimals, 'number');
+  const expectedPublicAmount = `${formatAtomicForE2e(publicLinkApiBody.data.amountAtomic, publicLinkApiBody.data.amountDecimals)} ${publicLinkApiBody.data.asset}`;
   await publicPage.locator('.pay-public-link-card').waitFor({ state: 'visible', timeout: 10000 });
-  assert.ok((await publicPage.locator('.pay-public-link-card').innerText()).includes('2 USDC'));
+  const publicLinkText = (await publicPage.locator('.pay-public-link-card').innerText()).replace(/\s+/g, ' ').trim();
+  console.log(`PUBLIC_PAYMENT_LINK_RENDER ${JSON.stringify({ amountAtomic: publicLinkApiBody.data.amountAtomic, amountDecimals: publicLinkApiBody.data.amountDecimals, asset: publicLinkApiBody.data.asset, expectedPublicAmount, cardText: publicLinkText.slice(0, 1000) })}`);
+  assert.ok(publicLinkText.includes(expectedPublicAmount), `Public payment link must render the authoritative amount as ${expectedPublicAmount}. Body: ${publicLinkText}`);
 
   const publicCheckoutPost = (request) =>
     request.url().endsWith('/api/pay/v1/payment-links/' + encodeURIComponent(paymentLinkSlug))
