@@ -1080,3 +1080,36 @@ Current branch: `fix/pay-payment-link-stablecoin-production-config`
 - Transactions, Invoices, Payment Links and Reports history tables now switch to readable card-like layouts on narrow screens instead of forcing desktop-width tables.
 - Language selection remains a compact dropdown rather than a horizontal row.
 - Current UI implementation has not yet received a fresh green CI/build evidence on this new head through the available GitHub validation surface. Do not mark this checkpoint as release-green until the relevant CI/Production Build and post-deployment browser evidence are rerun and pass.
+
+## 2026-09-29 — Pay UI/UX + Devnet payment evolution validation checkpoint
+
+Status: **PR VALIDATED GREEN / PRODUCTION DEPLOYMENT EVIDENCE PENDING**
+
+Runtime validation commit: `2fd8f66c1a534a17eda2113fe464cf1027ca8ef9`
+
+UI/UX:
+- Pay navigation remains capability-complete while reducing visual density: Overview is the primary dashboard surface, Billing groups Invoices + Payment Links, and Checkout remains directly routable.
+- Desktop sidebar is 228px expanded / 78px compact with localized icon tooltips, accessible collapse control, restrained colored icons, subtle active motion, and reduced-motion support.
+- RTL/LTR shell and mobile drawer behavior remain aligned with locale direction.
+- Duplicate shell/component headings were removed from audited Pay surfaces.
+- Tables now use narrow-screen card/list presentation for Transactions, Invoices, Payment Links, Reports, Referrals, and Webhook delivery history.
+- Checkout primary status now uses the localized authoritative Payment Intent status rather than exposing a raw machine status as the primary customer-facing label.
+- No client-side payment business rule or new API contract was introduced.
+
+Payment / validation:
+- Current-head production typecheck and Production Build: **PASS**.
+- Current-head CI / unit tests: **PASS**.
+- Current-head Database Security / RLS / Payment Link mutation security / API-key lifecycle security: **PASS**.
+- Current-head Mainnet read-only provider check: **PASS**.
+- Current-head funded Devnet E2E: **PASS** — both real Devnet payment verification and Payment Intent reconciliation passed.
+- The configured CI funder is therefore no longer blocking the Devnet verification flow.
+
+Payment boundary:
+- The current checkout contract exposes Payment Intent retrieval and payment verification by transaction signature.
+- No authoritative transaction-construction / submit-payment endpoint is present in the inspected backend contract, so a client-side “Pay Now” transaction sender was deliberately not invented.
+- The next payment-evolution implementation must begin from a real backend transaction-construction/payment-action contract before adding a one-click customer payment action.
+
+Release control:
+- This checkpoint records positive PR/runtime evidence only.
+- Production Browser UI E2E for the new runtime is still a post-merge/main deployment gate and is not claimed here.
+- This documentation commit does not alter runtime behavior.
