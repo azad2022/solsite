@@ -56,3 +56,13 @@ test('merchant onboarding generates an editable technical identifier for localiz
   assert.match(i18n, /slugHint/);
   assert.match(css, /direction:ltr/);
 });
+
+
+test('Merchant route keeps the receiving-wallet verification surface visible after Merchant creation', () => {
+  const app = readFileSync(resolve(process.cwd(), 'src/pay/PayApp.tsx'), 'utf8');
+  assert.match(app, /const showMerchantOnboarding = sessionState === 'authenticated' && currentSection === 'merchants' && merchantLoadState === 'ready';/);
+  assert.match(app, /<PayMerchantOnboarding locale=\{locale\} initialMerchant=\{currentSection === 'merchants' \? merchant : null\}/);
+  assert.match(component, /receiveWallet/);
+  assert.match(component, /connectAndVerifyWallet/);
+  assert.match(component, /walletNotVerified/);
+});

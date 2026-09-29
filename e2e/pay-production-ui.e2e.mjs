@@ -423,6 +423,15 @@ try {
   merchantId = createBody.merchant.id;
   await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
 
+  await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
+  const preVerificationWalletText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\\s+/g, ' ').trim();
+  const preVerificationWalletAction = page.getByRole('button', { name: /Connect and verify wallet|اتصال و تأیید کیف پول|توصيل المحفظة والتحقق منها|Подключить и подтвердить кошелёк/i });
+  await preVerificationWalletAction.waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await preVerificationWalletAction.count(), 1, 'Merchant page must expose exactly one receiving-wallet verification action before verification.');
+  assert.match(preVerificationWalletText, /Not verified yet|کیف پول دریافت هنوز تأیید نشده است|لم يتم التحقق|Пока не подтверждён/i);
+  console.log('MERCHANT_WALLET_VERIFICATION_UI_BEFORE ' + JSON.stringify({ actionVisible: true, walletText: preVerificationWalletText.slice(0, 600) }));
+
   const preWalletRouteResults = [];
   for (const [path, label] of routes) {
     preWalletRouteResults.push(await routeAudit(
@@ -478,6 +487,11 @@ try {
   await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.pay-api-keys', { state: 'visible', timeout: 10000 });
+  await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-onboarding-verified').waitFor({ state: 'visible', timeout: 10000 });
+  const verifiedWalletUiText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\\s+/g, ' ').trim();
+  assert.match(verifiedWalletUiText, new RegExp(signer.address.slice(0, 8)));
+  console.log('MERCHANT_WALLET_VERIFICATION_UI_AFTER ' + JSON.stringify({ verifiedVisible: true, walletText: verifiedWalletUiText.slice(0, 600) }));
   const walletAfterReload = await page.evaluate(async (addressPrefix) => {
     const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
     const text = (await response.text()).slice(0, 3000);
