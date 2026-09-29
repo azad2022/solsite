@@ -37,7 +37,7 @@ test('Pay keeps Merchant lookup failures distinct from the create state', () => 
 test('Pay mobile drawer is fully off-canvas in both directions and clips horizontal overflow', () => {
   assert.match(payCss, /transform: translate3d\(-100%, 0, 0\)/);
   assert.match(payCss, /transform: translate3d\(100%, 0, 0\)/);
-  assert.match(payCss, /\.solmint-pay\[dir='rtl'\] \.pay-sidebar/);
+  assert.match(payCss, /\.pay-sidebar\[dir='rtl'\]/);
   assert.match(payCss, /overflow-x: clip/);
   assert.match(payCss, /gap: 2px/);
   assert.match(payCss, /touch-action: none/);

@@ -278,7 +278,7 @@ export function PayApp(): React.ReactElement {
     <div className="solmint-pay" dir={direction} lang={locale} data-pay-runtime="transport-v2">
       <a className="pay-skip-link" href="#pay-main">{translate(locale, 'skipToContent')}</a>
       <div className="pay-app-shell">
-        <aside className={`pay-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobileNavOpen ? 'is-mobile-open' : ''}`} aria-label={translate(locale, 'menu')}>
+        <aside dir={direction} className={`pay-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobileNavOpen ? 'is-mobile-open' : ''}`} aria-label={translate(locale, 'menu')}>
           <div className="pay-sidebar-brand">
             <div className="pay-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div>
             <div className="pay-brand-copy"><strong>{translate(locale, 'brand')}</strong><span>{translate(locale, 'eyebrow')}</span></div>
