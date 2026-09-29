@@ -7,7 +7,7 @@ import { HeaderMarketTicker } from './HeaderMarketTicker';
 export const SolanaLogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
     <path d="M5 5.2A2 2 0 0 1 6.74 4h11.79a1.5 1.5 0 0 1 1.06 2.56l-2.2 2.2a1.5 1.5 0 0 1-1.06.44H4.54a1.5 1.5 0 0 1-1.06-2.56l1.52-1.44Z" fill="currentColor" />
-    <path d="M5.67 9.8h13.79a1.5 1.5 0 0 1 1.06 2.56L19 13.88a1.5 1.5 0 0 1-1.06.44H4.25a1.5 1.5 0 0 1-1.06-2.56l1.42-1.52a1.5 1.5 0 0 1 1.06-.44Z" fill="currentColor" opacity=".8" />
+    <path d="M5.67 9.8h13.79a1.5 1.5 0 0 1 1.06 2.56L19 13.88a1.5 1.5 0 0 1-1.06.44H4.25a1.5 1.5 0 0 1-1.06-2.56l1.42-1.52Z" fill="currentColor" opacity=".8" />
     <path d="M5 15.76h13.25a1.5 1.5 0 0 1 1.06 2.56l-1.52 1.44A2 2 0 0 1 16.41 20H4.62a1.5 1.5 0 0 1-1.06-2.56l.38-.38A1.5 1.5 0 0 1 5 15.76Z" fill="currentColor" opacity=".6" />
   </svg>
 );
@@ -32,7 +32,11 @@ type HeaderAuthSession = {
 
 export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdminModal, currentUser, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const handleNav = (path: string) => { setMobileMenuOpen(false); onNavigate(path); };
+  const handleNav = (path: string) => {
+    setMobileMenuOpen(false);
+    onNavigate(path);
+  };
+
   const canManageShowcase = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
   const authSession = authClient.useSession() as unknown as HeaderAuthSession;
   const isAuthenticated = Boolean(authSession.data?.user);
@@ -43,48 +47,127 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, openAdm
       <div className="mx-auto max-w-7xl px-2 py-2 sm:px-4 lg:px-6">
         <div className="overflow-visible rounded-2xl border border-white/[0.10] bg-[#05050a]/95 shadow-[0_14px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl">
           <div className="flex h-16 items-center justify-between gap-3 px-3 sm:px-5">
-            <div onClick={() => handleNav('/')} className="flex shrink-0 cursor-pointer items-center gap-2.5 group">
+            <div onClick={() => handleNav('/')} className="group flex shrink-0 cursor-pointer items-center gap-2.5">
               <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-visible transition-transform group-hover:scale-105">
-                <img src="/assets/solmint-mascot-solana-coin.webp?v=2" alt="" aria-hidden="true" className="absolute left-1/2 top-1/2 z-10 h-[68px] w-[68px] -translate-x-1/2 -translate-y-[54%] object-contain pointer-events-none" width="68" height="68" decoding="async" />
+                <img
+                  src="/assets/solmint-mascot-solana-coin.webp?v=2"
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-[68px] w-[68px] -translate-x-1/2 -translate-y-[54%] object-contain"
+                  width="68"
+                  height="68"
+                  decoding="async"
+                />
               </div>
-              <div className="hidden sm:flex flex-col"><span className="flex items-center gap-1.5 text-lg font-extrabold tracking-tight text-white">سولمینت <span className="rounded-full border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[#14F195]">Solmint</span></span></div>
+              <div className="hidden flex-col sm:flex">
+                <span className="flex items-center gap-1.5 text-lg font-extrabold tracking-tight text-white">
+                  سولمینت
+                  <span className="rounded-full border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[#14F195]">Solmint</span>
+                </span>
+              </div>
             </div>
 
-            <nav data-header-primary-nav className="hidden items-center justify-center gap-0.5 overflow-visible whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] p-1 lg:flex">
+            <nav
+              data-header-primary-nav
+              aria-label="منوی اصلی"
+              className="hidden items-center justify-center gap-0.5 overflow-visible whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] p-1 lg:flex"
+            >
               <a data-nav-key="wallet" href="/solana-wallet" onClick={e => { e.preventDefault(); handleNav('/solana-wallet'); }} className={navClass(currentPath === '/solana-wallet')}>کیف پول سولانا</a>
               <a data-nav-key="price" href="/solana-price" onClick={e => { e.preventDefault(); handleNav('/solana-price'); }} className={navClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</a>
               <a data-nav-key="token" href="/solana-token" onClick={e => { e.preventDefault(); handleNav('/solana-token'); }} className={navClass(currentPath === '/solana-token')}>ساخت توکن</a>
               <a data-nav-key="meme" href="/solana-meme-coin" onClick={e => { e.preventDefault(); handleNav('/solana-meme-coin'); }} className={navClass(currentPath === '/solana-meme-coin')}>میم کوین</a>
               <a data-nav-key="pay" href="/pay" onClick={e => { e.preventDefault(); handleNav('/pay'); }} className={navClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</a>
-              <a data-nav-key="blog" href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={navClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}><BookOpen className="h-3.5 w-3.5" />وبلاگ</a>
+              <a data-nav-key="blog" href="/blog" onClick={e => { e.preventDefault(); handleNav('/blog'); }} className={navClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}>
+                <BookOpen className="h-3.5 w-3.5" />وبلاگ
+              </a>
             </nav>
 
             <div className="hidden shrink-0 items-center gap-2.5 sm:flex">
-              {currentUser ? <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-1.5 text-xs text-slate-200">
-                {canManageShowcase && <button onClick={() => handleNav('/showcase-admin')} title="مدیریت نمایش اپلیکیشن" className="flex items-center gap-1.5 rounded-lg border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-1 font-bold text-[#14F195] hover:bg-[#14F195]/20"><Smartphone className="h-3.5 w-3.5" />Showcase</button>}
-                <button onClick={openAdminModal} className="flex items-center gap-1.5 font-bold transition-colors hover:text-[#14F195]">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span>{canManageShowcase && <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">مدیر</span>}</button>
-                <span className="text-slate-600">|</span><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-0.5 text-slate-400 transition-colors hover:text-rose-400"><LogOut className="h-3.5 w-3.5" /></button>
-              </div> : isAuthenticated ? <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-1.5 text-xs text-slate-200"><User className="h-4 w-4 text-sky-400" /><span className="font-bold">{displayName}</span><span className="text-slate-600">|</span><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-0.5 text-slate-400 transition-colors hover:text-rose-400"><LogOut className="h-3.5 w-3.5" /></button></div> : <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-bold text-slate-200 transition-colors hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
+              {currentUser ? (
+                <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-1.5 text-xs text-slate-200">
+                  {canManageShowcase && (
+                    <button onClick={() => handleNav('/showcase-admin')} title="مدیریت نمایش اپلیکیشن" className="flex items-center gap-1.5 rounded-lg border border-[#14F195]/20 bg-[#14F195]/10 px-2 py-1 font-bold text-[#14F195] hover:bg-[#14F195]/20">
+                      <Smartphone className="h-3.5 w-3.5" />Showcase
+                    </button>
+                  )}
+                  <button onClick={openAdminModal} className="flex items-center gap-1.5 font-bold transition-colors hover:text-[#14F195]">
+                    {canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}
+                    <span>{currentUser.fullName}</span>
+                    {canManageShowcase && <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">مدیر</span>}
+                  </button>
+                  <span className="text-slate-600">|</span>
+                  <button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-0.5 text-slate-400 transition-colors hover:text-rose-400">
+                    <LogOut className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : isAuthenticated ? (
+                <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-1.5 text-xs text-slate-200">
+                  <User className="h-4 w-4 text-sky-400" />
+                  <span className="font-bold">{displayName}</span>
+                  <span className="text-slate-600">|</span>
+                  <button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-0.5 text-slate-400 transition-colors hover:text-rose-400">
+                    <LogOut className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-bold text-slate-200 transition-colors hover:bg-white/10">
+                  <User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام
+                </button>
+              )}
             </div>
 
-            <button onClick={() => setMobileMenuOpen(v => !v)} aria-label={mobileMenuOpen ? 'بستن منوی اصلی' : 'باز کردن منوی اصلی'} className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 hover:text-white lg:hidden">{mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
+            <button onClick={() => setMobileMenuOpen(v => !v)} aria-label={mobileMenuOpen ? 'بستن منوی اصلی' : 'باز کردن منوی اصلی'} className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 hover:text-white lg:hidden">
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
           </div>
 
           <HeaderMarketTicker />
 
-          {mobileMenuOpen && <div className="border-t border-white/10 bg-[#08080f]/98 px-4 py-5 backdrop-blur-2xl lg:hidden">
-            <div className="space-y-2">
-              <button data-nav-key="wallet" onClick={() => handleNav('/solana-wallet')} className={mobileNavClass(currentPath === '/solana-wallet')}>کیف پول سولانا</button>
-              <button data-nav-key="price" onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
-              <button data-nav-key="token" onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
-              <button data-nav-key="meme" onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>میم کوین</button>
-              <button data-nav-key="pay" onClick={() => handleNav('/pay')} className={mobileNavClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</button>
-              <button data-nav-key="blog" onClick={() => handleNav('/blog')} className={mobileNavClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}><BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ</button>
-              {currentUser && canManageShowcase && <button onClick={() => handleNav('/showcase-admin')} className="flex w-full items-center gap-2 rounded-xl border border-[#14F195]/25 bg-[#14F195]/10 px-4 py-2.5 text-right text-xs font-bold text-[#14F195]"><Smartphone className="h-4 w-4" />مدیریت نمایش اپلیکیشن</button>}
-              {currentUser ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><button onClick={openAdminModal} className="flex items-center gap-2 text-xs font-bold text-slate-200">{canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400" />}<span>{currentUser.fullName}</span></button><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : isAuthenticated ? <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3"><div className="flex items-center gap-2 text-xs font-bold text-slate-200"><User className="h-4 w-4 text-sky-400" /><span>{displayName}</span></div><button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400"><LogOut className="h-4 w-4" /></button></div> : <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/10"><User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام</button>}
+          {mobileMenuOpen && (
+            <div className="border-t border-white/10 bg-[#08080f]/98 px-4 py-5 backdrop-blur-2xl lg:hidden">
+              <div className="space-y-2">
+                <button data-nav-key="wallet" onClick={() => handleNav('/solana-wallet')} className={mobileNavClass(currentPath === '/solana-wallet')}>کیف پول سولانا</button>
+                <button data-nav-key="price" onClick={() => handleNav('/solana-price')} className={mobileNavClass(currentPath === '/solana-price')}>قیمت لحظه‌ای سولانا</button>
+                <button data-nav-key="token" onClick={() => handleNav('/solana-token')} className={mobileNavClass(currentPath === '/solana-token')}>ساخت توکن</button>
+                <button data-nav-key="meme" onClick={() => handleNav('/solana-meme-coin')} className={mobileNavClass(currentPath === '/solana-meme-coin')}>میم کوین</button>
+                <button data-nav-key="pay" onClick={() => handleNav('/pay')} className={mobileNavClass(currentPath === '/pay' || currentPath.startsWith('/pay/'))}>درگاه پرداخت</button>
+                <button data-nav-key="blog" onClick={() => handleNav('/blog')} className={mobileNavClass(currentPath === '/blog' || currentPath.startsWith('/article/'))}>
+                  <BookOpen className="h-4 w-4 text-[#14F195]" />وبلاگ
+                </button>
 
+                {currentUser && canManageShowcase && (
+                  <button onClick={() => handleNav('/showcase-admin')} className="flex w-full items-center gap-2 rounded-xl border border-[#14F195]/25 bg-[#14F195]/10 px-4 py-2.5 text-right text-xs font-bold text-[#14F195]">
+                    <Smartphone className="h-4 w-4" />مدیریت نمایش اپلیکیشن
+                  </button>
+                )}
+
+                {currentUser ? (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3">
+                    <button onClick={openAdminModal} className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                      {canManageShowcase ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <User className="h-4 w-4 text-sky-400 />}
+                      <span>{currentUser.fullName}</span>
+                    </button>
+                    <button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400">
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : isAuthenticated ? (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                      <User className="h-4 w-4 text-sky-400" /><span>{displayName}</span>
+                    </div>
+                    <button onClick={() => void onLogout()} title="خروج از حساب" aria-label="خروج از حساب" className="p-1 text-slate-400 hover:text-rose-400">
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={openAdminModal} title="ورود / ثبت‌نام" aria-label="ورود / ثبت‌نام" className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-slate-200 hover:bg-white/10">
+                    <User className="h-4 w-4 text-[#14F195]" />ورود / ثبت‌نام
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </header>
