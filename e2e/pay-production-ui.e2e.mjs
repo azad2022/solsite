@@ -854,7 +854,7 @@ try {
     assert.ok(widthDiagnostics.scrollWidth <= widthDiagnostics.clientWidth + 1,
       `RTL page has horizontal overflow: scrollWidth=${widthDiagnostics.scrollWidth} clientWidth=${widthDiagnostics.clientWidth}`);
     const topbar = await page.locator('.pay-topbar').boundingBox();
-    assert.ok(topbar, `RTL topbar missing for locale index ${localeButton}`);
+    assert.ok(topbar, `RTL topbar missing for locale index ${targetLocale}`);
     assert.ok(topbar.x >= -1 && topbar.x + topbar.width <= VIEWPORT.width + 1,
       `RTL topbar is outside viewport: x=${topbar.x} width=${topbar.width}`);
     const languageBox = await page.locator('.pay-language-control').boundingBox();
@@ -874,7 +874,7 @@ try {
         transform: style.transform,
       };
     });
-    console.log(`CLOSED_DRAWER_DIAGNOSTICS ${JSON.stringify({ localeButton, expectedDirection, closedDrawer })}`);
+    console.log(`CLOSED_DRAWER_DIAGNOSTICS ${JSON.stringify({ targetLocale, expectedDirection, closedDrawer })}`);
     assert.equal(closedDrawer.pointerEvents, 'none', 'Closed mobile drawer must not intercept pointer events.');
     assert.equal(closedDrawer.visibility, 'hidden', 'Closed mobile drawer must be hidden from hit testing.');
     const menuBox = await page.locator('.pay-mobile-menu').boundingBox();
@@ -904,7 +904,7 @@ try {
       return Math.abs(rect.left) < 1 && rect.right <= window.innerWidth + 1;
     }, expectedDirection, { timeout: 3000 });
     const box = await page.locator('.pay-sidebar.is-mobile-open').boundingBox();
-    assert.ok(box, `RTL drawer did not open for locale index ${localeButton}`);
+    assert.ok(box, `RTL drawer did not open for locale index ${targetLocale}`);
     if (expectedDirection === 'rtl') {
       assert.ok(box.x >= VIEWPORT.width - box.width - 2, `RTL drawer is off-screen: x=${box.x} width=${box.width}`);
       assert.ok(box.x < VIEWPORT.width - 10, 'RTL drawer did not occupy the expected right edge');
@@ -914,7 +914,7 @@ try {
       assert.ok(box.x + box.width <= VIEWPORT.width + 1, `LTR drawer right edge is outside viewport: x=${box.x} width=${box.width}`);
     }
     assert.ok(await page.locator('.pay-nav-item').first().isVisible());
-    await page.screenshot({ path: `/tmp/pay-ui-evidence/mobile-rtl-${localeButton}.png`, fullPage: false });
+    await page.screenshot({ path: `/tmp/pay-ui-evidence/mobile-rtl-${targetLocale}.png`, fullPage: false });
     await page.locator('.pay-mobile-close').click();
     assert.equal(await page.locator('.pay-sidebar.is-mobile-open').count(), 0, 'RTL drawer did not close');
   }
