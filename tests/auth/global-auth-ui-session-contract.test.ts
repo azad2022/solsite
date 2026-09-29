@@ -35,7 +35,8 @@ test('Pay entry stays authenticated while valid public payment links bypass the 
   assert.ok(headerSource.includes('data-nav-key="pay" href="/pay"'));
   assert.ok(headerSource.includes('>درگاه پرداخت</a>') || headerSource.includes('>درگاه پرداخت</button>'));
   assert.ok(appSource.includes("const isPayPath = (path: string) => path === '/pay' || path.startsWith('/pay/')"));
-  assert.ok(appSource.includes("const isPublicPayPath = (path: string) => isPayPath(path) && matchPayRoute(path).kind === 'payment-link'"));
+  assert.ok(appSource.includes("const isPublicPayPath = (path: string) => {"));
+  assert.ok(appSource.includes("return route.kind === 'payment-link' || (route.kind === 'checkout' && Boolean(route.intentId));"));
   assert.ok(appSource.includes("if (isPayPath(normalizedPath) && !isPublicPayPath(normalizedPath) && (authPending || !applicationSessionUser))"));
   assert.ok(appSource.includes("if (!isPayPath(currentPath) || isPublicPayPath(currentPath) || authPending || applicationSessionUser) return;"));
   assert.ok(appSource.includes("if (payRouteActive && !isPublicPayPath(currentPath) && authPending)"));
