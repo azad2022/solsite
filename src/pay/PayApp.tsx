@@ -260,15 +260,13 @@ export function PayApp(): React.ReactElement {
   const showPageHeader = !PAGE_HEADER_OWNERS.has(currentSection);
   const pageDescription = currentSection === 'overview'
     ? translate(locale, 'overviewDescription')
-    : currentSection === 'dashboard'
-      ? translate(locale, 'dashboardDescription')
-      : currentSection === 'transactions'
-        ? translate(locale, 'transactionsDescription')
-        : currentSection === 'merchants'
-          ? translate(locale, 'merchantsDescription')
-          : currentSection === 'invoices'
-            ? translate(locale, 'billingDescription')
-            : '';
+    : currentSection === 'transactions'
+      ? translate(locale, 'transactionsDescription')
+      : currentSection === 'merchants'
+        ? translate(locale, 'merchantsDescription')
+        : currentSection === 'invoices'
+          ? translate(locale, 'billingDescription')
+          : '';
   const pageTitle = currentSection === 'invoices' ? translate(locale, 'billingTitle') : title;
   const merchantBoundSection = ['transactions', 'customers', 'invoices', 'reports', 'security', 'webhooks'].includes(currentSection);
   const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
