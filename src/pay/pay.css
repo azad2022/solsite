@@ -412,12 +412,12 @@
     will-change: transform;
     box-shadow: 0 22px 55px rgba(28, 32, 49, 0.18);
   }
-  .solmint-pay[dir='rtl'] .pay-sidebar {
+  .pay-sidebar[dir='rtl'] {
     inset-inline-start: auto;
     inset-inline-end: 0;
     transform: translate3d(100%, 0, 0);
   }
-  .solmint-pay[dir='rtl'] .pay-sidebar.is-mobile-open {
+  .pay-sidebar[dir='rtl'].is-mobile-open {
     transform: translate3d(0, 0, 0);
   }
   .pay-sidebar.is-mobile-open {
