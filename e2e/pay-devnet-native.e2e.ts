@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
 import { Keypair, Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 import test from 'node:test';
 import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
@@ -14,11 +15,13 @@ if (!DEVNET_FUNDER_SECRET_KEY) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64
 const SYSTEM_PROGRAM = new PublicKey('11111111111111111111111111111111');
 const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 const EXPECTED_FUNDER_PUBLIC_KEY = new PublicKey('EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV');
-const PAYMENT_AMOUNT_LAMPORTS = 500_000_000;
-const MERCHANT_SETTLEMENT_LAMPORTS = 495_000_000;
-const GATEWAY_FEE_LAMPORTS = 5_000_000;
-// Fund only the payment amount + gateway fee with a small fee buffer; the previous 520M was already sufficient.
-const FUNDER_TOP_UP_LAMPORTS = 510_000_000;
+const DEVNET_PAYMENT_FIXTURE_PATH = process.env.DEVNET_PAYMENT_FIXTURE_PATH?.trim() || '/tmp/solmint-pay-devnet-fixture.json';
+const PAYMENT_AMOUNT_LAMPORTS = 2_000_000;
+const MERCHANT_SETTLEMENT_LAMPORTS = 1_000_000;
+const GATEWAY_FEE_LAMPORTS = 1_000_000;
+// One real on-chain payment is shared by the verification and reconciliation E2E stages.
+const PAYER_RENT_RESERVE_LAMPORTS = 1_000_000;
+const FUNDER_TOP_UP_LAMPORTS = PAYMENT_AMOUNT_LAMPORTS + PAYER_RENT_RESERVE_LAMPORTS;
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000;
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
@@ -150,4 +153,16 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
   assert.equal(decision.result.status, 'confirmed');
   assert.equal(decision.candidate?.signature, signature);
   assert.equal(SYSTEM_PROGRAM.toBase58(), '11111111111111111111111111111111');
+  writeFileSync(DEVNET_PAYMENT_FIXTURE_PATH, JSON.stringify({
+    signature,
+    merchantDestination: merchant.publicKey.toBase58(),
+    feeDestination: fee.publicKey.toBase58(),
+    reference: reference.publicKey.toBase58(),
+    paymentAmountLamports: PAYMENT_AMOUNT_LAMPORTS.toString(),
+    merchantSettlementLamports: MERCHANT_SETTLEMENT_LAMPORTS.toString(),
+    gatewayFeeLamports: GATEWAY_FEE_LAMPORTS.toString(),
+    createdAt: window.createdAt,
+    expiresAt: window.expiresAt,
+  }), 'utf8');
+  console.log(`DEVNET_PAYMENT_FIXTURE_WRITTEN ${DEVNET_PAYMENT_FIXTURE_PATH}`);
 });

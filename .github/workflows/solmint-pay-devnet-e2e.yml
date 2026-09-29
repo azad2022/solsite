@@ -87,14 +87,20 @@ jobs:
             exit 1
           fi
 
+      - name: Reset shared real-payment fixture
+        env:
+          DEVNET_PAYMENT_FIXTURE_PATH: /tmp/solmint-pay-devnet-fixture.json
+        run: rm -f "$DEVNET_PAYMENT_FIXTURE_PATH"
+
       - name: Run real Devnet payment verification E2E
         env:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
           DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+          DEVNET_PAYMENT_FIXTURE_PATH: /tmp/solmint-pay-devnet-fixture.json
         run: bun run test:pay:devnet
 
       - name: Run real Devnet Payment Intent reconciliation E2E
         env:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
-          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+          DEVNET_PAYMENT_FIXTURE_PATH: /tmp/solmint-pay-devnet-fixture.json
         run: bun run test:e2e:pay-devnet-payment-intent

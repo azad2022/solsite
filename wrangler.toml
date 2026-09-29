@@ -11,3 +11,9 @@ PAY_APP_ORIGIN = "https://solmint.ir"
 # Public Solana address that receives SolMint Pay gateway fees.
 # Merchant principal, referral liabilities, network fees, and refunds remain separate.
 PAY_FEE_RECIPIENT = "C9Cas87cue2YaHHTugTsQp6XP1Ho5CsbQNHCNi2rqSxz"
+# Mainnet SPL-token metadata used by the authoritative Pay asset policy.
+# These values are non-secret network metadata; no customer-supplied mint/decimals are accepted.
+PAY_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+PAY_USDC_DECIMALS = "6"
+PAY_USDT_MINT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+PAY_USDT_DECIMALS = "6"

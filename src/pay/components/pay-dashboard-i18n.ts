@@ -2,7 +2,7 @@ import type { PayLocale } from '../types';
 
 const COPY = {
   'fa-IR': {
-    title: 'داشبورد عملیاتی', activity: 'آخرین فعالیت‌ها', activityDesc: 'آخرین پرداخت‌های ثبت‌شده برای این پذیرنده از سرویس واقعی Pay.',
+    title: 'داشبورد عملیاتی', activity: 'آخرین فعالیت‌ها', activityDesc: 'آخرین پرداخت‌های ثبت‌شده برای این پذیرنده.',
     merchant: 'پذیرنده', merchantStatus: 'وضعیت پذیرنده', active: 'فعال', pending: 'در انتظار', suspended: 'معلق', closed: 'بسته',
     noMerchant: 'هنوز پذیرنده‌ای برای این حساب ثبت نشده است.', noActivity: 'هنوز تراکنشی برای نمایش وجود ندارد.',
     loadFailed: 'دریافت فعالیت‌های پرداخت ناموفق بود.', unauthorized: 'برای مشاهده این بخش باید وارد حساب شوید.', forbidden: 'دسترسی به این پذیرنده مجاز نیست.',
@@ -18,7 +18,7 @@ const COPY = {
     payment: 'Payment', amount: 'Amount', status: 'Status', time: 'Time',
   },
   ar: {
-    title: 'لوحة التشغيل', activity: 'النشاط الأخير', activityDesc: 'أحدث المدفوعات المسجلة لهذا التاجر من خدمة Pay الحقيقية.',
+    title: 'لوحة التشغيل', activity: 'النشاط الأخير', activityDesc: 'أحدث المدفوعات المسجلة لهذا التاجر.',
     merchant: 'التاجر', merchantStatus: 'حالة التاجر', active: 'نشط', pending: 'قيد الانتظار', suspended: 'معلق', closed: 'مغلق',
     noMerchant: 'لا يوجد تاجر مسجل لهذا الحساب حتى الآن.', noActivity: 'لا توجد معاملات متاحة بعد.',
     loadFailed: 'تعذر تحميل نشاط الدفع.', unauthorized: 'يلزم تسجيل الدخول لعرض هذا القسم.', forbidden: 'لا يسمح لك بالوصول إلى هذا التاجر.',
@@ -26,7 +26,7 @@ const COPY = {
     payment: 'الدفع', amount: 'المبلغ', status: 'الحالة', time: 'الوقت',
   },
   ru: {
-    title: 'Операционная панель', activity: 'Последняя активность', activityDesc: 'Последние платежи этого продавца из реального сервиса Pay.',
+    title: 'Операционная панель', activity: 'Последняя активность', activityDesc: 'Последние платежи этого продавца.',
     merchant: 'Продавец', merchantStatus: 'Статус продавца', active: 'Активен', pending: 'Ожидает', suspended: 'Приостановлен', closed: 'Закрыт',
     noMerchant: 'Для этого аккаунта пока нет зарегистрированного продавца.', noActivity: 'Пока нет доступных транзакций.',
     loadFailed: 'Не удалось загрузить активность платежей.', unauthorized: 'Для просмотра раздела требуется вход.', forbidden: 'У вас нет доступа к этому продавцу.',

@@ -212,6 +212,30 @@ try {
   });
 
   const merchantPageResponse = await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
+
+  const languageTrigger = page.locator('.pay-language-trigger');
+  await languageTrigger.waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-language-control').count(), 1, 'Pay language control must be compact and singular.');
+  await languageTrigger.click();
+  const languageMenu = page.locator('.pay-language-menu');
+  await languageMenu.waitFor({ state: 'visible', timeout: 5000 });
+  assert.equal(await languageMenu.locator('.pay-language-option').count(), 4, 'Pay selector must expose the four active locales.');
+  assert.equal(await languageMenu.locator('.pay-language-flag').count(), 4, 'Every active locale must have a flag marker.');
+  await languageMenu.locator('.pay-language-option').filter({ hasText: 'فارسی' }).click();
+  assert.equal(await page.locator('html').getAttribute('lang'), 'fa-IR');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('html').getAttribute('lang'), 'fa-IR', 'Selected locale must survive a full page refresh.');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'RTL direction must survive a full page refresh.');
+  console.log('PAY_LANGUAGE_PERSISTENCE_E2E passed for fa-IR with compact flag dropdown.');
+
+  await page.locator('.pay-language-trigger').click();
+  await page.locator('.pay-language-menu').locator('.pay-language-option').filter({ hasText: 'English' }).click();
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en-US');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
+
+
   await page.waitForTimeout(1200);
   assert.ok(merchantPageResponse && merchantPageResponse.ok(), 'Production Merchant page must be reachable.');
   assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
@@ -528,6 +552,86 @@ try {
   assert.equal(linkFromDb[0].asset, 'USDC');
   assert.equal(linkFromDb[0].is_active, true);
 
+  await page.locator('.pay-payment-links-table').waitFor({ state: 'visible', timeout: 10000 });
+  const createdLinkRow = page.locator('.pay-payment-links-table tbody tr').filter({ hasText: paymentLinkSlug });
+  await createdLinkRow.locator('.pay-payment-links-actions .pay-icon-button').nth(1).click();
+  await page.locator('.pay-payment-link-detail').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-payment-link-detail .pay-primary-action').filter({ hasText: /Edit|ویرایش|تعديل|Изменить/i }).click();
+  const editTitleInput = page.locator('.pay-payment-link-edit input').nth(1);
+  await editTitleInput.fill('Browser E2E Payment Link Updated');
+  const paymentLinkPatchResponsePromise = page.waitForResponse((response) =>
+    response.url().includes('/api/pay/v1/payment-links?merchantId=') &&
+    response.url().includes('&linkId=') &&
+    response.request().method() === 'PATCH'
+  );
+  await page.locator('.pay-payment-link-edit .pay-primary-action').click();
+  const paymentLinkPatchResponse = await paymentLinkPatchResponsePromise;
+  const paymentLinkPatchText = await paymentLinkPatchResponse.text();
+  assert.equal(paymentLinkPatchResponse.status(), 200, paymentLinkPatchText);
+  const paymentLinkPatchBody = paymentLinkPatchText ? JSON.parse(paymentLinkPatchText) : {};
+  assert.equal(paymentLinkPatchBody.apiVersion, 'v1');
+  assert.equal(paymentLinkPatchBody.data?.id, linkFromDb[0].id);
+  assert.equal(paymentLinkPatchBody.data?.title, 'Browser E2E Payment Link Updated');
+
+  const updatedLinkFromDb = rows(await db(
+    `select id, title, slug, is_active
+       from public.pay_payment_links
+      where id = $1`,
+    [linkFromDb[0].id],
+    true,
+  ));
+  assert.equal(updatedLinkFromDb.length, 1);
+  assert.equal(updatedLinkFromDb[0].title, 'Browser E2E Payment Link Updated');
+  assert.equal(updatedLinkFromDb[0].is_active, true);
+  console.log(`PAYMENT_LINK_UPDATE_PRODUCTION_E2E ${JSON.stringify({
+    status: paymentLinkPatchResponse.status(),
+    paymentLinkId: linkFromDb[0].id,
+    title: paymentLinkPatchBody.data?.title,
+    slug: paymentLinkPatchBody.data?.slug,
+  })}`);
+
+  const disposableLinkSlug = 'e2e-del-' + crypto.randomUUID().replaceAll('-', '').slice(0, 16).toLowerCase();
+  await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  const disposableForm = page.locator('.pay-payment-link-create');
+  await disposableForm.locator('input').nth(0).fill(disposableLinkSlug);
+  await disposableForm.locator('input').nth(1).fill('Disposable Browser E2E Link');
+  await disposableForm.locator('input').nth(2).fill('1000000');
+  await disposableForm.locator('select').nth(0).selectOption('USDC');
+  await disposableForm.locator('select').nth(1).selectOption('merchant');
+  await disposableForm.locator('select').nth(2).selectOption('en-US');
+  const disposableCreateResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/pay/v1/payment-links') && response.request().method() === 'POST'
+  );
+  await disposableForm.locator('.pay-primary-action').click();
+  const disposableCreateResponse = await disposableCreateResponsePromise;
+  const disposableCreateBodyText = await disposableCreateResponse.text();
+  assert.equal(disposableCreateResponse.status(), 201, disposableCreateBodyText);
+  const disposableCreateBody = disposableCreateBodyText ? JSON.parse(disposableCreateBodyText) : {};
+  const disposableId = disposableCreateBody.data?.id;
+  assert.equal(typeof disposableId, 'string');
+
+  const disposableRow = page.locator('.pay-payment-links-table tbody tr').filter({ hasText: disposableLinkSlug });
+  await disposableRow.locator('.pay-payment-links-actions .pay-icon-button').nth(1).click();
+  await page.locator('.pay-payment-link-detail').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-payment-link-detail .pay-secondary-action').filter({ hasText: /Delete link|حذف لینک|حذف الرابط|Удалить ссылку/i }).click();
+  const disposableDeleteResponsePromise = page.waitForResponse((response) =>
+    response.url().includes('/api/pay/v1/payment-links?merchantId=') &&
+    response.url().includes('&linkId=') &&
+    response.request().method() === 'DELETE'
+  );
+  await page.locator('.pay-payment-link-detail .pay-primary-action').filter({ hasText: /Delete permanently|حذف نهایی|حذف نهائي|Удалить навсегда/i }).click();
+  const disposableDeleteResponse = await disposableDeleteResponsePromise;
+  const disposableDeleteText = await disposableDeleteResponse.text();
+  assert.equal(disposableDeleteResponse.status(), 200, disposableDeleteText);
+  await page.locator('.pay-payment-link-detail').waitFor({ state: 'hidden', timeout: 10000 });
+  assert.equal((await page.locator('.pay-payment-links-table tbody tr').filter({ hasText: disposableLinkSlug }).count()), 0);
+  const deletedLinkFromDb = rows(await db(
+    `select id from public.pay_payment_links where id = $1`,
+    [disposableId],
+    true,
+  ));
+  assert.equal(deletedLinkFromDb.length, 0, 'A payment link without payment history must be deletable.');
+
   const paymentLinkUrl = `${ORIGIN}/pay/link/${encodeURIComponent(paymentLinkSlug)}`;
   const publicContext = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-US' });
   const publicPage = await publicContext.newPage();
@@ -552,6 +656,62 @@ try {
   console.log(`PAYMENT_LINK_CREATE_PRODUCTION_E2E ${JSON.stringify({ status: publicCheckoutResponse.status(), paymentIntentId: publicCheckoutBody.data?.id, merchantId, paymentLinkSlug })}`);
   assert.equal(typeof publicCheckoutBody.data?.id, 'string');
   const publicIntentId = publicCheckoutBody.data.id;
+
+  await page.goto(ORIGIN + '/pay/checkout', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-checkout-intent-lookup').waitFor({ state: 'visible', timeout: 10000 });
+  const intentLookup = page.locator('.pay-checkout-intent-lookup');
+  await intentLookup.locator('input').fill(publicIntentId);
+  const intentLookupResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/pay/v1/payment-intents/' + encodeURIComponent(publicIntentId))
+    && response.request().method() === 'GET'
+  );
+  await intentLookup.locator('.pay-primary-action').click();
+  const intentLookupResponse = await intentLookupResponsePromise;
+  assert.equal(intentLookupResponse.status(), 200, await intentLookupResponse.text());
+  await page.locator('.pay-checkout-status-grid').first().waitFor({ state: 'visible', timeout: 10000 });
+  assert.ok((await page.locator('.pay-checkout-card').innerText()).includes('2 USDC'));
+  assert.ok((await page.locator('.pay-checkout-intent-id').innerText()).includes(publicIntentId));
+  console.log('PAYMENT_INTENT_LOOKUP_PRODUCTION_E2E passed through /pay/checkout.');
+
+  await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  const linkedRow = page.locator('.pay-payment-links-table tbody tr').filter({ hasText: paymentLinkSlug });
+  await linkedRow.locator('.pay-payment-links-actions .pay-icon-button').nth(1).click();
+  await page.locator('.pay-payment-link-detail').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-payment-link-detail .pay-secondary-action').filter({ hasText: /Delete link|حذف لینک|حذف الرابط|Удалить ссылку/i }).click();
+  const linkedDeleteResponsePromise = page.waitForResponse((response) =>
+    response.url().includes('/api/pay/v1/payment-links?merchantId=') &&
+    response.url().includes('&linkId=') &&
+    response.request().method() === 'DELETE'
+  );
+  await page.locator('.pay-payment-link-detail .pay-primary-action').filter({ hasText: /Delete permanently|حذف نهایی|حذف نهائي|Удалить навсегда/i }).click();
+  const linkedDeleteResponse = await linkedDeleteResponsePromise;
+  const linkedDeleteText = await linkedDeleteResponse.text();
+  assert.equal(linkedDeleteResponse.status(), 409, linkedDeleteText);
+  assert.match(linkedDeleteText, /PAYMENT_LINK_HAS_PAYMENTS/);
+  await page.locator('.pay-payment-link-detail').getByRole('button', { name: /Deactivate link|غیرفعال کردن لینک|تعطيل الرابط|Деактивировать ссылку/i }).click();
+  const deactivatePatchResponsePromise = page.waitForResponse((response) =>
+    response.url().includes('/api/pay/v1/payment-links?merchantId=') &&
+    response.url().includes('&linkId=') &&
+    response.request().method() === 'PATCH'
+  );
+  await page.locator('.pay-payment-link-edit .pay-primary-action').filter({ hasText: /Save changes|ذخیره تغییرات|حفظ التغييرات|Сохранить изменения/i }).click();
+  const deactivatePatchResponse = await deactivatePatchResponsePromise;
+  const deactivatePatchText = await deactivatePatchResponse.text();
+  assert.equal(deactivatePatchResponse.status(), 200, deactivatePatchText);
+  const deactivatedLinkFromDb = rows(await db(
+    `select id, is_active from public.pay_payment_links where id = $1`,
+    [linkFromDb[0].id],
+    true,
+  ));
+  assert.equal(deactivatedLinkFromDb.length, 1);
+  assert.equal(deactivatedLinkFromDb[0].is_active, false);
+  console.log(`PAYMENT_LINK_DELETE_GUARD_PRODUCTION_E2E ${JSON.stringify({
+    deleteStatus: linkedDeleteResponse.status(),
+    deactivateStatus: deactivatePatchResponse.status(),
+    paymentLinkId: linkFromDb[0].id,
+    isActive: deactivatedLinkFromDb[0].is_active,
+  })}`);
+
   await publicPage.locator('.pay-checkout-card').waitFor({ state: 'visible', timeout: 10000 });
   const publicCheckoutUiText = await publicPage.locator('.pay-checkout-card').innerText();
   assert.ok(publicCheckoutUiText.includes('2 USDC') || publicCheckoutUiText.includes('2.000000 USDC'),

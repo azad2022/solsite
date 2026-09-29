@@ -52,7 +52,7 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
   async function handleStatus(status:PayTicketStatus) { if(!selectedId || busy || !isAdmin) return; setBusy('status'); try { const updated=await updatePayTicketStatus(selectedId,status); setTickets(current=>current.map(item=>item.id===updated.id?updated:item)); setDetail(current=>current?{...current,ticket:updated}:current); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }
 
   return <section className="pay-ticket-center" aria-label={ticketT(locale,'tickets')}>
-    <div className="pay-ticket-heading"><div><div className="pay-panel-kicker">{isAdmin?ticketT(locale,'adminInbox'):ticketT(locale,'tickets')}</div><h2>{ticketT(locale,'title')}</h2><p>{ticketT(locale,'subtitle')}</p></div><button type="button" className="pay-icon-button" onClick={()=>void loadTickets(false)} aria-label={ticketT(locale,'retry')}><RefreshCw size={17}/></button></div>
+    <div className="pay-ticket-heading"><div><h2>{ticketT(locale,'title')}</h2><p>{ticketT(locale,'subtitle')}</p></div><button type="button" className="pay-icon-button" onClick={()=>void loadTickets(false)} aria-label={ticketT(locale,'retry')}><RefreshCw size={17}/></button></div>
     {error ? <div className={`pay-ticket-alert ${error==='forbidden'?'is-forbidden':''}`} role="alert"><AlertCircle size={18}/><span>{error==='forbidden'?ticketT(locale,'forbidden'):error==='unauthorized'?ticketT(locale,'unauthorized'):ticketT(locale,'error')}</span><button type="button" onClick={()=>void loadTickets()}>{ticketT(locale,'retry')}</button></div>:null}
     <div className="pay-ticket-layout">
       <div className="pay-ticket-list-pane">

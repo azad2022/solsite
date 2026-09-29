@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Copy, LockKeyhole, ReceiptText, RefreshCcw, ShieldCheck, WalletCards, XCircle } from 'lucide-react';
 import { checkoutLabel } from './checkout-i18n';
 import { directionFor, translate } from './i18n';
+import { translateTransactionStatus } from './components/pay-transactions-i18n';
 import { PayHttpError } from './http';
 import { payPaymentIntentService, type PayPaymentIntent, type PayPaymentStatus } from './payment-intent-service';
 import { payPaymentVerificationService } from './payment-verification-service';
@@ -41,6 +42,8 @@ function truncateAddress(value: string): string {
 
 function SnapshotValue({ value }: { value: string }): React.ReactElement { return <code className="pay-checkout-snapshot-value">{value}</code>; }
 
+const PAYMENT_INTENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const NON_TERMINAL_STATUSES: ReadonlySet<PayPaymentStatus> = new Set([
   'created', 'pending', 'detected', 'verifying', 'confirmed', 'underpaid', 'overpaid', 'ambiguous',
 ]);
@@ -60,6 +63,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const mountedRef = useRef(true);
   const currentIntentId = intent?.id;
   const currentStatus = intent?.status;
+  const [intentLookupId, setIntentLookupId] = useState('');
 
   const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
@@ -193,7 +197,8 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   };
 
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
-  const isCompleted = intent?.status === 'completed' || intent?.status === 'confirmed';
+  const isCompleted = intent?.status === 'completed';
+  const isConfirmed = intent?.status === 'confirmed';
   const actionDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
 
   return (
@@ -206,7 +211,50 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
         <button type="button" className="pay-checkout-back" onClick={onBack}><BackIcon size={17} />{translate(locale, 'backToPay')}</button>
         <section className="pay-checkout-card" aria-labelledby="pay-checkout-title">
           <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(locale, 'checkout')}</span><h1 id="pay-checkout-title">{intent ? intent.merchant.businessName : translate(locale, 'checkoutWaitingTitle')}</h1><p>{translate(locale, 'checkoutWaitingDescription')}</p></div></div>
-          {state !== 'ready' ? (
+          {!intentId ? (
+            <form
+              className="pay-checkout-intent-lookup"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const value = intentLookupId.trim();
+                if (!PAYMENT_INTENT_ID.test(value)) return;
+                const target = `/pay/checkout/${encodeURIComponent(value)}`;
+                window.history.pushState({}, '', target);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+            >
+              <div className="pay-checkout-lookup-icon"><ReceiptText size={19} /></div>
+              <div className="pay-checkout-lookup-copy">
+                <strong>{checkoutLabel(locale, 'intentLookupTitle')}</strong>
+                <p>{checkoutLabel(locale, 'intentLookupDescription')}</p>
+              </div>
+              <label className="pay-checkout-intent-input">
+                <span>{checkoutLabel(locale, 'intentLookupLabel')}</span>
+                <input
+                  value={intentLookupId}
+                  onChange={(event) => setIntentLookupId(event.target.value)}
+                  placeholder={checkoutLabel(locale, 'intentLookupPlaceholder')}
+                  spellCheck={false}
+                  autoComplete="off"
+                  inputMode="text"
+                  aria-label={checkoutLabel(locale, 'intentLookupLabel')}
+                />
+              </label>
+              <button
+                type="submit"
+                className="pay-primary-action"
+                disabled={!PAYMENT_INTENT_ID.test(intentLookupId.trim())}
+              >
+                <ShieldCheck size={17} /> {checkoutLabel(locale, 'checkIntent')}
+              </button>
+              {intentLookupId.trim() && !PAYMENT_INTENT_ID.test(intentLookupId.trim()) ? (
+                <div className="pay-checkout-verification-message is-failed" role="alert">
+                  <XCircle size={18} />
+                  <span>{checkoutLabel(locale, 'invalidIntentId')}</span>
+                </div>
+              ) : null}
+            </form>
+          ) : state !== 'ready' ? (
             <PayDataStateView locale={locale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent(true) : undefined} />
           ) : intent ? (
             <>
@@ -215,12 +263,12 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(locale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'intentStatus')}</span><SnapshotValue value={intent.status} /></div></div>
+                <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'intentStatus')}</span><strong>{translateTransactionStatus(locale, intent.status)}</strong></div></div>
                 <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(locale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
               </div>
 
               <div className="pay-checkout-notice">
-                <strong>{translate(locale, isCompleted ? 'paymentConfirmed' : 'checkoutSnapshot')}</strong>
+                <strong>{translateTransactionStatus(locale, intent.status)}</strong>
                 <p>{checkoutLabel(locale, 'payInstructions')}</p>
                 <div className="pay-checkout-payment-actions">
                   <div className="pay-checkout-action-row"><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div><button type="button" onClick={() => void copyValue('amount')} aria-label={checkoutLabel(locale, 'copy')} title={checkoutLabel(locale, copiedField === 'amount' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
@@ -245,18 +293,20 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                 </div> : null}
               </div>
 
-              <div className="pay-checkout-notice">
-                <strong>{translate(locale, 'checkoutSnapshot')}</strong>
-                <p>{translate(locale, 'checkoutSnapshotDescription')}</p>
-                <div className="pay-checkout-status-grid">
-                  <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'asset')}</span><SnapshotValue value={intent.asset} /></div></div>
-                  <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'feePayer')}</span><SnapshotValue value={intent.feePayer} /></div></div>
-                  <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'network')}</span><SnapshotValue value={intent.network} /></div></div>
-                  <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'destination')}</span><SnapshotValue value={intent.recipient} /></div></div>
-                  <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'reference')}</span><SnapshotValue value={intent.reference} /></div></div>
-                  <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'commitment')}</span><SnapshotValue value={intent.verificationCommitment} /></div></div>
+              <details className="pay-checkout-details">
+                <summary><span>{checkoutLabel(locale, 'technicalDetails')}</span><span aria-hidden="true">+</span></summary>
+                <div className="pay-checkout-details-body">
+                  <p>{checkoutLabel(locale, 'checkoutSnapshotDescription')}</p>
+                  <div className="pay-checkout-status-grid">
+                    <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'asset')}</span><SnapshotValue value={intent.asset} /></div></div>
+                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'feePayer')}</span><SnapshotValue value={intent.feePayer} /></div></div>
+                    <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'network')}</span><SnapshotValue value={intent.network} /></div></div>
+                    <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'destination')}</span><SnapshotValue value={intent.recipient} /></div></div>
+                    <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'reference')}</span><SnapshotValue value={intent.reference} /></div></div>
+                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'commitment')}</span><SnapshotValue value={intent.verificationCommitment} /></div></div>
+                  </div>
                 </div>
-              </div>
+              </details>
               {isRefreshing ? <div className="pay-checkout-refresh" role="status" aria-live="polite"><RefreshCcw size={15} /> {translate(locale, 'verification')}</div> : null}
             </>
           ) : null}

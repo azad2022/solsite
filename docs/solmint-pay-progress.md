@@ -1033,3 +1033,83 @@ Decision:
 - **SolMint Pay frontend/runtime for the currently released Backend contracts is COMPLETE and production-verified.**
 - The system must continue to expose unsupported mutation capabilities as unavailable until an authoritative Backend/API contract is actually released.
 - No further frontend implementation is justified without a new real Backend contract or a newly evidenced regression.
+## 2026-09-27 — Payment Link mutation contract and production backend completion
+
+Status: **BACKEND APPLIED / APPLICATION RELEASE GATES PENDING**
+
+- PR #226 adds the missing authenticated Payment Link update and safe-delete contracts.
+- Merchant roles owner/admin/finance are enforced server-side; anon and untrusted roles cannot execute the mutation functions.
+- Update is idempotent and preserves existing Payment Intent financial snapshots.
+- Delete is allowed only when no Payment Intent references the link; otherwise the API returns a deterministic guard and the UI offers deactivation.
+- Payment Link UI now supports edit, deactivate, delete, confirmation, localized error states, and all four locales.
+- OpenAPI and regression/security fixtures cover the mutation boundary.
+- Mainnet USDC/USDT asset metadata is now explicitly configured for the Pay asset policy.
+- Migration 20260927150000_solmint_pay_payment_link_mutations.sql was preflighted and applied to Production; live Supabase migration history now reports 87 applied migrations with this migration as the latest.
+- A direct Production SQL smoke verified update and delete through the authenticated mutation contract inside a rolled-back transaction; no test row was left behind.
+- Current PR head: 15dc1076ade22fe4d9d50c06624a8b96ea89bf94.
+- Latest PR validation is not yet final: Database Security / CI / Production Build / Mainnet Read-only were triggered for the current head; Devnet E2E remains blocked by the existing CI funder’s insufficient balance. Production Browser UI E2E runs on main after deployment, not on PR branches, so it is intentionally not claimed here.
+
+
+## 2026-09-28 — Payment Link mutation validation checkpoint
+
+Current branch HEAD: `b668c4243e0ad9418e630cd63cff7fde223134c1`.
+
+- The Devnet funder was replenished externally by the project owner; the exact real Devnet verification and reconciliation E2E now pass on the current validation chain.
+- Production Build, CI, and Mainnet Read-only were green on the previous validation head while the final fixture corrections were being applied.
+- The Payment Link mutation security fixture has been corrected to preserve the production table privilege boundary and to use the exact production financial column names.
+- The live Production mutation migration `20260927150000_solmint_pay_payment_link_mutations` is already applied and recorded in the live Supabase migration history.
+- Current HEAD still requires fresh green Database Security and final current-head CI/build evidence before PR #226 can be considered merge-ready.
+- Production Browser UI E2E must run after merge/deployment because its workflow is intentionally triggered from `main`; it is not claimed as passed for the new mutation runtime yet.
+
+
+## 2026-09-28 — Pay UI/UX consolidation checkpoint
+
+Status: **UI IMPLEMENTED / VALIDATION PENDING**
+
+Current branch: `fix/pay-payment-link-stablecoin-production-config`
+
+- Preserved all existing Pay capabilities while reducing primary navigation density: Dashboard is represented through the existing Overview surface, Checkout remains directly routable from payment flows, and Invoices + Payment Links are consolidated under one Billing navigation destination with an in-page switch.
+- Primary navigation is now grouped into clearer product areas and exposes 11 merchant-facing destinations instead of presenting every route as a flat list.
+- Desktop sidebar was narrowed, compact mode remains icon-first, and each compact navigation icon now exposes its localized label through an on-hover/focus tooltip with an accessible name.
+- Navigation icons now have distinct restrained colors and a subtle active animation; `prefers-reduced-motion` disables the animation.
+- RTL layout now places the desktop shell/sidebar on the RTL side and the mobile drawer opens from the RTL edge.
+- Removed repeated shell/component page headings on Support, Security, Billing, Referrals, Customers, Reports, Developer and Webhooks surfaces.
+- Removed the repeated architectural copy pattern from normal customer-facing descriptions and removed unnecessary `real/واقعی` wording from the audited feature copy in all four locales.
+- Removed the non-functional global time-range control from the shared page chrome; Reports keeps its own functional range control.
+- Checkout secondary technical/payment snapshot details are collapsed behind a secondary details disclosure so the primary payment action stays visually dominant without removing information.
+- Transactions, Invoices, Payment Links and Reports history tables now switch to readable card-like layouts on narrow screens instead of forcing desktop-width tables.
+- Language selection remains a compact dropdown rather than a horizontal row.
+- Current UI implementation has not yet received a fresh green CI/build evidence on this new head through the available GitHub validation surface. Do not mark this checkpoint as release-green until the relevant CI/Production Build and post-deployment browser evidence are rerun and pass.
+
+## 2026-09-29 — Pay UI/UX + Devnet payment evolution validation checkpoint
+
+Status: **PR VALIDATED GREEN / PRODUCTION DEPLOYMENT EVIDENCE PENDING**
+
+Runtime validation commit: `2fd8f66c1a534a17eda2113fe464cf1027ca8ef9`
+
+UI/UX:
+- Pay navigation remains capability-complete while reducing visual density: Overview is the primary dashboard surface, Billing groups Invoices + Payment Links, and Checkout remains directly routable.
+- Desktop sidebar is 228px expanded / 78px compact with localized icon tooltips, accessible collapse control, restrained colored icons, subtle active motion, and reduced-motion support.
+- RTL/LTR shell and mobile drawer behavior remain aligned with locale direction.
+- Duplicate shell/component headings were removed from audited Pay surfaces.
+- Tables now use narrow-screen card/list presentation for Transactions, Invoices, Payment Links, Reports, Referrals, and Webhook delivery history.
+- Checkout primary status now uses the localized authoritative Payment Intent status rather than exposing a raw machine status as the primary customer-facing label.
+- No client-side payment business rule or new API contract was introduced.
+
+Payment / validation:
+- Current-head production typecheck and Production Build: **PASS**.
+- Current-head CI / unit tests: **PASS**.
+- Current-head Database Security / RLS / Payment Link mutation security / API-key lifecycle security: **PASS**.
+- Current-head Mainnet read-only provider check: **PASS**.
+- Current-head funded Devnet E2E: **PASS** — both real Devnet payment verification and Payment Intent reconciliation passed.
+- The configured CI funder is therefore no longer blocking the Devnet verification flow.
+
+Payment boundary:
+- The current checkout contract exposes Payment Intent retrieval and payment verification by transaction signature.
+- No authoritative transaction-construction / submit-payment endpoint is present in the inspected backend contract, so a client-side “Pay Now” transaction sender was deliberately not invented.
+- The next payment-evolution implementation must begin from a real backend transaction-construction/payment-action contract before adding a one-click customer payment action.
+
+Release control:
+- This checkpoint records positive PR/runtime evidence only.
+- Production Browser UI E2E for the new runtime is still a post-merge/main deployment gate and is not claimed here.
+- This documentation commit does not alter runtime behavior.

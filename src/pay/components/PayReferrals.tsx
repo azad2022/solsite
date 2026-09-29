@@ -93,7 +93,7 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
               <div className="pay-referrals-panel-heading"><div><span className="pay-panel-kicker">{referralT(locale, 'referrals')}</span><h3>{referralT(locale, 'referrals')}</h3></div><Users size={19} /></div>
               {data.referrals.length === 0 ? <div className="pay-referrals-mini-empty">{referralT(locale,'noData')}</div> : (
                 <div className="pay-referrals-table-wrap"><table className="pay-referrals-table"><thead><tr><th>{referralT(locale,'merchant')}</th><th>{referralT(locale,'referralCode')}</th><th>{referralT(locale,'status')}</th><th>{referralT(locale,'attributedAt')}</th></tr></thead><tbody>
-                  {data.referrals.map(item => <tr key={item.id}><td><code>{short(item.merchant_id)}</code></td><td><code>{item.referral_code}</code></td><td>{referralActiveT(locale,item.active)}</td><td>{formatDate(item.attributed_at,locale)}</td></tr>)}
+                  {data.referrals.map(item => <tr key={item.id}><td data-label={referralT(locale,'merchant')}><code>{short(item.merchant_id)}</code></td><td data-label={referralT(locale,'referralCode')}><code>{item.referral_code}</code></td><td data-label={referralT(locale,'status')}>{referralActiveT(locale,item.active)}</td><td data-label={referralT(locale,'attributedAt')}>{formatDate(item.attributed_at,locale)}</td></tr>)}
                 </tbody></table></div>
               )}
             </section>
@@ -103,7 +103,7 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
             <div className="pay-referrals-panel-heading"><div><span className="pay-panel-kicker">{referralT(locale, 'commissions')}</span><h3>{referralT(locale, 'commissions')}</h3></div><span className="pay-referrals-count">{data.commissions.length}</span></div>
             {data.commissions.length === 0 ? <div className="pay-referrals-mini-empty">{referralT(locale,'noData')}</div> : (
               <div className="pay-referrals-table-wrap"><table className="pay-referrals-table"><thead><tr><th>{referralT(locale,'payment')}</th><th>{referralT(locale,'commissionAmount')}</th><th>{referralT(locale,'gatewayFee')}</th><th>{referralT(locale,'commissionStatus')}</th><th>{referralT(locale,'createdAt')}</th></tr></thead><tbody>
-                {data.commissions.map(item => <tr key={item.id}><td><code>{short(item.payment_id)}</code></td><td><strong>{item.commission_atomic}</strong></td><td>{item.gross_gateway_fee_atomic}</td><td>{item.status}</td><td>{formatDate(item.created_at,locale)}</td></tr>)}
+                {data.commissions.map(item => <tr key={item.id}><td data-label={referralT(locale,'payment')}><code>{short(item.payment_id)}</code></td><td data-label={referralT(locale,'commissionAmount')}><strong>{item.commission_atomic}</strong></td><td data-label={referralT(locale,'gatewayFee')}>{item.gross_gateway_fee_atomic}</td><td data-label={referralT(locale,'commissionStatus')}>{item.status}</td><td data-label={referralT(locale,'createdAt')}>{formatDate(item.created_at,locale)}</td></tr>)}
               </tbody></table></div>
             )}
           </section>
