@@ -38,5 +38,5 @@ test('Pay entry is authenticated at the application navigation boundary', () => 
   assert.ok(appSource.includes("if (isPayPath(normalizedPath) && (authPending || !applicationSessionUser))"));
   assert.ok(appSource.includes('setPendingPayPath(normalizedPath)'));
   assert.ok(appSource.includes('setIsAdminModalOpen(true)'));
-  assert.match(appSource, /setCurrentPath\\('\/'\\)/);
+  assert.ok(appSource.includes("setCurrentPath('/');"));
 });
