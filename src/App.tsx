@@ -171,7 +171,11 @@ export default function App() {
   };
 
   const isPayPath = (path: string) => path === '/pay' || path.startsWith('/pay/');
-  const isPublicPayPath = (path: string) => isPayPath(path) && matchPayRoute(path).kind === 'payment-link';
+  const isPublicPayPath = (path: string) => {
+    if (!isPayPath(path)) return false;
+    const route = matchPayRoute(path);
+    return route.kind === 'payment-link' || (route.kind === 'checkout' && Boolean(route.intentId));
+  };
 
   const handleNavigate = (path: string) => {
     const normalizedPath = normalizePath(path);
