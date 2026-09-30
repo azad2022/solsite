@@ -2,6 +2,7 @@ import type { PayLocale } from '../types';
 
 type AccountMenuMessages = {
   accountMenu: string;
+  close: string;
   walletBalance: string;
   walletBalanceSource: string;
   refreshBalance: string;
@@ -21,7 +22,7 @@ type AccountMenuMessages = {
 
 const messages: Record<PayLocale, AccountMenuMessages> = {
   'fa-IR': {
-    accountMenu:'حساب کاربری',
+    accountMenu:'حساب کاربری', close:'بستن',
     walletBalance:'موجودی کیف پول دریافت',
     walletBalanceSource:'داده زنده از سرویس Pay و شبکه Solana',
     refreshBalance:'به‌روزرسانی موجودی',
@@ -39,7 +40,7 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     network:'شبکه',
   },
   'en-US': {
-    accountMenu:'Account',
+    accountMenu:'Account', close:'Close',
     walletBalance:'Receiving wallet balance',
     walletBalanceSource:'Live read from the Pay service and Solana network',
     refreshBalance:'Refresh balance',
@@ -57,7 +58,7 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     network:'Network',
   },
   ar: {
-    accountMenu:'الحساب',
+    accountMenu:'الحساب', close:'إغلاق',
     walletBalance:'رصيد محفظة الاستلام',
     walletBalanceSource:'قراءة مباشرة من خدمة Pay وشبكة Solana',
     refreshBalance:'تحديث الرصيد',
@@ -75,7 +76,7 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     network:'الشبكة',
   },
   ru: {
-    accountMenu:'Аккаунт',
+    accountMenu:'Аккаунт', close:'Закрыть',
     walletBalance:'Баланс кошелька для приёма',
     walletBalanceSource:'Данные из сервиса Pay и сети Solana',
     refreshBalance:'Обновить баланс',
