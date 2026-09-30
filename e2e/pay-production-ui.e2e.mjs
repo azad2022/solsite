@@ -289,6 +289,14 @@ try {
     }
 
     await sidebar.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    const iconDiagnostics = await sidebar.locator('.pay-nav-icon svg').evaluateAll((icons) => icons.map((icon) => {
+      const rect = icon.getBoundingClientRect();
+      const style = getComputedStyle(icon);
+      return { width: rect.width, height: rect.height, visibility: style.visibility, opacity: style.opacity };
+    }));
+    assert.ok(iconDiagnostics.length >= 7, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
+    assert.ok(iconDiagnostics.every((icon) => icon.width > 0 && icon.height > 0 && icon.visibility !== 'hidden' && Number(icon.opacity) > 0),
+      `Sidebar icons must remain visible: ${JSON.stringify(iconDiagnostics)}`);
     const lastNav = page.locator('.pay-nav-item').last();
     const lastBox = await lastNav.boundingBox();
     assert.ok(lastBox, `Last navigation item must remain renderable for ${targetLocale}.`);
