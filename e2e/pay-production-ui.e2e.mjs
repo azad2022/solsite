@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomBytes, generateKeyPairSync, sign } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
@@ -71,13 +71,6 @@ function encodeBase58(bytes) {
   return out || '1';
 }
 
-function walletSigner() {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  const spki = publicKey.export({ format: 'der', type: 'spki' });
-  const raw = spki.subarray(spki.length - 32);
-  return { address: encodeBase58(raw), privateKey };
-}
-
 async function provision() {
   const betterAuthUserId = crypto.randomUUID();
   const username = `pay_browser_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`;
@@ -130,25 +123,6 @@ async function directSignIn(context, fixture) {
   assert.ok(body.user, 'Better Auth sign-in must return user');
 }
 
-async function signWalletChallenge(context, merchantId, signer) {
-  const challengeResponse = await context.request.post(
-    `/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges`,
-    { headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, data: { walletAddress: signer.address } },
-  );
-  assert.equal(challengeResponse.status(), 201, `Wallet challenge failed: ${await challengeResponse.text()}`);
-  const challenge = (await challengeResponse.json()).challenge;
-  const signature = sign(null, Buffer.from(challenge.message, 'utf8'), signer.privateKey);
-  const verifyResponse = await context.request.post(
-    `/api/pay/v1/merchants/${encodeURIComponent(merchantId)}/wallet-challenges/${encodeURIComponent(challenge.id)}`,
-    { headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, data: { walletAddress: signer.address, signature: encodeBase58(signature) } },
-  );
-  assert.equal(verifyResponse.status(), 200, `Wallet verification failed: ${await verifyResponse.text()}`);
-  const body = await verifyResponse.json();
-  console.log(`WALLET_VERIFY_RESULT ${JSON.stringify({ status: verifyResponse.status(), verified: body.verified, merchantId: body.merchantId, walletId: body.walletId, walletAddress: body.walletAddress, verifiedAt: body.verifiedAt })}`);
-  assert.equal(body.verified, true);
-  return body;
-}
-
 const routes = [
   ['/pay', 'overview'],
   ['/pay/merchants', 'merchants'],
@@ -188,8 +162,6 @@ async function routeAudit(page, path, label, evidenceDir, apiEvents, isExpectedA
 assert.ok(SUPABASE_ACCESS_TOKEN, 'SUPABASE_ACCESS_TOKEN is required');
 const fixture = await provision();
 let merchantId = '';
-const signer = walletSigner();
-
 try {
   const browser = await chromium.launch({ headless: true });
   const guestContext = await browser.newContext({
@@ -426,11 +398,74 @@ try {
   await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
   const preVerificationWalletText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\\s+/g, ' ').trim();
-  const preVerificationWalletAction = page.getByRole('button', { name: /Connect and verify wallet|اتصال و تأیید کیف پول|توصيل المحفظة والتحقق منها|Подключить и подтвердить кошелёк/i });
-  await preVerificationWalletAction.waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await preVerificationWalletAction.count(), 1, 'Merchant page must expose exactly one receiving-wallet verification action before verification.');
+  const dedicatedWalletAction = page.getByRole('button', { name: /Create dedicated SolMint wallet|ایجاد کیف پول اختصاصی SolMint|إنشاء محفظة SolMint مخصصة|Создать выделенный кошелёк SolMint/i });
+  const existingWalletAction = page.getByRole('button', { name: /Use existing wallet|استفاده از کیف پول موجود|استخدام محفظة موجودة|Использовать существующий кошелёк/i });
+  await dedicatedWalletAction.waitFor({ state: 'visible', timeout: 10000 });
+  await existingWalletAction.waitFor({ state: 'visible', timeout: 10000 });
   assert.match(preVerificationWalletText, /Not verified yet|کیف پول دریافت هنوز تأیید نشده است|لم يتم التحقق|Пока не подтверждён/i);
-  console.log('MERCHANT_WALLET_VERIFICATION_UI_BEFORE ' + JSON.stringify({ actionVisible: true, walletText: preVerificationWalletText.slice(0, 600) }));
+  console.log('MERCHANT_WALLET_VERIFICATION_UI_BEFORE ' + JSON.stringify({ dedicatedActionVisible: true, existingWalletFallbackVisible: true, walletText: preVerificationWalletText.slice(0, 600) }));
+
+  const sensitiveWalletPostBodies = [];
+  const sensitiveWalletRequests = [];
+  const onSensitiveWalletRequest = (request) => {
+    if (request.method() !== 'POST' || !request.url().includes('/api/pay/v1/merchants/') || !request.url().includes('/wallet-challenges')) return;
+    sensitiveWalletRequests.push(request.url());
+    sensitiveWalletPostBodies.push(request.postData() || '');
+  };
+  page.on('request', onSensitiveWalletRequest);
+
+  await dedicatedWalletAction.click();
+  await page.locator('.pay-onboarding-recovery').waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByRole('button', { name: 'Show recovery phrase', exact: true }).click();
+  const phraseWords = await page.locator('.pay-recovery-words span').allTextContents();
+  assert.equal(phraseWords.length, 24, 'Default dedicated wallet recovery phrase must contain 24 words.');
+  const generatedAddress = (await page.locator('.pay-onboarding-generated-address code').innerText()).trim();
+  assert.match(generatedAddress, /^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+  const recoveryPhrase = phraseWords.map((value) => value.replace(/^\\d+\\s+/, '').trim()).join(' ');
+  assert.equal(recoveryPhrase.split(/\\s+/).length, 24);
+  assert.equal(await page.locator('.pay-recovery-confirm input[type="checkbox"]').isChecked(), false);
+  assert.equal(await page.getByRole('button', { name: 'Continue and register wallet', exact: true }).isDisabled(), true);
+  assert.equal(await page.locator('body').evaluate((body) => body.innerText.includes('Private key'),), false,
+    'Recovery UI must not expose private-key copy/export controls.');
+
+  await page.locator('.pay-recovery-confirm input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Continue and register wallet', exact: true }).click();
+  await page.locator('.pay-onboarding-verified').waitFor({ state: 'visible', timeout: 15000 });
+  page.off('request', onSensitiveWalletRequest);
+
+  assert.ok(sensitiveWalletRequests.some((url) => /\\/wallet-challenges$/.test(new URL(url).pathname)),
+    'Dedicated wallet flow must issue the existing wallet challenge endpoint.');
+  const challengeBodies = sensitiveWalletPostBodies.map((body) => JSON.parse(body));
+  assert.deepEqual(Object.keys(challengeBodies.find((body) => Object.keys(body).length === 1 && 'walletAddress' in body) || {}).sort(), ['walletAddress']);
+  assert.ok(challengeBodies.every((body) => !body.mnemonic && !body.seed && !body.seedPhrase && !body.privateKey),
+    'Wallet secrets must never be present in wallet API request bodies.');
+  assert.ok(challengeBodies.every((body) => !body.__proto__ || true));
+  assert.ok(sensitiveWalletPostBodies.every((body) => !body.includes(recoveryPhrase)),
+    'The exact recovery phrase must never appear in wallet API request bodies.');
+
+  const walletAfterGenerated = await page.evaluate(async (address) => {
+    const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
+    const text = (await response.text()).slice(0, 3000);
+    let body = null;
+    try { body = JSON.parse(text); } catch {}
+    return {
+      status: response.status,
+      merchantStatus: body?.merchant?.status ?? null,
+      walletAddress: body?.merchant?.receiving_wallet?.address ?? null,
+      walletVerificationStatus: body?.merchant?.receiving_wallet?.verification_status ?? null,
+      addressMatches: body?.merchant?.receiving_wallet?.address === address,
+    };
+  }, generatedAddress);
+  assert.equal(walletAfterGenerated.status, 200);
+  assert.equal(walletAfterGenerated.merchantStatus, 'active');
+  assert.equal(walletAfterGenerated.walletVerificationStatus, 'verified');
+  assert.equal(walletAfterGenerated.addressMatches, true);
+  console.log('DEDICATED_MERCHANT_WALLET_GENERATION_PRODUCTION_E2E ' + JSON.stringify({
+    phraseWordCount: 24,
+    addressStored: true,
+    requestBodiesRedacted: true,
+    authoritativeStatus: walletAfterGenerated.walletVerificationStatus,
+  }));
 
   const preWalletRouteResults = [];
   for (const [path, label] of routes) {
@@ -490,7 +525,7 @@ try {
   await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-onboarding-verified').waitFor({ state: 'visible', timeout: 10000 });
   const verifiedWalletUiText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\\s+/g, ' ').trim();
-  assert.match(verifiedWalletUiText, new RegExp(signer.address.slice(0, 8)));
+  assert.match(verifiedWalletUiText, new RegExp(generatedAddress.slice(0, 8)));
   console.log('MERCHANT_WALLET_VERIFICATION_UI_AFTER ' + JSON.stringify({ verifiedVisible: true, walletText: verifiedWalletUiText.slice(0, 600) }));
   const walletAfterReload = await page.evaluate(async (addressPrefix) => {
     const response = await fetch('/api/pay/v1/merchants', { credentials: 'include', cache: 'no-store' });
@@ -506,7 +541,7 @@ try {
       addressMatches: typeof body?.merchant?.receiving_wallet?.address === 'string'
         && body.merchant.receiving_wallet.address.startsWith(addressPrefix),
     };
-  }, signer.address.slice(0, 8));
+  }, generatedAddress.slice(0, 8));
   console.log(`WALLET_AFTER_RELOAD ${JSON.stringify(walletAfterReload)}`);
   assert.equal(walletAfterReload.status, 200, `Authoritative merchant GET after reload failed: ${walletAfterReload.text}`);
   assert.equal(walletAfterReload.merchantStatus, 'active',
