@@ -51,11 +51,12 @@ test('payment link service creates through the same-origin API with idempotency'
 
 test('public payment link service creates a Payment Intent only through the public link route', async () => {
   let path = ''; let init: RequestInit | undefined;
-  const result = await createPayPaymentLinkService(clientFor({ success:true, apiVersion:'v1', data:{ id:'33333333-3333-4333-8333-333333333333' } }, (p,i) => { path=p; init=i; })).createFromPublic('solmint-store', 'link-checkout-e2e-key');
+  const result = await createPayPaymentLinkService(clientFor({ success:true, apiVersion:'v1', data:{ id:'33333333-3333-4333-8333-333333333333' } }, (p,i) => { path=p; init=i; })).createFromPublic('solmint-store', { firstName:'Ali', lastName:'Ahmadi', paymentReason:'Order 123' }, 'link-checkout-e2e-key');
   assert.equal(result.id, '33333333-3333-4333-8333-333333333333');
   assert.equal(path, '/api/pay/v1/payment-links/solmint-store');
   assert.equal(init?.method, 'POST');
   assert.equal(new Headers(init?.headers).get('Idempotency-Key'), 'link-checkout-e2e-key');
+  assert.deepEqual(JSON.parse(String(init?.body)), { firstName:'Ali', lastName:'Ahmadi', paymentReason:'Order 123' });
 });
 
 
