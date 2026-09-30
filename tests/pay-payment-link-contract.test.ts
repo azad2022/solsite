@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const route = readFileSync('functions/api/pay/v1/payment-links.ts', 'utf8');
 const publicRoute = readFileSync('functions/api/pay/v1/payment-links/[slug].ts', 'utf8');
-const migration = readFileSync('supabase/migrations/20260927000100_solmint_pay_payment_link_end_to_end.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20260927134700_solmint_pay_payment_link_end_to_end.sql', 'utf8');
 const mutations = readFileSync('supabase/migrations/20260927150000_solmint_pay_payment_link_mutations.sql', 'utf8');
 const openapi = JSON.parse(readFileSync('public/openapi.json', 'utf8'));
 
