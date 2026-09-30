@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Solmint Public API",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "description": "Public read-only APIs plus the public Pay Payment Link checkout endpoint. Public checkout does not require a SolMint account and accepts only payer first name, last name, and payment reason. These APIs never accept seed phrases, private keys, passwords, or signing credentials. Authenticated merchant Pay contracts remain protected by server-side merchant authorization."
   },
   "servers": [
@@ -729,6 +729,47 @@
           },
           "503": {
             "description": "Payment service temporarily unavailable"
+          }
+        }
+      }
+    },
+    "/api/pay/v1/merchants/{merchantId}/wallet-balance": {
+      "get": {
+        "operationId": "getPayMerchantReceivingWalletBalance",
+        "summary": "Read the authenticated Merchant receiving-wallet balance",
+        "description": "Returns the latest server-mediated Solana snapshot for the verified receiving wallet of the authenticated Merchant. Only SOL, USDT, and USDC are returned. This endpoint does not expose private keys or signing credentials.",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receiving wallet balance snapshot"
+          },
+          "400": {
+            "description": "Invalid Merchant ID"
+          },
+          "401": {
+            "description": "Authenticated SolMint session required"
+          },
+          "404": {
+            "description": "Merchant not found"
+          },
+          "409": {
+            "description": "Merchant or receiving wallet is not available"
+          },
+          "429": {
+            "description": "Wallet balance request rate limit exceeded"
+          },
+          "503": {
+            "description": "Wallet balance service temporarily unavailable"
           }
         }
       }
