@@ -55,7 +55,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const generatedWalletRef = useRef<LocalSolanaMerchantWallet | null>(null);
   const [refreshingMerchant, setRefreshingMerchant] = useState(false);
 
-  const applyMerchantWalletSnapshot = (value: PayMerchant | null) => {
+  useEffect(() => () => {\n    generatedWalletRef.current?.dispose();\n    generatedWalletRef.current = null;\n  }, []);\n\n  const applyMerchantWalletSnapshot = (value: PayMerchant | null) => {
     setWalletAddress(value?.receivingWallet?.verificationStatus === 'verified' && value.receivingWallet.isActive ? value.receivingWallet.address : '');
     setVerifiedAt(value?.receivingWallet?.verificationStatus === 'verified' && value.receivingWallet.isActive ? value.receivingWallet.verifiedAt : null);
   };
