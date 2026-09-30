@@ -397,7 +397,7 @@ try {
 
   await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
-  const preVerificationWalletText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\\s+/g, ' ').trim();
+  const preVerificationWalletText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\s+/g, ' ').trim();
   const dedicatedWalletAction = page.getByRole('button', { name: /Create dedicated SolMint wallet|ایجاد کیف پول اختصاصی SolMint|إنشاء محفظة SolMint مخصصة|Создать выделенный кошелёк SolMint/i });
   const existingWalletAction = page.getByRole('button', { name: /Use existing wallet|استفاده از کیف پول موجود|استخدام محفظة موجودة|Использовать существующий кошелёк/i });
   await dedicatedWalletAction.waitFor({ state: 'visible', timeout: 10000 });
@@ -523,7 +523,7 @@ try {
   await page.waitForSelector('.pay-api-keys', { state: 'visible', timeout: 10000 });
   await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-onboarding-verified').waitFor({ state: 'visible', timeout: 10000 });
-  const verifiedWalletUiText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\\s+/g, ' ').trim();
+  const verifiedWalletUiText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\s+/g, ' ').trim();
   assert.match(verifiedWalletUiText, new RegExp(generatedAddress.slice(0, 8)));
   console.log('MERCHANT_WALLET_VERIFICATION_UI_AFTER ' + JSON.stringify({ verifiedVisible: true, walletText: verifiedWalletUiText.slice(0, 600) }));
   const walletAfterReload = await page.evaluate(async (addressPrefix) => {
