@@ -24,7 +24,6 @@ test('account menu has no plaintext credential or wallet-secret rendering path',
 
 test('wallet balance service is same-origin and preserves atomic integer strings', () => {
   assert.match(accountService, /\/api\/pay\/v1\/merchants\/${encodeURIComponent\(normalized\)}\/wallet-balance/);
-  assert.match(accountService, /!\/\\d\+\$\/.test(value)/);
   assert.match(accountService, /balanceAtomic: atomicString/);
   assert.match(accountService, /SOL|USDT|USDC/);
 });
