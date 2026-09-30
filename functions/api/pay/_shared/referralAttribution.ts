@@ -20,7 +20,7 @@ function getSupabaseSecret(env: ReferralServiceEnv): string {
 
 function getSupabaseBaseUrl(env: ReferralServiceEnv): string {
   const value = env.SUPABASE_URL?.trim() || 'https://nvopkbiedorfshwbmyhn.supabase.co';
-  return value.replace(//$/, '');
+  return value.replace(/\/$/, '');
 }
 
 async function rpc<T>(env: ReferralServiceEnv, functionName: string, body: Record<string, unknown>): Promise<T> {
