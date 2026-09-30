@@ -11,7 +11,7 @@ import { reconcilePayment, type ReconciliationPayment, type ReconciliationReposi
 import type { ObservedPaymentTransaction, ObservedTransfer } from '../../../../../../src/pay/services/verificationPolicy';
 import type { PaymentAsset, PaymentStatus, TokenProgram } from '../../../../../../src/pay/types/domain';
 import { sendMerchantPaymentNotificationEmail } from '../../_shared/paymentEmail';
-import type { AuthEmailLocale } from '../../../auth/_email';
+import type { AuthEmailLocale } from '../../../../auth/_email';
 
 interface PayEnv {
   SUPABASE_URL?: string;
