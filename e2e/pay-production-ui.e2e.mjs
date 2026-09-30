@@ -453,13 +453,29 @@ try {
 
   await dedicatedWalletAction.click();
   await page.locator('.pay-onboarding-recovery').waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByRole('button', { name: 'Show recovery phrase', exact: true }).click();
-  const phraseWords = await page.locator('.pay-recovery-words span').allTextContents();
-  assert.equal(phraseWords.length, 24, 'Default dedicated wallet recovery phrase must contain 24 words.');
+  const maskedRecoveryWords = await page.locator('.pay-recovery-masked span').allTextContents();
+  assert.equal(maskedRecoveryWords.length, 24, 'Default dedicated wallet recovery phrase must render 24 masked items.');
+  assert.ok(maskedRecoveryWords.every((value) => value === '****'), 'Recovery phrase must be masked in the DOM.');
   const generatedAddress = (await page.locator('.pay-onboarding-generated-address code').innerText()).trim();
   assert.match(generatedAddress, /^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
-  const recoveryPhrase = phraseWords.map((value) => value.replace(/^\\d+\\s+/, '').trim()).join(' ');
-  assert.equal(recoveryPhrase.split(/\s+/).length, 24);
+  let bodyTextBeforeCopy = await page.locator('body').innerText();
+  assert.doesNotMatch(bodyTextBeforeCopy, /(?:\b[a-z]{2,}\b\s+){11,}/i, 'Recovery phrase must not be rendered as a visible word sequence.');
+  await page.evaluate(() => {
+    let captured = '';
+    Object.defineProperty(window, '__solmintCapturedRecoveryPhrase', {
+      configurable: true,
+      get: () => captured,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (value) => { captured = String(value); } },
+    });
+  });
+  await page.getByRole('button', { name: 'Copy recovery phrase', exact: true }).click();
+  const recoveryPhrase = await page.evaluate(() => window.__solmintCapturedRecoveryPhrase || '');
+  assert.equal(recoveryPhrase.split(/\s+/).length, 24, 'Copy must place the complete recovery phrase on the clipboard.');
+  bodyTextBeforeCopy = await page.locator('body').innerText();
+  assert.equal(bodyTextBeforeCopy.includes(recoveryPhrase), false, 'The exact recovery phrase must not become visible in the DOM.');
   assert.equal(await page.locator('.pay-recovery-confirm input[type="checkbox"]').isChecked(), false);
   assert.equal(await page.getByRole('button', { name: 'Continue and register wallet', exact: true }).isDisabled(), true);
   assert.equal(await page.locator('body').evaluate((body) => body.innerText.includes('Private key'),), false,
