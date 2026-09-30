@@ -12,6 +12,7 @@
     "/wallet-analyzer",
     "/pay",
     "/pay/*",
+    "/r/*",
     "/api/article-categories*",
     "/api/category-default-media-gallery",
     "/api/comments",
