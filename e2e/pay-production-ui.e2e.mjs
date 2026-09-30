@@ -862,6 +862,21 @@ try {
   }
   console.log(`POSTWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: postWalletRouteResults.length, results: postWalletRouteResults.map(result => ({ path: result.path, apiEvents: result.apiEvents, excerpt: result.excerpt.slice(0, 300) })) })}`);
 
+  // Grouped navigation regression: billing owns transactions/customers/reports, developer owns webhooks.
+  await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 7, 'Pay sidebar should expose seven primary entries after navigation consolidation.');
+  assert.equal(await page.locator('.pay-billing-related-nav button').count(), 3, 'Billing hub must expose transactions, customers, and reports below the primary billing surface.');
+
+  await page.locator('.pay-billing-related-nav button').filter({ hasText: /Customers|مشتریان|العملاء|Клиенты/i }).click();
+  await page.locator('.pay-customers').waitFor({ state: 'visible', timeout: 10000 });
+  assert.match((await page.locator('.pay-topbar-breadcrumb strong').innerText()).trim(), /Invoices & payment links|صورتحساب و لینک‌ها|الفواتير وروابط الدفع|Счета и платёжные ссылки/i);
+
+  await page.goto(ORIGIN + '/pay/developer', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-developer').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-developer-webhooks-section .pay-webhooks-shell').waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 7, 'Developer consolidation must keep the same seven primary entries.');
+
   await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-api-keys').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-api-create').waitFor({ state: 'visible', timeout: 10000 });
