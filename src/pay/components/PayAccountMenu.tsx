@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy, LogOut, RefreshCw, WalletCards, XCircle } from 'lucide-react';
+import { PayHttpError } from '../http';
 import type { PayLocale } from '../types';
 import type { PaySessionUser } from '../services/sessionService';
 import type { PayMerchant } from '../services/merchantOnboardingService';
@@ -30,14 +31,14 @@ function formatAtomic(value: string, decimals: number, locale: PayLocale): strin
     const digits = decimals > 0 ? remainder.toString().padStart(decimals, '0').replace(/0+$/, '') : '';
     const raw = digits ? `${whole.toString()}.${digits}` : whole.toString();
     const [wholeText, fractionText] = raw.split('.');
-    const grouped = new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 0 }).format(Number(wholeText));
+    const grouped = new Intl.NumberFormat(intlLocale(locale), { useGrouping: true, maximumFractionDigits: 0 }).format(BigInt(wholeText));
     return fractionText ? `${grouped}.${fractionText}` : grouped;
   } catch {
     return value;
   }
 }
 
-function assetLabel(asset: PayWalletBalanceAsset, locale: PayLocale): string {
+function assetLabel(asset: PayWalletBalanceAsset): string {
   if (asset.asset === 'USDT') return 'USDT';
   if (asset.asset === 'USDC') return 'USDC';
   return 'SOL';
@@ -52,7 +53,7 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [snapshot, setSnapshot] = useState<Awaited<ReturnType<typeof getMerchantWalletBalance>> | null>(null);
-  const [error, setError] = useState(false);
+  const [state, setState] = useState<'idle'|'loading'|'ready'|'unavailable'|'not-ready'>('idle');
   const [copied, setCopied] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -61,12 +62,13 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
   const loadBalance = async () => {
     if (!merchant?.id || loading) return;
     setLoading(true);
-    setError(false);
+    setState('loading');
     try {
       const result = await getMerchantWalletBalance(merchant.id);
       setSnapshot(result);
-    } catch {
-      setError(true);
+      setState('ready');
+    } catch (error) {
+      setState(error instanceof PayHttpError && error.status === 409 ? 'not-ready' : 'unavailable');
     } finally {
       setLoading(false);
     }
@@ -153,7 +155,7 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
               </button>
             </div>
 
-            {snapshot ? (
+            {state === 'ready' && snapshot ? (
               <>
                 <div className="pay-account-balance-grid">
                   {(['SOL', 'USDT', 'USDC'] as const).map(asset => {
@@ -161,7 +163,7 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
                     if (!item) return null;
                     return (
                       <div key={asset} className="pay-account-balance-card">
-                        <div className="pay-account-balance-symbol">{assetLabel(item, locale)}</div>
+                        <div className="pay-account-balance-symbol">{assetLabel(item)}</div>
                         <strong>{formatAtomic(item.balanceAtomic, item.decimals, locale)}</strong>
                         <span>{asset === 'SOL' ? accountMenuT(locale, 'solana') : accountMenuT(locale, 'stablecoin')}</span>
                       </div>
