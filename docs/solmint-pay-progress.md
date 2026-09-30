@@ -1431,3 +1431,38 @@ These do not block the dedicated Merchant wallet/Pay runtime evidence above:
 The dedicated receiving-wallet capability is now **production verified** across UI, Backend challenge/verification, Database-backed authoritative refresh, reload persistence, and the existing Pay billing/checkout browser lifecycle.
 
 No further Wallet API or Database change is justified by the current evidence.
+## 2026-09-30 — Pay Account/Training/Sidebar + production gate reconciliation checkpoint
+
+Status: **COMPLETED / PRODUCTION BROWSER VERIFIED / DATABASE HISTORY RECONCILED**
+
+### Confirmed findings and fixes
+
+- Fingerprinted Vite assets were fixed at the Pages middleware boundary so /assets/* is served through the ASSETS binding instead of falling through to SPA HTML.
+- Pay Production Browser UI and Live Audit deployment waits were extended from 5 to 15 minutes after evidence showed Pages builds can exceed the old timeout.
+- False-positive/invalid production E2E assertions were corrected at the test boundary.
+- Mobile Payment Links action placement was fixed in `5682aa057ebfd1f6f564c961e8b14ac19b90a748`; Details/Open controls remain reachable on small viewports.
+- Local migration filenames and the production migration ledger were reconciled with live Supabase. Local and production now both contain 89 migrations with zero version drift. No already-applied production migration was replayed.
+- Account Menu, Training Center, desktop sidebar reachability, RTL/LTR rail placement, and sidebar icon visibility are covered by production browser assertions.
+
+### Fresh evidence
+
+- Production Browser UI E2E on runtime `5682aa057ebfd1f6f564c961e8b14ac19b90a748`: **PASS**.
+- Live Browser Audit on current main trigger commit `09e5daeba9de5e1b1c3cfad1abdd622c14753c8f`: **PASS**.
+- Cloudflare Pages deployment on `09e5dae`: **PASS**.
+- Supabase Preview on current main: **PASS**.
+- Database Security, Quality and Build gates for the reconciliation: **PASS**.
+- Direct production migration comparison: `localCount=89`, `remoteCount=89`, `remoteOnly=[]`, `localOnly=[]`.
+
+### Remaining classified warnings
+
+Supabase Security Advisor still reports the `pg_net` extension in public schema, nine authenticated-callable SECURITY DEFINER functions, and leaked-password protection disabled. These are explicit hardening follow-ups; no unscoped privilege or Auth configuration change was made without stronger contract evidence.
+
+The separate `Workers Builds: solsite` Cloudflare integration still reports a failure. The documented production deployment path is Cloudflare Pages / Pages Functions, which is green; the Workers integration is tracked separately from the Pay runtime gate.
+
+### Checkpoint conclusion
+
+The current Account/Training/Sidebar UX cycle is complete and production-evidenced. The Pay boot failure, mobile Payment Links action failure, and repository/Production migration-history drift found in this rally have been resolved at their correct boundaries.
+
+No new Pay API, payment rule, verification rule, financial calculation, database business rule, or client-side financial truth was introduced.
+
+The next rally should start from the existing authoritative Backend/Database contract rather than speculative UI capability.
