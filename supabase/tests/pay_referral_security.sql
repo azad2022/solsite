@@ -236,22 +236,21 @@ begin
   end if;
 end $single_level$;
 
-begin;
 set local role service_role;
 \set payment_b '30000000-0000-4000-8000-000000000001'
 \set payment_c '30000000-0000-4000-8000-000000000002'
 
 insert into public.pay_payment_intents(id,merchant_id,asset,token_decimals,status)
 values
- (:payment_b,(select id from public.pay_merchants where slug='merchant-b'),'SOL',9,'pending'),
- (:payment_c,(select id from public.pay_merchants where slug='merchant-c'),'SOL',9,'pending');
+ (:'payment_b'::uuid,(select id from public.pay_merchants where slug='merchant-b'),'SOL',9,'pending'),
+ (:'payment_c'::uuid,(select id from public.pay_merchants where slug='merchant-c'),'SOL',9,'pending');
 
 insert into public.pay_revenue_ledger(
   payment_id,asset,gross_gateway_fee_atomic,referral_commission_atomic,net_gateway_revenue_atomic,status
 )
 values
-  (:payment_b,'SOL',1001,0,1001,'eligible'),
-  (:payment_c,'SOL',1001,0,1001,'eligible');
+  (:'payment_b'::uuid,'SOL',1001,0,1001,'eligible'),
+  (:'payment_c'::uuid,'SOL',1001,0,1001,'eligible');
 
 DO $commission$
 declare
@@ -264,7 +263,7 @@ begin
   if not exists (
     select 1 from public.pay_commissions c
     join public.pay_referrals r on r.id=c.referral_id
-    where r.affiliate_id=a_id and c.payment_id=:payment_b
+    where r.affiliate_id=a_id and c.payment_id=:'payment_b'::uuid
       and c.commission_bps=5000 and c.commission_atomic=500
   ) then
     raise exception 'A commission must be 50%% of B gateway revenue';
@@ -273,7 +272,7 @@ begin
   if not exists (
     select 1 from public.pay_commissions c
     join public.pay_referrals r on r.id=c.referral_id
-    where r.affiliate_id=b_id and c.payment_id=:payment_c
+    where r.affiliate_id=b_id and c.payment_id=:'payment_c'::uuid
       and c.commission_bps=5000 and c.commission_atomic=500
   ) then
     raise exception 'B commission must be 50%% of C gateway revenue';
@@ -282,14 +281,14 @@ begin
   if exists (
     select 1 from public.pay_commissions c
     join public.pay_referrals r on r.id=c.referral_id
-    where r.affiliate_id=a_id and c.payment_id=:payment_c
+    where r.affiliate_id=a_id and c.payment_id=:'payment_c'::uuid
   ) then
     raise exception 'A must receive zero commission from C';
   end if;
 
   if not exists (
     select 1 from public.pay_revenue_ledger l
-    where l.payment_id=:payment_c
+    where l.payment_id=:'payment_c'::uuid
       and l.gross_gateway_fee_atomic=1001
       and l.referral_commission_atomic=500
       and l.net_gateway_revenue_atomic=501
