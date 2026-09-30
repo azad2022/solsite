@@ -20,7 +20,7 @@ test('public payer identity is stored in Payment Intent columns, not the public 
   assert.match(migration, /customer_first_name text/);
   assert.match(migration, /customer_last_name text/);
   assert.match(migration, /customer_purpose text/);
-  assert.match(migration, /Payment Intent creation/);
+  assert.match(migration, /pay_payment_intents/);
   assert.match(migration, /payment_link_id = p_payment_link_id/);
   assert.match(migration, /grant execute on function public\.pay_create_payment_intent_from_link/);
   assert.match(migration, /revoke all on function public\.pay_create_payment_intent_from_link/);
