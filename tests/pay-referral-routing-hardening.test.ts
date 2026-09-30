@@ -42,3 +42,10 @@ test('Affiliate provisioning generates short codes for future users', () => {
   const ensureSection = hardening.slice(hardening.indexOf('create or replace function public.pay_ensure_affiliate'));
   assert.match(ensureSection, /v_code := 'sm_' \|\| encode\(gen_random_bytes\(8\), 'hex'\)/);
 });
+
+test('Public referral route is protected by a server-side click rate limit', () => {
+  assert.match(route, /enforceReferralClickRateLimit\(env, request\)/);
+  assert.match(attribution, /pay_check_and_increment_rate_limit/);
+  assert.match(attribution, /p_scope: 'referral_click'/);
+  assert.match(attribution, /p_max_requests: 60/);
+});
