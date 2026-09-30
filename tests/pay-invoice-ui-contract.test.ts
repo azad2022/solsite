@@ -8,7 +8,7 @@ const copy=readFileSync('src/pay/components/pay-invoices-i18n.ts','utf8');
 
 test('PayApp wires the invoice surface',()=>{
  assert.match(app,/import PayBillingHub(?:,\s*\{[^}]*\})? from '.\/components\/PayBillingHub'/);
- assert.match(app,/showBillingHub/); assert.match(app,/<PayBillingHub locale=\{locale\} merchantId=\{merchant\.id\}/);
+ assert.match(app,/showBillingHub/); assert.match(app,/<PayBillingHub\s+locale=\{locale\}\s+merchantId=\{merchant\.id\}/);
 });
 test('Invoice UI uses the service boundary and exposes a guarded create form',()=>{
  assert.match(ui,/payInvoiceService\.list/); assert.match(ui,/payInvoiceService\.create/);
