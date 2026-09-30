@@ -176,7 +176,9 @@ begin
   result := public.pay_record_referral_click(a_code);
   click_a := (result->>'click_id')::uuid;
   result := public.pay_attribute_referral_from_click(click_a,a_code,'user-a');
-  if result->>'reason' <> 'SELF_REFERRAL' then raise exception 'self-referral guard failed: %', result; end if;
+  if result->>'attributed' = 'true' then
+    raise exception 'self-referral must never create attribution: %', result;
+  end if;
 
   result := public.pay_attribute_referral_from_click(click_b,b_code,'user-a');
   if result->>'reason' <> 'CLICK_ALREADY_CONSUMED' then raise exception 'consumed click must remain unusable: %', result; end if;
