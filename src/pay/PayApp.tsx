@@ -13,14 +13,10 @@ import PayMerchantOnboarding from './components/PayMerchantOnboarding';
 import PayGettingStartedGuide from './components/PayGettingStartedGuide';
 import PayApiKeyManagement from './components/PayApiKeyManagement';
 import PayTicketCenter from './components/PayTicketCenter';
-import PayTransactions from './components/PayTransactions';
-import PayInvoices from './components/PayInvoices';
-import PayPaymentLinks from './components/PayPaymentLinks';
 import PayReferrals from './components/PayReferrals';
-import PayCustomers from './components/PayCustomers';
-import PayReports from './components/PayReports';
 import PaySecurity from './components/PaySecurity';
 import PayDeveloper from './components/PayDeveloper';
+import PayBillingHub, { billingRelatedViewFromSection, type BillingPrimaryView, type BillingRelatedView } from './components/PayBillingHub';
 import PayUnavailableFeature from './components/PayUnavailableFeature';
 import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
@@ -34,13 +30,12 @@ const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; str
   referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck, webhooks: Webhook,
 };
 
-const PAY_NAV_GROUPS: ReadonlyArray<{ key: 'workspace' | 'payments' | 'business' | 'billing' | 'growth' | 'developer' | 'security' | 'support'; sections: readonly PaySection[] }> = [
+const PAY_NAV_GROUPS: ReadonlyArray<{ key: 'workspace' | 'business' | 'billing' | 'growth' | 'developer' | 'security' | 'support'; sections: readonly PaySection[] }> = [
   { key: 'workspace', sections: ['overview'] },
-  { key: 'payments', sections: ['transactions', 'reports'] },
-  { key: 'business', sections: ['merchants', 'customers'] },
+  { key: 'business', sections: ['merchants'] },
   { key: 'billing', sections: ['invoices'] },
   { key: 'growth', sections: ['referrals'] },
-  { key: 'developer', sections: ['developer', 'webhooks'] },
+  { key: 'developer', sections: ['developer'] },
   { key: 'security', sections: ['security'] },
   { key: 'support', sections: ['tickets'] },
 ];
@@ -48,7 +43,6 @@ const PAY_NAV_GROUPS: ReadonlyArray<{ key: 'workspace' | 'payments' | 'business'
 type PayMessageKey = Parameters<typeof translate>[1];
 const PAY_NAV_GROUP_LABELS: Record<(typeof PAY_NAV_GROUPS)[number]['key'], PayMessageKey> = {
   workspace: 'navWorkspace',
-  payments: 'navPayments',
   business: 'navBusiness',
   billing: 'navBilling',
   growth: 'navGrowth',
@@ -90,7 +84,8 @@ export function PayApp(): React.ReactElement {
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 1200);
-  const [billingView, setBillingView] = useState<'invoices' | 'payment-links'>('invoices');
+  const [billingView, setBillingView] = useState<BillingPrimaryView>('invoices');
+  const [billingRelatedView, setBillingRelatedView] = useState<BillingRelatedView>(null);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const languageControlRef = useRef<HTMLDivElement>(null);
   const [sessionState, setSessionState] = useState<SessionState>('loading');
@@ -101,6 +96,8 @@ export function PayApp(): React.ReactElement {
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
   const currentSection: PaySection = route.kind === 'dashboard' && route.section !== 'dashboard' ? route.section : 'overview';
+  const isBillingSection = currentSection === 'invoices' || currentSection === 'transactions' || currentSection === 'customers' || currentSection === 'reports';
+  const isDeveloperSection = currentSection === 'developer' || currentSection === 'webhooks';
 
   useEffect(() => {
     try {
@@ -125,6 +122,12 @@ export function PayApp(): React.ReactElement {
       else documentElement.setAttribute('dir', previousDir);
     };
   }, [locale, direction]);
+
+  useEffect(() => {
+    const related = billingRelatedViewFromSection(currentSection);
+    if (related !== null) setBillingRelatedView(related);
+    else if (currentSection === 'invoices') setBillingRelatedView(null);
+  }, [currentSection]);
 
   useEffect(() => {
     if (!languageMenuOpen) return;
@@ -229,7 +232,7 @@ export function PayApp(): React.ReactElement {
     return <PayCheckout locale={locale} intentId={route.kind === 'checkout' ? route.intentId : undefined} onBack={() => navigate('overview')} />;
   }
 
-  const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : paySectionLabel(locale, currentSection);
+  const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : isBillingSection ? translate(locale, 'billingTitle') : isDeveloperSection ? translate(locale, 'developer') : paySectionLabel(locale, currentSection);
   const accountTitle = sessionState === 'authenticated'
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
@@ -249,28 +252,20 @@ export function PayApp(): React.ReactElement {
     && sessionState === 'authenticated'
     && sessionUser !== null
     && !showTicketMerchantStatePanel;
-  const showTransactions = currentSection === 'transactions' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showReferrals = currentSection === 'referrals' && sessionState === 'authenticated' && sessionUser !== null;
-  const showCustomers = currentSection === 'customers' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
-  const showReports = currentSection === 'reports' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showDashboard = currentSection === 'overview' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showSecurity = currentSection === 'security' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
-  const showDeveloper = currentSection === 'developer';
-  const showInvoices = currentSection === 'invoices' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
-  const showBilling = showInvoices;
+  const showDeveloperHub = isDeveloperSection;
+  const showBillingHub = isBillingSection && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showPageHeader = !PAGE_HEADER_OWNERS.has(currentSection);
   const pageDescription = currentSection === 'overview'
     ? translate(locale, 'overviewDescription')
-    : currentSection === 'transactions'
-      ? translate(locale, 'transactionsDescription')
-      : currentSection === 'merchants'
-        ? translate(locale, 'merchantsDescription')
-        : currentSection === 'invoices'
-          ? translate(locale, 'billingDescription')
-          : '';
-  const pageTitle = currentSection === 'invoices' ? translate(locale, 'billingTitle') : title;
+    : currentSection === 'merchants'
+      ? translate(locale, 'merchantsDescription')
+      : '';
+  const pageTitle = title;
   const merchantBoundSection = ['transactions', 'customers', 'invoices', 'reports', 'security', 'webhooks'].includes(currentSection);
-  const showWebhooks = currentSection === 'webhooks' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
+  const showDeveloperWebhooks = showDeveloperHub && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showMerchantStatePanel = sessionState === 'authenticated' && merchantBoundSection && (merchantLoadState !== 'ready' || merchant === null);
   const showSessionErrorPanel = sessionState === 'error';
 
@@ -291,7 +286,9 @@ export function PayApp(): React.ReactElement {
                 <span className="pay-nav-group-label">{translate(locale, PAY_NAV_GROUP_LABELS[group.key])}</span>
                 {group.sections.map(section => {
                   const Icon = SECTION_ICONS[section];
-                  const active = section === currentSection;
+                  const active = section === currentSection
+                    || (section === 'invoices' && isBillingSection)
+                    || (section === 'developer' && isDeveloperSection);
                   return <button
                     key={section}
                     type="button"
@@ -394,39 +391,29 @@ export function PayApp(): React.ReactElement {
 
             {showDashboard ? <PayDashboard locale={locale} merchant={merchant} onViewTransactions={() => navigate('transactions')} /> : null}
 
-            {showTransactions ? <PayTransactions locale={locale} merchantId={merchant.id} /> : null}
-
-            {showBilling ? (
-              <section className="pay-billing" aria-label={translate(locale, 'billingTitle')}>
-                <div className="pay-billing-tabs" role="group" aria-label={translate(locale, 'billingTitle')}>
-                  <button type="button" aria-pressed={billingView === 'invoices'} className={billingView === 'invoices' ? 'is-active' : ''} onClick={() => setBillingView('invoices')}>
-                    <ReceiptText size={16} aria-hidden="true" />{translate(locale, 'invoices')}
-                  </button>
-                  <button type="button" aria-pressed={billingView === 'payment-links'} className={billingView === 'payment-links' ? 'is-active' : ''} onClick={() => setBillingView('payment-links')}>
-                    <Link2 size={16} aria-hidden="true" />{translate(locale, 'paymentLinks')}
-                  </button>
-                </div>
-                {billingView === 'invoices'
-                  ? <PayInvoices locale={locale} merchantId={merchant.id} />
-                  : <PayPaymentLinks locale={locale} merchantId={merchant.id} />}
-              </section>
+            {showBillingHub ? (
+              <PayBillingHub
+                locale={locale}
+                merchantId={merchant.id}
+                primaryView={billingView}
+                relatedView={billingRelatedView}
+                onPrimaryViewChange={setBillingView}
+                onRelatedViewChange={(view) => { setBillingRelatedView(view); navigate(view); }}
+              />
             ) : null}
 
             {showReferrals ? <PayReferrals locale={locale} /> : null}
 
-            {showCustomers ? <PayCustomers locale={locale} merchantId={merchant.id} /> : null}
-
-            {showReports ? <PayReports locale={locale} merchantId={merchant.id} /> : null}
-
             {showSecurity ? <PaySecurity locale={locale} merchant={merchant} /> : null}
 
-            {showDeveloper ? <PayDeveloper locale={locale} /> : null}
-
-            {showWebhooks ? <PayWebhooks locale={locale} merchantId={merchant.id} /> : null}
+            {showDeveloperHub ? <>
+              <PayDeveloper locale={locale} />
+              {showDeveloperWebhooks ? <div className="pay-developer-webhooks-section"><PayWebhooks locale={locale} merchantId={merchant.id} /></div> : null}
+            </> : null}
 
             {showTickets ? <PayTicketCenter locale={locale} sessionUser={sessionUser!} merchantId={merchant?.id || null} /> : null}
 
-            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showTransactions && !showBilling && !showReferrals && !showCustomers && !showReports && !showDashboard && !showSecurity && !showDeveloper && !showWebhooks && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
@@ -435,7 +422,7 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showTransactions && !showBilling && !showReferrals && !showCustomers && !showReports && !showDashboard && !showSecurity && !showDeveloper && !showWebhooks && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
