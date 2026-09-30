@@ -1,4 +1,5 @@
 import {
+  enforceReferralClickRateLimit,
   recordReferralClick,
   referralCookieHeader,
   type ReferralServiceEnv,
@@ -27,6 +28,7 @@ export const onRequestGet = async ({ request, env, params }: {
   }
 
   try {
+    await enforceReferralClickRateLimit(env, request);
     const click = await recordReferralClick(env, code);
     const requestUrl = new URL(request.url);
     const location = new URL('/', requestUrl.origin);
@@ -40,6 +42,17 @@ export const onRequestGet = async ({ request, env, params }: {
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'REFERRAL_RATE_LIMITED') {
+      return new Response('Too many referral clicks. Please try again later.', {
+        status: 429,
+        headers: {
+          'Retry-After': '60',
+          'Cache-Control': 'no-store',
+          'CDN-Cache-Control': 'no-store',
+        },
+      });
+    }
+
     if (error instanceof Error && error.message === 'REFERRAL_NOT_FOUND') {
       return new Response('Referral link not found.', {
         status: 404,
