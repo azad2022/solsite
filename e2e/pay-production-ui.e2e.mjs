@@ -25,9 +25,11 @@ async function openPaymentLinksView(page) {
   const switchButton = page.locator('.pay-billing-tabs button').filter({ hasText: /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные ссылки/i });
   await switchButton.waitFor({ state: 'visible', timeout: 10000 });
   await switchButton.click();
-  await switchButton.evaluate((button) => {
-    if (button.getAttribute('aria-pressed') !== 'true') throw new Error('Payment Links billing view did not become active.');
-  });
+  await page.waitForFunction(() => {
+    const button = Array.from(document.querySelectorAll('.pay-billing-tabs button'))
+      .find((candidate) => /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные links|Платёжные ссылки/i.test(candidate.textContent || ''));
+    return button?.getAttribute('aria-selected') === 'true';
+  }, null, { timeout: 10000 });
 }
 
 function rows(value) {
