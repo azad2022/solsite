@@ -146,6 +146,21 @@ export default function App() {
 
   useEffect(() => {
     if (authPending) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') !== 'register') return;
+
+    if (!applicationSessionUser) {
+      setIsAdminModalOpen(true);
+      return;
+    }
+
+    params.delete('auth');
+    const query = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+  }, [authPending, applicationSessionUser]);
+
+  useEffect(() => {
+    if (authPending) return;
     setCurrentUser(applicationSessionUser ? applicationSessionUser as UserAccount : null);
   }, [applicationSessionUser, authPending]);
 

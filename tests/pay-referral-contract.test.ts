@@ -2,22 +2,60 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const route = readFileSync('functions/api/pay/v1/referrals.ts','utf8');
-const service = readFileSync('src/pay/services/referralService.ts','utf8');
+const apiRoute = readFileSync('functions/api/pay/v1/referrals.ts','utf8');
+const publicRoute = readFileSync('functions/r/[code].ts','utf8');
+const migration = readFileSync('supabase/migrations/20260930210000_solmint_pay_referral_program.sql','utf8');
+const attribution = readFileSync('functions/api/pay/_shared/referralAttribution.ts','utf8');
+const auth = readFileSync('functions/api/auth/_instance.ts','utf8');
+const email = readFileSync('functions/api/auth/_email.ts','utf8');
 
-test('Referral GET reads only released affiliate/referral/commission fields', () => {
-  assert.match(route,/const AFFILIATE_SELECT = 'id,display_name,referral_code,commission_rate_bps,status,created_at,updated_at'/);
-  assert.match(route,/const REFERRAL_SELECT = 'id,affiliate_id,merchant_id,referral_code,attributed_at,active'/);
-  assert.match(route,/const COMMISSION_SELECT = 'id,referral_id,payment_id,gross_gateway_fee_atomic,commission_bps,commission_atomic,status,created_at,approved_at,paid_at'/);
+test('Referral dashboard uses the released server-side contract', () => {
+  assert.match(apiRoute,/pay_get_referral_dashboard/);
+  assert.match(apiRoute,/resolvePayIdentity\(request, env\)/);
+  assert.match(apiRoute,/supabaseRequestAsIdentity\(/);
+  assert.doesNotMatch(apiRoute,/SUPABASE_SERVICE_ROLE_KEY/);
 });
 
-test('Referral GET uses the authenticated identity path', () => {
-  assert.match(route,/resolvePayIdentity\(request, env\)/);
-  assert.match(route,/supabaseRequestAsIdentity\(/);
-  assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY/);
+test('Referral public route records a click and preserves signup attribution in an HttpOnly cookie', () => {
+  assert.match(publicRoute,/recordReferralClick\(env, code\)/);
+  assert.match(attribution,/REFERRAL_COOKIE_NAME = 'solmint_referral_click'/);
+  assert.match(attribution,/HttpOnly; SameSite=Lax/);
+  assert.match(publicRoute,/Cache-Control/);
+  assert.doesNotMatch(publicRoute,/enforcePayRateLimit/);
 });
 
-test('Referral parser keeps financial amounts atomic and does not calculate commission', () => {
-  assert.match(service,/atomicField\(/);
-  assert.doesNotMatch(service,/commission_atomic.*[/] 100/);
+test('Referral persistence is explicitly single-level and per-user', () => {
+  assert.match(migration,/pay_referral_user_attributions/);
+  assert.match(migration,/referred_user_id text not null unique/);
+  assert.match(migration,/pay_referrals_merchant_id_unique_idx/);
+  assert.match(migration,/drop constraint if exists pay_referrals_referral_code_key/);
+  assert.match(migration,/commission_rate_bps set default 5000/);
+  assert.match(migration,/pay_affiliates_fixed_commission_rate_check/);
+  assert.match(migration,/v_commission_bps := 5000/);
+});
+
+test('Referral commission is recognized only at the authoritative revenue-ledger boundary', () => {
+  assert.match(migration,/create trigger pay_revenue_ledger_referral_commission/);
+  assert.match(migration,/gross_gateway_fee_atomic \* v_commission_bps/);
+  assert.match(migration,/floor\(/);
+  assert.match(migration,/commission_bps/);
+  assert.doesNotMatch(attribution,/commission_atomic/);
+});
+
+test('Referral attribution rejects pre-existing accounts and is retry-safe', () => {
+  assert.match(migration,/USER_PREEXISTED_CLICK/);
+  assert.match(migration,/CLICK_ALREADY_CONSUMED/);
+  assert.match(migration,/ALREADY_ATTRIBUTED/);
+  assert.match(migration,/on conflict \(referral_id, payment_id\) do nothing/);
+});
+
+test('Google OAuth referral context uses Better Auth server-trusted OAuth state', () => {
+  assert.match(auth,/addOAuthServerContext/);
+  assert.match(auth,/getOAuthState/);
+  assert.match(auth,/serverContext/);
+});
+
+test('Referral signup notification remains informational', () => {
+  assert.match(email,/referralSignup/);
+  assert.match(email,/not the source of commission or settlement truth|مبنای محاسبه درآمد یا تسویه نیست/);
 });
