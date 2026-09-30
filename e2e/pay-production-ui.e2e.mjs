@@ -192,7 +192,7 @@ try {
   });
   await guestPage.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   const rootScriptDiagnostics = await guestPage.evaluate(() => Array.from(document.querySelectorAll('script[src]')).map((script) => ({
-    src: (script as HTMLScriptElement).src,
+    src: script.src,
     type: script.getAttribute('type') || 'classic',
   })));
   console.log(`GUEST_ROOT_SCRIPT_DIAGNOSTICS ${JSON.stringify(rootScriptDiagnostics)}`);
