@@ -27,7 +27,7 @@ async function openPaymentLinksView(page) {
   await switchButton.click();
   await page.waitForFunction(() => {
     const button = Array.from(document.querySelectorAll('.pay-billing-tabs button'))
-      .find((candidate) => /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные links|Платёжные ссылки/i.test(candidate.textContent || ''));
+      .find((candidate) => /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные ссылки/i.test(candidate.textContent || ''));
     return button?.getAttribute('aria-selected') === 'true';
   }, null, { timeout: 10000 });
 }
