@@ -624,7 +624,14 @@ try {
     await page.goto(ORIGIN + '/pay/tickets', { waitUntil: 'domcontentloaded' });
     const training = page.locator('.pay-training');
     await training.waitFor({ state: 'visible', timeout: 10000 });
-    assert.ok(await training.locator('details.pay-training-topic').count() > 0);
+    assert.equal(await training.locator('details.pay-training-topic').count(), 12, 'Training Center must expose all 12 documented topics.');
+    const firstTopic = training.locator('details.pay-training-topic').first();
+    const firstSummary = firstTopic.locator('summary');
+    await firstSummary.click();
+    assert.equal(await firstTopic.getAttribute('open'), null, 'Training Center topic must collapse when its summary is clicked.');
+    await firstSummary.click();
+    assert.equal(await firstTopic.getAttribute('open'), '', 'Training Center topic must reopen from its summary interaction.');
+    await firstTopic.locator('.pay-training-topic-body').waitFor({ state: 'visible', timeout: 5000 });
     const trainingNode = await training.elementHandle();
     const ticketNode = await page.locator('.pay-ticket-heading').first().elementHandle();
     assert.ok(trainingNode && ticketNode);
