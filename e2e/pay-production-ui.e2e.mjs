@@ -538,8 +538,8 @@ try {
   await page.getByRole('button', { name: 'Copy recovery phrase', exact: true }).click();
   const recoveryPhrase = await page.evaluate(() => window.__solmintCapturedRecoveryPhrase || '');
   assert.equal(recoveryPhrase.split(/\s+/).length, 24, 'Copy must place the complete recovery phrase on the clipboard.');
-  bodyTextBeforeCopy = await page.locator('body').innerText();
-  assert.equal(bodyTextBeforeCopy.includes(recoveryPhrase), false, 'The exact recovery phrase must not become visible in the DOM.');
+  const bodyTextAfterCopy = await page.locator('body').innerText();
+  assert.equal(bodyTextAfterCopy.includes(recoveryPhrase), false, 'The exact recovery phrase must not become visible in the DOM.');
   assert.equal(await page.locator('.pay-recovery-confirm input[type="checkbox"]').isChecked(), false);
   assert.equal(await page.getByRole('button', { name: 'Continue and register wallet', exact: true }).isDisabled(), true);
   assert.equal(await page.locator('body').evaluate((body) => body.innerText.includes('Private key'),), false,
