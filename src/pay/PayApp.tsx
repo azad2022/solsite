@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, ReceiptText, RefreshCw, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, ReceiptText, RefreshCw, ShieldCheck, Store, WalletCards,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, PAY_LOCALE_FLAGS, PAY_LOCALE_SHORT_CODES, directionFor, languageName, normalizePayLocale, persistPayLocale, readStoredPayLocale, sectionLabel, translate } from './i18n';
@@ -20,6 +20,7 @@ import PayBillingHub, { billingRelatedViewFromSection, type BillingPrimaryView, 
 import PayUnavailableFeature from './components/PayUnavailableFeature';
 import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
+import PayAccountMenu from './components/PayAccountMenu';
 import { webhookCopy } from './components/pay-webhooks-i18n';
 import { getMyMerchant, type PayMerchant } from './services/merchantOnboardingService';
 import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
@@ -359,10 +360,14 @@ export function PayApp(): React.ReactElement {
                   </div>
                 ) : null}
               </div>
-              <div className="pay-account-chip" title={sessionState === 'authenticated' ? translate(locale, 'dashboard') : translate(locale, 'notConnected')}>
-                <span className="pay-account-avatar" aria-hidden="true"><CircleDollarSign size={17} /></span>
-                <span className="pay-account-copy"><strong>{accountTitle}</strong><small>{accountSubtitle}</small></span>
-              </div>
+              {sessionUser ? (
+                <PayAccountMenu locale={locale} user={sessionUser} merchant={merchant} title={accountTitle} subtitle={accountSubtitle} />
+              ) : (
+                <div className="pay-account-chip" title={translate(locale, 'notConnected')}>
+                  <span className="pay-account-avatar" aria-hidden="true"><WalletCards size={17} /></span>
+                  <span className="pay-account-copy"><strong>{accountTitle}</strong><small>{accountSubtitle}</small></span>
+                </div>
+              )}
             </div>
           </header>
 

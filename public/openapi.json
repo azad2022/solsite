@@ -732,6 +732,45 @@
           }
         }
       }
+    },
+    "/api/pay/v1/merchants/{merchantId}/wallet-balance": {
+      "get": {
+        "operationId": "getAuthenticatedMerchantReceivingWalletBalance",
+        "summary": "Read the verified Merchant receiving-wallet balance",
+        "description": "Authenticated, rate-limited server-mediated snapshot of SOL, USDT and USDC balances for the Merchant's active verified Solana receiving wallet. The browser never calls Solana RPC directly.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative network balance snapshot for the verified receiving wallet."
+          },
+          "401": {
+            "description": "Authenticated Pay session required."
+          },
+          "403": {
+            "description": "Merchant access denied by the server/DB authorization boundary."
+          },
+          "409": {
+            "description": "Merchant or verified receiving wallet is unavailable."
+          },
+          "429": {
+            "description": "Wallet balance rate limit exceeded."
+          },
+          "503": {
+            "description": "Pay or Solana balance service temporarily unavailable."
+          }
+        }
+      }
     }
   },
   "components": {
