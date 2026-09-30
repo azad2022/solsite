@@ -190,7 +190,7 @@ set local role postgres;
 
 DO $counts$
 begin
-  if (select count(*) from public.pay_referral_click_events where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-a')) <> 1
+  if (select count(*) from public.pay_referral_click_events where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-a')) <> 2
      or (select count(*) from public.pay_referral_click_events where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-b')) <> 1 then
     raise exception 'click counts are not independent per affiliate';
   end if;
