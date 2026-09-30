@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { decodeBase58 } from '../src/pay/services/base58';
+import { decodeBase58, encodeBase58 } from '../src/pay/services/base58';
 import { verifySolanaWalletSignature } from '../src/pay/services/walletSignature';
 import { generateLocalSolanaMerchantWallet, SOLANA_MERCHANT_DERIVATION_PATH } from '../src/pay/services/merchantWalletGenerator';
 
@@ -19,7 +19,7 @@ test('dedicated merchant wallet generation creates valid 12 and 24 word Solana w
       assert.equal(await verifySolanaWalletSignature({
         walletAddress: wallet.address,
         message,
-        signatureBase58: (await import('../src/pay/services/base58')).encodeBase58(signature),
+        signatureBase58: encodeBase58(signature),
       }), true);
     } finally {
       wallet.dispose();
@@ -28,12 +28,12 @@ test('dedicated merchant wallet generation creates valid 12 and 24 word Solana w
   }
 });
 
-test('dedicated wallet material has no persistence implementation', async () => {
+test('dedicated wallet generator exposes no persistence API and clears its signer on dispose', async () => {
   const wallet = await generateLocalSolanaMerchantWallet(12);
-  try {
-    assert.doesNotMatch(wallet.mnemonic, /[<>]/);
-    assert.equal(typeof wallet.dispose, 'function');
-  } finally {
-    wallet.dispose();
-  }
+  const phrase = wallet.mnemonic;
+  assert.equal(typeof wallet.dispose, 'function');
+  assert.equal(typeof wallet.signMessage, 'function');
+  assert.equal(phrase.split(/\\s+/).length, 12);
+  wallet.dispose();
+  await assert.rejects(() => wallet.signMessage('disposed'));
 });
