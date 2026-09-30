@@ -1,0 +1,36 @@
+.pay-training{display:grid;gap:13px;margin:0 0 20px;padding:20px;border:1px solid var(--pay-border);border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(251,251,253,.96));box-shadow:var(--pay-shadow)}
+.pay-training-header{display:flex;align-items:flex-start;gap:12px}
+.pay-training-mark{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:13px;color:var(--pay-pink);background:rgba(243,77,157,.09);border:1px solid rgba(243,77,157,.12)}
+.pay-training-header>div:last-child{min-width:0}
+.pay-training-eyebrow{font-size:9px;color:var(--pay-text-faint);font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.pay-training-header h2{margin:3px 0 4px;font-size:20px;letter-spacing:-.02em}
+.pay-training-header p{margin:0;color:var(--pay-text-soft);font-size:10px;line-height:1.8}
+.pay-training-notice{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1px solid rgba(243,77,157,.13);border-radius:12px;background:rgba(243,77,157,.045);color:var(--pay-text-soft);font-size:10px;line-height:1.8}
+.pay-training-notice svg{flex:0 0 auto;color:var(--pay-pink);margin-top:2px}
+.pay-training-topics{display:grid;gap:7px}
+.pay-training-topic{border:1px solid var(--pay-border);border-radius:14px;background:#fff;overflow:hidden}
+.pay-training-topic summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 13px;cursor:pointer}
+.pay-training-topic summary::-webkit-details-marker{display:none}
+.pay-training-topic summary:hover{background:#fbfbfd}
+.pay-training-topic summary:focus-visible{outline:3px solid rgba(243,77,157,.16);outline-offset:-3px}
+.pay-training-index{width:28px;height:28px;display:grid;place-items:center;flex:0 0 28px;border-radius:9px;background:#f7f7fa;color:var(--pay-text-faint);font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.pay-training-topic[open] .pay-training-index{color:var(--pay-pink);background:rgba(243,77,157,.08)}
+.pay-training-summary-copy{min-width:0;display:grid;gap:2px;flex:1}
+.pay-training-summary-copy strong{font-size:11px}
+.pay-training-summary-copy small{color:var(--pay-text-faint);font-size:9px;line-height:1.6}
+.pay-training-chevron{flex:0 0 auto;color:var(--pay-text-faint);transition:transform 160ms ease}
+.pay-training-topic[open] .pay-training-chevron{transform:rotate(180deg)}
+.pay-training-topic-body{padding:0 13px 14px 51px}
+.pay-training-topic-body ol{margin:0;padding-inline-start:18px;color:var(--pay-text-soft);font-size:10px;line-height:1.9}
+.pay-training-topic-body li{padding-inline-start:3px;margin-bottom:4px}
+.pay-training-note{display:flex;align-items:flex-start;gap:8px;margin-top:9px;padding:9px 10px;border-radius:10px;background:#fafafd;border:1px solid var(--pay-border)}
+.pay-training-note>span{width:18px;height:18px;display:grid;place-items:center;flex:0 0 18px;border-radius:6px;background:var(--pay-pink);color:#fff;font-size:10px;font-weight:900}
+.pay-training-note p{margin:0;color:var(--pay-text-soft);font-size:9px;line-height:1.8}
+[dir="rtl"] .pay-training-topic-body{padding-inline-start:13px;padding-inline-end:51px}
+@media(max-width:600px){
+  .pay-training{padding:15px;border-radius:18px}
+  .pay-training-header h2{font-size:17px}
+  .pay-training-topic-body{padding-inline-start:13px}
+  [dir="rtl"] .pay-training-topic-body{padding-inline-end:13px}
+}
+@media(prefers-reduced-motion:reduce){.pay-training-chevron{transition:none}}
