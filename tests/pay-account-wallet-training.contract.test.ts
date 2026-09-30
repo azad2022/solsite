@@ -8,7 +8,16 @@ const accountService = readFileSync('src/pay/services/walletBalanceService.ts', 
 const endpoint = readFileSync('functions/api/pay/v1/merchants/[merchantId]/wallet-balance.ts', 'utf8');
 const training = readFileSync('src/pay/components/PayTrainingCenter.tsx', 'utf8');
 const trainingCss = readFileSync('src/pay/components/pay-training.css', 'utf8');
+const productionE2e = readFileSync('e2e/pay-production-ui.e2e.mjs', 'utf8');
 
+test('production browser E2E covers the account menu and training center surfaces', () => {
+  assert.match(productionE2e, /pay-account-trigger/);
+  assert.match(productionE2e, /wallet-balance/);
+  assert.match(productionE2e, /pay-account-menu/);
+  assert.match(productionE2e, /pay-training/);
+  assert.match(productionE2e, /pay-training-topic/);
+});
+ 
 test('Pay header account control replaces the old money icon and opens wallet-aware account UI', () => {
   assert.match(app, /PayAccountMenu/);
   assert.match(account, /WalletCards/);

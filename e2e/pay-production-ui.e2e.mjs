@@ -239,6 +239,72 @@ try {
   await directSignIn(context, fixture);
 
   const page = await context.newPage();
+  // Desktop sidebar regression: the rail stays attached to the viewport, exposes its full navigation,
+  // and follows the document writing direction instead of reversing the flex shell a second time.
+  await page.setViewportSize({ width: 1440, height: 520 });
+  for (const [targetLocale, expectedDirection, optionLabel] of [
+    ['fa-IR', 'rtl', 'فارسی'],
+    ['en-US', 'ltr', 'English'],
+    ['ar', 'rtl', 'العربية'],
+    ['ru', 'ltr', 'Русский'],
+  ]) {
+    await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
+    const trigger = page.locator('.pay-language-trigger');
+    await trigger.waitFor({ state: 'visible', timeout: 10000 });
+    await trigger.click();
+    await page.locator('.pay-language-option').filter({ hasText: optionLabel }).click();
+    await page.waitForFunction((direction) => document.documentElement.getAttribute('dir') === direction, expectedDirection, { timeout: 10000 });
+
+    const sidebar = page.locator('.pay-sidebar');
+    await sidebar.waitFor({ state: 'visible', timeout: 10000 });
+    const diagnostics = await sidebar.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        direction: element.getAttribute('dir'),
+        position: style.position,
+        overflowY: style.overflowY,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        x: rect.x,
+        right: rect.right,
+        width: rect.width,
+      };
+    });
+    assert.equal(diagnostics.position, 'sticky', `Desktop sidebar must remain sticky for ${targetLocale}.`);
+    assert.equal(diagnostics.overflowY, 'auto', `Desktop sidebar must have an internal vertical scroll for ${targetLocale}.`);
+    assert.equal(diagnostics.direction, expectedDirection);
+    assert.ok(diagnostics.scrollHeight >= diagnostics.clientHeight);
+
+    const mainColumn = await page.locator('.pay-main-column').boundingBox();
+    assert.ok(mainColumn);
+    if (expectedDirection === 'rtl') {
+      assert.ok(Math.abs(diagnostics.right - 1440) < 1, `RTL sidebar must attach to the right edge: ${JSON.stringify(diagnostics)}`);
+      assert.ok((mainColumn?.x ?? 0) + (mainColumn?.width ?? 0) <= diagnostics.x + 1,
+        `RTL main column must remain left of sidebar: ${JSON.stringify({ diagnostics, mainColumn })}`);
+    } else {
+      assert.ok(Math.abs(diagnostics.x) < 1, `LTR sidebar must attach to the left edge: ${JSON.stringify(diagnostics)}`);
+      assert.ok((mainColumn?.x ?? 0) >= diagnostics.right - 1,
+        `LTR main column must remain right of sidebar: ${JSON.stringify({ diagnostics, mainColumn })}`);
+    }
+
+    await sidebar.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    const iconDiagnostics = await sidebar.locator('.pay-nav-icon svg').evaluateAll((icons) => icons.map((icon) => {
+      const rect = icon.getBoundingClientRect();
+      const style = getComputedStyle(icon);
+      return { width: rect.width, height: rect.height, visibility: style.visibility, opacity: style.opacity };
+    }));
+    assert.ok(iconDiagnostics.length >= 7, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
+    assert.ok(iconDiagnostics.every((icon) => icon.width > 0 && icon.height > 0 && icon.visibility !== 'hidden' && Number(icon.opacity) > 0),
+      `Sidebar icons must remain visible: ${JSON.stringify(iconDiagnostics)}`);
+    const lastNav = page.locator('.pay-nav-item').last();
+    const lastBox = await lastNav.boundingBox();
+    assert.ok(lastBox, `Last navigation item must remain renderable for ${targetLocale}.`);
+    assert.ok(lastBox.y >= -1 && lastBox.y + lastBox.height <= 520 + 1,
+      `Last navigation item must be reachable inside the scrollable sidebar: ${JSON.stringify({ lastBox, diagnostics })}`);
+  }
+  await page.setViewportSize(VIEWPORT);
+
   page.on('console', (message) => {
     if (message.type() === 'error') console.log(`BROWSER_CONSOLE_ERROR ${message.text()}`);
   });
@@ -518,6 +584,66 @@ try {
     requestBodiesRedacted: true,
     authoritativeStatus: walletAfterGenerated.walletVerificationStatus,
   }));
+
+  await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
+  const accountTrigger = page.locator('.pay-account-trigger');
+  await accountTrigger.waitFor({ state: 'visible', timeout: 10000 });
+  const walletBalanceResponsePromise = page.waitForResponse((response) =>
+    response.url().includes('/api/pay/v1/merchants/') &&
+    response.url().endsWith('/wallet-balance') &&
+    response.request().method() === 'GET',
+    { timeout: 15000 },
+  );
+  await accountTrigger.click();
+  const accountMenu = page.locator('.pay-account-menu');
+  await accountMenu.waitFor({ state: 'visible', timeout: 10000 });
+  const walletBalanceResponse = await walletBalanceResponsePromise;
+  const walletBalanceText = await walletBalanceResponse.text();
+  assert.equal(walletBalanceResponse.status(), 200, walletBalanceText);
+  const walletBalanceBody = walletBalanceText ? JSON.parse(walletBalanceText) : {};
+  const walletBalanceData = walletBalanceBody?.data;
+  assert.equal(walletBalanceData?.walletAddress, generatedAddress);
+  assert.equal(walletBalanceData?.network, 'solana-mainnet');
+  assert.deepEqual(
+    walletBalanceData?.assets?.map((asset) => asset.asset).sort(),
+    ['SOL', 'USDC', 'USDT'],
+  );
+  for (const asset of walletBalanceData.assets) assert.match(String(asset.balanceAtomic), /^\\d+$/);
+  const accountMenuText = await accountMenu.innerText();
+  assert.ok(accountMenuText.includes('SOL') && accountMenuText.includes('USDT') && accountMenuText.includes('USDC'));
+  assert.equal(accountMenuText.includes('sk_pay_'), false);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelector('.pay-account-menu') === null, null, { timeout: 5000 });
+
+  for (const [targetLocale, expectedDirection, optionLabel] of [
+    ['fa-IR', 'rtl', 'فارسی'],
+    ['en-US', 'ltr', 'English'],
+    ['ar', 'rtl', 'العربية'],
+    ['ru', 'ltr', 'Русский'],
+  ]) {
+    await page.goto(ORIGIN + '/pay/tickets', { waitUntil: 'domcontentloaded' });
+    const training = page.locator('.pay-training');
+    await training.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await training.locator('details.pay-training-topic').count(), 12, 'Training Center must expose all 12 documented topics.');
+    const firstTopic = training.locator('details.pay-training-topic').first();
+    const firstSummary = firstTopic.locator('summary');
+    await firstSummary.click();
+    assert.equal(await firstTopic.getAttribute('open'), null, 'Training Center topic must collapse when its summary is clicked.');
+    await firstSummary.click();
+    assert.equal(await firstTopic.getAttribute('open'), '', 'Training Center topic must reopen from its summary interaction.');
+    await firstTopic.locator('.pay-training-topic-body').waitFor({ state: 'visible', timeout: 5000 });
+    const trainingNode = await training.elementHandle();
+    const ticketNode = await page.locator('.pay-ticket-heading').first().elementHandle();
+    assert.ok(trainingNode && ticketNode);
+    const trainingBeforeTicket = await page.evaluate(([a, b]) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), [trainingNode, ticketNode]);
+    assert.equal(trainingBeforeTicket, true);
+    await page.locator('.pay-language-trigger').click();
+    await page.locator('.pay-language-option').filter({ hasText: optionLabel }).click();
+    await page.waitForFunction((direction) => document.documentElement.getAttribute('dir') === direction, expectedDirection, { timeout: 10000 });
+    assert.equal(await page.locator('html').getAttribute('lang'), targetLocale);
+    await page.locator('.pay-training').getByRole('heading', { level: 2 }).waitFor({ state: 'visible', timeout: 5000 });
+  }
 
   const preWalletRouteResults = [];
   for (const [path, label] of routes) {
