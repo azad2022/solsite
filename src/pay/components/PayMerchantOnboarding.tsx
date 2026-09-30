@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Copy, KeyRound, Loader2, ShieldCheck, Store, Wallet, XCircle } from 'lucide-react';
 import { createMyMerchant, getMyMerchant, issueWalletChallenge, verifyWalletChallenge, type PayMerchant } from '../services/merchantOnboardingService';
 import { PayHttpError } from '../http';
@@ -6,6 +6,7 @@ import { encodeBase58 } from '../services/base58';
 import { translateMerchantOnboarding as t, translateMerchantStatus } from './pay-merchant-onboarding-i18n';
 import type { PayLocale } from '../types';
 import { slugifyMerchantName } from '../services/merchantSlug';
+import { generateLocalSolanaMerchantWallet, type LocalSolanaMerchantWallet, type MerchantWalletWordCount } from '../services/merchantWalletGenerator';
 import './pay-merchant-onboarding.css';
 
 interface SolanaPublicKeyLike { toBase58?: () => string; }
@@ -26,7 +27,7 @@ interface Props {
   onMerchantReady?: (merchant: PayMerchant) => void;
   initialMerchant?: PayMerchant | null;
 }
-type Stage = 'idle' | 'loading' | 'creating' | 'challenge' | 'signing' | 'verifying' | 'done' | 'error';
+type Stage = 'idle' | 'loading' | 'creating' | 'generating-wallet' | 'recovery' | 'challenge' | 'signing' | 'verifying' | 'done' | 'error';
 
 class WalletUiError extends Error {}
 
@@ -46,6 +47,12 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const [copied, setCopied] = useState(false);
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [merchantRefreshStale, setMerchantRefreshStale] = useState(false);
+  const [wordCount, setWordCount] = useState<MerchantWalletWordCount>(24);
+  const [recoveryPhrase, setRecoveryPhrase] = useState('');
+  const [recoveryVisible, setRecoveryVisible] = useState(false);
+  const [recoverySaved, setRecoverySaved] = useState(false);
+  const [recoveryCopied, setRecoveryCopied] = useState(false);
+  const generatedWalletRef = useRef<LocalSolanaMerchantWallet | null>(null);
   const [refreshingMerchant, setRefreshingMerchant] = useState(false);
 
   const applyMerchantWalletSnapshot = (value: PayMerchant | null) => {
@@ -63,6 +70,15 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   }, [initialMerchant]);
 
   const resetError = () => { setError(''); if (stage === 'error') setStage('idle'); };
+
+  const discardGeneratedWallet = () => {
+    generatedWalletRef.current?.dispose();
+    generatedWalletRef.current = null;
+    setRecoveryPhrase('');
+    setRecoveryVisible(false);
+    setRecoverySaved(false);
+    setRecoveryCopied(false);
+  };
   const handleBusinessNameChange = (value: string) => {
     setBusinessName(value);
     if (!slugTouched) setSlug(slugifyMerchantName(value));
@@ -119,6 +135,81 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       return created;
     } catch (e) {
       setStage('error'); setError(e instanceof PayHttpError ? e.message : t(locale, 'merchantCreationFailed')); return null;
+    }
+  };
+
+  const createDedicatedWallet = async () => {
+    resetError();
+    let activeMerchant = merchant;
+    if (!activeMerchant) activeMerchant = await ensureMerchant();
+    if (!activeMerchant) return;
+
+    discardGeneratedWallet();
+    setStage('generating-wallet');
+    try {
+      const generated = await generateLocalSolanaMerchantWallet(wordCount);
+      generatedWalletRef.current = generated;
+      setWalletAddress(generated.address);
+      setRecoveryPhrase(generated.mnemonic);
+      setRecoveryVisible(false);
+      setRecoverySaved(false);
+      setRecoveryCopied(false);
+      setStage('recovery');
+    } catch (e) {
+      setStage('error');
+      setError(e instanceof Error ? e.message : t(locale, 'walletGenerationFailed'));
+      discardGeneratedWallet();
+    }
+  };
+
+  const copyRecoveryPhrase = async () => {
+    if (!recoveryPhrase || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(recoveryPhrase);
+      setRecoveryCopied(true);
+      window.setTimeout(() => setRecoveryCopied(false), 1200);
+    } catch {
+      setRecoveryCopied(false);
+    }
+  };
+
+  const confirmDedicatedWallet = async () => {
+    const generated = generatedWalletRef.current;
+    if (!generated || !recoverySaved || !merchant) return;
+
+    resetError();
+    setStage('challenge');
+    try {
+      const issued = await issueWalletChallenge(merchant.id, generated.address);
+      setChallenge(issued);
+      setStage('signing');
+      const signature = await generated.signMessage(issued.message);
+      setStage('verifying');
+      const verified = await verifyWalletChallenge(merchant.id, issued.id, generated.address, encodeBase58(signature));
+      if (verified.verified !== true) throw new WalletUiError(t(locale, 'walletVerificationRejected'));
+
+      setWalletAddress(verified.walletAddress || generated.address);
+      setVerifiedAt(verified.verifiedAt || null);
+      setStage('done');
+      setChallenge(null);
+      discardGeneratedWallet();
+
+      try {
+        const refreshed = await getMyMerchant();
+        if (refreshed) {
+          setMerchant(refreshed);
+          setMerchantRefreshStale(false);
+          applyMerchantWalletSnapshot(refreshed);
+          onMerchantReady?.(refreshed);
+        } else {
+          setMerchantRefreshStale(true);
+        }
+      } catch {
+        setMerchantRefreshStale(true);
+      }
+    } catch (e) {
+      setStage('error');
+      setError(e instanceof PayHttpError || e instanceof WalletUiError ? e.message : t(locale, 'walletVerificationFailed'));
     }
   };
 
@@ -190,10 +281,10 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
     }
   };
 
-  const busy = ['loading', 'creating', 'challenge', 'signing', 'verifying'].includes(stage);
+  const busy = ['loading', 'creating', 'generating-wallet', 'challenge', 'signing', 'verifying'].includes(stage);
   const walletVerifiedAuthoritative = merchant?.receivingWallet?.verificationStatus === 'verified' && merchant.receivingWallet.isActive;
   const verified = walletVerifiedAuthoritative || (stage === 'done' && !!walletAddress);
-  const stageLabel = stage === 'challenge' ? t(locale, 'walletVerificationStarting') : stage === 'signing' ? t(locale, 'walletAwaitingSignature') : stage === 'verifying' ? t(locale, 'walletVerifying') : stage === 'loading' ? t(locale, 'loadingMerchant') : stage === 'creating' ? t(locale, 'creatingMerchant') : stage === 'done' && verified ? t(locale, 'verified') : '';
+  const stageLabel = stage === 'generating-wallet' ? t(locale, 'walletGenerating') : stage === 'recovery' ? t(locale, 'walletRecoveryReady') : stage === 'challenge' ? t(locale, 'walletVerificationStarting') : stage === 'signing' ? t(locale, 'walletAwaitingSignature') : stage === 'verifying' ? t(locale, 'walletVerifying') : stage === 'loading' ? t(locale, 'loadingMerchant') : stage === 'creating' ? t(locale, 'creatingMerchant') : stage === 'done' && verified ? t(locale, 'verified') : '';
 
   return (
     <section className="pay-onboarding-panel" aria-labelledby="pay-onboarding-title">
@@ -211,12 +302,13 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
         <button type="button" className="pay-secondary-action" onClick={() => void loadExisting()} disabled={busy}>{stage === 'loading' ? <Loader2 className="animate-spin" size={17} /> : null} {t(locale, 'checkExistingMerchant')}</button>
       </div> : <div className="pay-onboarding-state">
         <div className="pay-onboarding-success"><CheckCircle2 size={22} /><div><strong>{merchant.businessName}</strong><span>{t(locale, 'merchantId')}: {merchant.id}</span><small>{t(locale, 'status')}: {translateMerchantStatus(locale, merchant.status)}</small></div></div>
-        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span title={walletAddress || undefined}>{walletAddress || t(locale, 'walletNotVerified')}</span>{verifiedAt ? <small>{t(locale, 'walletVerifiedAt')}: {new Date(verifiedAt).toLocaleString(locale)}</small> : null}</div><button type="button" className="pay-primary-action" onClick={() => void startWalletVerification()} disabled={busy || verified || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {verified ? t(locale, 'verified') : t(locale, 'connectAndVerifyWallet')}</button></div>
+        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span title={walletAddress || undefined}>{walletAddress || t(locale, 'walletNotVerified')}</span>{verifiedAt ? <small>{t(locale, 'walletVerifiedAt')}: {new Date(verifiedAt).toLocaleString(locale)}</small> : null}</div><div className="pay-onboarding-wallet-actions">{verified ? <button type="button" className="pay-primary-action" disabled><ShieldCheck size={17} />{t(locale, 'verified')}</button> : <><button type="button" className="pay-primary-action" onClick={() => void createDedicatedWallet()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {t(locale, 'createDedicatedWallet')}</button><button type="button" className="pay-secondary-action" onClick={() => void startWalletVerification()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{t(locale, 'useExistingWallet')}</button></>}</div></div>
         {verified && <div className="pay-onboarding-verified"><CheckCircle2 size={18} /><span>{t(locale, 'walletOwnershipVerified')}</span></div>}
         {merchantRefreshStale && <div className="pay-onboarding-stale" role="status" aria-live="polite"><span>{t(locale, 'merchantRefreshStale')}</span><button type="button" className="pay-secondary-action" onClick={() => void refreshMerchant()} disabled={refreshingMerchant}>{refreshingMerchant ? <Loader2 className="animate-spin" size={15} /> : null}{t(locale, 'retryMerchantRefresh')}</button></div>}
       </div>}
 
-      {challenge && stage === 'signing' && <div className="pay-onboarding-challenge"><div className="pay-onboarding-challenge-head"><KeyRound size={17} /><strong>{t(locale, 'walletSignatureRequest')}</strong><button type="button" onClick={() => void copyMessage()} aria-label={t(locale, 'copy')} title={t(locale, 'copy')}><Copy size={15} /></button></div><pre>{challenge.message}</pre><small>{t(locale, 'signatureNotTransaction')}</small>{copied && <em>{t(locale, 'copied')}</em>}</div>}
+      {recoveryPhrase && (stage === 'recovery' || stage === 'generating-wallet') && <div className="pay-onboarding-recovery" role="dialog" aria-modal="true" aria-labelledby="pay-recovery-title"><div className="pay-onboarding-recovery-head"><div><span className="pay-panel-kicker">{t(locale, 'dedicatedWallet')}</span><h3 id="pay-recovery-title">{t(locale, 'recoveryPhraseTitle')}</h3></div><button type="button" className="pay-icon-button" onClick={discardGeneratedWallet} disabled={busy} aria-label={t(locale, 'close')}><XCircle size={18} /></button></div><div className="pay-onboarding-recovery-warning"><ShieldCheck size={18} /><span>{t(locale, 'recoveryPhraseWarning')}</span></div><div className="pay-onboarding-word-count"><strong>{t(locale, 'recoveryPhraseLength')}</strong><label><input type="radio" name="pay-recovery-length" checked={wordCount === 12} onChange={() => { discardGeneratedWallet(); setWordCount(12); void createDedicatedWallet(); }} disabled={busy || stage !== 'recovery'} />12 {t(locale, 'words')}</label><label><input type="radio" name="pay-recovery-length" checked={wordCount === 24} onChange={() => { discardGeneratedWallet(); setWordCount(24); void createDedicatedWallet(); }} disabled={busy || stage !== 'recovery'} />24 {t(locale, 'words')}</label></div><button type="button" className="pay-secondary-action" onClick={() => setRecoveryVisible(value => !value)} disabled={busy}>{recoveryVisible ? t(locale, 'hideRecoveryPhrase') : t(locale, 'showRecoveryPhrase')}</button>{recoveryVisible && <div className="pay-recovery-words" dir="ltr" aria-label={t(locale, 'recoveryPhraseTitle')}>{recoveryPhrase.split(' ').map((word, index) => <span key={word + index}><b>{index + 1}</b>{word}</span>)}</div>}<div className="pay-onboarding-recovery-actions"><button type="button" className="pay-secondary-action" onClick={() => void copyRecoveryPhrase()} disabled={busy || !recoveryVisible}>{recoveryCopied ? t(locale, 'copied') : t(locale, 'copyRecoveryPhrase')}</button><label className="pay-recovery-confirm"><input type="checkbox" checked={recoverySaved} onChange={e => setRecoverySaved(e.target.checked)} disabled={busy || !recoveryVisible} /><span>{t(locale, 'recoveryPhraseSaved')}</span></label><button type="button" className="pay-primary-action" onClick={() => void confirmDedicatedWallet()} disabled={busy || !recoveryVisible || !recoverySaved}>{t(locale, 'continueAndVerifyWallet')}</button></div><small className="pay-onboarding-recovery-footnote">{t(locale, 'recoveryPhraseNeverStored')}</small></div>}
+      {challenge && stage === 'signing' && !recoveryPhrase && <div className="pay-onboarding-challenge"><div className="pay-onboarding-challenge-head"><KeyRound size={17} /><strong>{t(locale, 'walletSignatureRequest')}</strong><button type="button" onClick={() => void copyMessage()} aria-label={t(locale, 'copy')} title={t(locale, 'copy')}><Copy size={15} /></button></div><pre>{challenge.message}</pre><small>{t(locale, 'signatureNotTransaction')}</small>{copied && <em>{t(locale, 'copied')}</em>}</div>}
       {error && <div className="pay-onboarding-error" role="alert"><XCircle size={18} /><span>{error}</span></div>}
     </section>
   );
