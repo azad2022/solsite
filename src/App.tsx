@@ -103,21 +103,6 @@ function readTaxonomyBootstrap(): Article[] {
 const AdminQuickActionsPortal: React.FC<{ enabled: boolean; onOpenMarket: () => void; onOpenShowcase: () => void; }> = ({ enabled, onOpenMarket, onOpenShowcase }) => {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
-    if (authPending) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('auth') !== 'register') return;
-
-    if (!applicationSessionUser) {
-      setIsAdminModalOpen(true);
-      return;
-    }
-
-    params.delete('auth');
-    const query = params.toString();
-    window.history.replaceState({}, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
-  }, [authPending, applicationSessionUser]);
-
-  useEffect(() => {
     if (!enabled) { setTarget(null); return; }
     let attempts = 0; let timer: number | undefined;
     const findTarget = () => {
@@ -158,6 +143,21 @@ export default function App() {
   const [isShowcaseAdminOpen, setIsShowcaseAdminOpen] = useState(false);
   const [isMemeTickerAdminOpen, setIsMemeTickerAdminOpen] = useState(false);
   const [pendingPayPath, setPendingPayPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authPending) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') !== 'register') return;
+
+    if (!applicationSessionUser) {
+      setIsAdminModalOpen(true);
+      return;
+    }
+
+    params.delete('auth');
+    const query = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+  }, [authPending, applicationSessionUser]);
 
   useEffect(() => {
     if (authPending) return;
