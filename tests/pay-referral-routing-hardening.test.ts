@@ -17,28 +17,28 @@ test('Cloudflare Pages invokes the referral Function route', () => {
 });
 
 test('Referral clicks land on the real homepage after tracking', () => {
-  assert.match(route, /new URL\('\\/', requestUrl\\.origin\\)/);
+  assert.match(route, /new URL\('\/', requestUrl\.origin\)/);
   assert.doesNotMatch(route, /auth=register/);
 });
 
 test('Referral attribution persists long enough to survive a delayed signup', () => {
-  assert.match(attribution, /REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 \\* 60 \\* 24 \\* 30/);
-  assert.match(attribution, /Max-Age=\\$\\{REFERRAL_COOKIE_MAX_AGE_SECONDS\\}/);
+  assert.match(attribution, /REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 \* 60 \* 24 \* 30/);
+  assert.match(attribution, /Max-Age=\$\{REFERRAL_COOKIE_MAX_AGE_SECONDS\}/);
 });
 
 test('Short referral codes replace the 35-character UUID-shaped public code', () => {
   assert.match(hardening, /pay_referral_code_aliases/);
-  assert.match(hardening, /encode\\(gen_random_bytes\\(8\\), 'hex'\\)/);
+  assert.match(hardening, /encode\(gen_random_bytes\(8\), 'hex'\)/);
   assert.match(hardening, /pay_affiliates_referral_code_shape_check/);
   assert.match(hardening, /legacy_referral_code/);
 });
 
 test('Legacy referral codes resolve to the affiliate current code', () => {
-  assert.match(hardening, /alias\\.legacy_referral_code = v_code/);
-  assert.match(hardening, /return jsonb_build_object\\([\\s\\S]*'referral_code', v_affiliate\\.referral_code/);
+  assert.match(hardening, /alias\.legacy_referral_code = v_code/);
+  assert.match(hardening, /return jsonb_build_object\([\s\S]*'referral_code', v_affiliate\.referral_code/);
 });
 
 test('Affiliate provisioning generates short codes for future users', () => {
   const ensureSection = hardening.slice(hardening.indexOf('create or replace function public.pay_ensure_affiliate'));
-  assert.match(ensureSection, /v_code := 'sm_' \\|\\| encode\\(gen_random_bytes\\(8\\), 'hex'\\)/);
+  assert.match(ensureSection, /v_code := 'sm_' \|\| encode\(gen_random_bytes\(8\), 'hex'\)/);
 });
