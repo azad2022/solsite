@@ -149,17 +149,20 @@ function isPayHtmlPath(request: Request): boolean {
   return pathname === '/pay' || pathname.startsWith('/pay/');
 }
 
-async function servePaySpaShell(context: PagesContext): Promise<Response> {
+async function serveSpaShell(context: PagesContext): Promise<Response> {
   const url = new URL(context.request.url);
   url.pathname = '/';
   url.search = '';
   url.hash = '';
 
-  const asset = await context.env.ASSETS.fetch(new Request(url, {
+  return context.env.ASSETS.fetch(new Request(url, {
     method: context.request.method,
     headers: context.request.headers,
   }));
-  return await withPayHtmlNoStore(context.request, asset);
+}
+
+async function servePaySpaShell(context: PagesContext): Promise<Response> {
+  return await withPayHtmlNoStore(context.request, await serveSpaShell(context));
 }
 
 function createCspNonce(): string {
@@ -218,8 +221,9 @@ const markdownMiddleware: MiddlewareHandler = async (context) => {
 
   if (!acceptsMarkdown(context.request)) {
     const pathname = new URL(context.request.url).pathname;
-    if ((context.request.method === 'GET' || context.request.method === 'HEAD') && isPayHtmlPath(context.request)) {
-      return servePaySpaShell(context);
+    if (context.request.method === 'GET' || context.request.method === 'HEAD') {
+      if (pathname === '/') return serveSpaShell(context);
+      if (isPayHtmlPath(context.request)) return servePaySpaShell(context);
     }
     return await withPayHtmlNoStore(context.request, await context.next());
   }
