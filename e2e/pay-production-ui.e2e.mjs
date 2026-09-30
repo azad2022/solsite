@@ -172,6 +172,22 @@ try {
     locale: 'fa-IR',
   });
   const guestPage = await guestContext.newPage();
+  guestPage.on('pageerror', (error) => console.log(`GUEST_PAGE_ERROR ${error.message}`));
+  guestPage.on('console', (message) => {
+    const type = message.type();
+    if (type === 'error' || type === 'warning') console.log(`GUEST_CONSOLE_${type.toUpperCase()} ${message.text().slice(0, 2000)}`);
+  });
+  guestPage.on('requestfailed', (request) => console.log(`GUEST_REQUEST_FAILED ${JSON.stringify({
+    url: request.url(),
+    resourceType: request.resourceType(),
+    failure: request.failure()?.errorText || null,
+  })}`));
+  guestPage.on('response', (response) => {
+    const request = response.request();
+    if (request.resourceType() === 'script' && response.status() >= 400) {
+      console.log(`GUEST_SCRIPT_RESPONSE_FAILURE ${JSON.stringify({ url: response.url(), status: response.status() })}`);
+    }
+  });
   await guestPage.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   const guestHeader = guestPage.locator('[data-header-primary-nav]');
   try {
