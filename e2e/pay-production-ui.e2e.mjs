@@ -239,6 +239,64 @@ try {
   await directSignIn(context, fixture);
 
   const page = await context.newPage();
+  // Desktop sidebar regression: the rail stays attached to the viewport, exposes its full navigation,
+  // and follows the document writing direction instead of reversing the flex shell a second time.
+  await page.setViewportSize({ width: 1440, height: 520 });
+  for (const [targetLocale, expectedDirection, optionLabel] of [
+    ['fa-IR', 'rtl', 'فارسی'],
+    ['en-US', 'ltr', 'English'],
+    ['ar', 'rtl', 'العربية'],
+    ['ru', 'ltr', 'Русский'],
+  ]) {
+    await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
+    const trigger = page.locator('.pay-language-trigger');
+    await trigger.waitFor({ state: 'visible', timeout: 10000 });
+    await trigger.click();
+    await page.locator('.pay-language-option').filter({ hasText: optionLabel }).click();
+    await page.waitForFunction((direction) => document.documentElement.getAttribute('dir') === direction, expectedDirection, { timeout: 10000 });
+
+    const sidebar = page.locator('.pay-sidebar');
+    await sidebar.waitFor({ state: 'visible', timeout: 10000 });
+    const diagnostics = await sidebar.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        direction: element.getAttribute('dir'),
+        position: style.position,
+        overflowY: style.overflowY,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        x: rect.x,
+        right: rect.right,
+        width: rect.width,
+      };
+    });
+    assert.equal(diagnostics.position, 'sticky', `Desktop sidebar must remain sticky for ${targetLocale}.`);
+    assert.equal(diagnostics.overflowY, 'auto', `Desktop sidebar must have an internal vertical scroll for ${targetLocale}.`);
+    assert.equal(diagnostics.direction, expectedDirection);
+    assert.ok(diagnostics.scrollHeight >= diagnostics.clientHeight);
+
+    const mainColumn = await page.locator('.pay-main-column').boundingBox();
+    assert.ok(mainColumn);
+    if (expectedDirection === 'rtl') {
+      assert.ok(Math.abs(diagnostics.right - 1440) < 1, `RTL sidebar must attach to the right edge: ${JSON.stringify(diagnostics)}`);
+      assert.ok((mainColumn?.x ?? 0) + (mainColumn?.width ?? 0) <= diagnostics.x + 1,
+        `RTL main column must remain left of sidebar: ${JSON.stringify({ diagnostics, mainColumn })}`);
+    } else {
+      assert.ok(Math.abs(diagnostics.x) < 1, `LTR sidebar must attach to the left edge: ${JSON.stringify(diagnostics)}`);
+      assert.ok((mainColumn?.x ?? 0) >= diagnostics.right - 1,
+        `LTR main column must remain right of sidebar: ${JSON.stringify({ diagnostics, mainColumn })}`);
+    }
+
+    await sidebar.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    const lastNav = page.locator('.pay-nav-item').last();
+    const lastBox = await lastNav.boundingBox();
+    assert.ok(lastBox, `Last navigation item must remain renderable for ${targetLocale}.`);
+    assert.ok(lastBox.y >= -1 && lastBox.y + lastBox.height <= 520 + 1,
+      `Last navigation item must be reachable inside the scrollable sidebar: ${JSON.stringify({ lastBox, diagnostics })}`);
+  }
+  await page.setViewportSize(VIEWPORT);
+
   page.on('console', (message) => {
     if (message.type() === 'error') console.log(`BROWSER_CONSOLE_ERROR ${message.text()}`);
   });
