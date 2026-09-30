@@ -174,7 +174,19 @@ try {
   const guestPage = await guestContext.newPage();
   await guestPage.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   const guestHeader = guestPage.locator('[data-header-primary-nav]');
-  await guestHeader.waitFor({ state: 'visible', timeout: 10000 });
+  try {
+    await guestHeader.waitFor({ state: 'visible', timeout: 30000 });
+  } catch (error) {
+    await guestPage.screenshot({ path: `${EVIDENCE_DIR}/guest-header-timeout.png`, fullPage: false }).catch(() => {});
+    const diagnostic = {
+      url: await guestPage.url(),
+      title: await guestPage.title(),
+      bodyExcerpt: (await guestPage.locator('body').innerText().catch(() => '')).slice(0, 2000),
+      headerCount: await guestHeader.count().catch(() => -1),
+    };
+    console.log(`GUEST_HEADER_PREFLIGHT_DIAGNOSTIC ${JSON.stringify(diagnostic)}`);
+    throw error;
+  }
   assert.equal(await guestHeader.locator('[data-nav-key]').count(), 6, 'Desktop primary header must expose exactly six destinations.');
   const guestLoginButton = guestPage.locator('header button[aria-label="ورود / ثبت‌نام"]:visible');
   await guestLoginButton.waitFor({ state: 'visible', timeout: 10000 });
