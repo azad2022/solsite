@@ -21,6 +21,7 @@ test('Referral public route records a click and preserves signup attribution in 
   assert.match(attribution,/REFERRAL_COOKIE_NAME = 'solmint_referral_click'/);
   assert.match(attribution,/HttpOnly; SameSite=Lax/);
   assert.match(publicRoute,/Cache-Control/);
+  assert.doesNotMatch(publicRoute,/enforcePayRateLimit/);
 });
 
 test('Referral persistence is explicitly single-level and per-user', () => {
@@ -29,6 +30,8 @@ test('Referral persistence is explicitly single-level and per-user', () => {
   assert.match(migration,/pay_referrals_merchant_id_unique_idx/);
   assert.match(migration,/drop constraint if exists pay_referrals_referral_code_key/);
   assert.match(migration,/commission_rate_bps set default 5000/);
+  assert.match(migration,/pay_affiliates_fixed_commission_rate_check/);
+  assert.match(migration,/v_commission_bps := 5000/);
 });
 
 test('Referral commission is recognized only at the authoritative revenue-ledger boundary', () => {

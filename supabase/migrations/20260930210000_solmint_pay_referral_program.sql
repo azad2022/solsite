@@ -8,6 +8,23 @@ create extension if not exists pgcrypto;
 alter table public.pay_affiliates
   alter column commission_rate_bps set default 5000;
 
+update public.pay_affiliates
+   set commission_rate_bps = 5000,
+       updated_at = now()
+ where commission_rate_bps <> 5000;
+
+do $
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.pay_affiliates'::regclass
+      and conname = 'pay_affiliates_fixed_commission_rate_check'
+  ) then
+    alter table public.pay_affiliates
+      add constraint pay_affiliates_fixed_commission_rate_check check (commission_rate_bps = 5000);
+  end if;
+end $;
+
 do $$
 begin
   if exists (
@@ -145,12 +162,6 @@ comment on column public.pay_referrals.referral_code is
 
 create index if not exists pay_commissions_referral_created_idx
   on public.pay_commissions(referral_id, created_at desc);
-
-update public.pay_affiliates
-   set commission_rate_bps = 5000,
-       updated_at = now()
- where commission_rate_bps = 0
-   and status in ('pending','active');
 
 create or replace function public.pay_ensure_affiliate(
   p_owner_user_id text,
@@ -545,6 +556,7 @@ begin
     return new;
   end if;
 
+  v_commission_bps := 5000;
   v_commission := floor((new.gross_gateway_fee_atomic * v_commission_bps) / 10000);
 
   new.referral_commission_atomic := v_commission;
