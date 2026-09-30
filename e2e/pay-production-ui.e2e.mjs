@@ -606,7 +606,7 @@ try {
     walletBalanceData?.assets?.map((asset) => asset.asset).sort(),
     ['SOL', 'USDC', 'USDT'],
   );
-  for (const asset of walletBalanceData.assets) assert.match(String(asset.balanceAtomic), /^\\d+$/);
+  for (const asset of walletBalanceData.assets) assert.match(String(asset.balanceAtomic), /^\d+$/);
   const accountMenuText = await accountMenu.innerText();
   assert.ok(accountMenuText.includes('SOL') && accountMenuText.includes('USDT') && accountMenuText.includes('USDC'));
   assert.equal(accountMenuText.includes('sk_pay_'), false);
