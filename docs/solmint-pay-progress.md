@@ -1346,3 +1346,88 @@ The intended user path is now explicit:
 Pay → Merchant & receiving wallet → Receiving wallet → Connect and verify wallet → sign the one-time ownership message → authoritative verification result.
 
 The actual Backend contract, not the frontend, remains authoritative for wallet ownership and Merchant activation state.
+
+
+## 2026-09-30 — SolMint Pay dedicated receiving-wallet lifecycle checkpoint
+
+Status: **COMPLETED / PRODUCTION VERIFIED**
+
+### Final production evidence
+
+The dedicated Merchant receiving-wallet lifecycle is now verified end-to-end on production.
+
+Current main runtime commit:
+`a81b13dff0571700dcfce9ab147cc43b4155170f`
+
+The application runtime is unchanged from the wallet runtime verified on `5c80606d...`; subsequent commits in this sequence are test-only:
+- PR #244: Billing Hub E2E ARIA contract correction.
+- PR #245: production browser header preflight hardening.
+- PR #246: production browser diagnostic instrumentation.
+
+Production Browser UI E2E completed successfully on the exact current main commit:
+- Guest Pay navigation guard: PASS.
+- Authenticated Pay runtime probe: PASS.
+- Merchant wallet UI before verification: PASS.
+- Dedicated wallet generation: 24-word Recovery Phrase, wallet address stored, request bodies redacted, authoritative verification status = verified.
+- Wallet ownership verification: authoritative backend response returned verified=true and the database state showed an active receiving wallet with verification_status=verified.
+- Merchant wallet UI after verification: PASS.
+- Wallet state remained verified after page reload: PASS.
+- Invoice creation: HTTP 201 with authoritative open invoice state.
+- Payment Link update/create flow: PASS.
+- Public Payment Link rendered its authoritative amount snapshot.
+- Public checkout reached /pay/checkout/:intentId and authoritative Payment Intent lookup passed.
+- Payment Link deletion guard: HTTP 409 after payment history; deactivation returned HTTP 200 and is_active=false.
+- Final Production Browser UI E2E: **PASS**.
+
+The separate SolMint Pay Live Browser Audit on the same commit also completed with **PASS**.
+
+### Gate evidence
+
+For the current validation sequence:
+- CI: PASS
+- Production Build: PASS
+- Authentication build verification: PASS
+- Cloudflare Pages: PASS
+- Production Browser UI E2E: PASS
+- Live Browser Audit: PASS
+
+The earlier runtime/security evidence remains applicable because the application source itself was unchanged after the wallet runtime commit:
+- Database Security / RLS: PASS
+- Production API Smoke: PASS
+- Devnet E2E: PASS
+- Mainnet Read-only: PASS
+- Webhook Egress Security: PASS
+- Live Smoke: PASS
+
+### Security / architecture result
+
+No new Backend endpoint, field, database table, RLS rule, RPC, payment rule, or financial calculation was introduced for the wallet UI.
+
+The actual flow remains:
+
+Browser generates wallet → Recovery Phrase shown once → local signature → existing wallet challenge endpoint → server-side verification → authoritative Merchant refresh.
+
+The Recovery Phrase/private key remains client-only and is not sent to the Backend.
+
+The Backend/database remains authoritative for wallet ownership and Merchant state. A local signature or browser state is not treated as payment success or financial truth.
+
+### Test-harness defects resolved during this rally
+
+Two stale test contracts were corrected at their proper boundary:
+- Billing Hub test expected `aria-pressed` although the actual `role=tab` contract uses `aria-selected`.
+- Production browser preflight used a 10-second guest header visibility window and lacked diagnostics for a static-fallback mount failure; it now has a 30-second budget plus failure diagnostics without suppressing the assertion.
+
+The final diagnostic run showed the preflight executing normally and the full Pay E2E completed successfully.
+
+### Remaining separately classified items
+
+These do not block the dedicated Merchant wallet/Pay runtime evidence above:
+- Supabase Preview continues to report existing migration-history drift.
+- The separate `Workers Builds: solsite` integration remains outside the actual Cloudflare Pages production deployment path.
+- Production browser diagnostics still report CSP blocking for third-party badge images and one inline script. These are separate site-wide CSP cleanup items and were not marked resolved by this Pay checkpoint.
+
+### Checkpoint conclusion
+
+The dedicated receiving-wallet capability is now **production verified** across UI, Backend challenge/verification, Database-backed authoritative refresh, reload persistence, and the existing Pay billing/checkout browser lifecycle.
+
+No further Wallet API or Database change is justified by the current evidence.
