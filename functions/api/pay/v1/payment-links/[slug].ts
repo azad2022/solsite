@@ -31,6 +31,17 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function validSlug(value: string): boolean { return value.length >= 3 && value.length <= 120 && SLUG.test(value); }
 
+function normalizePayerText(value: unknown, field: string, maxLength: number): string {
+  const normalized = String(value ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (normalized.length < 1 || normalized.length > maxLength) {
+    throw new PayRuntimeError('INVALID_PUBLIC_PAYER_DATA', 400, field + ' is invalid.');
+  }
+  return normalized;
+}
+
 async function publicSupabaseRequest(env: PayEnv, path: string, init: RequestInit = {}): Promise<Response> {
   let config: ReturnType<typeof supabaseSecret>;
   try { config = supabaseSecret(env); } catch { throw new PayRuntimeError('SERVER_MISCONFIGURED', 503, 'Pay backend is not configured.'); }
@@ -126,13 +137,19 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     if (asset !== 'SOL' && asset !== 'USDC' && asset !== 'USDT') throw new PayRuntimeError('PAYMENT_LINK_ASSET_INVALID', 409, 'Payment link asset is not supported.');
     const feePayer = link.fee_payer;
     if (feePayer !== 'merchant' && feePayer !== 'customer') throw new PayRuntimeError('PAYMENT_LINK_FEE_PAYER_INVALID', 409, 'Payment link fee policy is invalid.');
+    let body: Record<string, unknown>;
+    try { body = await request.json() as Record<string, unknown>; }
+    catch { return payJson({ code: 'INVALID_PUBLIC_PAYER_DATA', message: 'Payer information is required.' }, 400, requestId); }
+    const customerFirstName = normalizePayerText(body.firstName, 'firstName', 120);
+    const customerLastName = normalizePayerText(body.lastName, 'lastName', 120);
+    const customerPurpose = normalizePayerText(body.paymentReason, 'paymentReason', 1000);
     const assetConfig = resolveAssetFromEnvironment(asset, env as Record<string, string | undefined>);
     const amountAtomic = link.fixed_amount_atomic!;
     const calculated = calculateSnapshot(amountAtomic, feePayer, 100);
     if (BigInt(calculated.merchantNetAtomic) <= 0n) throw new PayRuntimeError('AMOUNT_TOO_SMALL', 400, 'Payment amount is too small after gateway fee.');
     const idempotencyKey = await assertIdempotencyKey(request);
     const scope = 'payment-intents:link';
-    const requestHash = await hashCanonicalRequest({ paymentLinkId: link.id, merchantId: link.merchant_id, amountAtomic, asset, feePayer });
+    const requestHash = await hashCanonicalRequest({ paymentLinkId: link.id, merchantId: link.merchant_id, amountAtomic, asset, feePayer, customerFirstName, customerLastName, customerPurpose });
     const subject = await hashSubject(link.id + ':' + (request.headers.get('CF-Connecting-IP') || 'shared'));
     await enforcePayRateLimit(env, 'payment-links:checkout', subject, 60, 60);
     const expiresAt = linkIntentExpiry(env, link.expires_at);
@@ -148,6 +165,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
         p_merchant_net_atomic: calculated.merchantNetAtomic, p_fee_recipient: env.PAY_FEE_RECIPIENT, p_network: 'solana',
         p_expires_at: expiresAt, p_metadata: { paymentLinkId: link.id, paymentLinkSlug: link.slug },
         p_idempotency_key: idempotencyKey, p_request_hash: requestHash, p_scope: scope,
+        p_customer_first_name: customerFirstName, p_customer_last_name: customerLastName, p_customer_purpose: customerPurpose,
       }),
     });
     const result = await rpcResponse.json() as { state?: string; response_status?: number; response_body?: unknown };
