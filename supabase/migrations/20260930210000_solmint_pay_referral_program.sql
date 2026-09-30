@@ -195,7 +195,7 @@ begin
   end if;
 
   loop
-    v_code := 'sm_' || encode(gen_random_bytes(12), 'hex');
+    v_code := 'sm_' || replace(gen_random_uuid()::text, '-', '');
     begin
       insert into public.pay_affiliates(
         owner_user_id, display_name, referral_code, commission_rate_bps, status
