@@ -1,0 +1,22 @@
+.pay-billing{display:grid;gap:18px}
+.pay-billing-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.pay-billing-heading h1{margin:7px 0 7px;font-size:clamp(25px,3vw,38px);line-height:1.1;letter-spacing:-.03em}
+.pay-billing-heading p{max-width:760px;margin:0;color:var(--pay-text-soft);font-size:13px;line-height:1.9}
+.pay-billing-tabs,.pay-billing-related-nav{display:flex;align-items:center;gap:4px;width:max-content;max-width:100%;padding:4px;border:1px solid var(--pay-border);border-radius:13px;background:#fff}
+.pay-billing-tabs button,.pay-billing-related-nav button{min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 13px;border:0;border-radius:9px;background:transparent;color:var(--pay-text-soft);font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+.pay-billing-tabs button.is-active,.pay-billing-related-nav button.is-active{background:#171923;color:#fff;box-shadow:0 2px 8px rgba(28,32,49,.09)}
+.pay-billing-tabs button:focus-visible,.pay-billing-related-nav button:focus-visible{outline:3px solid rgba(243,77,157,.18);outline-offset:2px}
+.pay-billing-primary-content,.pay-billing-related-content{min-width:0}
+.pay-billing-related-divider{display:flex;align-items:center;gap:12px;margin-top:2px;color:var(--pay-text-faint);font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.pay-billing-related-divider::before,.pay-billing-related-divider::after{content:"";height:1px;background:var(--pay-border);flex:1}
+.pay-billing-related-divider span{flex:0 0 auto}
+.pay-billing-related-content{padding-top:2px}
+.pay-billing .pay-invoices-heading,.pay-billing .pay-payment-links-heading{display:none!important}
+@media(max-width:700px){
+  .pay-billing-heading{align-items:flex-start;flex-direction:column}
+  .pay-billing-tabs,.pay-billing-related-nav{width:100%;overflow:auto;scrollbar-width:none}
+  .pay-billing-tabs::-webkit-scrollbar,.pay-billing-related-nav::-webkit-scrollbar{display:none}
+  .pay-billing-tabs button,.pay-billing-related-nav button{flex:0 0 auto;min-width:128px}
+  .pay-billing-heading h1{font-size:25px}
+  .pay-billing-heading p{font-size:12px;line-height:1.75}
+}
