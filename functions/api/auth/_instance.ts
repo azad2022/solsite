@@ -1,10 +1,19 @@
-import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { APIError, addOAuthServerContext, createAuthMiddleware, getOAuthState } from 'better-auth/api';
 import { betterAuth } from 'better-auth';
 import { username } from 'better-auth/plugins';
-import { buildPasswordResetEmail, buildVerificationEmail, resolveAuthEmailLocale, sendAuthEmail } from './_email';
+import { buildPasswordResetEmail, buildReferralSignupEmail, buildVerificationEmail, resolveAuthEmailLocale, sendAuthEmail } from './_email';
 import { provisionApplicationProfile } from './_application-profile';
 import { getBetterAuthFoundationConfig, type BetterAuthEnv } from './_foundation';
-import { createBetterAuthDatabase, type BetterAuthDatabaseEnv } from './_database';
+import { createBetterAuthDatabase, type ApplicationAuthDatabase, type BetterAuthDatabaseEnv } from './_database';
+import {
+  attributeReferralFromClick,
+  claimReferralSignupEmailDelivery,
+  completeReferralSignupEmailDelivery,
+  failReferralSignupEmailDelivery,
+  readReferralCookie,
+  type ReferralCookie,
+  type ReferralServiceEnv,
+} from '../pay/_shared/referralAttribution';
 
 interface BetterAuthRuntimeEnv extends BetterAuthEnv, BetterAuthDatabaseEnv {
   NODE_ENV?: string;
@@ -60,6 +69,82 @@ function buildPasswordResetAppUrl(baseURL: string, token: string): string {
   parsed.searchParams.set('token', token);
   return parsed.toString();
 }
+
+async function sendReferralSignupNotification(
+  env: BetterAuthRuntimeEnv,
+  application: ApplicationAuthDatabase,
+  attribution: Awaited<ReturnType<typeof attributeReferralFromClick>>,
+  referredUserName: string,
+): Promise<void> {
+  if (!attribution.attributed || !attribution.deliveryId || !attribution.referrerApplicationUserId) return;
+
+  try {
+    const identity = await application.findIdentityByApplicationUserId(attribution.referrerApplicationUserId);
+    if (!identity) return;
+
+    const referrer = await application.findBetterAuthUserById(identity.better_auth_user_id);
+    if (!referrer?.email) return;
+
+    const workerId = `pay-referral-signup-${crypto.randomUUID()}`;
+    const claim = await claimReferralSignupEmailDelivery(
+      env as ReferralServiceEnv,
+      attribution.deliveryId,
+      workerId,
+    );
+    if (!claim.ok || !claim.shouldSend || !claim.deliveryId) return;
+
+    try {
+      const email = buildReferralSignupEmail(
+        referrer.name || 'SolMint User',
+        referredUserName || 'کاربر جدید',
+        'fa-IR',
+      );
+      await sendAuthEmail(env, { to: referrer.email, ...email });
+      await completeReferralSignupEmailDelivery(env as ReferralServiceEnv, claim.deliveryId, workerId);
+    } catch (error) {
+      await failReferralSignupEmailDelivery(
+        env as ReferralServiceEnv,
+        claim.deliveryId,
+        workerId,
+        'REFERRAL_SIGNUP_EMAIL_SEND_FAILED',
+      ).catch(() => {});
+      throw error;
+    }
+  } catch (error) {
+    console.warn(JSON.stringify({
+      scope: 'auth:referral-signup-email',
+      error: error instanceof Error ? error.message.slice(0, 240) : 'unknown',
+    }));
+  }
+}
+
+async function processReferralSignup(
+  env: BetterAuthRuntimeEnv,
+  application: ApplicationAuthDatabase,
+  click: ReferralCookie | null,
+  betterAuthUserId: string,
+  referredUserName: string,
+): Promise<void> {
+  if (!click) return;
+
+  const applicationUser = await application.findIdentityByBetterAuthUserId(betterAuthUserId);
+  if (!applicationUser) return;
+
+  try {
+    const attribution = await attributeReferralFromClick(
+      env as ReferralServiceEnv,
+      click,
+      applicationUser.id,
+    );
+    await sendReferralSignupNotification(env, application, attribution, referredUserName);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      scope: 'auth:referral-attribution',
+      error: error instanceof Error ? error.message.slice(0, 240) : 'unknown',
+    }));
+  }
+}
+
 
 export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
   const foundation = getBetterAuthFoundationConfig(env);
@@ -194,20 +279,73 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (ctx.path !== '/sign-up/email') return;
+        if (ctx.path === '/sign-up/email') {
+          const isLegacyMigration =
+            isLegacyMigrationEnabled(env) &&
+            legacyMigrationSecret.length > 0 &&
+            isAuthorizedLegacyMigrationHeader(ctx.headers, legacyMigrationSecret);
 
-        const isLegacyMigration =
-          isLegacyMigrationEnabled(env) &&
-          legacyMigrationSecret.length > 0 &&
-          isAuthorizedLegacyMigrationHeader(ctx.headers, legacyMigrationSecret);
+          const body = ctx.body as { username?: unknown } | undefined;
+          const requestedUsername = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
+          if (requestedUsername) {
+            const existing = await database.application.findApplicationUserByUsername(requestedUsername);
+            if (existing && !isLegacyMigration) {
+              throw new APIError('CONFLICT', { message: 'This username is already in use.' });
+            }
+          }
+        }
 
-        const body = ctx.body as { username?: unknown } | undefined;
-        const requestedUsername = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
-        if (!requestedUsername) return;
+        if (ctx.path === '/sign-in/social') {
+          const click = ctx.request ? readReferralCookie(ctx.request) : null;
+          if (click) {
+            await addOAuthServerContext({
+              referralClickId: click.clickId,
+              referralCode: click.referralCode,
+            });
+          }
+        }
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === '/sign-up/email') {
+          const body = ctx.body as { email?: unknown } | undefined;
+          const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+          const click = ctx.request ? readReferralCookie(ctx.request) : null;
+          if (email && click) {
+            const identity = await database.application.findBetterAuthIdentityByEmail(email);
+            if (identity) {
+              const user = await database.application.findBetterAuthUserById(identity.id);
+              const applicationUser = await database.application.findIdentityByBetterAuthUserId(identity.id);
+              if (user && applicationUser) {
+                const attribution = await attributeReferralFromClick(
+                  env as ReferralServiceEnv,
+                  click,
+                  applicationUser.id,
+                );
+                await sendReferralSignupNotification(env, database.application, attribution, user.name || 'کاربر جدید');
+              }
+            }
+          }
+        }
 
-        const existing = await database.application.findApplicationUserByUsername(requestedUsername);
-        if (existing && !isLegacyMigration) {
-          throw new APIError('CONFLICT', { message: 'This username is already in use.' });
+        if (ctx.path.startsWith('/callback/')) {
+          const newSession = ctx.context.newSession;
+          const state = await getOAuthState().catch(() => null);
+          const serverContext = state?.serverContext as { referralClickId?: unknown; referralCode?: unknown } | undefined;
+          const click: ReferralCookie | null =
+            typeof serverContext?.referralClickId === 'string' &&
+            typeof serverContext.referralCode === 'string'
+              ? { clickId: serverContext.referralClickId, referralCode: serverContext.referralCode }
+              : null;
+
+          if (newSession?.user?.id && click) {
+            await processReferralSignup(
+              env,
+              database.application,
+              click,
+              String(newSession.user.id),
+              String(newSession.user.name || 'کاربر جدید'),
+            );
+          }
         }
       }),
     },

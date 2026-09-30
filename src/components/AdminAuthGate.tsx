@@ -44,7 +44,25 @@ export function AdminAuthGate({ isOpen, onClose, setCurrentUser }: AdminAuthGate
   const titleId = useId(); const identifierId = useId(); const nameId = useId(); const usernameId = useId(); const emailId = useId(); const passwordId = useId();
   const [mode, setMode] = useState<Mode>('login'); const [identifier, setIdentifier] = useState(''); const [name, setName] = useState(''); const [username, setUsername] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [showPassword, setShowPassword] = useState(false); const [pendingVerificationEmail, setPendingVerificationEmail] = useState(''); const [state, setState] = useState<AuthState>('idle'); const [message, setMessage] = useState(''); const [diagnosticCode, setDiagnosticCode] = useState<string | null>(null);
 
-  useEffect(() => { if (!isOpen) return; const callback = callbackErrorFromLocation(); setState(callback ? 'error' : 'idle'); setMessage(callback?.message || ''); setDiagnosticCode(callback?.code || null); setPendingVerificationEmail(''); if (callback) window.history.replaceState({}, document.title, window.location.pathname); }, [isOpen, mode]);
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const referralRegistration = params.get('auth') === 'register';
+    if (referralRegistration) {
+      setMode('register');
+      params.delete('auth');
+      const query = params.toString();
+      window.history.replaceState({}, document.title, window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+    }
+
+    const callback = callbackErrorFromLocation();
+    setState(callback ? 'error' : 'idle');
+    setMessage(callback?.message || '');
+    setDiagnosticCode(callback?.code || null);
+    setPendingVerificationEmail('');
+    if (callback) window.history.replaceState({}, document.title, window.location.pathname);
+  }, [isOpen]);
   useEffect(() => { if (!isOpen) return; const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && state !== 'loading') onClose(); }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [isOpen, onClose, state]);
   useEffect(() => { if (!isOpen) return; document.querySelector<HTMLInputElement>(mode === 'login' ? `#${identifierId}` : `#${nameId}`)?.focus(); }, [identifierId, isOpen, mode, nameId]);
   if (!isOpen) return null;

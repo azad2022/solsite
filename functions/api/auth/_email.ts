@@ -27,6 +27,16 @@ type AuthEmailCopy = {
     safety: string;
     footer: string;
   };
+  referralSignup: {
+    subject: string;
+    eyebrow: string;
+    title: string;
+    greeting: (name: string) => string;
+    body: string;
+    button: string;
+    notice: string;
+    footer: string;
+  };
   direction: 'rtl' | 'ltr';
 };
 
@@ -55,6 +65,16 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       safety: 'اگر این درخواست متعلق به شما نیست، این پیام را نادیده بگیرید.',
       footer: 'این پیام برای امنیت حساب شما ارسال شده است.',
     },
+    referralSignup: {
+      subject: 'ثبت‌نام جدید از لینک معرفی شما در SolMint',
+      eyebrow: 'SolMint Partnerships',
+      title: 'یک ثبت‌نام جدید از لینک معرفی شما',
+      greeting: (name) => `سلام ${name}`,
+      body: 'یک کاربر جدید از طریق لینک معرفی شما در SolMint ثبت‌نام کرده است.',
+      button: 'مشاهده پنل معرفی و همکاری',
+      notice: 'این پیام صرفاً اطلاع‌رسانی است و مبنای محاسبه درآمد یا تسویه نیست.',
+      footer: 'برای امنیت حساب، اطلاعات مالی فقط از داخل پنل SolMint نمایش داده می‌شود.',
+    },
   },
   'en-US': {
     direction: 'ltr',
@@ -77,6 +97,16 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       button: 'Reset password',
       safety: 'If you did not request this, you can safely ignore this message.',
       footer: 'This message was sent to help keep your account secure.',
+    },
+    referralSignup: {
+      subject: 'New signup from your SolMint referral link',
+      eyebrow: 'SolMint Partnerships',
+      title: 'A new signup came through your referral link',
+      greeting: (name) => `Hello ${name}`,
+      body: 'A new user signed up on SolMint through your referral link.',
+      button: 'Open referrals',
+      notice: 'This message is informational only and is not the source of commission or settlement truth.',
+      footer: 'Financial information is authoritative only inside your SolMint dashboard.',
     },
   },
   ar: {
@@ -101,6 +131,16 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       safety: 'إذا لم تطلب هذا الإجراء، يمكنك تجاهل هذه الرسالة بأمان.',
       footer: 'أُرسلت هذه الرسالة للمساعدة في الحفاظ على أمان حسابك.',
     },
+    referralSignup: {
+      subject: 'تسجيل جديد من رابط إحالتك في SolMint',
+      eyebrow: 'SolMint Partnerships',
+      title: 'تم تسجيل مستخدم جديد عبر رابط إحالتك',
+      greeting: (name) => `مرحباً ${name}`,
+      body: 'سجّل مستخدم جديد في SolMint من خلال رابط الإحالة الخاص بك.',
+      button: 'فتح لوحة الإحالات',
+      notice: 'هذه الرسالة للإشعار فقط ولا تُستخدم كمصدر لاحتساب العمولة أو التسوية.',
+      footer: 'المعلومات المالية الموثوقة تظهر فقط داخل لوحة SolMint.',
+    },
   },
   ru: {
     direction: 'ltr',
@@ -123,6 +163,16 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       button: 'Сбросить пароль',
       safety: 'Если вы не запрашивали это действие, просто проигнорируйте сообщение.',
       footer: 'Это сообщение отправлено для защиты вашего аккаунта.',
+    },
+    referralSignup: {
+      subject: 'Новая регистрация по вашей реферальной ссылке SolMint',
+      eyebrow: 'SolMint Partnerships',
+      title: 'Новая регистрация по вашей ссылке',
+      greeting: (name) => `Здравствуйте, ${name}`,
+      body: 'Новый пользователь зарегистрировался в SolMint по вашей реферальной ссылке.',
+      button: 'Открыть рефералов',
+      notice: 'Это информационное сообщение; источником истины для комиссии и расчётов является Backend.',
+      footer: 'Финансовые данные отображаются авторитетно только в панели SolMint.',
     },
   },
 };
@@ -254,5 +304,20 @@ export function buildPasswordResetEmail(userName: string, url: string, locale: A
     subject: copy.subject,
     text: `${copy.greeting(userName)}\n\n${copy.body}\n\n${copy.button}: ${url}\n\n${copy.safety}\n\n${copy.footer}`,
     html: renderEmailHtml(locale, copy.title, copy.greeting(userName), copy.body, copy.button, url, copy.safety, copy.footer),
+  };
+}
+
+export function buildReferralSignupEmail(
+  referrerName: string,
+  _referredUserName: string,
+  locale: AuthEmailLocale = 'fa-IR',
+) {
+  const copy = COPY[locale].referralSignup;
+  const url = 'https://solmint.ir/pay/referrals';
+  const body = copy.body;
+  return {
+    subject: copy.subject,
+    text: `${copy.greeting(referrerName)}\n\n${body}\n\n${copy.notice}\n\n${copy.button}: ${url}\n\n${copy.footer}`,
+    html: renderEmailHtml(locale, copy.title, copy.greeting(referrerName), body, copy.button, url, copy.notice, copy.footer),
   };
 }

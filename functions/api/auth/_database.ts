@@ -17,6 +17,7 @@ export interface ApplicationAuthDatabase {
   findIdentityByApplicationUserId(applicationUserId: string): Promise<ApplicationIdentityLinkRow | null>;
   findIdentityByBetterAuthUserId(betterAuthUserId: string): Promise<ApplicationUserRow | null>;
   findBetterAuthIdentityByEmail(email: string): Promise<{ id: string } | null>;
+  findBetterAuthUserById(betterAuthUserId: string): Promise<{ id: string; email: string; name: string | null } | null>;
   findBetterAuthSessionToken(sessionId: string, userId: string): Promise<string | null>;
   createApplicationUser(input: { id: string; username: string; fullName: string; passwordHash: string; createdAt: string }): Promise<void>;
   linkIdentity(input: { betterAuthUserId: string; applicationUserId: string; source: 'native' | 'legacy-migration' }): Promise<void>;
@@ -65,6 +66,11 @@ function createSupabaseApplicationDatabase(client: SupabaseClient): ApplicationA
     async findBetterAuthIdentityByEmail(email) {
       const record = await callAdapter('find_one', { model: 'user', where: [{ field: 'email', value: email, operator: 'eq' }], limit: 1, offset: 0 }) as { id?: string } | null;
       return record?.id ? { id: record.id } : null;
+    },
+    async findBetterAuthUserById(betterAuthUserId) {
+      const record = await callAdapter('find_one', { model: 'user', where: [{ field: 'id', value: betterAuthUserId, operator: 'eq' }], limit: 1, offset: 0 }) as { id?: string; email?: string; name?: string | null } | null;
+      if (!record?.id || !record.email) return null;
+      return { id: String(record.id), email: String(record.email), name: record.name == null ? null : String(record.name) };
     },
     async findBetterAuthSessionToken(sessionId, userId) {
       const record = await callAdapter('find_one', { model: 'session', where: [{ field: 'id', value: sessionId, operator: 'eq' }, { field: 'user_id', value: userId, operator: 'eq' }, { field: 'expires_at', value: new Date().toISOString(), operator: 'gt' }], limit: 1, offset: 0 }) as { token?: string } | null;
