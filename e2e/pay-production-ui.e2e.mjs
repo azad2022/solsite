@@ -224,6 +224,22 @@ try {
   await authDialog.getByRole('heading', { name: 'ایجاد حساب', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
   await guestPage.locator('[aria-label="بستن پنجره ورود"]').click();
 
+  // Public referral routing regression: an invalid referral must reach the dedicated Pages Function
+  // instead of falling through to the SPA shell. This request is non-mutating.
+  const invalidReferralCode = 'sm_test_nonexistent_' + crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+  const invalidReferralResponse = await guestPage.goto(
+    ORIGIN + '/r/' + invalidReferralCode,
+    { waitUntil: 'domcontentloaded' },
+  );
+  assert.equal(
+    invalidReferralResponse?.status(),
+    404,
+    'Invalid public referral code must be handled by the dedicated /r/* Function, not the SPA fallback.',
+  );
+  const invalidReferralBody = (await guestPage.locator('body').innerText()).trim();
+  assert.equal(invalidReferralBody, 'Referral link not found.');
+  console.log('REFERRAL_PUBLIC_ROUTE_NEGATIVE_E2E PASS');
+
   await guestPage.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
   await guestPage.waitForFunction(() => window.location.pathname === '/', { timeout: 10000 });
   assert.equal(new URL(await guestPage.url()).pathname, '/', 'Direct guest /pay navigation must return to the public site.');
