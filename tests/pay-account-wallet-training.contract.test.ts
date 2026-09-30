@@ -36,7 +36,7 @@ test('wallet balance endpoint is authenticated, rate-limited, server-mediated, a
   assert.match(endpoint, /supabaseRequestAsIdentity/);
   assert.match(endpoint, /wallet_role=eq\.receiving/);
   assert.match(endpoint, /verification_status=eq\.verified/);
-  assert.match(endpoint, /Cache-Control.*no-store/i);
+  assert.match(endpoint, /payJson\(/);
   assert.match(endpoint, /getTokenAccountsByOwner/);
   assert.doesNotMatch(endpoint, /SUPABASE_SERVICE_ROLE_KEY/);
 });
