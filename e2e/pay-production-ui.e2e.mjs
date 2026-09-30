@@ -519,6 +519,59 @@ try {
     authoritativeStatus: walletAfterGenerated.walletVerificationStatus,
   }));
 
+  await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
+  const accountTrigger = page.locator('.pay-account-trigger');
+  await accountTrigger.waitFor({ state: 'visible', timeout: 10000 });
+  const walletBalanceResponsePromise = page.waitForResponse((response) =>
+    response.url().includes('/api/pay/v1/merchants/') &&
+    response.url().endsWith('/wallet-balance') &&
+    response.request().method() === 'GET',
+    { timeout: 15000 },
+  );
+  await accountTrigger.click();
+  const accountMenu = page.locator('.pay-account-menu');
+  await accountMenu.waitFor({ state: 'visible', timeout: 10000 });
+  const walletBalanceResponse = await walletBalanceResponsePromise;
+  const walletBalanceText = await walletBalanceResponse.text();
+  assert.equal(walletBalanceResponse.status(), 200, walletBalanceText);
+  const walletBalanceBody = walletBalanceText ? JSON.parse(walletBalanceText) : {};
+  const walletBalanceData = walletBalanceBody?.data;
+  assert.equal(walletBalanceData?.walletAddress, generatedAddress);
+  assert.equal(walletBalanceData?.network, 'solana-mainnet');
+  assert.deepEqual(
+    walletBalanceData?.assets?.map((asset) => asset.asset).sort(),
+    ['SOL', 'USDC', 'USDT'],
+  );
+  for (const asset of walletBalanceData.assets) assert.match(String(asset.balanceAtomic), /^\\d+$/);
+  const accountMenuText = await accountMenu.innerText();
+  assert.ok(accountMenuText.includes('SOL') && accountMenuText.includes('USDT') && accountMenuText.includes('USDC'));
+  assert.equal(accountMenuText.includes('sk_pay_'), false);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelector('.pay-account-menu') === null, null, { timeout: 5000 });
+
+  for (const [targetLocale, expectedDirection, optionLabel] of [
+    ['fa-IR', 'rtl', 'فارسی'],
+    ['en-US', 'ltr', 'English'],
+    ['ar', 'rtl', 'العربية'],
+    ['ru', 'ltr', 'Русский'],
+  ]) {
+    await page.goto(ORIGIN + '/pay/tickets', { waitUntil: 'domcontentloaded' });
+    const training = page.locator('.pay-training');
+    await training.waitFor({ state: 'visible', timeout: 10000 });
+    assert.ok(await training.locator('details.pay-training-topic').count() > 0);
+    const trainingNode = await training.elementHandle();
+    const ticketNode = await page.locator('.pay-ticket-heading').first().elementHandle();
+    assert.ok(trainingNode && ticketNode);
+    const trainingBeforeTicket = await page.evaluate(([a, b]) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), [trainingNode, ticketNode]);
+    assert.equal(trainingBeforeTicket, true);
+    await page.locator('.pay-language-trigger').click();
+    await page.locator('.pay-language-option').filter({ hasText: optionLabel }).click();
+    await page.waitForFunction((direction) => document.documentElement.getAttribute('dir') === direction, expectedDirection, { timeout: 10000 });
+    assert.equal(await page.locator('html').getAttribute('lang'), targetLocale);
+    await page.locator('.pay-training').getByRole('heading', { level: 2 }).waitFor({ state: 'visible', timeout: 5000 });
+  }
+
   const preWalletRouteResults = [];
   for (const [path, label] of routes) {
     preWalletRouteResults.push(await routeAudit(
