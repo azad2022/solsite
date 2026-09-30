@@ -13,7 +13,7 @@ update public.pay_affiliates
        updated_at = now()
  where commission_rate_bps <> 5000;
 
-do $
+do $$
 begin
   if not exists (
     select 1 from pg_constraint
@@ -23,7 +23,7 @@ begin
     alter table public.pay_affiliates
       add constraint pay_affiliates_fixed_commission_rate_check check (commission_rate_bps = 5000);
   end if;
-end $;
+end $$;
 
 do $$
 begin
