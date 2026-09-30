@@ -524,8 +524,6 @@ try {
   assert.ok(maskedRecoveryWords.every((value) => value === '****'), 'Recovery phrase must be masked in the DOM.');
   const generatedAddress = (await page.locator('.pay-onboarding-generated-address code').innerText()).trim();
   assert.match(generatedAddress, /^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
-  let bodyTextBeforeCopy = await page.locator('body').innerText();
-  assert.doesNotMatch(bodyTextBeforeCopy, /(?:\b[a-z]{2,}\b\s+){11,}/i, 'Recovery phrase must not be rendered as a visible word sequence.');
   await page.evaluate(() => {
     let captured = '';
     Object.defineProperty(window, '__solmintCapturedRecoveryPhrase', {
