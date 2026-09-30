@@ -47,10 +47,9 @@
 .pay-onboarding-word-count strong{margin-inline-end:auto}
 .pay-onboarding-word-count label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
 .pay-onboarding-word-count input{accent-color:var(--pay-purple)}
-.pay-onboarding-recovery> .pay-secondary-action{margin-top:12px;width:100%}
-.pay-recovery-words{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;padding:10px;border-radius:12px;background:#171923}
-.pay-recovery-words span{display:flex;align-items:center;gap:7px;min-width:0;padding:7px 8px;border-radius:8px;background:#242532;color:#fff;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}
-.pay-recovery-words b{width:22px;color:#aaa;flex:0 0 auto;font-size:9px;font-weight:700}
+.pay-recovery-masked{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:10px;padding:10px;border-radius:12px;background:#171923}
+.pay-recovery-masked span{display:flex;align-items:center;justify-content:center;min-width:0;min-height:32px;padding:5px 7px;border-radius:8px;background:#242532;color:#fff;font:11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em}
+.pay-recovery-copy-note{margin:9px 0 0;color:var(--pay-text-soft);font-size:9px;line-height:1.8}
 .pay-onboarding-recovery-actions{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;margin-top:12px}
 .pay-recovery-confirm{display:flex;align-items:flex-start;gap:7px;font-size:10px;line-height:1.6;color:var(--pay-text-soft);cursor:pointer}
 .pay-recovery-confirm input{margin-top:2px;accent-color:var(--pay-purple)}
@@ -58,7 +57,7 @@
 @media (max-width:700px){
   .pay-onboarding-wallet-actions{width:100%;margin-inline-start:0;flex-wrap:wrap}
   .pay-onboarding-wallet-actions>*{flex:1 1 180px}
-  .pay-recovery-words{grid-template-columns:1fr}
+  .pay-recovery-masked{grid-template-columns:repeat(3,minmax(0,1fr))}
   .pay-onboarding-recovery-actions{grid-template-columns:1fr}
   .pay-onboarding-recovery-actions .pay-primary-action,.pay-onboarding-recovery-actions .pay-secondary-action{width:100%}
   .pay-onboarding-word-count{flex-wrap:wrap}
