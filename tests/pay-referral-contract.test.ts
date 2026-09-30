@@ -18,7 +18,7 @@ test('Referral dashboard uses the released server-side contract', () => {
 
 test('Referral public route records a click and preserves signup attribution in an HttpOnly cookie', () => {
   assert.match(publicRoute,/recordReferralClick\(env, code\)/);
-  assert.match(publicRoute,/solmint_referral_click/);
+  assert.match(attribution,/REFERRAL_COOKIE_NAME = 'solmint_referral_click'/);
   assert.match(publicRoute,/HttpOnly; SameSite=Lax/);
   assert.match(publicRoute,/Cache-Control/);
 });
@@ -43,7 +43,7 @@ test('Referral attribution rejects pre-existing accounts and is retry-safe', () 
   assert.match(migration,/USER_PREEXISTED_CLICK/);
   assert.match(migration,/CLICK_ALREADY_CONSUMED/);
   assert.match(migration,/ALREADY_ATTRIBUTED/);
-  assert.match(migration,/unique \(referral_id, payment_id\)/);
+  assert.match(migration,/on conflict \(referral_id, payment_id\) do nothing/);
 });
 
 test('Google OAuth referral context uses Better Auth server-trusted OAuth state', () => {
