@@ -3,3 +3,4 @@ live browser audit explicit 1790194500000
 live browser audit checkpoint 1790697232676
 merchant wallet discoverability live rerun 2026-09-29T16:35:00Z
 account-menu-training-center live audit 2026-09-30T14:49:29.369Z
+live browser audit after migration alignment 2026-09-30T17:02:00Z
