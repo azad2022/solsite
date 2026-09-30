@@ -797,6 +797,14 @@ try {
   console.log(`PUBLIC_PAYMENT_LINK_RENDER ${JSON.stringify({ amountAtomic: publicLinkApiBody.data.amountAtomic, amountDecimals: publicLinkApiBody.data.amountDecimals, asset: publicLinkApiBody.data.asset, expectedPublicAmount, cardText: publicLinkText.slice(0, 1000) })}`);
   assert.ok(publicLinkText.includes(expectedPublicAmount), `Public payment link must render the authoritative amount as ${expectedPublicAmount}. Body: ${publicLinkText}`);
 
+  const publicCustomerForm = publicPage.locator('.pay-public-link-customer');
+  await publicCustomerForm.waitFor({ state: 'visible', timeout: 10000 });
+  await publicCustomerForm.locator('input').nth(0).fill('Ali');
+  await publicCustomerForm.locator('input').nth(1).fill('Ahmadi');
+  await publicCustomerForm.locator('textarea').fill('Production browser checkout verification');
+  const payerFieldsText = await publicCustomerForm.innerText();
+  assert.ok(payerFieldsText.includes('Payer information') || payerFieldsText.includes('بيانات الدافع') || payerFieldsText.includes('معلومات الدفع') || payerFieldsText.includes('Данные плательщика'));
+
   const publicCheckoutPost = (request) =>
     request.url().endsWith('/api/pay/v1/payment-links/' + encodeURIComponent(paymentLinkSlug))
     && request.method() === 'POST';
@@ -813,6 +821,21 @@ try {
   console.log(`PAYMENT_LINK_CREATE_PRODUCTION_E2E ${JSON.stringify({ status: publicCheckoutResponse.status(), paymentIntentId: publicCheckoutBody.data?.id, merchantId, paymentLinkSlug })}`);
   assert.equal(typeof publicCheckoutBody.data?.id, 'string');
   const publicIntentId = publicCheckoutBody.data.id;
+  const publicIntentFromDb = rows(await db(
+    `select id, merchant_id, customer_first_name, customer_last_name, customer_purpose
+       from public.pay_payment_intents
+      where id = $1`,
+    [publicIntentId],
+    true,
+  ));
+  assert.equal(publicIntentFromDb.length, 1, 'Public checkout Payment Intent must exist in production database.');
+  assert.equal(publicIntentFromDb[0].merchant_id, merchantId);
+  assert.equal(publicIntentFromDb[0].customer_first_name, 'Ali');
+  assert.equal(publicIntentFromDb[0].customer_last_name, 'Ahmadi');
+  assert.equal(publicIntentFromDb[0].customer_purpose, 'Production browser checkout verification');
+  const publicIntentGetBodyText = await (await page.request.get(`${ORIGIN}/api/pay/v1/payment-intents/${encodeURIComponent(publicIntentId)}`)).text();
+  assert.doesNotMatch(publicIntentGetBodyText, /customer_first_name|customer_last_name|customer_purpose/i,
+    'Public Payment Intent GET must not expose payer PII.');
 
   await page.goto(ORIGIN + '/pay/checkout', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-checkout-intent-lookup').waitFor({ state: 'visible', timeout: 10000 });
