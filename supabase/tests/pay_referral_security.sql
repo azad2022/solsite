@@ -152,19 +152,6 @@ begin
   result := public.pay_attribute_referral_from_click(click_b,b_code,'user-c');
   if result->>'attributed' <> 'true' then raise exception 'C attribution failed: %', result; end if;
 
-  if (select count(*) from public.pay_referral_click_events where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-a')) <> 1
-     or (select count(*) from public.pay_referral_click_events where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-b')) <> 1 then
-    raise exception 'click counts are not independent per affiliate';
-  end if;
-
-  if (select count(*) from public.pay_referral_user_attributions where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-a')) <> 1 then
-    raise exception 'A must have exactly one direct signup';
-  end if;
-
-  if (select count(*) from public.pay_referral_user_attributions where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-b')) <> 1 then
-    raise exception 'B must have exactly one direct signup';
-  end if;
-
   result := public.pay_record_referral_click(a_code);
   click_a := (result->>'click_id')::uuid;
   result := public.pay_attribute_referral_from_click(click_a,a_code,'user-a');
@@ -177,6 +164,22 @@ end $service$;
 -- Direct assertions below use the isolated database owner; mutation RPCs above
 -- were exercised under service_role as they would be in the server boundary.
 set local role postgres;
+
+DO $counts$
+begin
+  if (select count(*) from public.pay_referral_click_events where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-a')) <> 1
+     or (select count(*) from public.pay_referral_click_events where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-b')) <> 1 then
+    raise exception 'click counts are not independent per affiliate';
+  end if;
+
+  if (select count(*) from public.pay_referral_user_attributions where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-a')) <> 1 then
+    raise exception 'A must have exactly one direct signup';
+  end if;
+
+  if (select count(*) from public.pay_referral_user_attributions where affiliate_id=(select id from public.pay_affiliates where owner_user_id='user-b')) <> 1 then
+    raise exception 'B must have exactly one direct signup';
+  end if;
+end $counts$;
 
 insert into public.pay_merchants(owner_user_id,business_name,slug)
 values
