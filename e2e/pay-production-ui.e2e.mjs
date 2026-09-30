@@ -821,18 +821,18 @@ try {
   console.log(`PAYMENT_LINK_CREATE_PRODUCTION_E2E ${JSON.stringify({ status: publicCheckoutResponse.status(), paymentIntentId: publicCheckoutBody.data?.id, merchantId, paymentLinkSlug })}`);
   assert.equal(typeof publicCheckoutBody.data?.id, 'string');
   const publicIntentId = publicCheckoutBody.data.id;
-  const publicIntentFromDb = rows(await db(
+  const publicIntentPayerFromDb = rows(await db(
     `select id, merchant_id, customer_first_name, customer_last_name, customer_purpose
        from public.pay_payment_intents
       where id = $1`,
     [publicIntentId],
     true,
   ));
-  assert.equal(publicIntentFromDb.length, 1, 'Public checkout Payment Intent must exist in production database.');
-  assert.equal(publicIntentFromDb[0].merchant_id, merchantId);
-  assert.equal(publicIntentFromDb[0].customer_first_name, 'Ali');
-  assert.equal(publicIntentFromDb[0].customer_last_name, 'Ahmadi');
-  assert.equal(publicIntentFromDb[0].customer_purpose, 'Production browser checkout verification');
+  assert.equal(publicIntentPayerFromDb.length, 1, 'Public checkout Payment Intent must exist in production database.');
+  assert.equal(publicIntentPayerFromDb[0].merchant_id, merchantId);
+  assert.equal(publicIntentPayerFromDb[0].customer_first_name, 'Ali');
+  assert.equal(publicIntentPayerFromDb[0].customer_last_name, 'Ahmadi');
+  assert.equal(publicIntentPayerFromDb[0].customer_purpose, 'Production browser checkout verification');
   const publicIntentGetBodyText = await (await page.request.get(`${ORIGIN}/api/pay/v1/payment-intents/${encodeURIComponent(publicIntentId)}`)).text();
   assert.doesNotMatch(publicIntentGetBodyText, /customer_first_name|customer_last_name|customer_purpose/i,
     'Public Payment Intent GET must not expose payer PII.');
