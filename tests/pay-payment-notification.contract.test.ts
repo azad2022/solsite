@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const verify = readFileSync('functions/api/pay/v1/payment-intents/[id]/verify.ts', 'utf8');
 const email = readFileSync('functions/api/pay/v1/_shared/paymentEmail.ts', 'utf8');
-const migration = readFileSync('supabase/migrations/20260930101000_solmint_pay_payment_email_delivery.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20260930073605_solmint_pay_payment_email_delivery_20260930101000.sql', 'utf8');
 
 test('merchant payment notifications are triggered only from authoritative payment outcomes', () => {
   assert.match(verify, /SUCCESS_EMAIL_STATUSES/);

@@ -1,4 +1,4 @@
-# Production migration ledger reconciled against live Supabase project nvopkbiedorfshwbmyhn on 2026-09-16.
+# Production migration ledger reconciled against live Supabase project nvopkbiedorfshwbmyhn on 2026-09-30.
 # Expected active repository migration filenames. One filename per line.
 20260829090000_solmint_production_baseline.sql
 20260830000050_solmint_pay_wallet_challenges.sql
@@ -85,6 +85,8 @@
 20260920131133_solmint_site_security_hardening_20260920.sql
 20260924111000_solmint_pay_api_key_response_status.sql
 
-20260925210000_solmint_pay_invoice_creation.sql
-20260927000100_solmint_pay_payment_link_end_to_end.sql
+20260925181331_solmint_pay_invoice_creation.sql
+20260927134700_solmint_pay_payment_link_end_to_end.sql
 20260927150000_solmint_pay_payment_link_mutations.sql
+20260930073558_solmint_pay_public_payer_identity_20260930100000.sql
+20260930073605_solmint_pay_payment_email_delivery_20260930101000.sql
