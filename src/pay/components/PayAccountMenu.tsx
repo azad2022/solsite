@@ -142,7 +142,7 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
                 <span>{user.email || user.username || subtitle}</span>
               </div>
             </div>
-            <button type="button" className="pay-account-menu-close" onClick={() => setOpen(false)} aria-label={accountMenuT(locale, 'accountMenu')}>
+            <button type="button" className="pay-account-menu-close" onClick={() => setOpen(false)} aria-label={accountMenuT(locale, 'close')}>
               <XCircle size={17} />
             </button>
           </div>
@@ -184,10 +184,10 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
               </>
             ) : loading ? (
               <div className="pay-account-state"><RefreshCw size={18} className="pay-spin" /><span>{accountMenuT(locale, 'loadingBalance')}</span></div>
-            ) : error ? (
-              <div className="pay-account-state is-error"><XCircle size={18} /><span>{accountMenuT(locale, 'balanceUnavailable')}</span></div>
+            ) : state === 'not-ready' || !merchant?.receivingWallet ? (
+              <div className="pay-account-state"><WalletCards size={18} /><span>{accountMenuT(locale, 'walletNotConfigured')}</span></div>
             ) : (
-              <div className="pay-account-state"><WalletCards size={18} /><span>{translate(locale, merchant?.receivingWallet ? 'loadingBalance' : 'walletNotConfigured')}</span></div>
+              <div className="pay-account-state is-error"><XCircle size={18} /><span>{accountMenuT(locale, 'balanceUnavailable')}</span></div>
             )}
           </div>
 
