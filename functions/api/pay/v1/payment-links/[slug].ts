@@ -140,6 +140,10 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; }
     catch { return payJson({ code: 'INVALID_PUBLIC_PAYER_DATA', message: 'Payer information is required.' }, 400, requestId); }
+    const unexpectedFields = Object.keys(body).filter((key) => !['firstName', 'lastName', 'paymentReason'].includes(key));
+    if (unexpectedFields.length > 0) {
+      return payJson({ code: 'INVALID_PUBLIC_PAYER_DATA', message: 'Unsupported payer fields were supplied.' }, 400, requestId);
+    }
     const customerFirstName = normalizePayerText(body.firstName, 'firstName', 120);
     const customerLastName = normalizePayerText(body.lastName, 'lastName', 120);
     const customerPurpose = normalizePayerText(body.paymentReason, 'paymentReason', 1000);
