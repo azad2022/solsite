@@ -34,8 +34,9 @@ function parseAsset(value: unknown): PayWalletBalanceAsset {
   if (asset !== 'SOL' && asset !== 'USDT' && asset !== 'USDC') throw new TypeError('Unsupported wallet balance asset.');
   const decimals = row.decimals;
   if (typeof decimals !== 'number' || !Number.isInteger(decimals) || decimals < 0 || decimals > 255) throw new TypeError('Invalid wallet balance decimals.');
-  const mint = row.mint;
-  if (mint !== null && typeof mint !== 'string') throw new TypeError('Invalid wallet balance mint.');
+  const mintValue = row.mint;
+  if (mintValue !== null && typeof mintValue !== 'string') throw new TypeError('Invalid wallet balance mint.');
+  const mint = mintValue === null ? null : String(mintValue);
   return { asset, balanceAtomic: atomicString(row.balanceAtomic, 'balanceAtomic'), decimals, mint };
 }
 
