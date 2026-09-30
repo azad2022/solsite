@@ -182,13 +182,20 @@ try {
     resourceType: request.resourceType(),
     failure: request.failure()?.errorText || null,
   })}`));
-  guestPage.on('response', (response) => {
+  guestPage.on('response', async (response) => {
     const request = response.request();
-    if (request.resourceType() === 'script' && response.status() >= 400) {
-      console.log(`GUEST_SCRIPT_RESPONSE_FAILURE ${JSON.stringify({ url: response.url(), status: response.status() })}`);
+    if (request.resourceType() !== 'script') return;
+    const contentType = response.headers()['content-type'] || '';
+    if (response.status() >= 400 || !/javascript|ecmascript|wasm/i.test(contentType)) {
+      console.log(`GUEST_SCRIPT_RESPONSE_DIAGNOSTIC ${JSON.stringify({ url: response.url(), status: response.status(), contentType })}`);
     }
   });
   await guestPage.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  const rootScriptDiagnostics = await guestPage.evaluate(() => Array.from(document.querySelectorAll('script[src]')).map((script) => ({
+    src: script.src,
+    type: script.getAttribute('type') || 'classic',
+  })));
+  console.log(`GUEST_ROOT_SCRIPT_DIAGNOSTICS ${JSON.stringify(rootScriptDiagnostics)}`);
   const guestHeader = guestPage.locator('[data-header-primary-nav]');
   try {
     await guestHeader.waitFor({ state: 'visible', timeout: 30000 });
