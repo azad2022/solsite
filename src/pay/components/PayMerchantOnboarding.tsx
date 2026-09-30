@@ -153,7 +153,6 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
       const generated = await generateLocalSolanaMerchantWallet(requestedWordCount);
       generatedWalletRef.current = generated;
       setRecoveryPhrase(generated.mnemonic);
-      setRecoveryVisible(false);
       setRecoverySaved(false);
       setRecoveryCopied(false);
       setStage('recovery');
