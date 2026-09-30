@@ -295,7 +295,6 @@ export function PayApp(): React.ReactElement {
                     onClick={() => navigate(section)}
                     aria-current={active ? 'page' : undefined}
                     aria-label={paySectionLabel(locale, section)}
-                    data-tooltip={paySectionLabel(locale, section)}
                     data-section={section}
                   >
                     <span className="pay-nav-icon" aria-hidden="true"><Icon size={18} strokeWidth={active ? 2.25 : 2} /></span>
