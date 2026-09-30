@@ -33,7 +33,7 @@ test('dedicated wallet generator exposes no persistence API and clears its signe
   const phrase = wallet.mnemonic;
   assert.equal(typeof wallet.dispose, 'function');
   assert.equal(typeof wallet.signMessage, 'function');
-  assert.equal(phrase.split(/\\s+/).length, 12);
+  assert.equal(phrase.trim().split(/\s+/).length, 12);
   wallet.dispose();
   await assert.rejects(() => wallet.signMessage('disposed'));
 });
