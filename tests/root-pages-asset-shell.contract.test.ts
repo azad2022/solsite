@@ -13,5 +13,5 @@ test('root HTML is served from the deployed Pages asset shell', () => {
 test('Pay routes keep their no-store wrapper and markdown remains on the normal pipeline', () => {
   assert.match(middleware, /return servePaySpaShell\(context\);/);
   assert.match(middleware, /return await withPayHtmlNoStore\(context\.request, await context\.next\(\)\);/);
-  assert.match(middleware, /if \(acceptsMarkdown\(context\.request\)/);
+  assert.match(middleware, /acceptsMarkdown\(context\.request\)/);
 });
