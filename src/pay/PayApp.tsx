@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, ShieldCheck, Store,
+  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Loader2, LockKeyhole, Menu, Network, ReceiptText, RefreshCw, ShieldCheck, Store,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, PAY_LOCALE_FLAGS, PAY_LOCALE_SHORT_CODES, directionFor, languageName, normalizePayLocale, persistPayLocale, readStoredPayLocale, sectionLabel, translate } from './i18n';
@@ -83,7 +83,6 @@ export function PayApp(): React.ReactElement {
   const [locale, setLocale] = useState<PayLocale>(initialPayLocale);
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 1200);
   const [billingView, setBillingView] = useState<BillingPrimaryView>('invoices');
   const [billingRelatedView, setBillingRelatedView] = useState<BillingRelatedView>(null);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
@@ -274,9 +273,8 @@ export function PayApp(): React.ReactElement {
     <div className="solmint-pay" dir={direction} lang={locale} data-pay-runtime="transport-v2">
       <a className="pay-skip-link" href="#pay-main">{translate(locale, 'skipToContent')}</a>
       <div className="pay-app-shell">
-        <aside dir={direction} className={`pay-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobileNavOpen ? 'is-mobile-open' : ''}`} aria-label={translate(locale, 'menu')}>
+        <aside dir={direction} className={`pay-sidebar ${mobileNavOpen ? 'is-mobile-open' : ''}`} aria-label={translate(locale, 'menu')}>
           <div className="pay-sidebar-brand">
-            <div className="pay-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div>
             <div className="pay-brand-copy"><strong>{translate(locale, 'brand')}</strong><span>{translate(locale, 'eyebrow')}</span></div>
             <button type="button" className="pay-icon-button pay-mobile-close" onClick={() => setMobileNavOpen(false)} aria-label={translate(locale, 'closeMenu')}><X size={18} /></button>
           </div>
@@ -314,10 +312,6 @@ export function PayApp(): React.ReactElement {
               <div className="pay-sidebar-security-icon" aria-hidden="true"><LockKeyhole size={16} /></div>
               <div><strong>{translate(locale, 'secureBoundary')}</strong><span>{translate(locale, 'secureBoundaryText')}</span></div>
             </div>
-            <button type="button" className="pay-collapse-button" onClick={() => setSidebarCollapsed(value => !value)} aria-label={sidebarCollapsed ? translate(locale, 'expandMenu') : translate(locale, 'collapseMenu')} title={sidebarCollapsed ? translate(locale, 'expandMenu') : translate(locale, 'collapseMenu')}>
-              {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-              <span>{sidebarCollapsed ? translate(locale, 'expandMenu') : translate(locale, 'collapseMenu')}</span>
-            </button>
           </div>
         </aside>
 
@@ -325,6 +319,9 @@ export function PayApp(): React.ReactElement {
         <section className="pay-main-column">
           <header className="pay-topbar">
             <div className="pay-topbar-leading">
+              <a className="pay-topbar-brand-link" href="https://solmint.ir/" aria-label={translate(locale, 'goToWebsite')} title={translate(locale, 'goToWebsite')}>
+                <span className="pay-topbar-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></span>
+              </a>
               <button type="button" className="pay-icon-button pay-mobile-menu" onClick={() => setMobileNavOpen(true)} aria-label={translate(locale, 'openMenu')}><Menu size={20} /></button>
               <div className="pay-topbar-breadcrumb"><span>{translate(locale, 'brand')}</span><span className="pay-breadcrumb-separator" aria-hidden="true">{direction === 'rtl' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</span><strong>{navigationLabel}</strong></div>
             </div>
