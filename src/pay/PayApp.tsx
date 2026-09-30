@@ -233,6 +233,7 @@ export function PayApp(): React.ReactElement {
   }
 
   const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : isBillingSection ? translate(locale, 'billingTitle') : isDeveloperSection ? translate(locale, 'developer') : paySectionLabel(locale, currentSection);
+  const navigationLabel = isBillingSection ? translate(locale, 'billingNavLabel') : isDeveloperSection ? translate(locale, 'developer') : paySectionLabel(locale, currentSection);
   const accountTitle = sessionState === 'authenticated'
     ? (sessionUser?.fullName || sessionUser?.username || sessionUser?.email || translate(locale, 'account'))
     : translate(locale, 'account');
@@ -257,7 +258,7 @@ export function PayApp(): React.ReactElement {
   const showSecurity = currentSection === 'security' && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showDeveloperHub = isDeveloperSection;
   const showBillingHub = isBillingSection && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
-  const showPageHeader = !PAGE_HEADER_OWNERS.has(currentSection);
+  const showPageHeader = !PAGE_HEADER_OWNERS.has(currentSection) && !isBillingSection;
   const pageDescription = currentSection === 'overview'
     ? translate(locale, 'overviewDescription')
     : currentSection === 'merchants'
@@ -325,7 +326,7 @@ export function PayApp(): React.ReactElement {
           <header className="pay-topbar">
             <div className="pay-topbar-leading">
               <button type="button" className="pay-icon-button pay-mobile-menu" onClick={() => setMobileNavOpen(true)} aria-label={translate(locale, 'openMenu')}><Menu size={20} /></button>
-              <div className="pay-topbar-breadcrumb"><span>{translate(locale, 'brand')}</span><span className="pay-breadcrumb-separator" aria-hidden="true">{direction === 'rtl' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</span><strong>{paySectionLabel(locale, currentSection)}</strong></div>
+              <div className="pay-topbar-breadcrumb"><span>{translate(locale, 'brand')}</span><span className="pay-breadcrumb-separator" aria-hidden="true">{direction === 'rtl' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</span><strong>{navigationLabel}</strong></div>
             </div>
 
             <div className="pay-topbar-actions">
