@@ -422,7 +422,7 @@ try {
   const generatedAddress = (await page.locator('.pay-onboarding-generated-address code').innerText()).trim();
   assert.match(generatedAddress, /^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
   const recoveryPhrase = phraseWords.map((value) => value.replace(/^\\d+\\s+/, '').trim()).join(' ');
-  assert.equal(recoveryPhrase.split(/\\s+/).length, 24);
+  assert.equal(recoveryPhrase.split(/\s+/).length, 24);
   assert.equal(await page.locator('.pay-recovery-confirm input[type="checkbox"]').isChecked(), false);
   assert.equal(await page.getByRole('button', { name: 'Continue and register wallet', exact: true }).isDisabled(), true);
   assert.equal(await page.locator('body').evaluate((body) => body.innerText.includes('Private key'),), false,
@@ -433,7 +433,7 @@ try {
   await page.locator('.pay-onboarding-verified').waitFor({ state: 'visible', timeout: 15000 });
   page.off('request', onSensitiveWalletRequest);
 
-  assert.ok(sensitiveWalletRequests.some((url) => /\\/wallet-challenges$/.test(new URL(url).pathname)),
+  assert.ok(sensitiveWalletRequests.some((url) => /\/wallet-challenges$/.test(new URL(url).pathname)),
     'Dedicated wallet flow must issue the existing wallet challenge endpoint.');
   const challengeBodies = sensitiveWalletPostBodies.map((body) => JSON.parse(body));
   assert.deepEqual(Object.keys(challengeBodies.find((body) => Object.keys(body).length === 1 && 'walletAddress' in body) || {}).sort(), ['walletAddress']);
