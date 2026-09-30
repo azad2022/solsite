@@ -482,7 +482,6 @@ try {
   }
   console.log(`PREWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: preWalletRouteResults.length, paths: preWalletRouteResults.map(result => result.path) })}`);
 
-  const verifiedWalletResponse = await signWalletChallenge(context, merchantId, signer);
   await page.reload({ waitUntil: 'domcontentloaded' });
   const walletDomSnapshot = await page.evaluate(() => ({
     text: document.body.innerText.slice(0, 3200),
@@ -513,7 +512,11 @@ try {
     databaseWalletState = { error: error instanceof Error ? error.message : String(error) };
   }
   console.log(`WALLET_AUTHORITATIVE_AFTER_VERIFY ${JSON.stringify({
-    verifiedWalletResponse,
+    dedicatedWalletVerification: {
+      status: walletAfterGenerated.status,
+      verified: walletAfterGenerated.walletVerificationStatus === 'verified',
+      addressMatches: walletAfterGenerated.addressMatches,
+    },
     api: { status: authoritativeAfterVerify.status, body: authoritativeAfterVerifyText.slice(0, 3000) },
     databaseWalletState,
   })}`);
