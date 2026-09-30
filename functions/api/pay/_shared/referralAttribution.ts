@@ -49,6 +49,36 @@ async function rpc<T>(env: ReferralServiceEnv, functionName: string, body: Recor
   return await response.json() as T;
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function requestSourceIp(request: Request): string {
+  return request.headers.get('CF-Connecting-IP')?.trim()
+    || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+    || 'unknown';
+}
+
+export async function enforceReferralClickRateLimit(
+  env: ReferralServiceEnv,
+  request: Request,
+): Promise<void> {
+  const secret = getSupabaseSecret(env);
+  if (!secret) throw new Error('REFERRAL_SERVICE_MISCONFIGURED');
+
+  const ip = requestSourceIp(request);
+  const subjectHash = await sha256Hex(`${secret}:referral-click:${ip}`);
+  const allowed = await rpc<boolean>(env, 'pay_check_and_increment_rate_limit', {
+    p_scope: 'referral_click',
+    p_subject_hash: subjectHash,
+    p_window_seconds: 60,
+    p_max_requests: 60,
+  });
+
+  if (allowed !== true) throw new Error('REFERRAL_RATE_LIMITED');
+}
+
 export function readReferralCookie(request: Request): ReferralCookie | null {
   const cookieHeader = request.headers.get('Cookie') || '';
   const prefix = REFERRAL_COOKIE_NAME + '=';
