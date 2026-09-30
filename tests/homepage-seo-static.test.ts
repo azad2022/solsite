@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const indexHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const heroSource = fs.readFileSync(new URL('../src/components/HeroSection.tsx', import.meta.url), 'utf8');
+const headersFile = fs.readFileSync(new URL('../public/_headers', import.meta.url), 'utf8');
 
 test('homepage exposes exactly one crawlable H1 in initial HTML', () => {
   const rootMatch = indexHtml.match(/<div id="root">([\s\S]*?)<\/div>/i);
@@ -29,4 +30,13 @@ test('rendered Hero keeps a single matching H1', () => {
   const h1Matches = heroSource.match(/<h1\b/gi) ?? [];
   assert.equal(h1Matches.length, 1);
   assert.match(heroSource, /<h1[^>]*>\s*کیف پول غیرامانی سولانا و ابزارهای Web3\s*<\/h1>/);
+});
+
+
+test('homepage SPA shell must revalidate so deployment asset fingerprints cannot go stale', () => {
+  const match = headersFile.match(/\/\n\s+Cache-Control:\s*([^\n]+)/);
+  assert.ok(match, 'homepage Cache-Control rule is missing');
+  assert.match(match[1], /max-age=0/);
+  assert.match(match[1], /must-revalidate/);
+  assert.doesNotMatch(match[1], /s-maxage|stale-while-revalidate/);
 });
