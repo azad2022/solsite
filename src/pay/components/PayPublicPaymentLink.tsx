@@ -35,6 +35,7 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [paymentReason, setPaymentReason] = useState('');
+  const [customerValidationError, setCustomerValidationError] = useState(false);
 
   const direction = directionFor(locale);
   const linkUrl = useMemo(() => window.location.origin + '/pay/link/' + encodeURIComponent(slug), [slug]);
@@ -76,13 +77,14 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
     event.preventDefault();
     if (!link || creating) return;
 
+    setCustomerValidationError(false);
     const customer = {
       firstName: normalizeCustomerText(firstName),
       lastName: normalizeCustomerText(lastName),
       paymentReason: normalizeCustomerText(paymentReason),
     };
     if (customer.firstName.length < 1 || customer.firstName.length > 120 || customer.lastName.length < 1 || customer.lastName.length > 120 || customer.paymentReason.length < 1 || customer.paymentReason.length > 1000) {
-      setState('error');
+      setCustomerValidationError(true);
       return;
     }
 
@@ -125,7 +127,7 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
           <small>{publicPaymentLinkT(locale,'customerInfoPrivacy')}</small>
         </div>
         <div className="pay-public-link-actions"><button type="submit" className="pay-primary-action" disabled={creating}><ShieldCheck size={17}/>{creating?publicPaymentLinkT(locale,'creating'):publicPaymentLinkT(locale,'continue')}</button><button type="button" className="pay-secondary-action" onClick={() => void copyLink()}><Clipboard size={15}/>{copied?publicPaymentLinkT(locale,'copied'):publicPaymentLinkT(locale,'copy')}</button></div>
-        <div className="pay-public-link-error pay-public-link-inline-validation" role="alert"><span>{publicPaymentLinkT(locale,'customerInfoValidation')}</span></div>
+        {customerValidationError ? <div className="pay-public-link-error pay-public-link-inline-validation" role="alert"><span>{publicPaymentLinkT(locale,'customerInfoValidation')}</span></div> : null}
         <div className="pay-public-link-meta"><div><span>{publicPaymentLinkT(locale,'paymentLink')}</span><strong>{link.slug}</strong></div><div><span>{publicPaymentLinkT(locale,'secure')}</span><strong><Check size={13}/> SolMint Pay</strong></div></div>
       </form>}
     </section>
