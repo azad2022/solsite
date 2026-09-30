@@ -113,24 +113,18 @@ $$;
 
 insert into public.users(id,username,full_name,created_at)
 values
- ('user-a','a','Affiliate A',now() - interval '10 minutes'),
- ('user-b','b','User B',now()),
- ('user-c','c','User C',now());
+ ('user-a','a','Affiliate A',now() - interval '10 minutes');
 
 DO $check$
 begin
-  if (select count(*) from public.pay_affiliates) <> 3 then
-    raise exception 'every active user must receive one affiliate record';
+  if (select count(*) from public.pay_affiliates) <> 1 then
+    raise exception 'the seed user must receive exactly one affiliate record';
   end if;
 end $check$;
 
 update public.pay_affiliates
-   set referral_code = case owner_user_id
-     when 'user-a' then 'sm_test_a'
-     when 'user-b' then 'sm_test_b'
-     when 'user-c' then 'sm_test_c'
-     else referral_code
-   end;
+   set referral_code = 'sm_test_a'
+ where owner_user_id = 'user-a';
 
 begin;
 set local role service_role;
@@ -144,11 +138,21 @@ declare
   result jsonb;
 begin
   a_code := 'sm_test_a';
-  b_code := 'sm_test_b';
 
   result := public.pay_record_referral_click(a_code);
   if result->>'ok' <> 'true' then raise exception 'A click record failed: %', result; end if;
   click_a := (result->>'click_id')::uuid;
+
+  insert into public.users(id,username,full_name,created_at)
+  values ('user-b','b','User B',now());
+
+  select referral_code into b_code
+    from public.pay_affiliates
+   where owner_user_id='user-b';
+
+  if b_code is null or length(btrim(b_code)) < 4 then
+    raise exception 'B affiliate code was not provisioned';
+  end if;
 
   result := public.pay_attribute_referral_from_click(click_a,a_code,'user-b');
   if result->>'attributed' <> 'true' then raise exception 'B attribution failed: %', result; end if;
@@ -156,6 +160,9 @@ begin
   result := public.pay_record_referral_click(b_code);
   if result->>'ok' <> 'true' then raise exception 'B click record failed: %', result; end if;
   click_b := (result->>'click_id')::uuid;
+
+  insert into public.users(id,username,full_name,created_at)
+  values ('user-c','c','User C',now());
 
   result := public.pay_attribute_referral_from_click(click_b,b_code,'user-c');
   if result->>'attributed' <> 'true' then raise exception 'C attribution failed: %', result; end if;
