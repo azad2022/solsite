@@ -17,8 +17,8 @@ test('Pay desktop sidebar remains anchored and vertically scrollable', () => {
 });
 
 test('Pay shell keeps logical left/right placement under both writing directions', () => {
-  assert.match(css, /\.solmint-pay\[dir='ltr'\] \.pay-app-shell,\\s*\.solmint-pay\[dir='rtl'\] \.pay-app-shell \\{ flex-direction: row; \\}/);
-  assert.doesNotMatch(css, /.solmint-pay\[dir='rtl'\] \.pay-app-shell \{ flex-direction: row-reverse; \}/);
+  assert.ok(css.includes(".solmint-pay[dir='ltr'] .pay-app-shell,\n.solmint-pay[dir='rtl'] .pay-app-shell { flex-direction: row; }"));
+  assert.doesNotMatch(css, /\.solmint-pay\[dir='rtl'\] \.pay-app-shell \{ flex-direction: row-reverse; \}/);
   assert.match(css, /\.pay-nav-group-label[\s\S]*text-align:\s*start/);
   assert.match(css, /\.pay-nav-item[\s\S]*text-align: start/);
   assert.match(app, /<aside dir=\{direction\}/);
