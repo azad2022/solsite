@@ -126,6 +126,12 @@ update public.pay_affiliates
    set referral_code = 'sm_test_a'
  where owner_user_id = 'user-a';
 
+-- The fixture exercises server-side mutations under service_role. Its test role
+-- must therefore be able to create synthetic application users without changing
+-- production grants or RLS.
+grant select, insert on public.users to service_role;
+grant select on public.pay_affiliates to service_role;
+
 begin;
 set local role service_role;
 
