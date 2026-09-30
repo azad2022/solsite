@@ -130,7 +130,10 @@ update public.pay_affiliates
 -- must therefore be able to create synthetic application users without changing
 -- production grants or RLS.
 grant select, insert on public.users to service_role;
-grant select on public.pay_affiliates to service_role;
+grant select on public.pay_affiliates, public.pay_merchants, public.pay_referrals,
+  public.pay_commissions, public.pay_referral_click_events,
+  public.pay_referral_user_attributions to service_role;
+grant select, insert on public.pay_payment_intents, public.pay_revenue_ledger to service_role;
 
 begin;
 set local role service_role;
