@@ -124,6 +124,14 @@ begin
   end if;
 end $check$;
 
+update public.pay_affiliates
+   set referral_code = case owner_user_id
+     when 'user-a' then 'sm_test_a'
+     when 'user-b' then 'sm_test_b'
+     when 'user-c' then 'sm_test_c'
+     else referral_code
+   end;
+
 begin;
 set local role service_role;
 
@@ -135,8 +143,8 @@ declare
   click_b uuid;
   result jsonb;
 begin
-  select referral_code into a_code from public.pay_affiliates where owner_user_id='user-a';
-  select referral_code into b_code from public.pay_affiliates where owner_user_id='user-b';
+  a_code := 'sm_test_a';
+  b_code := 'sm_test_b';
 
   result := public.pay_record_referral_click(a_code);
   if result->>'ok' <> 'true' then raise exception 'A click record failed: %', result; end if;
