@@ -174,6 +174,10 @@ begin
   if result->>'reason' <> 'CLICK_ALREADY_CONSUMED' then raise exception 'consumed click must remain unusable: %', result; end if;
 end $service$;
 
+-- Direct assertions below use the isolated database owner; mutation RPCs above
+-- were exercised under service_role as they would be in the server boundary.
+set local role postgres;
+
 insert into public.pay_merchants(owner_user_id,business_name,slug)
 values
  ('user-b','Merchant B','merchant-b'),
