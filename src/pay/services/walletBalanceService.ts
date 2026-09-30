@@ -41,14 +41,18 @@ function parseAsset(value: unknown): PayWalletBalanceAsset {
 
 function parseSnapshot(value: unknown): PayWalletBalanceSnapshot {
   const row = record(value, 'Invalid wallet balance response.');
-  if (typeof row.walletAddress !== 'string' || typeof row.observedAt !== 'string' || row.network !== 'solana-mainnet' || !Array.isArray(row.assets)) {
+  const walletAddress = row.walletAddress;
+  const observedAt = row.observedAt;
+  const network = row.network;
+  const assetsValue = row.assets;
+  if (typeof walletAddress !== 'string' || typeof observedAt !== 'string' || network !== 'solana-mainnet' || !Array.isArray(assetsValue)) {
     throw new TypeError('Invalid wallet balance response.');
   }
-  const assets = row.assets.map(parseAsset);
+  const assets = assetsValue.map(parseAsset);
   for (const expected of ['SOL','USDT','USDC'] as const) {
     if (!assets.some(item => item.asset === expected)) throw new TypeError('Incomplete wallet balance response.');
   }
-  return { walletAddress: row.walletAddress, network: 'solana-mainnet', observedAt: row.observedAt, assets };
+  return { walletAddress, network: 'solana-mainnet', observedAt, assets };
 }
 
 export async function getMerchantWalletBalance(merchantId: string, client: PayHttpClient = defaultPayHttpClient): Promise<PayWalletBalanceSnapshot> {
