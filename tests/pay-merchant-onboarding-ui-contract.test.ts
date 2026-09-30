@@ -82,3 +82,16 @@ test('dedicated wallet recovery flow keeps secrets local and uses only the exist
   assert.match(generator, /mnemonicToSeedWebcrypto/);
   assert.match(generator, /SOLANA_MERCHANT_DERIVATION_PATH/);
 });
+
+
+test('dedicated wallet recovery phrase is never rendered in plaintext and is copied only on demand', () => {
+  assert.doesNotMatch(component, /recoveryVisible|showRecoveryPhrase|hideRecoveryPhrase/);
+  assert.doesNotMatch(component, /recoveryPhrase\.split\(/);
+  assert.match(component, /pay-recovery-masked/);
+  assert.match(component, /Array\.from\(\{ length: wordCount \},/);
+  assert.match(component, /<span key=\{index\}>\*\*\*\*<\/span>/);
+  assert.match(component, /copyRecoveryPhrase/);
+  assert.match(component, /navigator\.clipboard\.writeText\(recoveryPhrase\)/);
+  assert.match(i18n, /recoveryPhraseMaskedLabel/);
+  assert.match(i18n, /recoveryPhraseCopyNote/);
+});
