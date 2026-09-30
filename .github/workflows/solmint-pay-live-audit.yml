@@ -43,7 +43,7 @@ jobs:
           const repository = process.env.GITHUB_REPOSITORY;
           const sha = process.env.GITHUB_SHA;
           let last = '';
-          for (let attempt = 1; attempt <= 60; attempt += 1) {
+          for (let attempt = 1; attempt <= 180; attempt += 1) {
             const response = await fetch(
               'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
               { headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json' } },
@@ -57,7 +57,7 @@ jobs:
             if (check?.status === 'completed' && check.conclusion !== 'success') {
               throw new Error('Cloudflare Pages deployment failed: ' + check.conclusion);
             }
-            if (attempt === 60) throw new Error('Cloudflare Pages deployment did not complete. Last: ' + last);
+            if (attempt === 180) throw new Error('Cloudflare Pages deployment did not complete within 15 minutes. Last: ' + last);
             await new Promise(resolve => setTimeout(resolve, 5000));
           }
           NODE
