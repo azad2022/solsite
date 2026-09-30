@@ -297,7 +297,7 @@ begin
     raise exception 'revenue ledger must include the authoritative referral liability';
   end if;
 end $commission$;
-rollback;
+commit;
 
 DO $priv$
 begin
