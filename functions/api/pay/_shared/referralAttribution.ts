@@ -1,4 +1,5 @@
 const REFERRAL_COOKIE_NAME = 'solmint_referral_click';
+const REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 const REFERRAL_CODE = /^[a-z0-9_]{4,120}$/i;
 
@@ -19,7 +20,7 @@ function getSupabaseSecret(env: ReferralServiceEnv): string {
 
 function getSupabaseBaseUrl(env: ReferralServiceEnv): string {
   const value = env.SUPABASE_URL?.trim() || 'https://nvopkbiedorfshwbmyhn.supabase.co';
-  return value.replace(/\/$/, '');
+  return value.replace(//$/, '');
 }
 
 async function rpc<T>(env: ReferralServiceEnv, functionName: string, body: Record<string, unknown>): Promise<T> {
@@ -58,7 +59,12 @@ export function readReferralCookie(request: Request): ReferralCookie | null {
 
   if (!cookiePart) return null;
 
-  const value = decodeURIComponent(cookiePart.slice(prefix.length));
+  let value = '';
+  try {
+    value = decodeURIComponent(cookiePart.slice(prefix.length));
+  } catch {
+    return null;
+  }
   const separator = value.indexOf('.');
   if (separator <= 0) return null;
 
@@ -71,7 +77,7 @@ export function readReferralCookie(request: Request): ReferralCookie | null {
 
 export function referralCookieHeader(click: ReferralCookie, isSecure: boolean): string {
   const secure = isSecure ? '; Secure' : '';
-  return `${REFERRAL_COOKIE_NAME}=${encodeURIComponent(`${click.clickId}.${click.referralCode}`)}; Path=/; HttpOnly; SameSite=Lax${secure}`;
+  return `${REFERRAL_COOKIE_NAME}=${encodeURIComponent(`${click.clickId}.${click.referralCode}`)}; Max-Age=${REFERRAL_COOKIE_MAX_AGE_SECONDS}; Path=/; HttpOnly; SameSite=Lax${secure}`;
 }
 
 export function expiredReferralCookieHeader(isSecure: boolean): string {
