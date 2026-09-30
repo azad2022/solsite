@@ -17,9 +17,10 @@
   Cache-Control: no-store, max-age=0, must-revalidate
   Pragma: no-cache
 
-# Homepage HTML: short edge/browser caching plus machine-readable API/agent discovery links.
+# Homepage HTML: always revalidate the SPA shell so a deployment can never leave
+# cached HTML pointing at an asset fingerprint that no longer exists in the current deployment.
 /
-  Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=3600
+  Cache-Control: public, max-age=0, must-revalidate
   Link: </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json;version=3.1", </api-docs/>; rel="service-doc"; type="text/html", </api-docs/>; rel="describedby"; type="text/html"
 
 # RFC 9727 API Catalog: explicit Linkset media type for the static fallback.
