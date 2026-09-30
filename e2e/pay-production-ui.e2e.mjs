@@ -439,7 +439,6 @@ try {
   assert.deepEqual(Object.keys(challengeBodies.find((body) => Object.keys(body).length === 1 && 'walletAddress' in body) || {}).sort(), ['walletAddress']);
   assert.ok(challengeBodies.every((body) => !body.mnemonic && !body.seed && !body.seedPhrase && !body.privateKey),
     'Wallet secrets must never be present in wallet API request bodies.');
-  assert.ok(challengeBodies.every((body) => !body.__proto__ || true));
   assert.ok(sensitiveWalletPostBodies.every((body) => !body.includes(recoveryPhrase)),
     'The exact recovery phrase must never appear in wallet API request bodies.');
 
