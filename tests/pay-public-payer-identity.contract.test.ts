@@ -26,3 +26,10 @@ test('public payer identity is stored in Payment Intent columns, not the public 
   assert.match(migration, /to service_role/);
   assert.doesNotMatch(route, /customerFirstName[^\n]*p_metadata/);
 });
+
+
+test('public payer contract rejects unexpected request fields', () => {
+  assert.match(route, /unexpectedFields/);
+  assert.match(route, /Unsupported payer fields were supplied/);
+  assert.match(route, /!\['firstName', 'lastName', 'paymentReason'\]\.includes\(key\)/);
+});
