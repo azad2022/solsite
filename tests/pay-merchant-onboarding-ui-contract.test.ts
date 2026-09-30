@@ -63,7 +63,7 @@ test('Merchant route keeps the receiving-wallet verification surface visible aft
   assert.match(app, /const showMerchantOnboarding = sessionState === 'authenticated' && currentSection === 'merchants' && merchantLoadState === 'ready';/);
   assert.match(app, /<PayMerchantOnboarding locale=\{locale\} initialMerchant=\{currentSection === 'merchants' \? merchant : null\}/);
   assert.match(component, /receiveWallet/);
-  assert.match(component, /connectAndVerifyWallet/);
+  assert.match(component, /useExistingWallet/);
   assert.match(component, /walletNotVerified/);
 });
 
