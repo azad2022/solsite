@@ -63,6 +63,22 @@ test('Merchant route keeps the receiving-wallet verification surface visible aft
   assert.match(app, /const showMerchantOnboarding = sessionState === 'authenticated' && currentSection === 'merchants' && merchantLoadState === 'ready';/);
   assert.match(app, /<PayMerchantOnboarding locale=\{locale\} initialMerchant=\{currentSection === 'merchants' \? merchant : null\}/);
   assert.match(component, /receiveWallet/);
-  assert.match(component, /connectAndVerifyWallet/);
+  assert.match(component, /useExistingWallet/);
   assert.match(component, /walletNotVerified/);
+});
+
+test('dedicated wallet recovery flow keeps secrets local and uses only the existing wallet challenge contract', () => {
+  const generator = readFileSync(resolve(process.cwd(), 'src/pay/services/merchantWalletGenerator.ts'), 'utf8');
+  assert.match(component, /createDedicatedWallet/);
+  assert.match(component, /recoveryPhrase/);
+  assert.match(component, /copyRecoveryPhrase/);
+  assert.match(component, /continueAndVerifyWallet/);
+  assert.match(component, /discardGeneratedWallet/);
+  assert.match(component, /issueWalletChallenge\(merchant\.id, generated\.address\)/);
+  assert.match(component, /verifyWalletChallenge\(merchant\.id, issued\.id, generated\.address, encodeBase58\(signature\)\)/);
+  assert.doesNotMatch(component, /localStorage\.[sS]etItem\([^)]*recovery/i);
+  assert.doesNotMatch(component, /sessionStorage\.[sS]etItem\([^)]*recovery/i);
+  assert.doesNotMatch(generator, /fetch\(|localStorage|sessionStorage|indexedDB|console\.(log|error|warn)/);
+  assert.match(generator, /mnemonicToSeedWebcrypto/);
+  assert.match(generator, /SOLANA_MERCHANT_DERIVATION_PATH/);
 });

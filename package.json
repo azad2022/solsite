@@ -3,7 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/apply-html-aware-ssr-linking.mjs && node scripts/harden-category-seo.mjs && node scripts/harden-new-meme-coin-tag-seo.mjs && node scripts/category-default-media-auth-patch.mjs && node scripts/fix-admin-media-category-picker.mjs && node scripts/patch-media-picker-clicked-asset.mjs && node scripts/patch-media-picker-natural-preview.mjs && node scripts/patch-bloghub-category-media.mjs && node scripts/apply-article-internal-linking.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && node scripts/generate-sitemap.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
@@ -35,7 +37,10 @@
     "motion": "^12.23.24",
     "pg": "^8.16.3",
     "react": "^19.0.1",
-    "react-dom": "^19.0.1"
+    "react-dom": "^19.0.1",
+    "@noble/ed25519": "3.2.0",
+    "@scure/bip39": "2.4.0",
+    "micro-key-producer": "0.10.2"
   },
   "devDependencies": {
     "@types/compression": "^1.8.0",
@@ -46,6 +51,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "10.4.21",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }
