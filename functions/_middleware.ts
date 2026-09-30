@@ -219,6 +219,11 @@ const markdownMiddleware: MiddlewareHandler = async (context) => {
     });
   }
 
+  const assetPath = new URL(context.request.url).pathname;
+  if ((context.request.method === 'GET' || context.request.method === 'HEAD') && assetPath.startsWith('/assets/')) {
+    return context.env.ASSETS.fetch(context.request);
+  }
+
   if (!acceptsMarkdown(context.request)) {
     const pathname = new URL(context.request.url).pathname;
     if (context.request.method === 'GET' || context.request.method === 'HEAD') {
