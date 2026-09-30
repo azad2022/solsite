@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Solmint Public API",
-    "version": "1.4.0",
-    "description": "Read-only public APIs for Solmint's Solana data, analysis tools, public articles, market context, wallet analysis, and the public Pay checkout snapshot. These APIs do not accept seed phrases, private keys, passwords, or signing credentials. Authenticated merchant Pay contracts for invoices, payment links, and referral records are also documented here; they require an authenticated Solmint session and preserve merchant/affiliate authorization."
+    "version": "1.5.0",
+    "description": "Public read-only APIs plus the public Pay Payment Link checkout endpoint. Public checkout does not require a SolMint account and accepts only payer first name, last name, and payment reason. These APIs never accept seed phrases, private keys, passwords, or signing credentials. Authenticated merchant Pay contracts remain protected by server-side merchant authorization."
   },
   "servers": [
     {
@@ -613,6 +613,122 @@
           },
           "503": {
             "description": "Report service temporarily unavailable"
+          }
+        }
+      }
+    },
+    "/api/pay/v1/payment-links/{slug}": {
+      "get": {
+        "operationId": "getPublicPayPaymentLink",
+        "summary": "Read a public Pay Payment Link checkout snapshot",
+        "description": "Returns the authoritative fixed-amount checkout snapshot for an active Payment Link. No SolMint account is required. Payer identity is not returned by this endpoint.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 120,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public Payment Link checkout snapshot"
+          },
+          "400": {
+            "description": "Invalid Payment Link slug"
+          },
+          "404": {
+            "description": "Payment Link or merchant not available"
+          },
+          "410": {
+            "description": "Payment Link expired"
+          },
+          "503": {
+            "description": "Payment Link service temporarily unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPublicPayPaymentIntentFromLink",
+        "summary": "Create a public Payment Intent from a Payment Link",
+        "description": "Creates an authoritative Payment Intent for a public Payment Link without requiring customer registration. The request must contain only the payer first name, payer last name, and payment reason. Customer identity is stored server-side with the Payment Intent and is not exposed by the public Payment Intent GET contract.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 120,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "firstName",
+                  "lastName",
+                  "paymentReason"
+                ],
+                "properties": {
+                  "firstName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "paymentReason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay of an existing Payment Intent"
+          },
+          "201": {
+            "description": "Payment Intent created"
+          },
+          "400": {
+            "description": "Invalid payer information or Payment Link slug"
+          },
+          "403": {
+            "description": "Request origin is not trusted"
+          },
+          "404": {
+            "description": "Payment Link or merchant not available"
+          },
+          "409": {
+            "description": "Payment Link unavailable, merchant wallet not ready, or idempotency conflict"
+          },
+          "410": {
+            "description": "Payment Link expired"
+          },
+          "503": {
+            "description": "Payment service temporarily unavailable"
           }
         }
       }

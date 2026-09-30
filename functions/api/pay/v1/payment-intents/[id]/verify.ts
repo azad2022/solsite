@@ -10,6 +10,8 @@ import { createSolanaRpcProvider } from '../../../../../../src/pay/services/sola
 import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../../../../../../src/pay/services/reconciliationEngine';
 import type { ObservedPaymentTransaction, ObservedTransfer } from '../../../../../../src/pay/services/verificationPolicy';
 import type { PaymentAsset, PaymentStatus, TokenProgram } from '../../../../../../src/pay/types/domain';
+import { sendMerchantPaymentNotificationEmail } from '../../_shared/paymentEmail';
+import type { AuthEmailLocale } from '../../../../auth/_email';
 
 interface PayEnv {
   SUPABASE_URL?: string;
@@ -19,6 +21,8 @@ interface PayEnv {
   SOLANA_RPC_URL?: string;
   PAY_USDC_MINT?: string;
   PAY_USDT_MINT?: string;
+  RESEND_API_KEY?: string;
+  AUTH_EMAIL_FROM?: string;
 }
 
 interface PaymentRow {
@@ -39,6 +43,9 @@ interface PaymentRow {
   verification_commitment: 'confirmed' | 'finalized';
   expires_at: string;
   status: PaymentStatus;
+  customer_first_name: string | null;
+  customer_last_name: string | null;
+  customer_purpose: string | null;
 }
 
 function isUuid(value: string): boolean {
@@ -55,6 +62,120 @@ function isPaymentAsset(value: unknown): value is PaymentAsset {
 
 function isTokenProgram(value: unknown): value is TokenProgram {
   return value === 'spl-token' || value === 'token-2022';
+}
+
+function normalizeMerchantEmailLocale(value: string | null | undefined): AuthEmailLocale {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw.startsWith('fa')) return 'fa-IR';
+  if (raw.startsWith('ar')) return 'ar';
+  if (raw.startsWith('ru')) return 'ru';
+  return 'en-US';
+}
+
+type MerchantEmailTarget = {
+  email: string;
+  merchantName: string;
+  locale: AuthEmailLocale;
+};
+
+async function loadMerchantEmailTarget(env: PayEnv, merchantId: string): Promise<MerchantEmailTarget | null> {
+  const merchantResponse = await supabaseRequest(
+    env,
+    `/rest/v1/pay_merchants?select=id,owner_user_id,business_name,default_dashboard_locale&id=eq.${encodeURIComponent(merchantId)}&limit=1`,
+    { headers: { Accept: 'application/json' } },
+  );
+  const merchants = await merchantResponse.json() as Array<{
+    id: string;
+    owner_user_id: string;
+    business_name: string;
+    default_dashboard_locale: string;
+  }>;
+  const merchant = merchants[0];
+  if (!merchant?.owner_user_id || !merchant.business_name) return null;
+
+  const identityResponse = await supabaseRequest(
+    env,
+    `/rest/v1/auth_identity_links?select=better_auth_user_id&application_user_id=eq.${encodeURIComponent(merchant.owner_user_id)}&limit=1`,
+    { headers: { Accept: 'application/json' } },
+  );
+  const identities = await identityResponse.json() as Array<{ better_auth_user_id?: string }>;
+  const betterAuthUserId = identities[0]?.better_auth_user_id;
+  if (!betterAuthUserId) return null;
+
+  const authUser = await rpcJson<{ id?: string; email?: string; name?: string }>(
+    env,
+    'solmint_better_auth_adapter',
+    {
+      p_operation: 'find_one',
+      p_model: 'user',
+      p_where: [{ field: 'id', value: betterAuthUserId, operator: 'eq' }],
+      p_limit: 1,
+      p_offset: 0,
+      p_sort: null,
+      p_increment: {},
+      p_set: {},
+    },
+  );
+  const email = typeof authUser?.email === 'string' ? authUser.email.trim() : '';
+  if (!email || !email.includes('@') || email.length > 320) return null;
+
+  return {
+    email,
+    merchantName: merchant.business_name,
+    locale: normalizeMerchantEmailLocale(merchant.default_dashboard_locale),
+  };
+}
+
+const SUCCESS_EMAIL_STATUSES = new Set<PaymentStatus>(['confirmed', 'completed']);
+const FAILURE_EMAIL_STATUSES = new Set<PaymentStatus>(['underpaid', 'overpaid', 'wrong_token', 'wrong_recipient', 'failed', 'expired', 'ambiguous']);
+
+async function notifyMerchantPaymentOutcome(env: PayEnv, row: PaymentRow, status: PaymentStatus, requestId: string): Promise<void> {
+  const outcome = SUCCESS_EMAIL_STATUSES.has(status) ? 'success' : FAILURE_EMAIL_STATUSES.has(status) ? 'failure' : null;
+  if (!outcome) return;
+
+  try {
+    const eventType = outcome === 'success' ? 'payment.outcome.success' : 'payment.outcome.failure';
+    const workerId = `pay-verify:${requestId}`;
+    const claim = await rpcJson<{ ok?: boolean; should_send?: boolean; delivery_id?: string }>(
+      env,
+      'pay_claim_payment_email_delivery',
+      { p_payment_id: row.id, p_event_type: eventType, p_worker_id: workerId },
+    );
+    if (claim.ok !== true || claim.should_send !== true || !claim.delivery_id) return;
+
+    try {
+      const target = await loadMerchantEmailTarget(env, row.merchant_id);
+      if (!target) throw new Error('MERCHANT_EMAIL_NOT_AVAILABLE');
+
+      await sendMerchantPaymentNotificationEmail(env, target.email, {
+        outcome,
+        locale: target.locale,
+        merchantName: target.merchantName,
+        paymentId: row.id,
+        paymentStatus: status,
+        amountAtomic: row.amount_atomic,
+        asset: row.asset,
+        tokenDecimals: row.token_decimals,
+        customerFirstName: row.customer_first_name,
+        customerLastName: row.customer_last_name,
+        customerPurpose: row.customer_purpose,
+      });
+
+      await rpcJson(env, 'pay_complete_payment_email_delivery', {
+        p_delivery_id: claim.delivery_id,
+        p_worker_id: workerId,
+      });
+    } catch {
+      await rpcJson(env, 'pay_fail_payment_email_delivery', {
+        p_delivery_id: claim.delivery_id,
+        p_worker_id: workerId,
+        p_error_code: 'EMAIL_DELIVERY_FAILED',
+      }).catch(() => {});
+    }
+  } catch {
+    // Notification failure must never mutate or mask the authoritative payment result.
+    console.warn(JSON.stringify({ scope: 'pay:merchant-payment-email', requestId, paymentId: row.id, status, outcome }));
+  }
 }
 
 function isPaymentStatus(value: unknown): value is PaymentStatus {
@@ -235,7 +356,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
 
     const response = await supabaseRequest(
       env,
-      `/rest/v1/pay_payment_intents?select=id,merchant_id,created_at,amount_atomic,customer_total_atomic,merchant_settlement_atomic,fee_atomic,asset,token_mint,token_program,token_decimals,recipient,fee_recipient,reference,verification_commitment,expires_at,status&id=eq.${encodeURIComponent(paymentId)}&limit=1`,
+      `/rest/v1/pay_payment_intents?select=id,merchant_id,created_at,amount_atomic,customer_total_atomic,merchant_settlement_atomic,fee_atomic,asset,token_mint,token_program,token_decimals,recipient,fee_recipient,reference,verification_commitment,expires_at,status,customer_first_name,customer_last_name,customer_purpose&id=eq.${encodeURIComponent(paymentId)}&limit=1`,
       { headers: { Accept: 'application/json' } },
     );
     const rows = await response.json() as PaymentRow[];
@@ -246,6 +367,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     }
 
     if (row.status === 'completed' || row.status === 'refunded') {
+      if (row.status === 'completed') await notifyMerchantPaymentOutcome(env, row, row.status, requestId);
       return payJson({ data: { paymentId, status: row.status, outcome: 'duplicate', signature } }, 200, requestId);
     }
 
@@ -269,12 +391,16 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     const result = await reconcilePayment(provider, repository, payment, signature);
 
     if (result.outcome === 'no_match') {
+      if (SUCCESS_EMAIL_STATUSES.has(row.status) || FAILURE_EMAIL_STATUSES.has(row.status)) {
+        await notifyMerchantPaymentOutcome(env, row, row.status, requestId);
+      }
       return payJson({ data: { paymentId, status: row.status, outcome: 'not_detected', signature } }, 200, requestId);
     }
 
     const authoritativeStatuses: ReadonlySet<PaymentStatus> = new Set(['confirmed', 'underpaid', 'overpaid', 'ambiguous', 'failed', 'wrong_recipient', 'expired', 'refunded', 'completed']);
     const status = authoritativeStatuses.has(result.outcome as PaymentStatus) ? result.outcome as PaymentStatus : row.status;
     const transactionSignature = result.verification?.candidate?.signature || signature;
+    await notifyMerchantPaymentOutcome(env, row, status, requestId);
     return payJson({
       data: {
         paymentId,

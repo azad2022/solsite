@@ -44,3 +44,14 @@ test('Developer is the only sidebar entry for the Developer and Webhook surfaces
   assert.match(app, /<PayDeveloper locale=\{locale\} \/>/);
   assert.match(app, /<PayWebhooks locale=\{locale\} merchantId=\{merchant\.id\} \/>/);
 });
+
+
+test('Pay sidebar is fixed-width and the mascot lives in the Pay header as the website link', () => {
+  assert.doesNotMatch(app, /sidebarCollapsed/);
+  assert.doesNotMatch(app, /pay-collapse-button/);
+  assert.doesNotMatch(app, /PanelLeft(Open|Close)/);
+  assert.doesNotMatch(app, /pay-sidebar-brand[\s\S]*?pay-brand-mark/);
+  assert.match(app, /className="pay-topbar-brand-link"/);
+  assert.match(app, /href="https:\/\/solmint\.ir\//);
+  assert.doesNotMatch(app, /data-tooltip=/);
+});

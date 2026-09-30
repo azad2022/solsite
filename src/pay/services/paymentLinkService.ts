@@ -12,6 +12,12 @@ export interface CreatePayPaymentLinkInput {
   expiresAt?: string | null;
 }
 
+export interface PublicPayCustomerInput {
+  firstName: string;
+  lastName: string;
+  paymentReason: string;
+}
+
 export interface PublicPayPaymentLink {
   slug: string;
   title: string;
@@ -172,14 +178,20 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
         merchant: { businessName: requiredString(merchant, 'businessName') },
       };
     },
-    async createFromPublic(slug: string, idempotencyKey: string): Promise<{ id: string }> {
+    async createFromPublic(slug: string, customer: PublicPayCustomerInput, idempotencyKey: string): Promise<{ id: string }> {
       const normalized = slug.trim();
       if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized) || normalized.length < 3 || normalized.length > 120) throw new TypeError('Payment link slug is invalid.');
       if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
+      const firstName = customer.firstName.trim().replace(/\s+/g, ' ');
+      const lastName = customer.lastName.trim().replace(/\s+/g, ' ');
+      const paymentReason = customer.paymentReason.trim().replace(/\s+/g, ' ');
+      if (firstName.length < 1 || firstName.length > 120) throw new TypeError('Customer first name is invalid.');
+      if (lastName.length < 1 || lastName.length > 120) throw new TypeError('Customer last name is invalid.');
+      if (paymentReason.length < 1 || paymentReason.length > 1000) throw new TypeError('Payment reason is invalid.');
       const payload = await client.request<Envelope>('/api/pay/v1/payment-links/' + encodeURIComponent(normalized), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.trim() },
-        body: '{}',
+        body: JSON.stringify({ firstName, lastName, paymentReason }),
       });
       const row = record(payload.data);
       const id = requiredString(row, 'id');
