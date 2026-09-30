@@ -8,7 +8,7 @@ create extension if not exists pgcrypto;
 alter table public.pay_affiliates
   alter column commission_rate_bps set default 5000;
 
-do $
+do $$
 begin
   if exists (
     select owner_user_id
@@ -19,9 +19,9 @@ begin
   ) then
     raise exception 'pay_affiliates contains duplicate owners; referral migration requires an explicit reconciliation';
   end if;
-end $;
+end $$;
 
-do $
+do $$
 begin
   if not exists (
     select 1 from pg_constraint
