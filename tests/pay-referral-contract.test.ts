@@ -19,7 +19,7 @@ test('Referral dashboard uses the released server-side contract', () => {
 test('Referral public route records a click and preserves signup attribution in an HttpOnly cookie', () => {
   assert.match(publicRoute,/recordReferralClick\(env, code\)/);
   assert.match(attribution,/REFERRAL_COOKIE_NAME = 'solmint_referral_click'/);
-  assert.match(publicRoute,/HttpOnly; SameSite=Lax/);
+  assert.match(attribution,/HttpOnly; SameSite=Lax/);
   assert.match(publicRoute,/Cache-Control/);
 });
 
