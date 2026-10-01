@@ -5,7 +5,7 @@ import test from 'node:test';
 const apiRoute = readFileSync('functions/api/pay/v1/referrals.ts','utf8');
 const publicRoute = readFileSync('functions/r/[code].ts','utf8');
 const migration = readFileSync('supabase/migrations/20260930210000_solmint_pay_referral_program.sql','utf8');
-const shortCodeMigration = readFileSync('supabase/migrations/20261001090000_solmint_pay_referral_short_codes.sql','utf8');
+const shortCodeMigration = readFileSync('supabase/migrations/20261001071009_solmint_pay_referral_short_codes.sql','utf8');
 const attribution = readFileSync('functions/api/pay/_shared/referralAttribution.ts','utf8');
 const auth = readFileSync('functions/api/auth/_instance.ts','utf8');
 const email = readFileSync('functions/api/auth/_email.ts','utf8');
@@ -24,6 +24,7 @@ test('Referral public route records a click and preserves signup attribution in 
   assert.match(publicRoute,/Cache-Control/);
   assert.match(publicRoute,/status: 302/);
   assert.match(publicRoute,/new URL/);
+  assert.ok(publicRoute.includes("new URL('/', requestUrl.origin)"));
   assert.ok(publicRoute.includes('sm_[0-9a-f]{12}'));
   assert.doesNotMatch(publicRoute,/enforcePayRateLimit/);
 });
