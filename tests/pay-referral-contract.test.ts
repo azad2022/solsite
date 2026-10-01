@@ -66,6 +66,15 @@ test('Referral attribution rejects pre-existing accounts and is retry-safe', () 
   assert.match(migration,/on conflict \(referral_id, payment_id\) do nothing/);
 });
 
+test('Native signup attribution runs after application profile provisioning', () => {
+  const provision = auth.indexOf('await provisionApplicationProfile(database.application, {');
+  const referral = auth.indexOf("if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {");
+  assert.ok(provision >= 0);
+  assert.ok(referral > provision);
+  assert.match(auth, /const requestClick = ctx\.request \? readReferralCookie\(ctx\.request\) : null/);
+  assert.match(auth, /await processReferralSignup\(/);
+});
+
 test('Google OAuth referral context and localized welcome use server-trusted OAuth state', () => {
   assert.match(auth,/addOAuthServerContext/);
   assert.match(auth,/getOAuthState/);
