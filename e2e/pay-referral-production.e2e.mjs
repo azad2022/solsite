@@ -182,6 +182,20 @@ try {
   referredBetterAuthUserId = String(signupBody?.user?.id || '');
   assert.ok(referredBetterAuthUserId.length >= 8, 'Better Auth signup must return a user id.');
 
+  const signupCookieHeader = await Promise.race([
+    signupRequestCookiePromise,
+    new Promise((resolve) => setTimeout(() => resolve(''), 5000)),
+  ]);
+  const signupReferralCookiePresent =
+    typeof signupCookieHeader === 'string' &&
+    signupCookieHeader.split(';').some((part) => part.trim().startsWith('solmint_referral_click='));
+  console.log('REFERRAL_SIGNUP_REQUEST_COOKIE ' + JSON.stringify({ sent: signupReferralCookiePresent }));
+  assert.equal(
+    signupReferralCookiePresent,
+    true,
+    'The real browser must send the HttpOnly referral cookie on the signup request.',
+  );
+
   const identityRows = rows(await db(
     'select better_auth_user_id,application_user_id from public.auth_identity_links where better_auth_user_id = $1',
     [referredBetterAuthUserId],
