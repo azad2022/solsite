@@ -299,7 +299,6 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
               {data.stats.directSignups === '0'
                 ? <div className="pay-referrals-mini-empty">{referralT(locale, 'noReferrals')}</div>
                 : <div className="pay-referrals-direct-summary"><strong>{formatCount(data.stats.directSignups, locale)}</strong><span>{referralT(locale, 'referredAccounts')}</span></div>}
-              <div className="pay-referrals-meta-note">{referralT(locale, 'readonly')}</div>
             </section>
 
             <section className="pay-referrals-panel">
