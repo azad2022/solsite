@@ -105,6 +105,57 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
           const betterAuthUserId = typeof payload?.user?.id === 'string'
             ? payload.user.id
             : '';
+          if (request.headers.get('X-Solmint-Referral-Diagnostic') === '1') {
+            const rawCookie = request.headers.get('Cookie') || '';
+            const prefix = 'solmint_referral_click=';
+            const cookiePart = rawCookie
+              .split(';')
+              .map((part) => part.trim())
+              .find((part) => part.startsWith(prefix));
+            const rawValue = cookiePart ? cookiePart.slice(prefix.length).trim() : '';
+            const unquotedValue =
+              rawValue.length >= 2 && rawValue.startsWith('"') && rawValue.endsWith('"')
+                ? rawValue.slice(1, -1)
+                : rawValue;
+            let decodedValue = '';
+            let decodeOk = true;
+            try {
+              decodedValue = decodeURIComponent(unquotedValue);
+            } catch {
+              decodeOk = false;
+            }
+            const separator = decodedValue.indexOf('.');
+            const clickIdCandidate = separator > 0 ? decodedValue.slice(0, separator).trim() : '';
+            const referralCodeCandidate = separator > 0
+              ? decodedValue.slice(separator + 1).trim().toLowerCase()
+              : '';
+            const diagnostics = {
+              rawCookieHeaderPresent: rawCookie.length > 0,
+              rawCookiePartPresent: Boolean(cookiePart),
+              rawValueLength: rawValue.length,
+              rawValueQuoted: rawValue.startsWith('"') && rawValue.endsWith('"'),
+              decodeOk,
+              separatorPresent: separator > 0,
+              clickIdShape: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(clickIdCandidate),
+              referralCodeShape: /^sm_[0-9a-f]{12}$/i.test(referralCodeCandidate),
+              parsedReferralClickPresent: Boolean(nativeReferralClick),
+            };
+            try {
+              const diagnosticBody = { ...payload, _solmint_referral_diagnostic: diagnostics };
+              const headers = new Headers(response.headers);
+              headers.set('Content-Type', 'application/json; charset=utf-8');
+              return new Response(JSON.stringify(diagnosticBody), {
+                status: response.status,
+                statusText: response.statusText,
+                headers,
+              });
+            } catch (error) {
+              console.warn('Referral auth diagnostic response failed:', {
+                requestId,
+                message: error instanceof Error ? error.message : 'unknown error',
+              });
+            }
+          }
           if (betterAuthUserId) {
             await processReferralSignupFromRequest(
               env,
