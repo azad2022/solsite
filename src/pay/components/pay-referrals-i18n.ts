@@ -109,10 +109,9 @@ const messages = {
     stale:'The latest valid snapshot is retained; the newest refresh failed.',
   },
   ar: {
-    promoVideoLabel:'فيديو إحالات SolMint Pay',
     title:'الإحالات والشراكة',
     subtitle:'شارك رابطك المخصص وتابع النقرات والتسجيلات المباشرة والتجار المُحالين وأرباح الشراكة.',
-    promoVideoLabel:'ویدیوی معرفی SolMint Pay',
+    promoVideoLabel:'فيديو إحالات SolMint Pay',
     refresh:'تحديث',
     noData:'لا توجد بيانات إحالة للعرض بعد.',
     loadFailed:'تعذر تحميل بيانات الإحالات.',
@@ -163,10 +162,9 @@ const messages = {
     stale:'يتم عرض آخر لقطة موثوقة؛ فشل التحديث الأخير.',
   },
   ru: {
-    promoVideoLabel:'Реферальное видео SolMint Pay',
     title:'Рефералы и партнёрство',
     subtitle:'Распространяйте персональную ссылку и отслеживайте клики, прямые регистрации, привлечённых мерчантов и доход.',
-    promoVideoLabel:'ویدیوی معرفی SolMint Pay',
+    promoVideoLabel:'Реферальное видео SolMint Pay',
     refresh:'Обновить',
     noData:'Пока нет данных для отображения.',
     loadFailed:'Не удалось загрузить реферальные данные.',
