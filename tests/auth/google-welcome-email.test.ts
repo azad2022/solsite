@@ -45,12 +45,11 @@ test('Google welcome email is localized, branded, and safely escapes the user na
 });
 
 test('Google welcome delivery is tied to newly created Google users, not returning sign-ins', () => {
-  assert.match(instance, /if \(ctx\.path === '/callback/google'\)/);
+  assert.match(instance, /if \(ctx\.path === ['"]\/callback\/google['"]\)/);
   assert.match(instance, /sendGoogleWelcomeNotification/);
   assert.match(instance, /claimAuthWelcomeEmailDelivery/);
   assert.match(instance, /completeAuthWelcomeEmailDelivery/);
   assert.match(instance, /failAuthWelcomeEmailDelivery/);
-  assert.match(instance, /ctx\.path === '/callback/google'/);
   assert.doesNotMatch(instance, /account:\s*\{\s*create:/);
 });
 
