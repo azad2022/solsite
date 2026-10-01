@@ -1270,6 +1270,18 @@ try {
   await page.locator('.pay-ticket-closed').waitFor({ state: 'visible', timeout: 5000 });
   assert.equal(await page.locator('.pay-ticket-reply').count(), 0, 'Closed tickets must not expose the reply form.');
 
+  const closedReplyResponse = await context.request.post(
+    ORIGIN + '/api/pay/v1/tickets/' + encodeURIComponent(ticketId) + '/messages',
+    {
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json', Accept: 'application/json' },
+      data: { message: 'This direct reply must be rejected while the ticket is closed.' },
+    },
+  );
+  const closedReplyText = await closedReplyResponse.text();
+  assert.equal(closedReplyResponse.status(), 409, closedReplyText);
+  const closedReplyBody = closedReplyText ? JSON.parse(closedReplyText) : {};
+  assert.equal(closedReplyBody.code, 'TICKET_CLOSED');
+
   await statusSelect.selectOption('open');
   await page.waitForFunction(() => document.querySelector('.pay-ticket-thread-header select')?.value === 'open', null, { timeout: 10000 });
   await page.locator('.pay-ticket-reply').waitFor({ state: 'visible', timeout: 5000 });
