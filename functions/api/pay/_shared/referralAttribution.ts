@@ -49,6 +49,26 @@ async function rpc<T>(env: ReferralServiceEnv, functionName: string, body: Recor
   return await response.json() as T;
 }
 
+export function parseReferralCookieValue(value: string | null | undefined): ReferralCookie | null {
+  if (!value) return null;
+
+  let decoded = '';
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+
+  const separator = decoded.indexOf('.');
+  if (separator <= 0) return null;
+
+  const clickId = decoded.slice(0, separator).trim();
+  const referralCode = decoded.slice(separator + 1).trim().toLowerCase();
+  if (!UUID.test(clickId) || !REFERRAL_CODE.test(referralCode)) return null;
+
+  return { clickId, referralCode };
+}
+
 export function readReferralCookie(source: Request | Headers | null | undefined): ReferralCookie | null {
   const cookieHeader = source instanceof Headers
     ? source.get('Cookie') || ''
@@ -60,21 +80,7 @@ export function readReferralCookie(source: Request | Headers | null | undefined)
     .find(part => part.startsWith(prefix));
 
   if (!cookiePart) return null;
-
-  let value = '';
-  try {
-    value = decodeURIComponent(cookiePart.slice(prefix.length));
-  } catch {
-    return null;
-  }
-  const separator = value.indexOf('.');
-  if (separator <= 0) return null;
-
-  const clickId = value.slice(0, separator).trim();
-  const referralCode = value.slice(separator + 1).trim().toLowerCase();
-  if (!UUID.test(clickId) || !REFERRAL_CODE.test(referralCode)) return null;
-
-  return { clickId, referralCode };
+  return parseReferralCookieValue(cookiePart.slice(prefix.length));
 }
 
 export function referralCookieHeader(click: ReferralCookie, isSecure: boolean): string {

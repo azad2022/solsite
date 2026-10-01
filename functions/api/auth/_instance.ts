@@ -10,6 +10,7 @@ import {
   claimReferralSignupEmailDelivery,
   completeReferralSignupEmailDelivery,
   failReferralSignupEmailDelivery,
+  parseReferralCookieValue,
   readReferralCookie,
   type ReferralCookie,
   type ReferralServiceEnv,
@@ -145,37 +146,23 @@ async function processReferralSignup(
   }
 }
 
-interface SolmintReferralAuthContext {
-  referralClick?: ReferralCookie | null;
-}
-
-function readReferralClickFromAuthRequest(ctx: {
+function readReferralCookieFromAuthContext(ctx: {
+  getCookie?: (name: string) => string | null | undefined;
   headers?: Headers;
   request?: Request;
-  context?: unknown;
 }): ReferralCookie | null {
-  const click = (ctx.headers ? readReferralCookie(ctx.headers) : null)
+  try {
+    const authCookieValue = typeof ctx.getCookie === 'function'
+      ? ctx.getCookie('solmint_referral_click')
+      : null;
+    const fromAuthCookie = parseReferralCookieValue(authCookieValue);
+    if (fromAuthCookie) return fromAuthCookie;
+  } catch {
+    // Fall back to raw request/header cookie readers below.
+  }
+
+  return (ctx.headers ? readReferralCookie(ctx.headers) : null)
     ?? (ctx.request ? readReferralCookie(ctx.request) : null);
-
-  if (click && ctx.context && typeof ctx.context === 'object') {
-    (ctx.context as SolmintReferralAuthContext).referralClick = click;
-  }
-
-  return click;
-}
-
-function readCapturedReferralClick(ctx: { context?: unknown }): ReferralCookie | null {
-  if (!ctx.context || typeof ctx.context !== 'object') return null;
-  const value = (ctx.context as SolmintReferralAuthContext).referralClick;
-  if (
-    value &&
-    typeof value === 'object' &&
-    typeof value.clickId === 'string' &&
-    typeof value.referralCode === 'string'
-  ) {
-    return value;
-  }
-  return null;
 }
 
 function isAuthEmailLocale(value: unknown): value is AuthEmailLocale {
@@ -355,7 +342,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/sign-up/email') {
-          readReferralClickFromAuthRequest(ctx);
+          readReferralCookieFromAuthContext(ctx);
           const isLegacyMigration =
             isLegacyMigrationEnabled(env) &&
             legacyMigrationSecret.length > 0 &&
@@ -372,7 +359,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         }
 
         if (ctx.path === '/sign-in/social') {
-          const click = readReferralClickFromAuthRequest(ctx);
+          const click = readReferralCookieFromAuthContext(ctx);
           const authEmailLocale = resolveAuthEmailLocale(ctx.headers);
           await addOAuthServerContext({
             authEmailLocale,
@@ -387,9 +374,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         if (ctx.path === '/sign-up/email') {
           const body = ctx.body as { email?: unknown } | undefined;
           const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-          const click = readCapturedReferralClick(ctx)
-            ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
-            ?? (ctx.request ? readReferralCookie(ctx.request) : null);
+          const click = readReferralCookieFromAuthContext(ctx);
           if (email && click) {
             const identity = await database.application.findBetterAuthIdentityByEmail(email);
             if (identity) {
@@ -444,10 +429,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
               });
 
               if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
-                const capturedClick = readCapturedReferralClick(ctx);
-                 const requestClick = capturedClick
-                   ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
-                   ?? (ctx.request ? readReferralCookie(ctx.request) : null);
+                const requestClick = readReferralCookieFromAuthContext(ctx);
                 const state = ctx.path.startsWith('/callback/')
                   ? await getOAuthState().catch(() => null)
                   : null;
