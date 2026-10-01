@@ -7,7 +7,9 @@ on:
       - '.github/workflows/solmint-pay-live-audit.yml'
       - '.github/solmint-pay-live-audit.trigger'
       - 'e2e/pay-production-ui.e2e.mjs'
+      - 'e2e/pay-referral-production.e2e.mjs'
       - 'functions/r/**'
+      - 'public/_routes.json'
       - 'supabase/migrations/*solmint_pay_referral*.sql'
   workflow_dispatch:
 
@@ -68,6 +70,8 @@ jobs:
 
       - name: Live browser audit
         run: node e2e/pay-production-ui.e2e.mjs
+      - name: Run dedicated production referral lifecycle E2E
+        run: node e2e/pay-referral-production.e2e.mjs
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
