@@ -145,6 +145,39 @@ async function processReferralSignup(
   }
 }
 
+interface SolmintReferralAuthContext {
+  referralClick?: ReferralCookie | null;
+}
+
+function readReferralClickFromAuthRequest(ctx: {
+  headers?: Headers;
+  request?: Request;
+  context?: unknown;
+}): ReferralCookie | null {
+  const click = (ctx.headers ? readReferralCookie(ctx.headers) : null)
+    ?? (ctx.request ? readReferralCookie(ctx.request) : null);
+
+  if (click && ctx.context && typeof ctx.context === 'object') {
+    (ctx.context as SolmintReferralAuthContext).referralClick = click;
+  }
+
+  return click;
+}
+
+function readCapturedReferralClick(ctx: { context?: unknown }): ReferralCookie | null {
+  if (!ctx.context || typeof ctx.context !== 'object') return null;
+  const value = (ctx.context as SolmintReferralAuthContext).referralClick;
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof value.clickId === 'string' &&
+    typeof value.referralCode === 'string'
+  ) {
+    return value;
+  }
+  return null;
+}
+
 function isAuthEmailLocale(value: unknown): value is AuthEmailLocale {
   return value === 'fa-IR' || value === 'en-US' || value === 'ar' || value === 'ru';
 }
@@ -322,6 +355,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/sign-up/email') {
+          readReferralClickFromAuthRequest(ctx);
           const isLegacyMigration =
             isLegacyMigrationEnabled(env) &&
             legacyMigrationSecret.length > 0 &&
@@ -338,7 +372,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         }
 
         if (ctx.path === '/sign-in/social') {
-          const click = readReferralCookie(ctx.headers ?? ctx.request);
+          const click = readReferralClickFromAuthRequest(ctx);
           const authEmailLocale = resolveAuthEmailLocale(ctx.headers);
           await addOAuthServerContext({
             authEmailLocale,
@@ -353,7 +387,9 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         if (ctx.path === '/sign-up/email') {
           const body = ctx.body as { email?: unknown } | undefined;
           const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-          const click = readReferralCookie(ctx.headers ?? ctx.request);
+          const click = readCapturedReferralClick(ctx)
+            ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
+            ?? (ctx.request ? readReferralCookie(ctx.request) : null);
           if (email && click) {
             const identity = await database.application.findBetterAuthIdentityByEmail(email);
             if (identity) {
@@ -408,7 +444,10 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
               });
 
               if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
-                const requestClick = readReferralCookie(ctx.headers ?? ctx.request);
+                const capturedClick = readCapturedReferralClick(ctx);
+                 const requestClick = capturedClick
+                   ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
+                   ?? (ctx.request ? readReferralCookie(ctx.request) : null);
                 const state = ctx.path.startsWith('/callback/')
                   ? await getOAuthState().catch(() => null)
                   : null;
