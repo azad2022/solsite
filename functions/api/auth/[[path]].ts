@@ -105,6 +105,18 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
           const betterAuthUserId = typeof payload?.user?.id === 'string'
             ? payload.user.id
             : '';
+          if (betterAuthUserId) {
+            await processReferralSignupFromRequest(
+              env,
+              runtime.application,
+              nativeReferralClick,
+              betterAuthUserId,
+              typeof payload.user?.name === 'string'
+                ? payload.user.name
+                : 'کاربر جدید',
+            );
+          }
+
           if (request.headers.get('X-Solmint-Referral-Diagnostic') === '1') {
             const rawCookie = request.headers.get('Cookie') || '';
             const rawReferralCookiePresent = rawCookie
@@ -134,17 +146,6 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
                 message: error instanceof Error ? error.message : 'unknown error',
               });
             }
-          }
-          if (betterAuthUserId) {
-            await processReferralSignupFromRequest(
-              env,
-              runtime.application,
-              nativeReferralClick,
-              betterAuthUserId,
-              typeof payload.user?.name === 'string'
-                ? payload.user.name
-                : 'کاربر جدید',
-            );
           }
         } catch (error) {
           console.warn('Referral signup boundary processing failed:', {
