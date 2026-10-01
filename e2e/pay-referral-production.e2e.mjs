@@ -127,7 +127,7 @@ try {
   assert.ok(referralCookie.expires > Date.now() / 1000 + 60 * 60 * 24 * 29, 'Referral cookie must persist for approximately 30 days.');
   console.log('REFERRAL_CLICK_ROUTE_AND_COOKIE PASS ' + JSON.stringify({ code, homepage: true, cookiePersistent: true }));
 
-  const username = `pay_ref_signup_${crypto.randomUUID().replaceAll('-', '').slice(0, 18)}`;
+  const username = `pay_ref_signup_${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
   const email = `${username}@example.com`;
   const password = `E2E-${randomBytes(24).toString('base64url')}`;
   const signupResponse = await referredContext.request.post('/api/auth/sign-up/email', {
