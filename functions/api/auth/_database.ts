@@ -12,6 +12,14 @@ export interface BetterAuthDatabaseEnv {
 
 export interface ApplicationUserRow { id: string; username: string; full_name: string; role: string | null; permissions: unknown; is_active: boolean | null; created_at: string | null; password_hash?: string | null; }
 export interface ApplicationIdentityLinkRow { better_auth_user_id: string; application_user_id: string; }
+export interface AuthWelcomeEmailDeliveryClaim {
+  ok: boolean;
+  should_send?: boolean;
+  status?: string;
+  delivery_id?: string;
+  attempt_count?: number;
+  reason?: string;
+}
 export interface ApplicationAuthDatabase {
   findApplicationUserByUsername(username: string): Promise<ApplicationUserRow | null>;
   findIdentityByApplicationUserId(applicationUserId: string): Promise<ApplicationIdentityLinkRow | null>;
@@ -23,6 +31,9 @@ export interface ApplicationAuthDatabase {
   linkIdentity(input: { betterAuthUserId: string; applicationUserId: string; source: 'native' | 'legacy-migration' }): Promise<void>;
   deleteApplicationUser(applicationUserId: string): Promise<void>;
   deleteBetterAuthUser(betterAuthUserId: string): Promise<void>;
+  claimAuthWelcomeEmailDelivery(userId: string, providerId: 'google', workerId: string): Promise<AuthWelcomeEmailDeliveryClaim>;
+  completeAuthWelcomeEmailDelivery(deliveryId: string, workerId: string): Promise<{ ok: boolean; status?: string; reason?: string }>;
+  failAuthWelcomeEmailDelivery(deliveryId: string, workerId: string, errorCode: string): Promise<{ ok: boolean; status?: string; reason?: string }>;
 }
 export interface BetterAuthDatabaseHandle { adapter: AdapterFactory<any>; application: ApplicationAuthDatabase; close(): Promise<void>; }
 
@@ -88,6 +99,32 @@ function createSupabaseApplicationDatabase(client: SupabaseClient): ApplicationA
       const { error } = await client.from('users').delete().eq('id', applicationUserId); if (error) throw error;
     },
     async deleteBetterAuthUser(betterAuthUserId) { await callAdapter('delete', { model: 'user', where: [{ field: 'id', value: betterAuthUserId, operator: 'eq' }] }); },
+    async claimAuthWelcomeEmailDelivery(userId, providerId, workerId) {
+      const { data, error } = await client.rpc('solmint_claim_auth_welcome_email_delivery', {
+        p_user_id: userId,
+        p_provider_id: providerId,
+        p_worker_id: workerId,
+      });
+      if (error) throw error;
+      return (data ?? { ok: false, reason: 'EMPTY_RESPONSE' }) as AuthWelcomeEmailDeliveryClaim;
+    },
+    async completeAuthWelcomeEmailDelivery(deliveryId, workerId) {
+      const { data, error } = await client.rpc('solmint_complete_auth_welcome_email_delivery', {
+        p_delivery_id: deliveryId,
+        p_worker_id: workerId,
+      });
+      if (error) throw error;
+      return (data ?? { ok: false, reason: 'EMPTY_RESPONSE' }) as { ok: boolean; status?: string; reason?: string };
+    },
+    async failAuthWelcomeEmailDelivery(deliveryId, workerId, errorCode) {
+      const { data, error } = await client.rpc('solmint_fail_auth_welcome_email_delivery', {
+        p_delivery_id: deliveryId,
+        p_worker_id: workerId,
+        p_error_code: errorCode,
+      });
+      if (error) throw error;
+      return (data ?? { ok: false, reason: 'EMPTY_RESPONSE' }) as { ok: boolean; status?: string; reason?: string };
+    },
   };
 }
 export function createBetterAuthDatabase(env: BetterAuthDatabaseEnv): BetterAuthDatabaseHandle {
