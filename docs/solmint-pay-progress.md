@@ -1466,3 +1466,27 @@ The current Account/Training/Sidebar UX cycle is complete and production-evidenc
 No new Pay API, payment rule, verification rule, financial calculation, database business rule, or client-side financial truth was introduced.
 
 The next rally should start from the existing authoritative Backend/Database contract rather than speculative UI capability.
+
+
+## 2026-10-01 — Referral production lifecycle correction checkpoint
+
+Status: **IMPLEMENTED / BACKEND TRANSACTION VERIFIED / PRODUCTION RUNTIME EVIDENCE PENDING**
+
+Confirmed and corrected in the current mainline:
+- Cloudflare Pages `/r/*` routing is explicitly included in `public/_routes.json`.
+- The public referral Function accepts only the current short `sm_ + 12 hex` format.
+- Valid referral links record the click through the existing service-only database RPC and redirect to the homepage.
+- Invalid/legacy long referral links return 404; no legacy alias table or compatibility path is used.
+- Referral attribution cookie now persists for 30 days.
+- Referral clicks use the existing Pay atomic rate-limit RPC.
+- Dedicated production E2E coverage exercises referral click, cookie persistence, signup, database attribution, dashboard API counts, and dashboard UI counts with separate browser contexts.
+- Production browser and Live Audit workflows explicitly run the dedicated Referral E2E and watch `public/_routes.json`.
+
+Live database evidence:
+- 34 active affiliates exist and all current affiliate codes are 15 characters (`sm_` + 12 hex).
+- `pay_referral_click_events`, `pay_referral_user_attributions`, `pay_referrals`, and `pay_commissions` are currently empty after transactional verification rollback.
+- `pay_referral_code_aliases` does not exist.
+
+The current application source is on main commit `4a72158b49d4b3070f168ad0ece718b821f5bb73`.
+
+CI/Cloudflare runtime evidence for this connector-created main commit was not emitted by GitHub automation during this session, so this checkpoint does not mark Production Browser E2E, Live Audit, or Cloudflare deployment as green without evidence.
