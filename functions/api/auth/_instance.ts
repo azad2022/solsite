@@ -407,6 +407,33 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                 createdAt: record.createdAt,
               });
 
+              if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
+                const requestClick = ctx.request ? readReferralCookie(ctx.request) : null;
+                const state = ctx.path.startsWith('/callback/')
+                  ? await getOAuthState().catch(() => null)
+                  : null;
+                const serverContext = state?.serverContext as {
+                  referralClickId?: unknown;
+                  referralCode?: unknown;
+                } | undefined;
+                const stateClick: ReferralCookie | null =
+                  typeof serverContext?.referralClickId === 'string' &&
+                  typeof serverContext.referralCode === 'string'
+                    ? {
+                        clickId: serverContext.referralClickId,
+                        referralCode: serverContext.referralCode,
+                      }
+                    : null;
+                const click = requestClick ?? stateClick;
+                await processReferralSignup(
+                  env,
+                  database.application,
+                  click,
+                  String(record.id),
+                  String(record.name || 'کاربر جدید'),
+                );
+              }
+
               if (ctx.path === '/callback/google') {
                 const state = await getOAuthState().catch(() => null);
                 const serverContext = state?.serverContext as { authEmailLocale?: unknown } | undefined;
