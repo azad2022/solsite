@@ -12,6 +12,8 @@ on:
     branches: [main]
     paths:
       - 'functions/api/pay/**'
+      - 'functions/r/**'
+      - 'supabase/migrations/*solmint_pay_referral*.sql'
       - 'src/pay/**'
       - 'tests/pay-live-smoke.test.ts'
       - '.github/workflows/solmint-pay-live-smoke.yml'
