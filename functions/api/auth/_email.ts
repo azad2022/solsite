@@ -37,6 +37,15 @@ type AuthEmailCopy = {
     notice: string;
     footer: string;
   };
+  welcome: {
+    subject: string;
+    eyebrow: string;
+    title: string;
+    greeting: (name: string) => string;
+    body: string;
+    button: string;
+    footer: string;
+  };
   direction: 'rtl' | 'ltr';
 };
 
@@ -75,6 +84,15 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       notice: 'این پیام صرفاً اطلاع‌رسانی است و مبنای محاسبه درآمد یا تسویه نیست.',
       footer: 'برای امنیت حساب، اطلاعات مالی فقط از داخل پنل SolMint نمایش داده می‌شود.',
     },
+    welcome: {
+      subject: 'به SolMint خوش آمدید',
+      eyebrow: 'SolMint Account',
+      title: 'خوش آمدید به SolMint',
+      greeting: (name) => `سلام ${name}`,
+      body: 'حساب SolMint شما با موفقیت ایجاد شد. از همراهی شما خوشحالیم.',
+      button: 'ورود به SolMint',
+      footer: 'این پیام برای خوش‌آمدگویی به شما ارسال شده است.',
+    },
   },
   'en-US': {
     direction: 'ltr',
@@ -107,6 +125,15 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       button: 'Open referrals',
       notice: 'This message is informational only and is not the source of commission or settlement truth.',
       footer: 'Financial information is authoritative only inside your SolMint dashboard.',
+    },
+    welcome: {
+      subject: 'Welcome to SolMint',
+      eyebrow: 'SolMint Account',
+      title: 'Welcome to SolMint',
+      greeting: (name) => `Hello ${name}`,
+      body: 'Your SolMint account has been created successfully. We are glad to have you with us.',
+      button: 'Open SolMint',
+      footer: 'This message was sent to welcome you to SolMint.',
     },
   },
   ar: {
@@ -141,6 +168,15 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       notice: 'هذه الرسالة للإشعار فقط ولا تُستخدم كمصدر لاحتساب العمولة أو التسوية.',
       footer: 'المعلومات المالية الموثوقة تظهر فقط داخل لوحة SolMint.',
     },
+    welcome: {
+      subject: 'مرحباً بك في SolMint',
+      eyebrow: 'SolMint Account',
+      title: 'مرحباً بك في SolMint',
+      greeting: (name) => `مرحباً ${name}`,
+      body: 'تم إنشاء حسابك في SolMint بنجاح. يسعدنا انضمامك إلينا.',
+      button: 'فتح SolMint',
+      footer: 'أُرسلت هذه الرسالة للترحيب بك في SolMint.',
+    },
   },
   ru: {
     direction: 'ltr',
@@ -174,6 +210,15 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       notice: 'Это информационное сообщение; источником истины для комиссии и расчётов является Backend.',
       footer: 'Финансовые данные отображаются авторитетно только в панели SolMint.',
     },
+    welcome: {
+      subject: 'Добро пожаловать в SolMint',
+      eyebrow: 'SolMint Account',
+      title: 'Добро пожаловать в SolMint',
+      greeting: (name) => `Здравствуйте, ${name}`,
+      body: 'Ваш аккаунт SolMint успешно создан. Рады приветствовать вас.',
+      button: 'Открыть SolMint',
+      footer: 'Это сообщение отправлено в качестве приветствия от SolMint.',
+    },
   },
 };
 
@@ -194,8 +239,9 @@ function normalizeLocale(value: string | undefined): AuthEmailLocale {
   return 'en-US';
 }
 
-export function resolveAuthEmailLocale(request?: Request): AuthEmailLocale {
-  const language = request?.headers.get('accept-language')?.split(',')[0]?.split(';')[0];
+export function resolveAuthEmailLocale(input?: Request | Headers): AuthEmailLocale {
+  const headers = input instanceof Request ? input.headers : input;
+  const language = headers?.get('accept-language')?.split(',')[0]?.split(';')[0];
   return normalizeLocale(language);
 }
 
@@ -319,5 +365,15 @@ export function buildReferralSignupEmail(
     subject: copy.subject,
     text: `${copy.greeting(referrerName)}\n\n${body}\n\n${copy.notice}\n\n${copy.button}: ${url}\n\n${copy.footer}`,
     html: renderEmailHtml(locale, copy.title, copy.greeting(referrerName), body, copy.button, url, copy.notice, copy.footer),
+  };
+}
+
+export function buildWelcomeEmail(userName: string, locale: AuthEmailLocale = 'en-US') {
+  const copy = COPY[locale].welcome;
+  const url = 'https://solmint.ir/';
+  return {
+    subject: copy.subject,
+    text: `${copy.greeting(userName)}\n\n${copy.body}\n\n${copy.button}: ${url}\n\n${copy.footer}`,
+    html: renderEmailHtml(locale, copy.title, copy.greeting(userName), copy.body, copy.button, url, copy.footer, copy.footer),
   };
 }
