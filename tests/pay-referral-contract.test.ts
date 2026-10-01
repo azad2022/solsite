@@ -69,8 +69,10 @@ test('Referral attribution rejects pre-existing accounts and is retry-safe', () 
 test('Referral cookie parsing supports Better Auth header context directly', () => {
   assert.match(attribution, /readReferralCookie\(source: Request \| Headers \| null \| undefined\)/);
   assert.match(attribution, /source instanceof Headers/);
-  assert.match(auth, /readReferralCookie\(ctx\.headers \?\? ctx\.request\)/);
-  assert.doesNotMatch(auth, /ctx\.request \? readReferralCookie/);
+  assert.match(auth, /readReferralClickFromAuthRequest\(ctx\)/);
+  assert.match(auth, /ctx\.headers \? readReferralCookie\(ctx\.headers\) : null/);
+  assert.match(auth, /ctx\.request \? readReferralCookie\(ctx\.request\) : null/);
+  assert.doesNotMatch(auth, /ctx\.request \? readReferralCookie\(ctx\.request\) : null;\s*if \(click\)/);
 });
 
 test('Native signup attribution runs after application profile provisioning', () => {
@@ -78,7 +80,9 @@ test('Native signup attribution runs after application profile provisioning', ()
   const referral = auth.indexOf("if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {");
   assert.ok(provision >= 0);
   assert.ok(referral > provision);
-  assert.match(auth, /const requestClick = readReferralCookie\(ctx\.headers \?\? ctx\.request\)/);
+  assert.match(auth, /const capturedClick = readCapturedReferralClick\(ctx\)/);
+  assert.match(auth, /const click = \(ctx\.headers \? readReferralCookie\(ctx\.headers\) : null\)/);
+  assert.match(auth, /await processReferralSignup\(/);
   assert.match(auth, /await processReferralSignup\(/);
 });
 
