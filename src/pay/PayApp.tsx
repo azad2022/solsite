@@ -31,26 +31,15 @@ const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; str
   referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck, webhooks: Webhook,
 };
 
-const PAY_NAV_GROUPS: ReadonlyArray<{ key: 'workspace' | 'business' | 'billing' | 'growth' | 'developer' | 'security' | 'support'; sections: readonly PaySection[] }> = [
-  { key: 'workspace', sections: ['overview'] },
-  { key: 'business', sections: ['merchants'] },
-  { key: 'billing', sections: ['invoices'] },
-  { key: 'growth', sections: ['referrals'] },
-  { key: 'developer', sections: ['developer'] },
-  { key: 'security', sections: ['security'] },
-  { key: 'support', sections: ['tickets'] },
+const PAY_NAV_SECTIONS: readonly PaySection[] = [
+  'overview',
+  'merchants',
+  'invoices',
+  'referrals',
+  'developer',
+  'security',
+  'tickets',
 ];
-
-type PayMessageKey = Parameters<typeof translate>[1];
-const PAY_NAV_GROUP_LABELS: Record<(typeof PAY_NAV_GROUPS)[number]['key'], PayMessageKey> = {
-  workspace: 'navWorkspace',
-  business: 'navBusiness',
-  billing: 'navBilling',
-  growth: 'navGrowth',
-  developer: 'navDeveloper',
-  security: 'navSecurity',
-  support: 'navSupport',
-};
 
 const PAGE_HEADER_OWNERS: ReadonlySet<PaySection> = new Set([
   'referrals', 'customers', 'tickets', 'developer', 'security', 'webhooks',
@@ -281,30 +270,25 @@ export function PayApp(): React.ReactElement {
           </div>
 
           <nav className="pay-nav" aria-label={translate(locale, 'menu')}>
-            {PAY_NAV_GROUPS.map(group => (
-              <div key={group.key} className="pay-nav-group">
-                <span className="pay-nav-group-label">{translate(locale, PAY_NAV_GROUP_LABELS[group.key])}</span>
-                {group.sections.map(section => {
-                  const Icon = SECTION_ICONS[section];
-                  const active = section === currentSection
-                    || (section === 'invoices' && isBillingSection)
-                    || (section === 'developer' && isDeveloperSection);
-                  return <button
-                    key={section}
-                    type="button"
-                    className={`pay-nav-item ${active ? 'is-active' : ''}`}
-                    onClick={() => navigate(section)}
-                    aria-current={active ? 'page' : undefined}
-                    aria-label={paySectionLabel(locale, section)}
-                    data-section={section}
-                  >
-                    <span className="pay-nav-icon" aria-hidden="true"><Icon size={18} strokeWidth={active ? 2.25 : 2} /></span>
-                    <span className="pay-nav-label">{section === 'invoices' ? translate(locale, 'billingNavLabel') : paySectionLabel(locale, section)}</span>
-                    {active && <span className="pay-nav-active-dot" aria-hidden="true" />}
-                  </button>;
-                })}
-              </div>
-            ))}
+            {PAY_NAV_SECTIONS.map(section => {
+              const Icon = SECTION_ICONS[section];
+              const active = section === currentSection
+                || (section === 'invoices' && isBillingSection)
+                || (section === 'developer' && isDeveloperSection);
+              return <button
+                key={section}
+                type="button"
+                className={`pay-nav-item ${active ? 'is-active' : ''}`}
+                onClick={() => navigate(section)}
+                aria-current={active ? 'page' : undefined}
+                aria-label={paySectionLabel(locale, section)}
+                data-section={section}
+              >
+                <span className="pay-nav-icon" aria-hidden="true"><Icon size={18} strokeWidth={active ? 2.25 : 2} /></span>
+                <span className="pay-nav-label">{section === 'invoices' ? translate(locale, 'billingNavLabel') : paySectionLabel(locale, section)}</span>
+                {active && <span className="pay-nav-active-dot" aria-hidden="true" />}
+              </button>;
+            })}
           </nav>
 
           <div className="pay-sidebar-bottom">
@@ -319,10 +303,10 @@ export function PayApp(): React.ReactElement {
         <section className="pay-main-column">
           <header className="pay-topbar">
             <div className="pay-topbar-leading">
+              <button type="button" className="pay-icon-button pay-mobile-menu" onClick={() => setMobileNavOpen(true)} aria-label={translate(locale, 'openMenu')}><Menu size={20} /></button>
               <a className="pay-topbar-brand-link" href="https://solmint.ir/" aria-label={translate(locale, 'goToWebsite')} title={translate(locale, 'goToWebsite')}>
                 <span className="pay-topbar-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></span>
               </a>
-              <button type="button" className="pay-icon-button pay-mobile-menu" onClick={() => setMobileNavOpen(true)} aria-label={translate(locale, 'openMenu')}><Menu size={20} /></button>
               <div className="pay-topbar-breadcrumb"><span>{translate(locale, 'brand')}</span><span className="pay-breadcrumb-separator" aria-hidden="true">{direction === 'rtl' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</span><strong>{navigationLabel}</strong></div>
             </div>
 
