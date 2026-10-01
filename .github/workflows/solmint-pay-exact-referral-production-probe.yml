@@ -3,7 +3,7 @@ name: SolMint Pay Exact Referral Production Probe
 on:
   push:
     branches:
-      - debug/pay-exact-referral-production-probe-20261001
+      - main
 
 permissions:
   contents: read
