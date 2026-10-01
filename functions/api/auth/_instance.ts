@@ -338,7 +338,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         }
 
         if (ctx.path === '/sign-in/social') {
-          const click = ctx.request ? readReferralCookie(ctx.request) : null;
+          const click = ctx.request ? readReferralCookie(ctx.headers ?? ctx.request) : null;
           const authEmailLocale = resolveAuthEmailLocale(ctx.headers);
           await addOAuthServerContext({
             authEmailLocale,
@@ -353,7 +353,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         if (ctx.path === '/sign-up/email') {
           const body = ctx.body as { email?: unknown } | undefined;
           const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-          const click = ctx.request ? readReferralCookie(ctx.request) : null;
+          const click = ctx.request ? readReferralCookie(ctx.headers ?? ctx.request) : null;
           if (email && click) {
             const identity = await database.application.findBetterAuthIdentityByEmail(email);
             if (identity) {
@@ -408,7 +408,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
               });
 
               if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
-                const requestClick = ctx.request ? readReferralCookie(ctx.request) : null;
+                const requestClick = ctx.request ? readReferralCookie(ctx.headers ?? ctx.request) : null;
                 const state = ctx.path.startsWith('/callback/')
                   ? await getOAuthState().catch(() => null)
                   : null;
