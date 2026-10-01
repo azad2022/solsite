@@ -81,7 +81,7 @@ test('Native signup attribution runs after application profile provisioning', ()
   assert.ok(provision >= 0);
   assert.ok(referral > provision);
   assert.match(auth, /const capturedClick = readCapturedReferralClick\(ctx\)/);
-  assert.match(auth, /const click = \(ctx\.headers \? readReferralCookie\(ctx\.headers\) : null\)/);
+  assert.match(auth, /const click = requestClick \?\? stateClick/);
   assert.match(auth, /await processReferralSignup\(/);
   assert.match(auth, /await processReferralSignup\(/);
 });
