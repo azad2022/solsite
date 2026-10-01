@@ -460,8 +460,7 @@
   .pay-language-trigger { min-height:34px; padding-inline:7px; }
   .pay-language-menu { inset-inline-end: 0; min-width: 178px; max-width: calc(100vw - 24px); }
   .pay-icon-button { width:34px; height:34px; }
-  .pay-topbar-breadcrumb { overflow:hidden; }
-  .pay-topbar-breadcrumb strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pay-topbar-breadcrumb { display:none; }
   .pay-page-heading h1 { font-size: 25px; }
   .pay-page-heading p { font-size: 12px; line-height: 1.75; }
   .pay-topbar-leading { gap:7px; flex:1; }
