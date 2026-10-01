@@ -37,7 +37,7 @@ export const onRequestGet = async ({ request, env, params }: {
   try {
     const click = await recordReferralClick(env, code);
     const requestUrl = new URL(request.url);
-    const location = new URL('/?auth=register', requestUrl.origin);
+    const location = new URL('/', requestUrl.origin);
     return new Response(null, {
       status: 302,
       headers: {
