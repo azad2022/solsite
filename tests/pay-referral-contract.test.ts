@@ -77,7 +77,7 @@ test('Native signup attribution runs after application profile provisioning', ()
   const referral = auth.indexOf("if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {");
   assert.ok(provision >= 0);
   assert.ok(referral > provision);
-  assert.match(auth, /const requestClick = ctx\.request \? readReferralCookie\(ctx\.request\) : null/);
+  assert.match(auth, /const requestClick = ctx\.request \? readReferralCookie\(ctx\.headers \?\? ctx\.request\) : null/);
   assert.match(auth, /await processReferralSignup\(/);
 });
 
