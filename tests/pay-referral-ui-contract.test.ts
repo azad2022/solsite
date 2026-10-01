@@ -6,10 +6,13 @@ const app = readFileSync('src/pay/PayApp.tsx','utf8');
 const ui = readFileSync('src/pay/components/PayReferrals.tsx','utf8');
 const i18n = readFileSync('src/pay/components/pay-referrals-i18n.ts','utf8');
 
-test('PayApp wires the referral surface', () => {
+test('PayApp wires the referral surface and uses a flat primary navigation', () => {
   assert.match(app,/import PayReferrals from '.\/components\/PayReferrals'/);
   assert.match(app,/showReferrals/);
   assert.match(app,/<PayReferrals locale=\{locale\}/);
+  assert.match(app,/PAY_NAV_SECTIONS/);
+  assert.doesNotMatch(app,/PAY_NAV_GROUP_LABELS/);
+  assert.doesNotMatch(app,/pay-nav-group-label/);
 });
 
 test('Referral UI exposes the dedicated referral link and click/signup/earnings stats', () => {
@@ -18,6 +21,7 @@ test('Referral UI exposes the dedicated referral link and click/signup/earnings 
   assert.match(ui,/data\.stats\.directSignups/);
   assert.match(ui,/data\.earnings_by_asset/);
   assert.match(ui,/navigator\.clipboard\.writeText/);
+  assert.match(ui,/window\.location\.origin \/r\//);
 });
 
 test('Referral UI uses the Pay service boundary and never calculates financial truth', () => {
