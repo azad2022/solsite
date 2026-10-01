@@ -338,7 +338,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         }
 
         if (ctx.path === '/sign-in/social') {
-          const click = ctx.request ? readReferralCookie(ctx.request) : null;
+          const click = ctx.request ? readReferralCookie(ctx.headers ?? ctx.request) : null;
           const authEmailLocale = resolveAuthEmailLocale(ctx.headers);
           await addOAuthServerContext({
             authEmailLocale,
@@ -353,7 +353,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         if (ctx.path === '/sign-up/email') {
           const body = ctx.body as { email?: unknown } | undefined;
           const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-          const click = ctx.request ? readReferralCookie(ctx.request) : null;
+          const click = ctx.request ? readReferralCookie(ctx.headers ?? ctx.request) : null;
           if (email && click) {
             const identity = await database.application.findBetterAuthIdentityByEmail(email);
             if (identity) {
@@ -406,6 +406,33 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                 username: typeof record.username === 'string' ? record.username : null,
                 createdAt: record.createdAt,
               });
+
+              if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
+                const requestClick = ctx.request ? readReferralCookie(ctx.headers ?? ctx.request) : null;
+                const state = ctx.path.startsWith('/callback/')
+                  ? await getOAuthState().catch(() => null)
+                  : null;
+                const serverContext = state?.serverContext as {
+                  referralClickId?: unknown;
+                  referralCode?: unknown;
+                } | undefined;
+                const stateClick: ReferralCookie | null =
+                  typeof serverContext?.referralClickId === 'string' &&
+                  typeof serverContext.referralCode === 'string'
+                    ? {
+                        clickId: serverContext.referralClickId,
+                        referralCode: serverContext.referralCode,
+                      }
+                    : null;
+                const click = requestClick ?? stateClick;
+                await processReferralSignup(
+                  env,
+                  database.application,
+                  click,
+                  String(record.id),
+                  String(record.name || 'کاربر جدید'),
+                );
+              }
 
               if (ctx.path === '/callback/google') {
                 const state = await getOAuthState().catch(() => null);
