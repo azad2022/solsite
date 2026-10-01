@@ -396,7 +396,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     databaseHooks: {
       user: {
         create: {
-          after: async (user) => {
+          after: async (user, ctx) => {
             try {
               const record = user as typeof user & { username?: string | null };
               await provisionApplicationProfile(database.application, {
@@ -406,30 +406,24 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                 username: typeof record.username === 'string' ? record.username : null,
                 createdAt: record.createdAt,
               });
+
+              if (ctx.path === '/callback/google') {
+                const state = await getOAuthState().catch(() => null);
+                const serverContext = state?.serverContext as { authEmailLocale?: unknown } | undefined;
+                const locale = isAuthEmailLocale(serverContext?.authEmailLocale)
+                  ? serverContext.authEmailLocale
+                  : 'en-US';
+                await sendGoogleWelcomeNotification(
+                  env,
+                  database.application,
+                  String(record.id),
+                  locale,
+                );
+              }
             } catch (error) {
               await database.application.deleteBetterAuthUser(String(user.id)).catch(() => {});
               throw error;
             }
-          },
-        },
-      },
-      account: {
-        create: {
-          after: async (account, ctx) => {
-            if (String(account.providerId) !== 'google' || !ctx.path.startsWith('/callback/')) return;
-
-            const state = await getOAuthState().catch(() => null);
-            const serverContext = state?.serverContext as { authEmailLocale?: unknown } | undefined;
-            const locale = isAuthEmailLocale(serverContext?.authEmailLocale)
-              ? serverContext.authEmailLocale
-              : 'en-US';
-
-            await sendGoogleWelcomeNotification(
-              env,
-              database.application,
-              String(account.userId),
-              locale,
-            );
           },
         },
       },
