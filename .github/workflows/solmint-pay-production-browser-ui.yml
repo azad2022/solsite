@@ -19,6 +19,8 @@ on:
       - 'public/_headers'
       - 'index.html'
       - 'wrangler.toml'
+      - 'package.json'
+      - 'scripts/ensure-pages-routes.mjs'
       - '.github/workflows/solmint-pay-production-browser-ui.yml'
       - '.github/solmint-pay-production-ui-e2e.trigger'
   workflow_dispatch:
