@@ -84,8 +84,13 @@ jobs:
             const start = summary.indexOf(marker);
             if (start >= 0) {
               const tail = summary.slice(start);
-              const end = tail.search(/[\x27\x22\\s<]/);
-              previewUrl = (end >= 0 ? tail.slice(0, end) : tail).replace(/\/$/, '');
+              const stopChars = ['\x27', '\x22', '<', ' ', '\\n', '\\r'];
+              let end = tail.length;
+              for (const char of stopChars) {
+                const position = tail.indexOf(char);
+                if (position >= 0 && position < end) end = position;
+              }
+              previewUrl = tail.slice(0, end).replace(/\/$/, '');
             }
             console.log('PAGES_PREVIEW_ROUTE_WAIT attempt=' + attempt + ' status=' + (check?.status || 'missing') + ' conclusion=' + (check?.conclusion || 'pending') + ' preview=' + (previewUrl || 'missing'));
             if (check?.status === 'completed' && check.conclusion === 'success' && previewUrl) break;
