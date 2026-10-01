@@ -573,8 +573,34 @@ try {
 
   await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-account-trigger').waitFor({ state: 'visible', timeout: 10000 });
+
+  const referralStatsResponsePromise = page.waitForResponse(
+    (response) => response.url().includes('/api/pay/v1/referrals?limit=1'),
+    { timeout: 10000 },
+  );
+
   await page.locator('.pay-account-trigger').click();
   await page.locator('.pay-account-menu').waitFor({ state: 'visible', timeout: 10000 });
+
+  const referralStatsResponse = await referralStatsResponsePromise;
+  const referralStatsStatus = referralStatsResponse.status();
+  const referralStatsBody = await referralStatsResponse.text();
+  assert.ok(
+    referralStatsStatus === 200 || referralStatsStatus === 404,
+    'Referral stats request must resolve through the released contract. Got HTTP ' + referralStatsStatus + ': ' + referralStatsBody.slice(0, 500),
+  );
+
+  const referralValue = page.locator('.pay-account-referral-summary strong');
+  await referralValue.waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(
+    () => {
+      const value = document.querySelector('.pay-account-referral-summary strong')?.textContent?.trim();
+      return Boolean(value) && value !== '—' && value !== '…';
+    },
+    null,
+    { timeout: 10000 },
+  );
+
   const referralAccountMenuText = await page.locator('.pay-account-menu').innerText();
   assert.ok(/Direct referrals|زیرمجموعه‌های مستقیم|الإحالات المباشرة|Прямые рефералы/i.test(referralAccountMenuText), 'Account menu must expose direct referral stats.');
   assert.match(referralAccountMenuText, /(^|\n)0(\n|$)/, 'Fresh E2E account should expose zero direct referrals.');
