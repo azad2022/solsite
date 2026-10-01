@@ -1167,6 +1167,123 @@ try {
   assert.equal(publicIntentFromDb[0].status, 'created');
   await publicContext.close();
 
+  // Production Ticket lifecycle: create -> reload -> merchant reply -> admin reply -> resolve -> close -> reopen.
+  await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
+  if (await page.locator('html').getAttribute('lang') !== 'en-US') {
+    await page.locator('.pay-language-trigger').click();
+    await page.locator('.pay-language-option').filter({ hasText: 'English' }).click();
+    await page.waitForFunction(() => document.documentElement.getAttribute('lang') === 'en-US', null, { timeout: 10000 });
+  }
+  await page.goto(ORIGIN + '/pay/tickets', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-ticket-new').waitFor({ state: 'visible', timeout: 10000 });
+  const ticketSubject = 'Production ticket ' + Date.now();
+  const ticketInitialMessage = 'Production ticket lifecycle verification.';
+  const ticketReplyMessage = 'Merchant follow-up from production E2E.';
+  const ticketAdminReply = 'Support response from production E2E.';
+  const ticketForm = page.locator('.pay-ticket-new');
+  await ticketForm.locator('input').fill(ticketSubject);
+  await ticketForm.locator('select').selectOption('high');
+  await ticketForm.locator('textarea').fill(ticketInitialMessage);
+  const ticketCreateResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/pay/v1/tickets') && response.request().method() === 'POST',
+    { timeout: 15000 },
+  );
+  await ticketForm.locator('.pay-primary-action').click();
+  const ticketCreateResponse = await ticketCreateResponsePromise;
+  const ticketCreateText = await ticketCreateResponse.text();
+  assert.equal(ticketCreateResponse.status(), 201, ticketCreateText);
+  const ticketCreateBody = ticketCreateText ? JSON.parse(ticketCreateText) : {};
+  assert.equal(ticketCreateBody.ticket?.subject, ticketSubject);
+  assert.equal(ticketCreateBody.ticket?.status, 'open');
+  assert.equal(ticketCreateBody.ticket?.priority, 'high');
+  const ticketId = ticketCreateBody.ticket?.id;
+  assert.equal(typeof ticketId, 'string');
+  await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
+  assert.match(await page.locator('.pay-ticket-success').innerText(), /Ticket created successfully/);
+  const createdTicketRow = page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first();
+  await createdTicketRow.waitFor({ state: 'visible', timeout: 10000 });
+  await createdTicketRow.click();
+  await page.locator('.pay-ticket-messages article').first().waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-ticket-messages article').count(), 1);
+  assert.ok((await page.locator('.pay-ticket-messages article').first().innerText()).includes(ticketInitialMessage));
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const reloadedTicketRow = page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first();
+  await reloadedTicketRow.waitFor({ state: 'visible', timeout: 10000 });
+  await reloadedTicketRow.click();
+  await page.locator('.pay-ticket-messages article').first().waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-ticket-messages article').count(), 1);
+  assert.ok((await page.locator('.pay-ticket-thread').innerText()).includes(ticketInitialMessage));
+
+  const merchantReplyForm = page.locator('.pay-ticket-reply');
+  await merchantReplyForm.locator('textarea').fill(ticketReplyMessage);
+  const ticketReplyResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/pay/v1/tickets/' + encodeURIComponent(ticketId) + '/messages') && response.request().method() === 'POST',
+    { timeout: 15000 },
+  );
+  await merchantReplyForm.locator('.pay-primary-action').click();
+  const ticketReplyResponse = await ticketReplyResponsePromise;
+  const ticketReplyText = await ticketReplyResponse.text();
+  assert.equal(ticketReplyResponse.status(), 201, ticketReplyText);
+  await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
+  assert.match(await page.locator('.pay-ticket-success').innerText(), /Reply sent/);
+  assert.ok((await page.locator('.pay-ticket-thread').innerText()).includes(ticketReplyMessage));
+  assert.match(await page.locator('.pay-ticket-thread').innerText(), /Waiting for support/);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first().click();
+  await page.locator('.pay-ticket-messages article').nth(1).waitFor({ state: 'visible', timeout: 10000 });
+  assert.ok((await page.locator('.pay-ticket-messages').innerText()).includes(ticketReplyMessage));
+
+  // Elevate only this disposable E2E application user so the same production fixture can verify the support-admin path.
+  await db('update public.users set role = $1 where id = $2', ['admin', fixture.applicationUserId]);
+  await context.request.post('/api/auth/sign-out', { headers: { Origin: ORIGIN, Accept: 'application/json' } }).catch(() => {});
+  await directSignIn(context, fixture);
+  await page.goto(ORIGIN + '/pay/tickets', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first().waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-ticket-new').count(), 0, 'Site administrators must not receive the merchant ticket creation form.');
+
+  await page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first().click();
+  const adminReplyForm = page.locator('.pay-ticket-reply');
+  await adminReplyForm.locator('textarea').fill(ticketAdminReply);
+  const adminReplyResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/pay/v1/tickets/' + encodeURIComponent(ticketId) + '/messages') && response.request().method() === 'POST',
+    { timeout: 15000 },
+  );
+  await adminReplyForm.locator('.pay-primary-action').click();
+  const adminReplyResponse = await adminReplyResponsePromise;
+  assert.equal(adminReplyResponse.status(), 201, await adminReplyResponse.text());
+  await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
+  assert.match(await page.locator('.pay-ticket-success').innerText(), /Reply sent/);
+  assert.ok((await page.locator('.pay-ticket-messages').innerText()).includes(ticketAdminReply));
+  assert.match(await page.locator('.pay-ticket-thread').innerText(), /Waiting for merchant/);
+
+  const statusSelect = page.locator('.pay-ticket-thread-header select');
+  await statusSelect.selectOption('resolved');
+  await page.waitForFunction(() => document.querySelector('.pay-ticket-thread-header select')?.value === 'resolved', null, { timeout: 10000 });
+  assert.match(await page.locator('.pay-ticket-thread').innerText(), /Resolved/);
+  await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
+  assert.match(await page.locator('.pay-ticket-success').innerText(), /Ticket status updated/);
+
+  await statusSelect.selectOption('closed');
+  await page.waitForFunction(() => document.querySelector('.pay-ticket-thread-header select')?.value === 'closed', null, { timeout: 10000 });
+  await page.locator('.pay-ticket-closed').waitFor({ state: 'visible', timeout: 5000 });
+  assert.equal(await page.locator('.pay-ticket-reply').count(), 0, 'Closed tickets must not expose the reply form.');
+
+  await statusSelect.selectOption('open');
+  await page.waitForFunction(() => document.querySelector('.pay-ticket-thread-header select')?.value === 'open', null, { timeout: 10000 });
+  await page.locator('.pay-ticket-reply').waitFor({ state: 'visible', timeout: 5000 });
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first().click();
+  await page.locator('.pay-ticket-messages article').nth(2).waitFor({ state: 'visible', timeout: 10000 });
+  const ticketLifecycleText = await page.locator('.pay-ticket-thread').innerText();
+  assert.ok(ticketLifecycleText.includes(ticketInitialMessage));
+  assert.ok(ticketLifecycleText.includes(ticketReplyMessage));
+  assert.ok(ticketLifecycleText.includes(ticketAdminReply));
+  assert.match(ticketLifecycleText, /Open/);
+  console.log(`TICKET_PRODUCTION_LIFECYCLE_E2E ${JSON.stringify({ ticketId, createStatus: ticketCreateResponse.status(), merchantReplyStatus: ticketReplyResponse.status(), adminReplyStatus: adminReplyResponse.status(), finalStatus: 'open', messages: await page.locator('.pay-ticket-messages article').count() })}`);
+
   const postWalletRouteResults = [];
   for (const [path, label] of routes) {
     postWalletRouteResults.push(await routeAudit(page, path, `postwallet-${label}`, '/tmp/pay-ui-evidence', apiEvents));

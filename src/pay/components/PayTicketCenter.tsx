@@ -20,7 +20,7 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
   const isAdmin = sessionUser.role === 'admin';
   const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null);
   const [loading,setLoading]=useState(true); const [detailLoading,setDetailLoading]=useState(false); const [error,setError]=useState<'error'|'forbidden'|'unauthorized'|null>(null); const [detailError,setDetailError]=useState<'error'|'forbidden'|'unauthorized'|null>(null);
-  const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null);
+  const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null); const [notice,setNotice]=useState<'created'|'replied'|'status'|null>(null);
 
   async function loadTickets(selectFirst=true) {
     if (!isAdmin && !merchantId) {
@@ -45,16 +45,18 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
     }
   }
   async function loadDetail(id:string) { setDetailLoading(true); setDetailError(null); try { setDetail(await getPayTicket(id)); } catch(e) { setDetailError(accessError(e)); } finally { setDetailLoading(false); } }
+  async function refreshSelectedTicket() { setNotice(null); await loadTickets(false); const id = selectedId; if (id) await loadDetail(id); }
   useEffect(()=>{ void loadTickets(); },[merchantId,isAdmin]);
-  useEffect(()=>{ if(selectedId) void loadDetail(selectedId); else setDetail(null); },[selectedId]);
+  useEffect(()=>{ if(selectedId) { setDetail(null); setDetailError(null); void loadDetail(selectedId); } else { setDetail(null); setDetailError(null); } },[selectedId]);
   const selected = useMemo(()=>tickets.find(item=>item.id===selectedId)||detail?.ticket||null,[tickets,selectedId,detail]);
-  async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); try { const created=await createPayTicket({merchantId,subject,message,priority}); setSubject(''); setMessage(''); setPriority('normal'); await loadTickets(false); setSelectedId(created.id); } catch(e) { setError(accessError(e)); } finally { setBusy(null); } }
-  async function handleReply(event:React.FormEvent) { event.preventDefault(); if(!selectedId || !reply.trim() || busy) return; setBusy('reply'); setDetailError(null); try { await replyToPayTicket(selectedId,reply); setReply(''); await Promise.all([loadTickets(false),loadDetail(selectedId)]); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }
-  async function handleStatus(status:PayTicketStatus) { if(!selectedId || busy || !isAdmin) return; setBusy('status'); try { const updated=await updatePayTicketStatus(selectedId,status); setTickets(current=>current.map(item=>item.id===updated.id?updated:item)); setDetail(current=>current?{...current,ticket:updated}:current); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }
+  async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); setNotice(null); try { const created=await createPayTicket({merchantId,subject,message,priority}); setSubject(''); setMessage(''); setPriority('normal'); setNotice('created'); await loadTickets(false); setSelectedId(created.id); } catch(e) { setError(accessError(e)); } finally { setBusy(null); } }
+  async function handleReply(event:React.FormEvent) { event.preventDefault(); if(!selectedId || !reply.trim() || busy) return; setBusy('reply'); setDetailError(null); setNotice(null); try { await replyToPayTicket(selectedId,reply); setReply(''); setNotice('replied'); await Promise.all([loadTickets(false),loadDetail(selectedId)]); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }
+  async function handleStatus(status:PayTicketStatus) { if(!selectedId || busy || !isAdmin) return; setBusy('status'); setNotice(null); try { const updated=await updatePayTicketStatus(selectedId,status); setTickets(current=>current.map(item=>item.id===updated.id?updated:item)); setDetail(current=>current?{...current,ticket:updated}:current); setNotice('status'); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }
 
   return <section className="pay-ticket-center" aria-label={ticketT(locale,'tickets')}>
     <PayTrainingCenter locale={locale} />
-    <div className="pay-ticket-heading"><div><h2>{ticketT(locale,'title')}</h2><p>{ticketT(locale,'subtitle')}</p></div><button type="button" className="pay-icon-button" onClick={()=>void loadTickets(false)} aria-label={ticketT(locale,'retry')}><RefreshCw size={17}/></button></div>
+    <div className="pay-ticket-heading"><div><h2>{ticketT(locale,'title')}</h2><p>{ticketT(locale,'subtitle')}</p></div><button type="button" className="pay-icon-button" onClick={()=>void refreshSelectedTicket()} aria-label={ticketT(locale,'retry')}><RefreshCw size={17}/></button></div>
+    {notice ? <div className="pay-ticket-success" role="status" aria-live="polite"><CircleCheck size={18}/><span>{ticketT(locale,notice==='created'?'sent':notice==='replied'?'replied':'statusUpdated')}</span></div> : null}
     {error ? <div className={`pay-ticket-alert ${error==='forbidden'?'is-forbidden':''}`} role="alert"><AlertCircle size={18}/><span>{error==='forbidden'?ticketT(locale,'forbidden'):error==='unauthorized'?ticketT(locale,'unauthorized'):ticketT(locale,'error')}</span><button type="button" onClick={()=>void loadTickets()}>{ticketT(locale,'retry')}</button></div>:null}
     <div className="pay-ticket-layout">
       <div className="pay-ticket-list-pane">
