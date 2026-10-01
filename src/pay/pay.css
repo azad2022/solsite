@@ -434,7 +434,7 @@
   .pay-sidebar.is-mobile-open .pay-nav-item::after { display: none; }
   .pay-sidebar.is-mobile-open .pay-sidebar-security { display: flex; }
   .pay-sidebar.is-mobile-open .pay-sidebar-brand { justify-content: flex-start; }
-  .pay-sidebar.is-mobile-open .pay-nav-item,
+  .pay-sidebar.is-mobile-open .pay-nav-item { display: flex !important; }
   .pay-mobile-close { display: grid !important; }
   .pay-mobile-menu { display: grid; }
   .pay-mobile-backdrop { position: fixed; inset: 0; z-index: 35; display: block; background: rgba(22, 24, 31, 0.25); opacity: 0; pointer-events: none; touch-action: none; transition: opacity 220ms ease; }

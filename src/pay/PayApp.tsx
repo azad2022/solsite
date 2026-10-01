@@ -291,12 +291,6 @@ export function PayApp(): React.ReactElement {
             })}
           </nav>
 
-          <div className="pay-sidebar-bottom">
-            <div className="pay-sidebar-security">
-              <div className="pay-sidebar-security-icon" aria-hidden="true"><LockKeyhole size={16} /></div>
-              <div><strong>{translate(locale, 'secureBoundary')}</strong><span>{translate(locale, 'secureBoundaryText')}</span></div>
-            </div>
-          </div>
         </aside>
 
         <div className="pay-mobile-backdrop" aria-hidden="true" onClick={() => setMobileNavOpen(false)} />
@@ -421,7 +415,7 @@ export function PayApp(): React.ReactElement {
             </> : <PayUnavailableFeature locale={locale} section={currentSection} />}
             </>}
           </main>
-          <footer className="pay-footer"><span>{translate(locale, 'footer')}</span><span>{translate(locale, 'secureBoundary')}</span></footer>
+          <footer className="pay-footer"><span>{translate(locale, 'footer')}</span></footer>
         </section>
       </div>
     </div>
