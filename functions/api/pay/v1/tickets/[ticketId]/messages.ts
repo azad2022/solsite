@@ -1,5 +1,5 @@
 import { getAuthenticatedUser } from '../../../../auth/_shared';
-import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../_shared/runtime';
+import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../_shared/runtime';
 
 type PayEnv = {
   PAY_API_ENABLED?: string;
@@ -21,6 +21,8 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const user = await getAuthenticatedUser(env, request);
     if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
+    const subjectHash = await hashCanonicalRequest({ userId: user.id });
+    await enforcePayRateLimit(env, 'tickets:message:user', subjectHash, 60, 30);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
     const body = await readJsonBody(request);
