@@ -387,7 +387,9 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         if (ctx.path === '/sign-up/email') {
           const body = ctx.body as { email?: unknown } | undefined;
           const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-          const click = readReferralCookie(ctx.headers ?? ctx.request);
+          const click = readCapturedReferralClick(ctx)
+            ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
+            ?? (ctx.request ? readReferralCookie(ctx.request) : null);
           if (email && click) {
             const identity = await database.application.findBetterAuthIdentityByEmail(email);
             if (identity) {
