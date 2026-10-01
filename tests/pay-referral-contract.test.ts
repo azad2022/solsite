@@ -33,6 +33,8 @@ test('Referral public route records a click and preserves signup attribution in 
   assert.ok(publicRoute.includes('sm_[0-9a-f]{12}'));
   assert.doesNotMatch(publicRoute,/pay_referral_code_aliases/);
   assert.doesNotMatch(publicRoute,/auth=register/);
+  assert.match(publicRoute,/enforcePayRateLimit/);
+  assert.match(publicRoute,/hashCanonicalRequest/);
 });
 
 test('Referral persistence is explicitly single-level and per-user', () => {
