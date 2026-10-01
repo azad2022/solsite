@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CheckCircle2,
   CircleDollarSign,
   Clock3,
   Copy,
@@ -95,10 +94,28 @@ function referralUrl(code: string): string {
   return window.location.origin + '/r/' + encodeURIComponent(code);
 }
 
-function statLabel(icon: React.ReactNode, label: string, value: string): React.ReactElement {
+type ReferralIconTone = 'pink' | 'purple' | 'teal' | 'blue' | 'amber' | 'green' | 'rose' | 'slate';
+
+function ReferralIcon({
+  icon,
+  tone = 'pink',
+  className = '',
+}: {
+  icon: React.ReactNode;
+  tone?: ReferralIconTone;
+  className?: string;
+}): React.ReactElement {
+  return (
+    <span className={`pay-referrals-icon pay-referrals-icon-${tone}${className ? ` ${className}` : ''}`} aria-hidden="true">
+      {icon}
+    </span>
+  );
+}
+
+function statLabel(icon: React.ReactNode, label: string, value: string, tone: ReferralIconTone): React.ReactElement {
   return (
     <article className="pay-referrals-stat">
-      <span className="pay-referrals-stat-icon" aria-hidden="true">{icon}</span>
+      <ReferralIcon icon={icon} tone={tone} className="pay-referrals-stat-icon" />
       <div><span>{label}</span><strong>{value}</strong></div>
     </article>
   );
@@ -208,19 +225,19 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
           <p>{referralT(locale, 'subtitle')}</p>
         </div>
         <button type="button" className="pay-secondary-action" onClick={() => void load()} disabled={loading}>
-          <RefreshCw size={16} aria-hidden="true" />{referralT(locale, 'refresh')}
+          <span className="pay-referrals-inline-icon" aria-hidden="true"><RefreshCw size={16} /></span>{referralT(locale, 'refresh')}
         </button>
       </div>
 
       {stale && !loading ? <div className="pay-referrals-stale" role="status">{referralT(locale, 'stale')}</div> : null}
 
       {loading && !data ? (
-        <div className="pay-referrals-state"><Loader2 className="animate-spin" size={22} aria-hidden="true" /><span>{referralT(locale, 'title')}</span></div>
+        <div className="pay-referrals-state"><ReferralIcon icon={<Loader2 className="animate-spin" size={22} />} tone="purple" className="pay-referrals-state-icon" /><span>{referralT(locale, 'title')}</span></div>
       ) : null}
 
       {error && !loading && !data ? (
         <div className="pay-referrals-state is-error" role="alert">
-          <XCircle size={21} aria-hidden="true" />
+          <ReferralIcon icon={<XCircle size={21} />} tone="rose" className="pay-referrals-state-icon" />
           <span>{error === 'unauthorized' ? referralT(locale, 'unauthorized') : error === 'forbidden' ? referralT(locale, 'forbidden') : referralT(locale, 'loadFailed')}</span>
           <button type="button" className="pay-secondary-action" onClick={() => void load()}>{referralT(locale, 'retry')}</button>
         </div>
@@ -228,12 +245,7 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
 
       {data && (
         <>
-          <section className="pay-referrals-promo" aria-labelledby="pay-referrals-promo-title">
-            <div className="pay-referrals-promo-copy">
-              <span className="pay-panel-kicker">{referralT(locale, 'promoKicker')}</span>
-              <h3 id="pay-referrals-promo-title">{referralT(locale, 'promoTitle')}</h3>
-              <p>{referralT(locale, 'promoDescription')}</p>
-            </div>
+          <div className="pay-referrals-video-card">
             <div className="pay-referrals-video-shell">
               <video
                 className="pay-referrals-video"
@@ -241,20 +253,20 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
                 playsInline
                 preload="metadata"
                 src="/assets/pay-referral-promo.mp4"
-                aria-label={referralT(locale, 'promoTitle')}
+                aria-label={referralT(locale, 'promoVideoLabel')}
               />
             </div>
-          </section>
+          </div>
 
           <section className="pay-referrals-link-card">
-            <div className="pay-referrals-link-icon" aria-hidden="true"><Link2 size={22} /></div>
+            <ReferralIcon icon={<Link2 size={22} strokeWidth={2.1} />} tone="pink" className="pay-referrals-link-icon" />
             <div className="pay-referrals-link-copy">
               <span className="pay-panel-kicker">{referralT(locale, 'referralLink')}</span>
               <strong dir="ltr">{link}</strong>
               <small>{bpsPercent(data.affiliate.commission_rate_bps)} · {referralAffiliateStatusT(locale, data.affiliate.status)}</small>
             </div>
             <button type="button" className="pay-primary-action" onClick={() => void copyReferralLink()} aria-label={referralT(locale, 'copyLink')}>
-              {copyState === 'copied' ? <CopyCheck size={17} aria-hidden="true" /> : <Copy size={17} aria-hidden="true" />}
+              {copyState === 'copied' ? <span className="pay-referrals-inline-icon" aria-hidden="true"><CopyCheck size={17} /></span> : <span className="pay-referrals-inline-icon" aria-hidden="true"><Copy size={17} /></span>}
               {copyState === 'copied' ? referralT(locale, 'copied') : referralT(locale, 'copyLink')}
             </button>
           </section>
@@ -262,16 +274,16 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
           {copyState === 'failed' ? <div className="pay-referrals-copy-error" role="status">{referralT(locale, 'copyFailed')}</div> : null}
 
           <div className="pay-referrals-stats">
-            {statLabel(<MousePointerClick size={19} />, referralT(locale, 'clicks'), formatCount(data.stats.clicks, locale))}
-            {statLabel(<UserPlus size={19} />, referralT(locale, 'directSignups'), formatCount(data.stats.directSignups, locale))}
-            {statLabel(<Store size={19} />, referralT(locale, 'referredMerchants'), formatCount(data.stats.referredMerchants, locale))}
-            {statLabel(<Users size={19} />, referralT(locale, 'activeMerchants'), formatCount(data.stats.activeReferredMerchants, locale))}
+            {statLabel(<MousePointerClick size={20} strokeWidth={2.15} />, referralT(locale, 'clicks'), formatCount(data.stats.clicks, locale), 'purple')}
+            {statLabel(<UserPlus size={20} strokeWidth={2.15} />, referralT(locale, 'directSignups'), formatCount(data.stats.directSignups, locale), 'blue')}
+            {statLabel(<Store size={20} strokeWidth={2.15} />, referralT(locale, 'referredMerchants'), formatCount(data.stats.referredMerchants, locale), 'teal')}
+            {statLabel(<Users size={20} strokeWidth={2.15} />, referralT(locale, 'activeMerchants'), formatCount(data.stats.activeReferredMerchants, locale), 'green')}
           </div>
 
           <section className="pay-referrals-panel">
             <div className="pay-referrals-panel-heading">
               <div><span className="pay-panel-kicker">{referralT(locale, 'earnings')}</span><h3>{referralT(locale, 'earnings')}</h3></div>
-              <CircleDollarSign size={19} aria-hidden="true" />
+              <ReferralIcon icon={<CircleDollarSign size={19} strokeWidth={2.1} />} tone="purple" className="pay-referrals-section-icon" />
             </div>
             {data.earnings_by_asset.length === 0
               ? <div className="pay-referrals-mini-empty">{referralT(locale, 'noEarnings')}</div>
@@ -282,7 +294,7 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
             <section className="pay-referrals-panel">
               <div className="pay-referrals-panel-heading">
                 <div><span className="pay-panel-kicker">{referralT(locale, 'referredAccounts')}</span><h3>{referralT(locale, 'referredAccounts')}</h3></div>
-                <Users size={19} aria-hidden="true" />
+                <ReferralIcon icon={<Users size={19} strokeWidth={2.1} />} tone="blue" className="pay-referrals-section-icon" />
               </div>
               {data.stats.directSignups === '0'
                 ? <div className="pay-referrals-mini-empty">{referralT(locale, 'noReferrals')}</div>
@@ -293,7 +305,7 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
             <section className="pay-referrals-panel">
               <div className="pay-referrals-panel-heading">
                 <div><span className="pay-panel-kicker">{referralT(locale, 'merchants')}</span><h3>{referralT(locale, 'merchants')}</h3></div>
-                <Store size={19} aria-hidden="true" />
+                <ReferralIcon icon={<Store size={19} strokeWidth={2.1} />} tone="teal" className="pay-referrals-section-icon" />
               </div>
               {data.referrals.length === 0
                 ? <div className="pay-referrals-mini-empty">{referralT(locale, 'noReferrals')}</div>
@@ -353,14 +365,11 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
 
           {!hasData ? (
             <div className="pay-referrals-state is-compact">
-              <Clock3 size={20} aria-hidden="true" />
+              <ReferralIcon icon={<Clock3 size={20} />} tone="amber" className="pay-referrals-state-icon" />
               <span>{referralT(locale, 'noData')}</span>
             </div>
           ) : null}
 
-          <div className="pay-referrals-readonly">
-            <CheckCircle2 size={16} aria-hidden="true" />{referralT(locale, 'readonly')}
-          </div>
         </>
       )}
     </section>
