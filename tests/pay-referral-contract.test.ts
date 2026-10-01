@@ -13,6 +13,7 @@ const email = readFileSync('functions/api/auth/_email.ts','utf8');
 const browserWorkflow = readFileSync('.github/workflows/solmint-pay-production-browser-ui.yml','utf8');
 const liveSmokeWorkflow = readFileSync('.github/workflows/solmint-pay-live-smoke.yml','utf8');
 const liveAuditWorkflow = readFileSync('.github/workflows/solmint-pay-live-audit.yml','utf8');
+const routes = JSON.parse(readFileSync('public/_routes.json','utf8')) as { include?: string[] };
 
 test('Referral dashboard uses the released server-side contract', () => {
   assert.match(apiRoute,/pay_get_referral_dashboard/);
@@ -30,7 +31,8 @@ test('Referral public route records a click and preserves signup attribution in 
   assert.match(publicRoute,/new URL/);
   assert.ok(publicRoute.includes("new URL('/', requestUrl.origin)"));
   assert.ok(publicRoute.includes('sm_[0-9a-f]{12}'));
-  assert.doesNotMatch(publicRoute,/enforcePayRateLimit/);
+  assert.doesNotMatch(publicRoute,/pay_referral_code_aliases/);
+  assert.doesNotMatch(publicRoute,/auth=register/);
 });
 
 test('Referral persistence is explicitly single-level and per-user', () => {
@@ -73,6 +75,12 @@ test('Referral signup notification remains informational', () => {
   assert.match(email,/not the source of commission or settlement truth|مبنای محاسبه درآمد یا تسویه نیست/);
 });
 
+
+test('Current public referral routing has no legacy alias contract', () => {
+  assert.ok(routes.include?.includes('/r/*'));
+  assert.doesNotMatch(shortCodeMigration,/pay_referral_code_aliases/);
+  assert.match(publicRoute,/const CODE = \/\^sm_\[0-9a-f\]\{12\}\$\/i/);
+});
 
 test('Referral route changes trigger production browser and live smoke verification', () => {
   for (const workflow of [browserWorkflow, liveSmokeWorkflow, liveAuditWorkflow]) {
