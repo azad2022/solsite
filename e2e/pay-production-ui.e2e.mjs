@@ -559,9 +559,9 @@ try {
   await page.locator('.pay-account-trigger').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-account-trigger').click();
   await page.locator('.pay-account-menu').waitFor({ state: 'visible', timeout: 10000 });
-  const accountMenuText = await page.locator('.pay-account-menu').innerText();
-  assert.ok(/Direct referrals|زیرمجموعه‌های مستقیم|الإحالات المباشرة|Прямые рефералы/i.test(accountMenuText), 'Account menu must expose direct referral stats.');
-  assert.match(accountMenuText, /(^|\n)0(\n|$)/, 'Fresh E2E account should expose zero direct referrals.');
+  const referralAccountMenuText = await page.locator('.pay-account-menu').innerText();
+  assert.ok(/Direct referrals|زیرمجموعه‌های مستقیم|الإحالات المباشرة|Прямые рефералы/i.test(referralAccountMenuText), 'Account menu must expose direct referral stats.');
+  assert.match(referralAccountMenuText, /(^|\n)0(\n|$)/, 'Fresh E2E account should expose zero direct referrals.');
   await page.locator('.pay-account-menu-close').click();
 
   await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
