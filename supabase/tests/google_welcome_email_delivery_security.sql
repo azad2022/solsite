@@ -8,11 +8,25 @@ create table better_auth."user" (
   email text not null default ''
 );
 
-create role google_welcome_anon noinherit;
-create role google_welcome_authenticated noinherit;
-create role google_welcome_service_role noinherit;
+create temp table _google_welcome_created_roles (
+  rolname text primary key
+);
+
+do $$
+declare
+  role_name text;
+begin
+  foreach role_name in array array['anon','authenticated','service_role'] loop
+    if not exists (select 1 from pg_roles where rolname = role_name) then
+      execute format('create role %I noinherit', role_name);
+      insert into _google_welcome_created_roles values (role_name);
+    end if;
+  end loop;
+end;
+$$;
 
 \i supabase/migrations/20261001110000_solmint_google_welcome_email_delivery.sql
+sql
 
 do $$
 declare
@@ -97,25 +111,25 @@ begin
   end if;
 
   select has_function_privilege(
-    'google_welcome_service_role',
+    'service_role',
     'public.solmint_claim_auth_welcome_email_delivery(text,text,text)',
     'EXECUTE'
   ) into service_can_execute;
 
   select has_function_privilege(
-    'google_welcome_authenticated',
+    'authenticated',
     'public.solmint_claim_auth_welcome_email_delivery(text,text,text)',
     'EXECUTE'
   ) into anon_can_execute;
 
   select has_table_privilege(
-    'google_welcome_service_role',
+    'service_role',
     'public.auth_welcome_email_deliveries',
     'SELECT'
   ) into service_can_select;
 
   select has_table_privilege(
-    'google_welcome_authenticated',
+    'authenticated',
     'public.auth_welcome_email_deliveries',
     'SELECT'
   ) into authenticated_can_select;
@@ -135,6 +149,13 @@ begin
 end;
 $$;
 
-drop role google_welcome_service_role;
-drop role google_welcome_authenticated;
-drop role google_welcome_anon;
+
+do $$
+declare
+  role_name text;
+begin
+  for role_name in select rolname from _google_welcome_created_roles loop
+    execute format('drop role %I', role_name);
+  end loop;
+end;
+$$;
