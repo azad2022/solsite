@@ -1,3 +1,4 @@
+import { readReferralCookie } from '../pay/_shared/referralAttribution';
 import {
   createBetterAuthRuntime,
   processReferralSignupFromRequest,
@@ -71,6 +72,10 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
   const legacyResetRedirect = redirectLegacyPasswordReset(request);
   if (legacyResetRedirect) return legacyResetRedirect;
 
+  const pathname = new URL(request.url).pathname;
+  const isNativeEmailSignup = request.method === 'POST' && pathname === '/api/auth/sign-up/email';
+  const nativeReferralClick = isNativeEmailSignup ? readReferralCookie(request) : null;
+
   let runtime: ReturnType<typeof createBetterAuthRuntime> | null = null;
 
   try {
@@ -89,10 +94,8 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
     try {
       const response = await runtime.auth.handler(request);
 
-      const pathname = new URL(request.url).pathname;
       if (
-        request.method === 'POST' &&
-        pathname === '/api/auth/sign-up/email' &&
+        isNativeEmailSignup &&
         (response.status === 200 || response.status === 201)
       ) {
         try {
@@ -106,7 +109,7 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
             await processReferralSignupFromRequest(
               env,
               runtime.application,
-              request,
+              nativeReferralClick,
               betterAuthUserId,
               typeof payload.user?.name === 'string'
                 ? payload.user.name
