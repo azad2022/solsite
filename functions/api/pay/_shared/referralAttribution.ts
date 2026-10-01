@@ -80,7 +80,14 @@ export function readReferralCookie(source: Request | Headers | null | undefined)
     .find(part => part.startsWith(prefix));
 
   if (!cookiePart) return null;
-  return parseReferralCookieValue(cookiePart.slice(prefix.length));
+
+  const rawValue = cookiePart.slice(prefix.length).trim();
+  const normalizedValue =
+    rawValue.length >= 2 && rawValue.startsWith('"') && rawValue.endsWith('"')
+      ? rawValue.slice(1, -1)
+      : rawValue;
+
+  return parseReferralCookieValue(normalizedValue);
 }
 
 export function referralCookieHeader(click: ReferralCookie, isSecure: boolean): string {
