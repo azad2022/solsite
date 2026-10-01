@@ -253,14 +253,10 @@ try {
     'Referral stats UI must render the authoritative counts using the active locale.',
   );
 
-  const renderedDirectSummary = await referrerPage
-    .locator('.pay-referrals-direct-summary strong')
-    .innerText();
-
   assert.equal(
-    renderedDirectSummary.trim(),
-    expectedStatValues[1],
-    'Direct referral UI must render the authoritative direct-signup count using the active locale.',
+    await referrerPage.locator('.pay-referrals-direct-summary').count(),
+    0,
+    'The duplicated direct-referral summary panel must not be rendered.',
   );
 
   console.log('REFERRAL_DASHBOARD_COUNTS_AND_UI PASS ' + JSON.stringify({
