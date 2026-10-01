@@ -44,7 +44,7 @@ test('Referral UI has all four required locales', () => {
 
 test('Referral UI keeps the promotional video without visible promo copy or frontend truth notes', () => {
   assert.match(ui,/pay-referrals-video-card/);
-  assert.match(ui,/\/assets\/pay-referral-promo\\.mp4/);
+  assert.match(ui,/\/assets\/pay-referral-promo\.mp4/);
   assert.match(ui,/preload="metadata"/);
   assert.match(ui,/playsInline/);
   assert.doesNotMatch(ui,/promoKicker|promoTitle|promoDescription/);
