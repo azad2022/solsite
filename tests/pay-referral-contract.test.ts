@@ -24,7 +24,7 @@ test('Referral public route records a click and preserves signup attribution in 
   assert.match(publicRoute,/Cache-Control/);
   assert.match(publicRoute,/status: 302/);
   assert.match(publicRoute,/new URL/);
-  assert.match(publicRoute,/sm_[0-9a-f]{12}/);
+  assert.ok(publicRoute.includes('sm_[0-9a-f]{12}'));
   assert.doesNotMatch(publicRoute,/enforcePayRateLimit/);
 });
 
@@ -36,7 +36,7 @@ test('Referral persistence is explicitly single-level and per-user', () => {
   assert.match(migration,/commission_rate_bps set default 5000/);
   assert.match(migration,/pay_affiliates_fixed_commission_rate_check/);
   assert.match(migration,/v_commission_bps := 5000/);
-  assert.match(shortCodeMigration,/sm_[0-9a-f]{12}/);
+  assert.ok(shortCodeMigration.includes('sm_[0-9a-f]{12}'));
   assert.match(shortCodeMigration,/pay_affiliates_short_referral_code_check/);
   assert.match(shortCodeMigration,/encode\(gen_random_bytes\(6\), 'hex'\)/);
 });
