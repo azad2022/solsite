@@ -21,6 +21,7 @@ test('Referral UI exposes the dedicated referral link and click/signup/earnings 
   assert.match(ui,/\/r\//);
   assert.match(ui,/data\.stats\.clicks/);
   assert.match(ui,/data\.stats\.directSignups/);
+  assert.doesNotMatch(ui,/referredAccounts|pay-referrals-direct-summary/);
   assert.match(ui,/data\.earnings_by_asset/);
   assert.match(ui,/navigator\.clipboard\.writeText/);
   assert.match(ui,/window\.location\.origin/);
@@ -67,6 +68,7 @@ test('Pay shell uses a single concise footer and keeps mobile navigation labels 
   assert.match(app,/<footer className="pay-footer"><span>\{translate\(locale, 'footer'\)\}<\/span><\/footer>/);
   assert.doesNotMatch(app,/pay-sidebar-security/);
   assert.match(payCss,/\.pay-sidebar\.is-mobile-open \.pay-nav-item \{ display: flex !important; \}/);
+  assert.match(payCss,/\.pay-topbar-breadcrumb \{ display:none; \}/);
   assert.match(payCss,/\.pay-mobile-close \{ display: grid !important; \}/);
   assert.doesNotMatch(payCss,/\.pay-sidebar\.is-mobile-open \.pay-nav-item,\s*\.pay-mobile-close \{\s*display: grid !important;/);
   assert.match(readFileSync('src/pay/i18n.ts','utf8'),/footer: 'تمامی حقوق برای Solmint محفوظ است'/);
