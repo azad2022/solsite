@@ -1,7 +1,8 @@
 import { getAuthenticatedUser } from '../../../../auth/_shared';
 import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../_shared/runtime';
+import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
 
-type PayEnv = {
+type PayEnv = PayIdentityEnv & {
   PAY_API_ENABLED?: string;
   PAY_APP_ORIGIN?: string;
   SUPABASE_URL?: string;
@@ -25,6 +26,12 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     await enforcePayRateLimit(env, 'tickets:message:user', subjectHash, 60, 30);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
+    const identity = await resolvePayIdentity(request, env);
+    const ticketResponse = await supabaseRequestAsIdentity(env, identity.accessToken, `/rest/v1/pay_tickets?select=id,status&id=eq.${encodeURIComponent(ticketId)}&limit=1`);
+    const tickets = await ticketResponse.json() as Array<{ id: string; status: string }>;
+    const ticket = tickets[0];
+    if (!ticket) return payJson({ code: 'TICKET_NOT_FOUND', message: 'Ticket not found.' }, 404, requestId);
+    if (ticket.status === 'closed') return payJson({ code: 'TICKET_CLOSED', message: 'Closed tickets must be reopened before replying.' }, 409, requestId);
     const body = await readJsonBody(request);
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (message.length < 1 || message.length > 10000) return payJson({ code: 'INVALID_MESSAGE', message: 'message must be between 1 and 10000 characters.' }, 400, requestId);
