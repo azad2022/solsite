@@ -1,0 +1,172 @@
+name: SolMint Pay Exact Referral Production Probe
+
+on:
+  push:
+    branches:
+      - debug/pay-exact-referral-production-probe-20261001
+
+permissions:
+  contents: read
+
+jobs:
+  exact-referral-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Probe exact production referral and authoritative counters
+        run: |
+          node --input-type=module <<'NODE'
+          const CODE = 'sm_2e9ffcbb6c66';
+          const ORIGIN = 'https://solmint.ir';
+          const PROJECT_REF = 'nvopkbiedorfshwbmyhn';
+          const token = (process.env.SUPABASE_ACCESS_TOKEN || '').trim();
+          if (!token) throw new Error('SUPABASE_ACCESS_TOKEN is required');
+
+          async function db(query, parameters = [], readOnly = false) {
+            const response = await fetch(
+              `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`,
+              {
+                method: 'POST',
+                headers: {
+                  authorization: 'Bearer ' + token,
+                  'content-type': 'application/json',
+                },
+                body: JSON.stringify({ query, parameters, read_only: readOnly }),
+              },
+            );
+            if (!response.ok) {
+              const body = await response.text();
+              throw new Error('Supabase Management API query failed: HTTP ' + response.status + ' ' + body.slice(0, 500));
+            }
+            return response.json();
+          }
+
+          function rows(value) {
+            if (Array.isArray(value)) return value.filter(Boolean);
+            if (!value || typeof value !== 'object') return [];
+            for (const key of ['rows', 'data', 'result']) {
+              if (Array.isArray(value[key])) return rows(value[key]);
+              if (value[key] && typeof value[key] === 'object') return rows(value[key]);
+            }
+            return [];
+          }
+
+          async function snapshot() {
+            return rows(await db(
+              'select id::text as id, created_at::text as created_at, consumed_at::text as consumed_at from public.pay_referral_click_events where referral_code = $1 order by created_at asc',
+              [CODE],
+              true,
+            ));
+          }
+
+          async function dashboard() {
+            const result = rows(await db(
+              `begin;
+               set local role authenticated;
+               select set_config(
+                 'request.jwt.claims',
+                 json_build_object('role','authenticated','solmint_user_id',(
+                   select owner_user_id from public.pay_affiliates where referral_code = $1 limit 1
+                 ))::text,
+                 true
+               );
+               select public.pay_get_referral_dashboard(100) as dashboard;
+               rollback;`,
+              [CODE],
+              false,
+            ));
+            return result.at(-1)?.dashboard ?? null;
+          }
+
+          const beforeRows = await snapshot();
+          const beforeDashboard = await dashboard();
+
+          const response = await fetch(
+            ORIGIN + '/r/' + CODE,
+            {
+              redirect: 'manual',
+              headers: {
+                accept: 'text/plain',
+                'cache-control': 'no-cache',
+                'user-agent': 'SolMint-Exact-Referral-Production-Probe/1.0',
+              },
+            },
+          );
+          const body = (await response.text()).slice(0, 500);
+          const setCookie = response.headers.get('set-cookie') || '';
+          const location = response.headers.get('location') || '';
+
+          await new Promise(resolve => setTimeout(resolve, 750));
+
+          const afterRows = await snapshot();
+          const afterDashboard = await dashboard();
+
+          const beforeIds = new Set(beforeRows.map(row => row.id));
+          const newRows = afterRows.filter(row => !beforeIds.has(row.id));
+
+          console.log('EXACT_REFERRAL_PRODUCTION_RESULT ' + JSON.stringify({
+            code: CODE,
+            httpStatus: response.status,
+            location,
+            body,
+            setCookiePresent: Boolean(setCookie),
+            beforeClickCount: beforeRows.length,
+            afterClickCount: afterRows.length,
+            newClickIds: newRows.map(row => row.id),
+            beforeStats: beforeDashboard?.stats ?? null,
+            afterStats: afterDashboard?.stats ?? null,
+          }));
+
+          if (response.status !== 302 || location !== ORIGIN + '/') {
+            throw new Error(
+              'Exact production referral route is not executing the Referral Function correctly. Expected HTTP 302 to homepage, got HTTP ' +
+              response.status + ' location=' + location,
+            );
+          }
+
+          if (afterRows.length !== beforeRows.length + 1 || newRows.length !== 1) {
+            throw new Error(
+              'Exact production referral click was not recorded exactly once. before=' +
+              beforeRows.length + ' after=' + afterRows.length + ' new=' + newRows.length,
+            );
+          }
+
+          if (afterDashboard?.stats?.clicks !== String(beforeRows.length + 1)) {
+            throw new Error(
+              'Authoritative referral dashboard clicks did not increase as expected. before=' +
+              String(beforeRows.length) + ' afterStats=' + String(afterDashboard?.stats?.clicks),
+            );
+          }
+
+          const newClickId = newRows[0].id;
+          const attribution = rows(await db(
+            'select id::text as id from public.pay_referral_user_attributions where click_event_id = $1',
+            [newClickId],
+            true,
+          ));
+          if (attribution.length !== 0) {
+            throw new Error('The exact referral probe unexpectedly created attribution data.');
+          }
+
+          await db('delete from public.pay_referral_click_events where id = $1', [newClickId], false);
+
+          const finalRows = await snapshot();
+          const finalDashboard = await dashboard();
+
+          console.log('EXACT_REFERRAL_PRODUCTION_CLEANUP ' + JSON.stringify({
+            clickId: newClickId,
+            finalClickCount: finalRows.length,
+            finalStats: finalDashboard?.stats ?? null,
+          }));
+
+          if (finalRows.length !== beforeRows.length) {
+            throw new Error('Exact referral probe cleanup did not restore the original click count.');
+          }
+          if (finalDashboard?.stats?.clicks !== String(beforeRows.length)) {
+            throw new Error('Exact referral probe cleanup did not restore authoritative dashboard clicks.');
+          }
+
+          console.log('EXACT_REFERRAL_PRODUCTION_PROBE PASS');
+          NODE
