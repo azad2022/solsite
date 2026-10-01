@@ -10,6 +10,8 @@ on:
       - 'src/App.tsx'
       - 'src/utils/seoManager.ts'
       - 'functions/api/pay/**'
+      - 'functions/r/**'
+      - 'supabase/migrations/*solmint_pay_referral*.sql'
       - 'functions/api/auth/**'
       - 'functions/_middleware.ts'
       - 'public/_headers'
