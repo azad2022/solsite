@@ -21,7 +21,8 @@ test('Referral UI exposes the dedicated referral link and click/signup/earnings 
   assert.match(ui,/data\.stats\.directSignups/);
   assert.match(ui,/data\.earnings_by_asset/);
   assert.match(ui,/navigator\.clipboard\.writeText/);
-  assert.match(ui,/window\.location\.origin \/r\//);
+  assert.match(ui,/window\.location\.origin/);
+  assert.match(ui,/'\/r\/'/);
 });
 
 test('Referral UI uses the Pay service boundary and never calculates financial truth', () => {
