@@ -1,5 +1,5 @@
 import { getAuthenticatedUser, type AuthUser } from '../../../auth/_shared';
-import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../_shared/runtime';
+import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../_shared/identity';
 
 interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; PAY_APP_ORIGIN?: string; SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; }
@@ -41,6 +41,8 @@ export const onRequestPatch = async ({ request, env, params }: { request: Reques
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const user = await getAuthenticatedUser(env, request);
     if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
+    const subjectHash = await hashCanonicalRequest({ userId: user.id });
+    await enforcePayRateLimit(env, 'tickets:status:user', subjectHash, 60, 30);
     if (user.role !== 'admin') return payJson({ code: 'FORBIDDEN', message: 'Administrator access is required.' }, 403, requestId);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
