@@ -8,9 +8,9 @@ create table better_auth."user" (
   email text not null default ''
 );
 
-create role anon noinherit;
-create role authenticated noinherit;
-create role service_role noinherit;
+create role google_welcome_anon noinherit;
+create role google_welcome_authenticated noinherit;
+create role google_welcome_service_role noinherit;
 
 \i supabase/migrations/20261001110000_solmint_google_welcome_email_delivery.sql
 
@@ -97,25 +97,25 @@ begin
   end if;
 
   select has_function_privilege(
-    'service_role',
+    'google_welcome_service_role',
     'public.solmint_claim_auth_welcome_email_delivery(text,text,text)',
     'EXECUTE'
   ) into service_can_execute;
 
   select has_function_privilege(
-    'authenticated',
+    'google_welcome_authenticated',
     'public.solmint_claim_auth_welcome_email_delivery(text,text,text)',
     'EXECUTE'
   ) into anon_can_execute;
 
   select has_table_privilege(
-    'service_role',
+    'google_welcome_service_role',
     'public.auth_welcome_email_deliveries',
     'SELECT'
   ) into service_can_select;
 
   select has_table_privilege(
-    'authenticated',
+    'google_welcome_authenticated',
     'public.auth_welcome_email_deliveries',
     'SELECT'
   ) into authenticated_can_select;
@@ -135,6 +135,6 @@ begin
 end;
 $$;
 
-drop role service_role;
-drop role authenticated;
-drop role anon;
+drop role google_welcome_service_role;
+drop role google_welcome_authenticated;
+drop role google_welcome_anon;
