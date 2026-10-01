@@ -49,8 +49,10 @@ async function rpc<T>(env: ReferralServiceEnv, functionName: string, body: Recor
   return await response.json() as T;
 }
 
-export function readReferralCookie(request: Request): ReferralCookie | null {
-  const cookieHeader = request.headers.get('Cookie') || '';
+export function readReferralCookie(source: Request | Headers | null | undefined): ReferralCookie | null {
+  const cookieHeader = source instanceof Headers
+    ? source.get('Cookie') || ''
+    : source?.headers.get('Cookie') || '';
   const prefix = REFERRAL_COOKIE_NAME + '=';
   const cookiePart = cookieHeader
     .split(';')
