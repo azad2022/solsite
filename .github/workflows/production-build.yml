@@ -60,6 +60,42 @@ jobs:
       - name: Production build
         run: bunx vite build && node scripts/ensure-pages-routes.mjs && bunx esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs
 
+      - name: Verify Cloudflare Pages preview routes Referral Functions
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const token = process.env.GITHUB_TOKEN;
+          const repository = process.env.GITHUB_REPOSITORY;
+          const sha = process.env.TARGET_SHA;
+          let previewUrl = '';
+          for (let attempt = 1; attempt <= 120; attempt += 1) {
+            const response = await fetch(
+              'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
+              { headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json' } },
+            );
+            if (!response.ok) throw new Error('GitHub check-runs lookup failed: ' + response.status);
+            const data = await response.json();
+            const check = (data.check_runs || []).find((item) => item.name === 'Cloudflare Pages');
+            const summary = check?.output?.summary || '';
+            const match = summary.match(/href=['\"](https:\\/\\/[^'\"]+\\.pages\\.dev)['\"]/i);
+            if (match) previewUrl = match[1].replace(/\/$/, '');
+            console.log('PAGES_PREVIEW_ROUTE_WAIT attempt=' + attempt + ' status=' + (check?.status || 'missing') + ' conclusion=' + (check?.conclusion || 'pending') + ' preview=' + (previewUrl || 'missing'));
+            if (check?.status === 'completed' && check.conclusion === 'success' && previewUrl) break;
+            if (check?.status === 'completed' && check.conclusion !== 'success') throw new Error('Cloudflare Pages preview deployment failed: ' + check.conclusion);
+            if (attempt === 120) throw new Error('Timed out waiting for the Cloudflare Pages preview deployment.');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          const response = await fetch(previewUrl + '/r/sm_000000000000', {
+            redirect: 'manual',
+            headers: { accept: 'text/plain' },
+          });
+          const body = (await response.text()).slice(0, 200);
+          console.log('PAGES_PREVIEW_REFERRAL_ROUTE ' + JSON.stringify({ previewUrl, status: response.status, location: response.headers.get('location') || '', body }));
+          if (response.status !== 404) throw new Error('Referral Function was not reached on the Cloudflare Pages preview. Expected 404 for an invalid short code, got HTTP ' + response.status);
+          NODE
       - name: Assert source tree is unchanged
         run: |
           git diff --exit-code
