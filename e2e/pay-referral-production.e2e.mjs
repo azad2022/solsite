@@ -119,9 +119,20 @@ try {
   const clickResponse = await referredPage.goto(referralUrl, { waitUntil: 'domcontentloaded' });
   assert.ok(clickResponse, 'Referral navigation must return a response.');
   assert.equal(clickResponse.status(), 200, 'Referral navigation must complete at the homepage after the tracked redirect.');
-  assert.equal(new URL(await referredPage.url()).pathname, '/', 'Valid referral link must redirect to homepage.');
-  const cookies = await referredContext.cookies(ORIGIN);
+  const finalUrl = await referredPage.url();
+  assert.equal(new URL(finalUrl).pathname, '/', 'Valid referral link must redirect to homepage.');
+  assert.equal(new URL(finalUrl).origin, ORIGIN, 'Referral redirect must remain on the canonical production origin.');
+
+  const cookies = await referredContext.cookies(finalUrl);
   const referralCookie = cookies.find((cookie) => cookie.name === 'solmint_referral_click');
+  console.log('REFERRAL_COOKIE_SCOPE ' + JSON.stringify({
+    origin: new URL(finalUrl).origin,
+    domain: referralCookie?.domain || null,
+    path: referralCookie?.path || null,
+    secure: referralCookie?.secure ?? null,
+    httpOnly: referralCookie?.httpOnly ?? null,
+    sameSite: referralCookie?.sameSite || null,
+  }));
   assert.ok(referralCookie, 'Referral attribution cookie must be stored.');
   assert.equal(referralCookie.httpOnly, true);
   assert.equal(referralCookie.sameSite, 'Lax');
@@ -131,6 +142,21 @@ try {
   const username = `pay_ref_signup_${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
   const email = `${username}@example.com`;
   const password = `E2E-${randomBytes(24).toString('base64url')}`;
+
+  const signupRequestCookiePromise = new Promise((resolve) => {
+    const handler = async (request) => {
+      const url = new URL(request.url());
+      if (request.method() !== 'POST' || url.pathname !== '/api/auth/sign-up/email') return;
+      try {
+        const headers = await request.allHeaders();
+        resolve(typeof headers.cookie === 'string' ? headers.cookie : '');
+      } catch {
+        resolve('');
+      }
+    };
+    referredPage.on('request', handler);
+  });
+
   const signupResult = await referredPage.evaluate(async ({ email, password, username }) => {
     const response = await fetch('/api/auth/sign-up/email', {
       method: 'POST',
