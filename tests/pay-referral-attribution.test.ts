@@ -38,11 +38,11 @@ test('referral cookie parser accepts an RFC-style quoted cookie value', () => {
   const clickId = '550e8400-e29b-41d4-a716-446655440000';
   const referralCode = 'sm_1a2b3c4d5e6f';
   const cookieValue = encodeURIComponent(`${clickId}.${referralCode}`);
-  const request = new Request('https://solmint.ir/api/auth/sign-up/email', {
-    headers: {
+  const requestLike = {
+    headers: new Headers({
       Cookie: `solmint_referral_click="${cookieValue}"`,
-    },
-  });
+    }),
+  } as unknown as Request;
 
-  assert.deepEqual(readReferralCookie(request), { clickId, referralCode });
+  assert.deepEqual(readReferralCookie(requestLike), { clickId, referralCode });
 });
