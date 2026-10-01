@@ -10,6 +10,9 @@ const shortCodeRuntimeFixMigration = readFileSync('supabase/migrations/202610010
 const attribution = readFileSync('functions/api/pay/_shared/referralAttribution.ts','utf8');
 const auth = readFileSync('functions/api/auth/_instance.ts','utf8');
 const email = readFileSync('functions/api/auth/_email.ts','utf8');
+const browserWorkflow = readFileSync('.github/workflows/solmint-pay-production-browser-ui.yml','utf8');
+const liveSmokeWorkflow = readFileSync('.github/workflows/solmint-pay-live-smoke.yml','utf8');
+const liveAuditWorkflow = readFileSync('.github/workflows/solmint-pay-live-audit.yml','utf8');
 
 test('Referral dashboard uses the released server-side contract', () => {
   assert.match(apiRoute,/pay_get_referral_dashboard/);
@@ -68,4 +71,12 @@ test('Google OAuth referral context uses Better Auth server-trusted OAuth state'
 test('Referral signup notification remains informational', () => {
   assert.match(email,/referralSignup/);
   assert.match(email,/not the source of commission or settlement truth|مبنای محاسبه درآمد یا تسویه نیست/);
+});
+
+
+test('Referral route changes trigger production browser and live smoke verification', () => {
+  for (const workflow of [browserWorkflow, liveSmokeWorkflow, liveAuditWorkflow]) {
+    assert.match(workflow, /functions\/r\/\*\*/);
+    assert.match(workflow, /supabase\/migrations\/\*solmint_pay_referral\*\.sql/);
+  }
 });
