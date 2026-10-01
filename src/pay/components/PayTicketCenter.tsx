@@ -33,7 +33,6 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
     }
     setLoading(true);
     setError(null);
-    setNotice(null);
     try {
       const rows=await listPayTickets({merchantId:isAdmin?undefined:merchantId});
       setTickets(rows);
@@ -46,7 +45,7 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
     }
   }
   async function loadDetail(id:string) { setDetailLoading(true); setDetailError(null); try { setDetail(await getPayTicket(id)); } catch(e) { setDetailError(accessError(e)); } finally { setDetailLoading(false); } }
-  async function refreshSelectedTicket() { await loadTickets(false); const id = selectedId; if (id) await loadDetail(id); }
+  async function refreshSelectedTicket() { setNotice(null); await loadTickets(false); const id = selectedId; if (id) await loadDetail(id); }
   useEffect(()=>{ void loadTickets(); },[merchantId,isAdmin]);
   useEffect(()=>{ if(selectedId) { setDetail(null); setDetailError(null); void loadDetail(selectedId); } else { setDetail(null); setDetailError(null); } },[selectedId]);
   const selected = useMemo(()=>tickets.find(item=>item.id===selectedId)||detail?.ticket||null,[tickets,selectedId,detail]);
