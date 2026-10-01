@@ -1,4 +1,8 @@
-import { createBetterAuthRuntime, type SolmintBetterAuthRuntimeEnv } from './_instance';
+import {
+  createBetterAuthRuntime,
+  processReferralSignupFromRequest,
+  type SolmintBetterAuthRuntimeEnv,
+} from './_instance';
 
 type PagesAuthContext = {
   request: Request;
@@ -83,7 +87,41 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
     }
 
     try {
-      return await runtime.auth.handler(request);
+      const response = await runtime.auth.handler(request);
+
+      const pathname = new URL(request.url).pathname;
+      if (
+        request.method === 'POST' &&
+        pathname === '/api/auth/sign-up/email' &&
+        (response.status === 200 || response.status === 201)
+      ) {
+        try {
+          const payload = await response.clone().json() as {
+            user?: { id?: unknown; name?: unknown };
+          };
+          const betterAuthUserId = typeof payload?.user?.id === 'string'
+            ? payload.user.id
+            : '';
+          if (betterAuthUserId) {
+            await processReferralSignupFromRequest(
+              env,
+              runtime.application,
+              request,
+              betterAuthUserId,
+              typeof payload.user?.name === 'string'
+                ? payload.user.name
+                : 'کاربر جدید',
+            );
+          }
+        } catch (error) {
+          console.warn('Referral signup boundary processing failed:', {
+            requestId,
+            message: error instanceof Error ? error.message : 'unknown error',
+          });
+        }
+      }
+
+      return response;
     } catch (error) {
       console.error('Better Auth request failed:', {
         requestId,

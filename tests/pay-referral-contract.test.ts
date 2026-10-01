@@ -9,6 +9,7 @@ const shortCodeMigration = readFileSync('supabase/migrations/20261001071009_solm
 const shortCodeRuntimeFixMigration = readFileSync('supabase/migrations/20261001071819_solmint_pay_referral_short_code_runtime_fix.sql','utf8');
 const attribution = readFileSync('functions/api/pay/_shared/referralAttribution.ts','utf8');
 const auth = readFileSync('functions/api/auth/_instance.ts','utf8');
+const authRoute = readFileSync('functions/api/auth/[[path]].ts','utf8');
 const email = readFileSync('functions/api/auth/_email.ts','utf8');
 const browserWorkflow = readFileSync('.github/workflows/solmint-pay-production-browser-ui.yml','utf8');
 const liveSmokeWorkflow = readFileSync('.github/workflows/solmint-pay-live-smoke.yml','utf8');
@@ -75,14 +76,13 @@ test('Referral cookie parsing supports Better Auth cookie context directly', () 
   assert.match(auth, /readReferralCookie\(ctx\.request\)/);
 });
 
-test('Native signup attribution uses the same Better Auth cookie context after profile provisioning', () => {
-  const provision = auth.indexOf('await provisionApplicationProfile(database.application, {');
-  const referral = auth.indexOf("if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {");
-  assert.ok(provision >= 0);
-  assert.ok(referral > provision);
-  assert.match(auth, /const requestClick = readReferralCookieFromAuthContext\(ctx\)/);
-  assert.match(auth, /const click = requestClick \?\? stateClick/);
-  assert.match(auth, /await processReferralSignup\(/);
+test('Native signup attribution runs at the Pages Auth boundary after a successful signup response', () => {
+  assert.match(auth, /export async function processReferralSignupFromRequest\(/);
+  assert.match(authRoute, /pathname === '\/api\/auth\/sign-up\/email'/);
+  assert.match(authRoute, /await runtime\.auth\.handler\(request\)/);
+  assert.match(authRoute, /await processReferralSignupFromRequest\(/);
+  assert.match(authRoute, /await response\.clone\(\)\.json\(\)/);
+  assert.doesNotMatch(auth, /ctx\.path === '\/sign-up\/email'\) \{[\s\S]*?attributeReferralFromClick/);
 });
 
 test('Google OAuth referral context and localized welcome use server-trusted OAuth state', () => {

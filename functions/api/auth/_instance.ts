@@ -165,6 +165,23 @@ function readReferralCookieFromAuthContext(ctx: {
     ?? (ctx.request ? readReferralCookie(ctx.request) : null);
 }
 
+export async function processReferralSignupFromRequest(
+  env: BetterAuthRuntimeEnv,
+  application: ApplicationAuthDatabase,
+  request: Request,
+  betterAuthUserId: string,
+  referredUserName: string,
+): Promise<void> {
+  const click = readReferralCookie(request);
+  await processReferralSignup(
+    env,
+    application,
+    click,
+    betterAuthUserId,
+    referredUserName,
+  );
+}
+
 function isAuthEmailLocale(value: unknown): value is AuthEmailLocale {
   return value === 'fa-IR' || value === 'en-US' || value === 'ar' || value === 'ru';
 }
@@ -342,7 +359,6 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/sign-up/email') {
-          readReferralCookieFromAuthContext(ctx);
           const isLegacyMigration =
             isLegacyMigrationEnabled(env) &&
             legacyMigrationSecret.length > 0 &&
@@ -371,27 +387,6 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
-        if (ctx.path === '/sign-up/email') {
-          const body = ctx.body as { email?: unknown } | undefined;
-          const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-          const click = readReferralCookieFromAuthContext(ctx);
-          if (email && click) {
-            const identity = await database.application.findBetterAuthIdentityByEmail(email);
-            if (identity) {
-              const user = await database.application.findBetterAuthUserById(identity.id);
-              const applicationUser = await database.application.findIdentityByBetterAuthUserId(identity.id);
-              if (user && applicationUser) {
-                const attribution = await attributeReferralFromClick(
-                  env as ReferralServiceEnv,
-                  click,
-                  applicationUser.id,
-                );
-                await sendReferralSignupNotification(env, database.application, attribution, user.name || 'کاربر جدید');
-              }
-            }
-          }
-        }
-
         if (ctx.path.startsWith('/callback/')) {
           const newSession = ctx.context.newSession;
           const state = await getOAuthState().catch(() => null);
@@ -428,16 +423,13 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                 createdAt: record.createdAt,
               });
 
-              if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
-                const requestClick = readReferralCookieFromAuthContext(ctx);
-                const state = ctx.path.startsWith('/callback/')
-                  ? await getOAuthState().catch(() => null)
-                  : null;
+              if (ctx.path.startsWith('/callback/')) {
+                const state = await getOAuthState().catch(() => null);
                 const serverContext = state?.serverContext as {
                   referralClickId?: unknown;
                   referralCode?: unknown;
                 } | undefined;
-                const stateClick: ReferralCookie | null =
+                const click: ReferralCookie | null =
                   typeof serverContext?.referralClickId === 'string' &&
                   typeof serverContext.referralCode === 'string'
                     ? {
@@ -445,7 +437,6 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                         referralCode: serverContext.referralCode,
                       }
                     : null;
-                const click = requestClick ?? stateClick;
                 await processReferralSignup(
                   env,
                   database.application,
