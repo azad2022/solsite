@@ -76,11 +76,15 @@ test('Referral cookie parsing supports Better Auth cookie context directly', () 
   assert.match(auth, /readReferralCookie\(ctx\.request\)/);
 });
 
-test('Native signup attribution runs at the Pages Auth boundary after a successful signup response', () => {
+test('Native signup attribution captures the referral cookie before Better Auth and uses it after a successful signup response', () => {
   assert.match(auth, /export async function processReferralSignupFromRequest\(/);
-  assert.match(authRoute, /pathname === '\/api\/auth\/sign-up\/email'/);
-  assert.match(authRoute, /await runtime\.auth\.handler\(request\)/);
-  assert.match(authRoute, /await processReferralSignupFromRequest\(/);
+  const capture = authRoute.indexOf('const nativeReferralClick = isNativeEmailSignup ? readReferralCookie(request) : null;');
+  const handler = authRoute.indexOf('const response = await runtime.auth.handler(request);');
+  const attribution = authRoute.indexOf('await processReferralSignupFromRequest(');
+  assert.ok(capture >= 0, 'Native signup must capture referral context before Better Auth runs.');
+  assert.ok(handler > capture, 'Referral context must be captured before Better Auth consumes the request lifecycle.');
+  assert.ok(attribution > handler, 'Referral attribution must run after Better Auth returns the successful signup response.');
+  assert.match(authRoute, /nativeReferralClick/);
   assert.match(authRoute, /await response\.clone\(\)\.json\(\)/);
   assert.doesNotMatch(auth, /ctx\.path === '\/sign-up\/email'\) \{[\s\S]*?attributeReferralFromClick/);
 });
