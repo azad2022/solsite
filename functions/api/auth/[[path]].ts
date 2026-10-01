@@ -105,13 +105,6 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
           const betterAuthUserId = typeof payload?.user?.id === 'string'
             ? payload.user.id
             : '';
-        } catch (error) {
-              console.warn('Referral auth diagnostic response failed:', {
-                requestId,
-                message: error instanceof Error ? error.message : 'unknown error',
-              });
-            }
-          }
           if (betterAuthUserId) {
             await processReferralSignupFromRequest(
               env,
@@ -123,6 +116,8 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
                 : 'کاربر جدید',
             );
           }
+
+
         } catch (error) {
           console.warn('Referral signup boundary processing failed:', {
             requestId,
