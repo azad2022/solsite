@@ -25,7 +25,7 @@ begin
 end;
 $$;
 
-\i supabase/migrations/20261001110000_solmint_google_welcome_email_delivery.sql
+\i supabase/migrations/20261001103617_solmint_google_welcome_email_delivery.sql
 
 do $$
 declare

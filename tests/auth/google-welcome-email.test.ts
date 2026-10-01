@@ -7,7 +7,7 @@ import {
 } from '../../functions/api/auth/_email';
 
 const instance = readFileSync('functions/api/auth/_instance.ts', 'utf8');
-const migration = readFileSync('supabase/migrations/20261001110000_solmint_google_welcome_email_delivery.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20261001103617_solmint_google_welcome_email_delivery.sql', 'utf8');
 
 test('Google welcome email resolves the four supported locales from authentication headers', () => {
   const cases = [
