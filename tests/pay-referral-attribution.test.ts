@@ -10,10 +10,13 @@ test('public referral click route is GET-only and stores an opaque click token',
   assert.match(route,/export const onRequestGet/);
   assert.match(service,/clickId: string/);
   assert.match(service,/HttpOnly; SameSite=Lax/);
+  assert.match(service,/REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 \* 60 \* 24 \* 30/);
+  assert.match(service,/Max-Age=\$\{REFERRAL_COOKIE_MAX_AGE_SECONDS\}/);
   assert.match(service,/UUID/);
   assert.match(service,/sm_\[0-9a-f\]\{12\}/i);
   assert.match(route,/status: 302/);
   assert.ok(route.includes("new URL('/', requestUrl.origin)"));
+  assert.match(route,/notFoundResponse/);
 });
 
 test('referral click is server-recorded and not client-RPC writable', () => {
