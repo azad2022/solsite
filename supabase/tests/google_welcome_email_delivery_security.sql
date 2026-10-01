@@ -149,6 +149,11 @@ end;
 $$;
 
 
+revoke all on table public.auth_welcome_email_deliveries from service_role;
+revoke all on function public.solmint_claim_auth_welcome_email_delivery(text,text,text) from service_role;
+revoke all on function public.solmint_complete_auth_welcome_email_delivery(uuid,text) from service_role;
+revoke all on function public.solmint_fail_auth_welcome_email_delivery(uuid,text,text) from service_role;
+
 do $$
 declare
   role_name text;
