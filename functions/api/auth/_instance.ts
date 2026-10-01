@@ -10,6 +10,7 @@ import {
   claimReferralSignupEmailDelivery,
   completeReferralSignupEmailDelivery,
   failReferralSignupEmailDelivery,
+  parseReferralCookieValue,
   readReferralCookie,
   type ReferralCookie,
   type ReferralServiceEnv,
@@ -145,37 +146,23 @@ async function processReferralSignup(
   }
 }
 
-interface SolmintReferralAuthContext {
-  referralClick?: ReferralCookie | null;
-}
-
-function readReferralClickFromAuthRequest(ctx: {
+function readReferralCookieFromAuthContext(ctx: {
+  getCookie?: (name: string) => string | null | undefined;
   headers?: Headers;
   request?: Request;
-  context?: unknown;
 }): ReferralCookie | null {
-  const click = (ctx.headers ? readReferralCookie(ctx.headers) : null)
+  try {
+    const authCookieValue = typeof ctx.getCookie === 'function'
+      ? ctx.getCookie('solmint_referral_click')
+      : null;
+    const fromAuthCookie = parseReferralCookieValue(authCookieValue);
+    if (fromAuthCookie) return fromAuthCookie;
+  } catch {
+    // Fall back to raw request/header cookie readers below.
+  }
+
+  return (ctx.headers ? readReferralCookie(ctx.headers) : null)
     ?? (ctx.request ? readReferralCookie(ctx.request) : null);
-
-  if (click && ctx.context && typeof ctx.context === 'object') {
-    (ctx.context as SolmintReferralAuthContext).referralClick = click;
-  }
-
-  return click;
-}
-
-function readCapturedReferralClick(ctx: { context?: unknown }): ReferralCookie | null {
-  if (!ctx.context || typeof ctx.context !== 'object') return null;
-  const value = (ctx.context as SolmintReferralAuthContext).referralClick;
-  if (
-    value &&
-    typeof value === 'object' &&
-    typeof value.clickId === 'string' &&
-    typeof value.referralCode === 'string'
-  ) {
-    return value;
-  }
-  return null;
 }
 
 function isAuthEmailLocale(value: unknown): value is AuthEmailLocale {
