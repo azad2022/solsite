@@ -11,6 +11,8 @@ test('public referral click route is GET-only and stores an opaque click token',
   assert.match(service,/clickId: string/);
   assert.match(service,/HttpOnly; SameSite=Lax/);
   assert.match(service,/UUID/);
+  assert.match(service,/sm_\[0-9a-f\]\{12\}/i);
+  assert.match(route,/status: 302/);
 });
 
 test('referral click is server-recorded and not client-RPC writable', () => {
