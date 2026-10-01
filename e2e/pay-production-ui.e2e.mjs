@@ -270,14 +270,11 @@ try {
     '/r/sm_bd776caf23ce4f5db5ba6ddd79b62fb1',
     { maxRedirects: 0 },
   );
-  assert.ok(
-    legacyReferralResponse.status() === 200 || legacyReferralResponse.status() === 302,
-    'Legacy referral links must fall back to the public homepage.',
+  assert.equal(
+    legacyReferralResponse.status(),
+    404,
+    'Legacy long referral links must be rejected by the current referral contract.',
   );
-  assert.equal(new URL(legacyReferralResponse.url(), ORIGIN).pathname, '/');
-  if (legacyReferralResponse.status() === 302) {
-    assert.equal(new URL(legacyReferralResponse.headers().location, ORIGIN).pathname, '/');
-  }
 
   const referralResponse = await context.request.get(
     '/r/' + referralFixture.referral_code,
