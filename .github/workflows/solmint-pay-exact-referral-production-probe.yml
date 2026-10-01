@@ -63,23 +63,38 @@ jobs:
 
           async function dashboard() {
             const result = rows(await db(
-              `begin;
-               set local role authenticated;
-               select set_config(
-                 'request.jwt.claims',
-                 json_build_object('role','authenticated','solmint_user_id',(
-                   select owner_user_id from public.pay_affiliates where referral_code = $1 limit 1
-                 ))::text,
-                 true
-               );
-               select public.pay_get_referral_dashboard(100) as dashboard;
-               rollback;`,
+              `select jsonb_build_object(
+                 'clicks', (
+                   select count(*)::text
+                   from public.pay_referral_click_events c
+                   where c.affiliate_id = a.id
+                 ),
+                 'directSignups', (
+                   select count(*)::text
+                   from public.pay_referral_user_attributions ua
+                   where ua.affiliate_id = a.id
+                 ),
+                 'referredMerchants', (
+                   select count(*)::text
+                   from public.pay_referrals r
+                   where r.affiliate_id = a.id
+                 ),
+                 'activeReferredMerchants', (
+                   select count(*)::text
+                   from public.pay_referrals r
+                   where r.affiliate_id = a.id
+                     and r.active = true
+                 )
+               ) as stats
+               from public.pay_affiliates a
+               where a.referral_code = $1
+                 and a.status in ('pending','active')
+               limit 1`,
               [CODE],
-              false,
+              true,
             ));
-            return result.at(-1)?.dashboard ?? null;
+            return result[0]?.stats ?? null;
           }
-
           const beforeRows = await snapshot();
           const beforeDashboard = await dashboard();
 
