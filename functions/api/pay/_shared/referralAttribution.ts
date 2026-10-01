@@ -1,5 +1,5 @@
 const REFERRAL_COOKIE_NAME = 'solmint_referral_click';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REFERRAL_CODE = /^sm_[0-9a-f]{12}$/i;
 const REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
@@ -80,7 +80,14 @@ export function readReferralCookie(source: Request | Headers | null | undefined)
     .find(part => part.startsWith(prefix));
 
   if (!cookiePart) return null;
-  return parseReferralCookieValue(cookiePart.slice(prefix.length));
+
+  const rawValue = cookiePart.slice(prefix.length).trim();
+  const normalizedValue =
+    rawValue.length >= 2 && rawValue.startsWith('"') && rawValue.endsWith('"')
+      ? rawValue.slice(1, -1)
+      : rawValue;
+
+  return parseReferralCookieValue(normalizedValue);
 }
 
 export function referralCookieHeader(click: ReferralCookie, isSecure: boolean): string {

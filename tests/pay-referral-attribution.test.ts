@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { readReferralCookie } from '../functions/api/pay/_shared/referralAttribution';
 
 const route = readFileSync('functions/r/[code].ts','utf8');
 const service = readFileSync('functions/api/pay/_shared/referralAttribution.ts','utf8');
@@ -30,4 +31,18 @@ test('signup attribution is immutable to one direct affiliate per user', () => {
   assert.match(migration,/click_event_id uuid not null unique/);
   assert.match(migration,/pay_attribute_referral_from_click/);
   assert.match(migration,/USER_PREEXISTED_CLICK/);
+});
+
+
+test('referral cookie parser accepts an RFC-style quoted cookie value', () => {
+  const clickId = '550e8400-e29b-41d4-a716-446655440000';
+  const referralCode = 'sm_1a2b3c4d5e6f';
+  const cookieValue = encodeURIComponent(`${clickId}.${referralCode}`);
+  const requestLike = {
+    headers: new Headers({
+      Cookie: `solmint_referral_click="${cookieValue}"`,
+    }),
+  } as unknown as Request;
+
+  assert.deepEqual(readReferralCookie(requestLike), { clickId, referralCode });
 });
