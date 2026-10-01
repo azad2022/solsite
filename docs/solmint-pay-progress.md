@@ -1490,3 +1490,36 @@ Live database evidence:
 The current application source is on main commit `4a72158b49d4b3070f168ad0ece718b821f5bb73`.
 
 CI/Cloudflare runtime evidence for this connector-created main commit was not emitted by GitHub automation during this session, so this checkpoint does not mark Production Browser E2E, Live Audit, or Cloudflare deployment as green without evidence.
+
+## 2026-10-01 — Referral Signup Attribution production verification checkpoint
+
+Status: **COMPLETED / PRODUCTION VERIFIED**
+
+Validated against runtime commit 09944ca7d2c1401863fa4e941583f956cdb2fe82:
+
+- Cloudflare Pages deployment: PASS.
+- CI / Quality: PASS.
+- Production Build: PASS.
+- Dedicated Referral production lifecycle E2E: PASS in **SolMint Pay — Live Browser Audit**.
+- The same dedicated Referral lifecycle E2E: PASS in **SolMint Pay Production Browser UI E2E**.
+- Real browser referral cookie scope: HTTPS, host-scoped, Path=/, HttpOnly, SameSite=Lax, 30-day persistence.
+- The real signup POST carried `solmint_referral_click`.
+- Authoritative attribution completed with exactly one direct signup for the test user.
+- The click event was consumed by the authoritative attribution path.
+- Referral dashboard API counts and the localized fa-IR Referral dashboard UI matched the authoritative counts.
+- The false-negative UI gate was corrected to compare exact locale-formatted values instead of ASCII digit matching.
+
+Root causes resolved in this rally:
+1. The referral click UUID validator had a malformed RFC UUID pattern and rejected valid click IDs.
+2. Cookie parsing did not normalize an optional surrounding quoted-string value.
+3. The production E2E UI assertion incorrectly searched for ASCII `1` while the fa-IR UI correctly rendered `۱`.
+
+No new API, database table, field, RPC, RLS rule, commission rule, payment rule, or frontend financial logic was introduced by the final test correction.
+
+Separately classified:
+- The broad Live Browser Audit later failed on an unrelated pre-existing Pay Account Menu assertion (`Fresh E2E account should expose zero direct referrals`); its failure occurs after the dedicated Referral lifecycle already passed and is not evidence of an Attribution failure.
+- The separate `Workers Builds: solsite` integration remains outside the Cloudflare Pages production path.
+
+### Checkpoint conclusion
+
+**Referral Signup Attribution is production-verified on the current runtime.** The observed cookie/auth-boundary parser defect is resolved, and the dedicated production lifecycle now proves click → secure cookie → real signup → authoritative attribution → click consumption → authoritative dashboard/UI counts.
