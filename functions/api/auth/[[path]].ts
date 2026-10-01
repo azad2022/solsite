@@ -116,8 +116,6 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
                 : 'کاربر جدید',
             );
           }
-
-}
         } catch (error) {
           console.warn('Referral signup boundary processing failed:', {
             requestId,
