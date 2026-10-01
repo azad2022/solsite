@@ -280,14 +280,16 @@ try {
     '/r/' + referralFixture.referral_code,
     { maxRedirects: 0 },
   );
-  assert.ok(
-    referralResponse.status() === 200 || referralResponse.status() === 302,
-    'Active referral links must reach the public homepage.',
+  assert.equal(
+    referralResponse.status(),
+    302,
+    'Active referral links must return the tracked 302 redirect response.',
   );
-  assert.equal(new URL(referralResponse.url(), ORIGIN).pathname, '/');
-  if (referralResponse.status() === 302) {
-    assert.equal(new URL(referralResponse.headers().location, ORIGIN).pathname, '/');
-  }
+  assert.equal(
+    new URL(referralResponse.headers().location || '', ORIGIN).pathname,
+    '/',
+    'Active referral links must redirect to the public homepage.',
+  );
   const referralCookies = await context.cookies(ORIGIN);
   assert.ok(referralCookies.some((cookie) => cookie.name === 'solmint_referral_click'), 'Active referral links must preserve the attribution cookie.');
 
