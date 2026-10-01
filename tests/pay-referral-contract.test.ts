@@ -66,6 +66,12 @@ test('Referral attribution rejects pre-existing accounts and is retry-safe', () 
   assert.match(migration,/on conflict \(referral_id, payment_id\) do nothing/);
 });
 
+test('Referral cookie parsing supports Better Auth header context directly', () => {
+  assert.match(attribution, /readReferralCookie\(source: Request \| Headers \| null \| undefined\)/);
+  assert.match(attribution, /source instanceof Headers/);
+  assert.match(auth, /readReferralCookie\(ctx\.headers \?\? ctx\.request\)/);
+});
+
 test('Native signup attribution runs after application profile provisioning', () => {
   const provision = auth.indexOf('await provisionApplicationProfile(database.application, {');
   const referral = auth.indexOf("if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {");
