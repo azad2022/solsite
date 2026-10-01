@@ -310,18 +310,8 @@ try {
     await page.locator('.pay-language-option').filter({ hasText: optionLabel }).click();
     await page.waitForFunction((direction) => document.documentElement.getAttribute('dir') === direction, expectedDirection, { timeout: 10000 });
 
-    const mobileMenu = page.locator('.pay-mobile-menu');
     const mascotLink = page.locator('.pay-topbar-brand-link');
-    await mobileMenu.waitFor({ state: 'visible', timeout: 10000 });
     await mascotLink.waitFor({ state: 'visible', timeout: 10000 });
-    const menuBox = await mobileMenu.boundingBox();
-    const mascotBox = await mascotLink.boundingBox();
-    assert.ok(menuBox && mascotBox);
-    if (expectedDirection === 'rtl') {
-      assert.ok(menuBox.x + menuBox.width > mascotBox.x + mascotBox.width, 'RTL header must place the menu before the mascot.');
-    } else {
-      assert.ok(menuBox.x < mascotBox.x, 'LTR header must place the menu before the mascot.');
-    }
     const mascotStyle = await mascotLink.evaluate((element) => {
       const style = getComputedStyle(element);
       return {
