@@ -131,12 +131,26 @@ try {
   const username = `pay_ref_signup_${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
   const email = `${username}@example.com`;
   const password = `E2E-${randomBytes(24).toString('base64url')}`;
-  const signupResponse = await referredContext.request.post('/api/auth/sign-up/email', {
-    headers: { Origin: ORIGIN, Accept: 'application/json', 'Content-Type': 'application/json', 'Accept-Language': 'fa-IR' },
-    data: { email, name: 'Referral Production Referred', password, username },
-  });
-  const signupBodyText = await signupResponse.text();
-  assert.ok([200, 201].includes(signupResponse.status()), `Referral signup failed: HTTP ${signupResponse.status()} ${signupBodyText}`);
+  const signupResult = await referredPage.evaluate(async ({ email, password, username }) => {
+    const response = await fetch('/api/auth/sign-up/email', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Accept-Language': 'fa-IR',
+      },
+      body: JSON.stringify({
+        email,
+        name: 'Referral Production Referred',
+        password,
+        username,
+      }),
+    });
+    return { status: response.status, text: await response.text() };
+  }, { email, password, username });
+  const signupBodyText = signupResult.text;
+  assert.ok([200, 201].includes(signupResult.status), `Referral signup failed: HTTP ${signupResult.status} ${signupBodyText}`);
   let signupBody = {};
   try { signupBody = signupBodyText ? JSON.parse(signupBodyText) : {}; } catch {}
   referredBetterAuthUserId = String(signupBody?.user?.id || '');
