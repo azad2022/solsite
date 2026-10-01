@@ -444,7 +444,10 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
               });
 
               if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
-                const requestClick = readReferralCookie(ctx.headers ?? ctx.request);
+                const capturedClick = readCapturedReferralClick(ctx);
+                 const requestClick = capturedClick
+                   ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
+                   ?? (ctx.request ? readReferralCookie(ctx.request) : null);
                 const state = ctx.path.startsWith('/callback/')
                   ? await getOAuthState().catch(() => null)
                   : null;
