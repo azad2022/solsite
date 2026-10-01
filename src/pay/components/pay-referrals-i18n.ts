@@ -56,10 +56,9 @@ const messages = {
     stale:'آخرین داده معتبر نمایش داده می‌شود؛ به‌روزرسانی جدید ناموفق بود.',
   },
   'en-US': {
-    promoVideoLabel:'SolMint Pay referral video',
     title:'Referrals & Partnerships',
     subtitle:'Share your dedicated link and track clicks, direct sign-ups, referred merchants, and partnership earnings.',
-    promoVideoLabel:'ویدیوی معرفی SolMint Pay',
+    promoVideoLabel:'SolMint Pay referral video',
     refresh:'Refresh',
     noData:'There is no referral data to display yet.',
     loadFailed:'Referral data could not be loaded.',
