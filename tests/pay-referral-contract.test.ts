@@ -24,6 +24,7 @@ test('Referral public route records a click and preserves signup attribution in 
   assert.match(publicRoute,/Cache-Control/);
   assert.match(publicRoute,/status: 302/);
   assert.match(publicRoute,/new URL/);
+  assert.ok(publicRoute.includes("new URL('/', requestUrl.origin)"));
   assert.ok(publicRoute.includes('sm_[0-9a-f]{12}'));
   assert.doesNotMatch(publicRoute,/enforcePayRateLimit/);
 });
