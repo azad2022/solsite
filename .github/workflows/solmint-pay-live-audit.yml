@@ -10,6 +10,8 @@ on:
       - 'e2e/pay-referral-production.e2e.mjs'
       - 'functions/r/**'
       - 'public/_routes.json'
+      - 'package.json'
+      - 'scripts/ensure-pages-routes.mjs'
       - 'supabase/migrations/*solmint_pay_referral*.sql'
   workflow_dispatch:
 
