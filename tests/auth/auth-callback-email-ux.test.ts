@@ -26,7 +26,10 @@ test('authentication emails support the four initial locales and the official ma
   assert.match(email, /\bru:\s*\{/);
   assert.match(email, /solmint-mascot-solana-coin\.webp/);
   assert.match(email, /resolveAuthEmailLocale/);
+  assert.match(email, /buildWelcomeEmail/);
+  assert.match(email, /welcome:\s*\{/);
 });
+
 
 test('email verification has a dedicated branded completion page', () => {
   assert.match(verified, /ایمیل شما با موفقیت تأیید شد/);

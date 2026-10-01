@@ -68,7 +68,17 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
       const result = await payReferralService.load(1);
       setReferralStats(result.stats);
       setReferralState('ready');
-    } catch {
+    } catch (error) {
+      if (error instanceof PayHttpError && error.status === 404 && error.code === 'REFERRAL_NOT_CONFIGURED') {
+        setReferralStats({
+          clicks: '0',
+          directSignups: '0',
+          referredMerchants: '0',
+          activeReferredMerchants: '0',
+        });
+        setReferralState('ready');
+        return;
+      }
       setReferralStats(null);
       setReferralState('unavailable');
     }

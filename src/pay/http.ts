@@ -1,12 +1,14 @@
 export class PayHttpError extends Error {
   readonly status: number;
   readonly requestId?: string;
+  readonly code?: string;
 
-  constructor(message: string, status: number, requestId?: string) {
+  constructor(message: string, status: number, requestId?: string, code?: string) {
     super(message);
     this.name = 'PayHttpError';
     this.status = status;
     this.requestId = requestId;
+    this.code = code;
   }
 }
 
@@ -55,7 +57,10 @@ export class PayHttpClient {
       const message = typeof payload === 'object' && payload !== null && 'message' in payload
         ? String((payload as { message?: unknown }).message ?? `Pay request failed (${response.status}).`)
         : `Pay request failed (${response.status}).`;
-      throw new PayHttpError(message, response.status, requestId);
+      const code = typeof payload === 'object' && payload !== null && 'code' in payload
+        ? String((payload as { code?: unknown }).code ?? '')
+        : undefined;
+      throw new PayHttpError(message, response.status, requestId, code);
     }
 
     return payload as T;

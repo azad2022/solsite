@@ -84,11 +84,11 @@ jobs:
           NODE
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Run authenticated production browser UI E2E
-        run: node e2e/pay-production-ui.e2e.mjs
-
       - name: Run dedicated production referral lifecycle E2E
         run: node e2e/pay-referral-production.e2e.mjs
+
+      - name: Run authenticated production browser UI E2E
+        run: node e2e/pay-production-ui.e2e.mjs
 
       - name: Upload browser screenshots
         if: always()

@@ -1,7 +1,7 @@
 import { APIError, addOAuthServerContext, createAuthMiddleware, getOAuthState } from 'better-auth/api';
 import { betterAuth } from 'better-auth';
 import { username } from 'better-auth/plugins';
-import { buildPasswordResetEmail, buildReferralSignupEmail, buildVerificationEmail, resolveAuthEmailLocale, sendAuthEmail } from './_email';
+import { buildPasswordResetEmail, buildReferralSignupEmail, buildVerificationEmail, buildWelcomeEmail, resolveAuthEmailLocale, sendAuthEmail, type AuthEmailLocale } from './_email';
 import { provisionApplicationProfile } from './_application-profile';
 import { getBetterAuthFoundationConfig, type BetterAuthEnv } from './_foundation';
 import { createBetterAuthDatabase, type ApplicationAuthDatabase, type BetterAuthDatabaseEnv } from './_database';
@@ -140,6 +140,48 @@ async function processReferralSignup(
   } catch (error) {
     console.warn(JSON.stringify({
       scope: 'auth:referral-attribution',
+      error: error instanceof Error ? error.message.slice(0, 240) : 'unknown',
+    }));
+  }
+}
+
+function isAuthEmailLocale(value: unknown): value is AuthEmailLocale {
+  return value === 'fa-IR' || value === 'en-US' || value === 'ar' || value === 'ru';
+}
+
+async function sendGoogleWelcomeNotification(
+  env: BetterAuthRuntimeEnv,
+  application: ApplicationAuthDatabase,
+  betterAuthUserId: string,
+  locale: AuthEmailLocale,
+): Promise<void> {
+  try {
+    const user = await application.findBetterAuthUserById(betterAuthUserId);
+    if (!user?.email) return;
+
+    const workerId = `auth-google-welcome-${crypto.randomUUID()}`;
+    const claim = await application.claimAuthWelcomeEmailDelivery(
+      betterAuthUserId,
+      'google',
+      workerId,
+    );
+    if (!claim.ok || !claim.should_send || !claim.delivery_id) return;
+
+    try {
+      const email = buildWelcomeEmail(user.name || 'SolMint User', locale);
+      await sendAuthEmail(env, { to: user.email, ...email });
+      await application.completeAuthWelcomeEmailDelivery(claim.delivery_id, workerId);
+    } catch (error) {
+      await application.failAuthWelcomeEmailDelivery(
+        claim.delivery_id,
+        workerId,
+        'GOOGLE_WELCOME_EMAIL_SEND_FAILED',
+      ).catch(() => {});
+      throw error;
+    }
+  } catch (error) {
+    console.warn(JSON.stringify({
+      scope: 'auth:google-welcome-email',
       error: error instanceof Error ? error.message.slice(0, 240) : 'unknown',
     }));
   }
@@ -297,12 +339,14 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
 
         if (ctx.path === '/sign-in/social') {
           const click = ctx.request ? readReferralCookie(ctx.request) : null;
-          if (click) {
-            await addOAuthServerContext({
+          const authEmailLocale = resolveAuthEmailLocale(ctx.headers);
+          await addOAuthServerContext({
+            authEmailLocale,
+            ...(click ? {
               referralClickId: click.clickId,
               referralCode: click.referralCode,
-            });
-          }
+            } : {}),
+          });
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
@@ -352,7 +396,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     databaseHooks: {
       user: {
         create: {
-          after: async (user) => {
+          after: async (user, ctx) => {
             try {
               const record = user as typeof user & { username?: string | null };
               await provisionApplicationProfile(database.application, {
@@ -362,6 +406,20 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
                 username: typeof record.username === 'string' ? record.username : null,
                 createdAt: record.createdAt,
               });
+
+              if (ctx.path === '/callback/google') {
+                const state = await getOAuthState().catch(() => null);
+                const serverContext = state?.serverContext as { authEmailLocale?: unknown } | undefined;
+                const locale = isAuthEmailLocale(serverContext?.authEmailLocale)
+                  ? serverContext.authEmailLocale
+                  : 'en-US';
+                await sendGoogleWelcomeNotification(
+                  env,
+                  database.application,
+                  String(record.id),
+                  locale,
+                );
+              }
             } catch (error) {
               await database.application.deleteBetterAuthUser(String(user.id)).catch(() => {});
               throw error;

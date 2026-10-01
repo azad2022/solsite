@@ -66,10 +66,13 @@ test('Referral attribution rejects pre-existing accounts and is retry-safe', () 
   assert.match(migration,/on conflict \(referral_id, payment_id\) do nothing/);
 });
 
-test('Google OAuth referral context uses Better Auth server-trusted OAuth state', () => {
+test('Google OAuth referral context and localized welcome use server-trusted OAuth state', () => {
   assert.match(auth,/addOAuthServerContext/);
   assert.match(auth,/getOAuthState/);
   assert.match(auth,/serverContext/);
+  assert.match(auth,/authEmailLocale/);
+  assert.match(auth,/callback\/google/);
+  assert.match(auth,/sendGoogleWelcomeNotification/);
 });
 
 test('Referral signup notification remains informational', () => {
