@@ -40,3 +40,11 @@
 @media(max-width:700px){.pay-account-menu{position:fixed;top:74px;inset-inline:12px auto;width:auto;max-width:none}.pay-account-trigger{max-width:190px}.pay-account-balance-card strong{font-size:12px}}
 @media(max-width:430px){.pay-account-copy span{display:none}.pay-account-balance-grid{grid-template-columns:1fr}.pay-account-wallet-row{align-items:flex-start;flex-direction:column}.pay-account-copy{width:100%;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.pay-account-wallet-avatar::after{animation:none}}
+
+.pay-account-referral-summary{display:flex;align-items:center;gap:10px;margin:0 2px 10px;padding:10px 11px;border:1px solid var(--pay-border);border-radius:14px;background:#fff}
+.pay-account-referral-icon{width:32px;height:32px;display:grid;place-items:center;flex:0 0 32px;border-radius:10px;background:rgba(22,163,74,.08);color:#16a34a}
+.pay-account-referral-copy{min-width:0;display:grid;gap:2px;flex:1}
+.pay-account-referral-copy span{font-size:10px;font-weight:900;color:var(--pay-text)}
+.pay-account-referral-copy small{font-size:8px;line-height:1.6;color:var(--pay-text-faint)}
+.pay-account-referral-summary>strong{min-width:34px;text-align:end;font-size:19px;line-height:1;color:var(--pay-text)}
+@media(max-width:430px){.pay-account-referral-summary{margin-bottom:8px}.pay-account-referral-summary>strong{font-size:18px}}

@@ -1,6 +1,6 @@
 const REFERRAL_COOKIE_NAME = 'solmint_referral_click';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
-const REFERRAL_CODE = /^[a-z0-9_]{4,120}$/i;
+const REFERRAL_CODE = /^sm_[0-9a-f]{12}$/i;
 
 export interface ReferralCookie {
   clickId: string;

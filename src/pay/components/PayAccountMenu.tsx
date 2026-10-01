@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Copy, LogOut, RefreshCw, WalletCards, XCircle } from 'lucide-react';
+import { Check, Copy, LogOut, RefreshCw, Users, WalletCards, XCircle } from 'lucide-react';
 import { PayHttpError } from '../http';
 import type { PayLocale } from '../types';
 import type { PaySessionUser } from '../services/sessionService';
 import type { PayMerchant } from '../services/merchantOnboardingService';
 import { getMerchantWalletBalance, type PayWalletBalanceAsset } from '../services/walletBalanceService';
 import { signOutAllAuthSessions } from '../../utils/authClient';
+import { payReferralService, type PayReferralStats } from '../services/referralService';
 import { directionFor } from '../i18n';
 import { accountMenuT } from './pay-account-menu-i18n';
 import './pay-account-menu.css';
@@ -54,10 +55,24 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
   const [loading, setLoading] = useState(false);
   const [snapshot, setSnapshot] = useState<Awaited<ReturnType<typeof getMerchantWalletBalance>> | null>(null);
   const [state, setState] = useState<'idle'|'loading'|'ready'|'unavailable'|'not-ready'>('idle');
+  const [referralStats, setReferralStats] = useState<PayReferralStats | null>(null);
+  const [referralState, setReferralState] = useState<'idle'|'loading'|'ready'|'unavailable'>('idle');
   const [copied, setCopied] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const direction = directionFor(locale);
+
+  const loadReferralStats = async () => {
+    setReferralState('loading');
+    try {
+      const result = await payReferralService.load(1);
+      setReferralStats(result.stats);
+      setReferralState('ready');
+    } catch {
+      setReferralStats(null);
+      setReferralState('unavailable');
+    }
+  };
 
   const loadBalance = async () => {
     if (!merchant?.id || loading) return;
@@ -77,6 +92,7 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
   useEffect(() => {
     if (!open) return;
     void loadBalance();
+    void loadReferralStats();
   }, [open, merchant?.id]);
 
   useEffect(() => {
@@ -145,6 +161,15 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
             <button type="button" className="pay-account-menu-close" onClick={() => setOpen(false)} aria-label={accountMenuT(locale, 'close')}>
               <XCircle size={17} />
             </button>
+          </div>
+
+          <div className="pay-account-referral-summary" aria-label={accountMenuT(locale, 'directReferrals')}>
+            <div className="pay-account-referral-icon" aria-hidden="true"><Users size={16} /></div>
+            <div className="pay-account-referral-copy">
+              <span>{accountMenuT(locale, 'directReferrals')}</span>
+              <small>{accountMenuT(locale, referralState === 'loading' ? 'loadingReferralStats' : referralState === 'unavailable' ? 'referralStatsUnavailable' : 'directReferralsDescription')}</small>
+            </div>
+            <strong>{referralState === 'ready' && referralStats ? referralStats.directSignups : referralState === 'loading' ? '…' : '—'}</strong>
           </div>
 
           <div className="pay-account-menu-wallet">

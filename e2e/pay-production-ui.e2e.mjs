@@ -105,8 +105,11 @@ async function cleanup(fixture, merchantId) {
   if (merchantId) await db('delete from public.pay_invoices where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchant_members where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchants where id = $1', [merchantId]).catch(() => {});
-  // public.users cleanup leaves the trigger-created affiliate orphaned because owner_user_id is nullable.
-  // Remove the fixture-owned affiliate explicitly before deleting the application user.
+  // Referral fixtures are trigger-created and must be removed before deleting their affiliate owner.
+  await db('delete from public.pay_referral_signup_email_deliveries where referrer_application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
+  await db('delete from public.pay_referral_user_attributions where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [fixture.applicationUserId]).catch(() => {});
+  await db('delete from public.pay_referral_click_events where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [fixture.applicationUserId]).catch(() => {});
+  await db('delete from public.pay_referrals where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [fixture.applicationUserId]).catch(() => {});
   await db('delete from public.pay_affiliates where owner_user_id = $1', [fixture.applicationUserId]).catch(() => {});
   await db('delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
   await db('delete from public.users where id = $1', [fixture.applicationUserId]).catch(() => {});
@@ -241,6 +244,29 @@ try {
   context.on('request', () => {});
   await directSignIn(context, fixture);
 
+  const referralFixture = rows(await db(
+    'select id, referral_code from public.pay_affiliates where owner_user_id = $1',
+    [fixture.applicationUserId],
+    true,
+  ))[0];
+  assert.ok(referralFixture?.referral_code);
+  assert.match(referralFixture.referral_code, /^sm_[0-9a-f]{12}$/i);
+
+  const legacyReferralResponse = await context.request.get(
+    '/r/sm_bd776caf23ce4f5db5ba6ddd79b62fb1',
+    { maxRedirects: 0 },
+  );
+  assert.equal(legacyReferralResponse.status(), 302, 'Legacy referral links must fall back to the public homepage.');
+  assert.equal(new URL(legacyReferralResponse.headers().location, ORIGIN).pathname, '/');
+
+  const referralResponse = await context.request.get(
+    '/r/' + referralFixture.referral_code,
+    { maxRedirects: 0 },
+  );
+  assert.equal(referralResponse.status(), 302, 'Active referral links must redirect to the public homepage.');
+  assert.equal(new URL(referralResponse.headers().location, ORIGIN).pathname, '/');
+  assert.match(referralResponse.headers()['set-cookie'] || '', /solmint_referral_click=/);
+
   const page = await context.newPage();
   // Desktop sidebar regression: the rail stays attached to the viewport, exposes its full navigation,
   // and follows the document writing direction instead of reversing the flex shell a second time.
@@ -257,6 +283,32 @@ try {
     await trigger.click();
     await page.locator('.pay-language-option').filter({ hasText: optionLabel }).click();
     await page.waitForFunction((direction) => document.documentElement.getAttribute('dir') === direction, expectedDirection, { timeout: 10000 });
+
+    const mobileMenu = page.locator('.pay-mobile-menu');
+    const mascotLink = page.locator('.pay-topbar-brand-link');
+    await mobileMenu.waitFor({ state: 'visible', timeout: 10000 });
+    await mascotLink.waitFor({ state: 'visible', timeout: 10000 });
+    const menuBox = await mobileMenu.boundingBox();
+    const mascotBox = await mascotLink.boundingBox();
+    assert.ok(menuBox && mascotBox);
+    if (expectedDirection === 'rtl') {
+      assert.ok(menuBox.x + menuBox.width > mascotBox.x + mascotBox.width, 'RTL header must place the menu before the mascot.');
+    } else {
+      assert.ok(menuBox.x < mascotBox.x, 'LTR header must place the menu before the mascot.');
+    }
+    const mascotStyle = await mascotLink.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        borderStyle: style.borderStyle,
+        borderWidth: style.borderWidth,
+        backgroundImage: style.backgroundImage,
+        backgroundColor: style.backgroundColor,
+      };
+    });
+    assert.equal(mascotStyle.borderStyle, 'none');
+    assert.equal(mascotStyle.borderWidth, '0px');
+    assert.equal(mascotStyle.backgroundImage, 'none');
+    assert.equal(mascotStyle.backgroundColor, 'rgba(0, 0, 0, 0)');
 
     const sidebar = page.locator('.pay-sidebar');
     await sidebar.waitFor({ state: 'visible', timeout: 10000 });
@@ -278,6 +330,8 @@ try {
     assert.equal(diagnostics.overflowY, 'auto', `Desktop sidebar must have an internal vertical scroll for ${targetLocale}.`);
     assert.equal(diagnostics.direction, expectedDirection);
     assert.ok(diagnostics.scrollHeight >= diagnostics.clientHeight);
+    assert.equal(await sidebar.locator('.pay-nav-group-label').count(), 0, 'Sidebar must not show redundant navigation group headings.');
+    assert.equal(await sidebar.locator('.pay-nav-item').count(), 7, 'Sidebar must expose seven primary entries without duplicate category labels.');
 
     const mainColumn = await page.locator('.pay-main-column').boundingBox();
     assert.ok(mainColumn);
@@ -500,6 +554,15 @@ try {
   const createBody = await createResponse.json();
   merchantId = createBody.merchant.id;
   await page.getByText('SolMint Browser Test Merchant', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+
+  await page.goto(ORIGIN + '/pay', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-account-trigger').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-account-trigger').click();
+  await page.locator('.pay-account-menu').waitFor({ state: 'visible', timeout: 10000 });
+  const referralAccountMenuText = await page.locator('.pay-account-menu').innerText();
+  assert.ok(/Direct referrals|زیرمجموعه‌های مستقیم|الإحالات المباشرة|Прямые рефералы/i.test(referralAccountMenuText), 'Account menu must expose direct referral stats.');
+  assert.match(referralAccountMenuText, /(^|\n)0(\n|$)/, 'Fresh E2E account should expose zero direct referrals.');
+  await page.locator('.pay-account-menu-close').click();
 
   await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });

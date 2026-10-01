@@ -5,6 +5,7 @@ import test from 'node:test';
 const apiRoute = readFileSync('functions/api/pay/v1/referrals.ts','utf8');
 const publicRoute = readFileSync('functions/r/[code].ts','utf8');
 const migration = readFileSync('supabase/migrations/20260930210000_solmint_pay_referral_program.sql','utf8');
+const shortCodeMigration = readFileSync('supabase/migrations/20261001090000_solmint_pay_referral_short_codes.sql','utf8');
 const attribution = readFileSync('functions/api/pay/_shared/referralAttribution.ts','utf8');
 const auth = readFileSync('functions/api/auth/_instance.ts','utf8');
 const email = readFileSync('functions/api/auth/_email.ts','utf8');
@@ -21,6 +22,9 @@ test('Referral public route records a click and preserves signup attribution in 
   assert.match(attribution,/REFERRAL_COOKIE_NAME = 'solmint_referral_click'/);
   assert.match(attribution,/HttpOnly; SameSite=Lax/);
   assert.match(publicRoute,/Cache-Control/);
+  assert.match(publicRoute,/status: 302/);
+  assert.match(publicRoute,/new URL/);
+  assert.ok(publicRoute.includes('sm_[0-9a-f]{12}'));
   assert.doesNotMatch(publicRoute,/enforcePayRateLimit/);
 });
 
@@ -32,6 +36,9 @@ test('Referral persistence is explicitly single-level and per-user', () => {
   assert.match(migration,/commission_rate_bps set default 5000/);
   assert.match(migration,/pay_affiliates_fixed_commission_rate_check/);
   assert.match(migration,/v_commission_bps := 5000/);
+  assert.ok(shortCodeMigration.includes('sm_[0-9a-f]{12}'));
+  assert.match(shortCodeMigration,/pay_affiliates_short_referral_code_check/);
+  assert.match(shortCodeMigration,/encode\(gen_random_bytes\(6\), 'hex'\)/);
 });
 
 test('Referral commission is recognized only at the authoritative revenue-ledger boundary', () => {

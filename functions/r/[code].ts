@@ -8,7 +8,20 @@ interface Env extends ReferralServiceEnv {
   PAY_API_ENABLED?: string;
 }
 
-const CODE = /^[a-z0-9_]{4,120}$/i;
+const CODE = /^sm_[0-9a-f]{12}$/i;
+
+function homeRedirect(request: Request): Response {
+  const requestUrl = new URL(request.url);
+  const location = new URL('/', requestUrl.origin);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: location.toString(),
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'CDN-Cache-Control': 'no-store',
+    },
+  });
+}
 
 
 export const onRequestGet = async ({ request, env, params }: {
@@ -18,13 +31,7 @@ export const onRequestGet = async ({ request, env, params }: {
 }) => {
   const code = String(params?.code || '').trim().toLowerCase();
   if (env.PAY_API_ENABLED !== 'true' || !CODE.test(code)) {
-    return new Response('Referral link not found.', {
-      status: 404,
-      headers: {
-        'Cache-Control': 'no-store',
-        'CDN-Cache-Control': 'no-store',
-      },
-    });
+    return homeRedirect(request);
   }
 
   try {
@@ -42,13 +49,7 @@ export const onRequestGet = async ({ request, env, params }: {
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'REFERRAL_NOT_FOUND') {
-      return new Response('Referral link not found.', {
-        status: 404,
-        headers: {
-          'Cache-Control': 'no-store',
-          'CDN-Cache-Control': 'no-store',
-        },
-      });
+      return homeRedirect(request);
     }
 
     console.error(JSON.stringify({

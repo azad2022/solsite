@@ -69,6 +69,7 @@ interface Envelope {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const REFERRAL_CODE = /^sm_[0-9a-f]{12}$/i;
 const ASSETS = new Set<PaymentAsset>(['SOL', 'USDC', 'USDT']);
 
 function record(value: unknown): Record<string, unknown> {
@@ -101,6 +102,12 @@ function atomicField(row: Record<string, unknown>, field: string): string {
 function uuidField(row: Record<string, unknown>, field: string): string {
   const value = stringField(row, field);
   if (!UUID.test(value)) throw new TypeError('Invalid Pay referral UUID: ' + field);
+  return value;
+}
+
+function referralCodeField(row: Record<string, unknown>, field: string): string {
+  const value = stringField(row, field);
+  if (!REFERRAL_CODE.test(value)) throw new TypeError('Invalid Pay referral code: ' + field);
   return value;
 }
 
@@ -139,7 +146,7 @@ function parseAffiliate(value: unknown): PayAffiliate {
   return {
     id: uuidField(row, 'id'),
     display_name: stringField(row, 'display_name'),
-    referral_code: stringField(row, 'referral_code'),
+    referral_code: referralCodeField(row, 'referral_code'),
     commission_rate_bps: integerField(row, 'commission_rate_bps'),
     status: stringField(row, 'status'),
     created_at: stringField(row, 'created_at'),
