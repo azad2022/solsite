@@ -26,7 +26,6 @@ end;
 $$;
 
 \i supabase/migrations/20261001110000_solmint_google_welcome_email_delivery.sql
-sql
 
 do $$
 declare
