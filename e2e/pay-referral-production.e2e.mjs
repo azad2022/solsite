@@ -77,13 +77,15 @@ assert.ok(SUPABASE_ACCESS_TOKEN, 'SUPABASE_ACCESS_TOKEN is required');
 const referrer = await provisionReferrer();
 let referredUserId = '';
 let browser;
+let referrerContext;
+let referredContext;
 try {
-  const referrerContext = await chromium.launchPersistentContext('', {
+  browser = await chromium.launch({ headless: true });
+  referrerContext = await browser.newContext({
     baseURL: ORIGIN,
     viewport: { width: 1440, height: 900 },
     locale: 'fa-IR',
   });
-  browser = referrerContext;
   const referrerPage = await referrerContext.newPage();
 
   const signIn = await referrerContext.request.post('/api/auth/sign-in/email', {
@@ -106,7 +108,7 @@ try {
   assert.equal(oldResponse.status(), 404, 'Legacy long referral links must be invalid.');
   console.log('REFERRAL_LEGACY_LINK_REMOVED PASS');
 
-  const referredContext = await referrerContext.browser().newContext({
+  referredContext = await browser.newContext({
     baseURL: ORIGIN,
     viewport: { width: 390, height: 844 },
     locale: 'fa-IR',
@@ -181,6 +183,7 @@ try {
   }));
 
   await referredContext.close();
+  referredContext = null;
   await cleanupUser(referredUserId);
   referredUserId = '';
   console.log('REFERRAL_PRODUCTION_LIFECYCLE_E2E PASS');
