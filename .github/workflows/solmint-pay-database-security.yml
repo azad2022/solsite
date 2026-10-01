@@ -98,6 +98,24 @@ jobs:
           PGDATABASE: postgres
         run: createdb pay_referral_security
 
+      - name: Create isolated Google welcome security database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: createdb pay_google_welcome_security
+
+      - name: Run Google welcome email delivery security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_google_welcome_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/google_welcome_email_delivery_security.sql
+
       - name: Run Pay referral security checks
         env:
           PGHOST: 127.0.0.1
