@@ -293,16 +293,6 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
           <div className="pay-referrals-grid">
             <section className="pay-referrals-panel">
               <div className="pay-referrals-panel-heading">
-                <div><span className="pay-panel-kicker">{referralT(locale, 'referredAccounts')}</span><h3>{referralT(locale, 'referredAccounts')}</h3></div>
-                <ReferralIcon icon={<Users size={19} strokeWidth={2.1} />} tone="blue" className="pay-referrals-section-icon" />
-              </div>
-              {data.stats.directSignups === '0'
-                ? <div className="pay-referrals-mini-empty">{referralT(locale, 'noReferrals')}</div>
-                : <div className="pay-referrals-direct-summary"><strong>{formatCount(data.stats.directSignups, locale)}</strong><span>{referralT(locale, 'referredAccounts')}</span></div>}
-            </section>
-
-            <section className="pay-referrals-panel">
-              <div className="pay-referrals-panel-heading">
                 <div><span className="pay-panel-kicker">{referralT(locale, 'merchants')}</span><h3>{referralT(locale, 'merchants')}</h3></div>
                 <ReferralIcon icon={<Store size={19} strokeWidth={2.1} />} tone="teal" className="pay-referrals-section-icon" />
               </div>
