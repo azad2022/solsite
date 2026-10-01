@@ -165,7 +165,6 @@ try {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'Accept-Language': 'fa-IR',
-        'X-Solmint-Referral-Diagnostic': '1',
       },
       body: JSON.stringify({
         email,
@@ -182,10 +181,6 @@ try {
   try { signupBody = signupBodyText ? JSON.parse(signupBodyText) : {}; } catch {}
   referredBetterAuthUserId = String(signupBody?.user?.id || '');
   assert.ok(referredBetterAuthUserId.length >= 8, 'Better Auth signup must return a user id.');
-
-  console.log('REFERRAL_AUTH_BOUNDARY_DIAGNOSTIC ' + JSON.stringify(
-    signupBody?._solmint_referral_diagnostic || null,
-  ));
 
   const signupCookieHeader = await Promise.race([
     signupRequestCookiePromise,
