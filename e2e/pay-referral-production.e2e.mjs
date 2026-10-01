@@ -236,14 +236,38 @@ try {
 
   await referrerPage.goto(ORIGIN + '/pay/referrals', { waitUntil: 'domcontentloaded' });
   await referrerPage.locator('.pay-referrals-stats').waitFor({ state: 'visible', timeout: 10000 });
-  const statsText = await referrerPage.locator('.pay-referrals-stats').innerText();
-  const directSummary = await referrerPage.locator('.pay-referrals-direct-summary').innerText();
-  assert.ok(/1/.test(statsText), 'Referral stats UI must expose the recorded counts.');
-  assert.ok(/1/.test(directSummary), 'Direct referral UI must expose the attributed signup count.');
+  const expectedStatValues = [
+    dashboardAfter.data.stats.clicks,
+    dashboardAfter.data.stats.directSignups,
+    dashboardAfter.data.stats.referredMerchants,
+    dashboardAfter.data.stats.activeReferredMerchants,
+  ].map((value) => new Intl.NumberFormat('fa-IR').format(BigInt(value)));
+
+  const renderedStatValues = await referrerPage
+    .locator('.pay-referrals-stat strong')
+    .allInnerTexts();
+
+  assert.deepEqual(
+    renderedStatValues.map((value) => value.trim()),
+    expectedStatValues,
+    'Referral stats UI must render the authoritative counts using the active locale.',
+  );
+
+  const renderedDirectSummary = await referrerPage
+    .locator('.pay-referrals-direct-summary strong')
+    .innerText();
+
+  assert.equal(
+    renderedDirectSummary.trim(),
+    expectedStatValues[1],
+    'Direct referral UI must render the authoritative direct-signup count using the active locale.',
+  );
+
   console.log('REFERRAL_DASHBOARD_COUNTS_AND_UI PASS ' + JSON.stringify({
     clicks: dashboardAfter.data.stats.clicks,
     directSignups: dashboardAfter.data.stats.directSignups,
     uiStatsVisible: true,
+    locale: 'fa-IR',
   }));
 
   await referredContext.close();
