@@ -168,11 +168,10 @@ function readReferralCookieFromAuthContext(ctx: {
 export async function processReferralSignupFromRequest(
   env: BetterAuthRuntimeEnv,
   application: ApplicationAuthDatabase,
-  request: Request,
+  click: ReferralCookie | null,
   betterAuthUserId: string,
   referredUserName: string,
 ): Promise<void> {
-  const click = readReferralCookie(request);
   await processReferralSignup(
     env,
     application,
