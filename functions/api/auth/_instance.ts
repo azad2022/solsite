@@ -342,7 +342,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/sign-up/email') {
-          readReferralClickFromAuthRequest(ctx);
+          readReferralCookieFromAuthContext(ctx);
           const isLegacyMigration =
             isLegacyMigrationEnabled(env) &&
             legacyMigrationSecret.length > 0 &&
@@ -359,7 +359,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         }
 
         if (ctx.path === '/sign-in/social') {
-          const click = readReferralClickFromAuthRequest(ctx);
+          const click = readReferralCookieFromAuthContext(ctx);
           const authEmailLocale = resolveAuthEmailLocale(ctx.headers);
           await addOAuthServerContext({
             authEmailLocale,
@@ -374,9 +374,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
         if (ctx.path === '/sign-up/email') {
           const body = ctx.body as { email?: unknown } | undefined;
           const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-          const click = readCapturedReferralClick(ctx)
-            ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
-            ?? (ctx.request ? readReferralCookie(ctx.request) : null);
+          const click = readReferralCookieFromAuthContext(ctx);
           if (email && click) {
             const identity = await database.application.findBetterAuthIdentityByEmail(email);
             if (identity) {
@@ -431,10 +429,7 @@ export function createBetterAuthRuntime(env: BetterAuthRuntimeEnv) {
               });
 
               if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {
-                const capturedClick = readCapturedReferralClick(ctx);
-                 const requestClick = capturedClick
-                   ?? (ctx.headers ? readReferralCookie(ctx.headers) : null)
-                   ?? (ctx.request ? readReferralCookie(ctx.request) : null);
+                const requestClick = readReferralCookieFromAuthContext(ctx);
                 const state = ctx.path.startsWith('/callback/')
                   ? await getOAuthState().catch(() => null)
                   : null;
