@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CircleCheck, Loader2, MessageSquare, Plus, RefreshCw, Send, ShieldCheck } from 'lucide-react';
 import { PayHttpError } from '../http';
 import type { PayLocale } from '../types';
@@ -18,7 +18,7 @@ function accessError(error: unknown): 'forbidden'|'unauthorized'|'error' { if (e
 
 export default function PayTicketCenter({ locale, sessionUser, merchantId }: Props): React.ReactElement {
   const isAdmin = sessionUser.role === 'admin';
-  const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null);
+  const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null); const detailRequestSeq=useRef(0);
   const [loading,setLoading]=useState(true); const [detailLoading,setDetailLoading]=useState(false); const [error,setError]=useState<'error'|'forbidden'|'unauthorized'|null>(null); const [detailError,setDetailError]=useState<'error'|'forbidden'|'unauthorized'|null>(null);
   const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null); const [notice,setNotice]=useState<'created'|'replied'|'status'|null>(null);
 
@@ -44,10 +44,10 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
       setLoading(false);
     }
   }
-  async function loadDetail(id:string) { setDetailLoading(true); setDetailError(null); try { setDetail(await getPayTicket(id)); } catch(e) { setDetailError(accessError(e)); } finally { setDetailLoading(false); } }
+  async function loadDetail(id:string) { const requestSeq=++detailRequestSeq.current; setDetailLoading(true); setDetailError(null); try { const next=await getPayTicket(id); if (requestSeq !== detailRequestSeq.current) return; setDetail(next); } catch(e) { if (requestSeq === detailRequestSeq.current) setDetailError(accessError(e)); } finally { if (requestSeq === detailRequestSeq.current) setDetailLoading(false); } }
   async function refreshSelectedTicket() { setNotice(null); await loadTickets(false); const id = selectedId; if (id) await loadDetail(id); }
   useEffect(()=>{ void loadTickets(); },[merchantId,isAdmin]);
-  useEffect(()=>{ if(selectedId) { setDetail(null); setDetailError(null); void loadDetail(selectedId); } else { setDetail(null); setDetailError(null); } },[selectedId]);
+  useEffect(()=>{ ++detailRequestSeq.current; if(selectedId) { setDetail(null); setDetailError(null); void loadDetail(selectedId); } else { setDetail(null); setDetailError(null); } },[selectedId]);
   const selected = useMemo(()=>tickets.find(item=>item.id===selectedId)||detail?.ticket||null,[tickets,selectedId,detail]);
   async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); setNotice(null); try { const created=await createPayTicket({merchantId,subject,message,priority}); setSubject(''); setMessage(''); setPriority('normal'); setNotice('created'); await loadTickets(false); setSelectedId(created.id); } catch(e) { setError(accessError(e)); } finally { setBusy(null); } }
   async function handleReply(event:React.FormEvent) { event.preventDefault(); if(!selectedId || !reply.trim() || busy) return; setBusy('reply'); setDetailError(null); setNotice(null); try { await replyToPayTicket(selectedId,reply); setReply(''); setNotice('replied'); await Promise.all([loadTickets(false),loadDetail(selectedId)]); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }

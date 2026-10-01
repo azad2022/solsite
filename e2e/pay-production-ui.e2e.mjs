@@ -1231,9 +1231,25 @@ try {
   assert.match(await page.locator('.pay-ticket-thread').innerText(), /Waiting for support/);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first().click();
-  await page.locator('.pay-ticket-messages article').nth(1).waitFor({ state: 'visible', timeout: 10000 });
-  assert.ok((await page.locator('.pay-ticket-messages').innerText()).includes(ticketReplyMessage));
+  const persistedTicketRow = page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first();
+  await persistedTicketRow.waitFor({ state: 'visible', timeout: 10000 });
+  const persistedDetailResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/pay/v1/tickets/' + encodeURIComponent(ticketId))
+    && response.request().method() === 'GET'
+  );
+  await persistedTicketRow.click();
+  const persistedDetailResponse = await persistedDetailResponsePromise;
+  const persistedDetailText = await persistedDetailResponse.text();
+  assert.equal(persistedDetailResponse.status(), 200, persistedDetailText);
+  const persistedDetailBody = persistedDetailText ? JSON.parse(persistedDetailText) : {};
+  assert.equal(persistedDetailBody.ticket?.id, ticketId);
+  assert.equal(persistedDetailBody.messages?.length, 2, 'Merchant reply must persist as the second ticket message.');
+  assert.ok(persistedDetailBody.messages.some((item) => item.body === ticketReplyMessage), 'Backend detail response must contain the merchant reply.');
+  const persistedReplyArticle = page.locator('.pay-ticket-messages article').filter({ hasText: ticketReplyMessage }).first();
+  await persistedReplyArticle.waitFor({ state: 'visible', timeout: 10000 });
+  const persistedThreadText = await page.locator('.pay-ticket-thread').innerText();
+  assert.ok(persistedThreadText.includes(ticketReplyMessage), 'Rendered Ticket thread must contain the persisted merchant reply.');
+  console.log(`TICKET_MERCHANT_REPLY_PERSISTENCE_E2E ${JSON.stringify({ ticketId, detailStatus: persistedDetailResponse.status(), backendMessageCount: persistedDetailBody.messages.length, domContainsReply: persistedThreadText.includes(ticketReplyMessage) })}`);
 
   // Elevate only this disposable E2E application user so the same production fixture can verify the support-admin path.
   await db('update public.users set role = $1 where id = $2', ['admin', fixture.applicationUserId]);
