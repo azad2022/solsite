@@ -117,36 +117,7 @@ export const onRequest = async ({ request, env }: PagesAuthContext): Promise<Res
             );
           }
 
-          if (request.headers.get('X-Solmint-Referral-Diagnostic') === '1') {
-            const rawCookie = request.headers.get('Cookie') || '';
-            const rawReferralCookiePresent = rawCookie
-              .split(';')
-              .some((part) => part.trim().startsWith('solmint_referral_click='));
-            const diagnosticBody = {
-              ...payload,
-              _solmint_referral_diagnostic: {
-                nativeEmailSignup: isNativeEmailSignup,
-                responseStatusEligible: response.status === 200 || response.status === 201,
-                rawReferralCookiePresent,
-                parsedReferralClickPresent: Boolean(nativeReferralClick),
-                betterAuthUserIdPresent: Boolean(betterAuthUserId),
-              },
-            };
-            try {
-              const headers = new Headers(response.headers);
-              headers.set('Content-Type', 'application/json; charset=utf-8');
-              return new Response(JSON.stringify(diagnosticBody), {
-                status: response.status,
-                statusText: response.statusText,
-                headers,
-              });
-            } catch (error) {
-              console.warn('Referral auth diagnostic response failed:', {
-                requestId,
-                message: error instanceof Error ? error.message : 'unknown error',
-              });
-            }
-          }
+}
         } catch (error) {
           console.warn('Referral signup boundary processing failed:', {
             requestId,
