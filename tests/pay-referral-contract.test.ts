@@ -66,23 +66,22 @@ test('Referral attribution rejects pre-existing accounts and is retry-safe', () 
   assert.match(migration,/on conflict \(referral_id, payment_id\) do nothing/);
 });
 
-test('Referral cookie parsing supports Better Auth header context directly', () => {
-  assert.match(attribution, /readReferralCookie\(source: Request \| Headers \| null \| undefined\)/);
-  assert.match(attribution, /source instanceof Headers/);
-  assert.match(auth, /readReferralClickFromAuthRequest\(ctx\)/);
-  assert.match(auth, /ctx\.headers \? readReferralCookie\(ctx\.headers\) : null/);
-  assert.match(auth, /ctx\.request \? readReferralCookie\(ctx\.request\) : null/);
-  assert.doesNotMatch(auth, /ctx\.request \? readReferralCookie\(ctx\.request\) : null;\s*if \(click\)/);
+test('Referral cookie parsing supports Better Auth cookie context directly', () => {
+  assert.match(attribution, /parseReferralCookieValue\(value: string \| null \| undefined\)/);
+  assert.match(auth, /readReferralCookieFromAuthContext\(ctx\)/);
+  assert.match(auth, /ctx\.getCookie\('solmint_referral_click'\)/);
+  assert.match(auth, /parseReferralCookieValue\(authCookieValue\)/);
+  assert.match(auth, /readReferralCookie\(ctx\.headers\)/);
+  assert.match(auth, /readReferralCookie\(ctx\.request\)/);
 });
 
-test('Native signup attribution runs after application profile provisioning', () => {
+test('Native signup attribution uses the same Better Auth cookie context after profile provisioning', () => {
   const provision = auth.indexOf('await provisionApplicationProfile(database.application, {');
   const referral = auth.indexOf("if (ctx.path === '/sign-up/email' || ctx.path.startsWith('/callback/')) {");
   assert.ok(provision >= 0);
   assert.ok(referral > provision);
-  assert.match(auth, /const capturedClick = readCapturedReferralClick\(ctx\)/);
+  assert.match(auth, /const requestClick = readReferralCookieFromAuthContext\(ctx\)/);
   assert.match(auth, /const click = requestClick \?\? stateClick/);
-  assert.match(auth, /await processReferralSignup\(/);
   assert.match(auth, /await processReferralSignup\(/);
 });
 
