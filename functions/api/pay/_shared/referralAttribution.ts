@@ -1,6 +1,7 @@
 const REFERRAL_COOKIE_NAME = 'solmint_referral_click';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 const REFERRAL_CODE = /^sm_[0-9a-f]{12}$/i;
+const REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export interface ReferralCookie {
   clickId: string;
@@ -58,7 +59,12 @@ export function readReferralCookie(request: Request): ReferralCookie | null {
 
   if (!cookiePart) return null;
 
-  const value = decodeURIComponent(cookiePart.slice(prefix.length));
+  let value = '';
+  try {
+    value = decodeURIComponent(cookiePart.slice(prefix.length));
+  } catch {
+    return null;
+  }
   const separator = value.indexOf('.');
   if (separator <= 0) return null;
 
@@ -71,7 +77,7 @@ export function readReferralCookie(request: Request): ReferralCookie | null {
 
 export function referralCookieHeader(click: ReferralCookie, isSecure: boolean): string {
   const secure = isSecure ? '; Secure' : '';
-  return `${REFERRAL_COOKIE_NAME}=${encodeURIComponent(`${click.clickId}.${click.referralCode}`)}; Path=/; HttpOnly; SameSite=Lax${secure}`;
+  return `${REFERRAL_COOKIE_NAME}=${encodeURIComponent(`${click.clickId}.${click.referralCode}`)}; Max-Age=${REFERRAL_COOKIE_MAX_AGE_SECONDS}; Path=/; HttpOnly; SameSite=Lax${secure}`;
 }
 
 export function expiredReferralCookieHeader(isSecure: boolean): string {
