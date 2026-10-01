@@ -1517,9 +1517,10 @@ Root causes resolved in this rally:
 No new API, database table, field, RPC, RLS rule, commission rule, payment rule, or frontend financial logic was introduced by the final test correction.
 
 Separately classified:
-- The broad Live Browser Audit later failed on an unrelated pre-existing Pay Account Menu assertion (`Fresh E2E account should expose zero direct referrals`); its failure occurs after the dedicated Referral lifecycle already passed and is not evidence of an Attribution failure.
-- The separate `Workers Builds: solsite` integration remains outside the Cloudflare Pages production path.
+- The first post-fix broad Live Browser Audit exposed a test-readiness race in the Pay Account Menu: the assertion could inspect the referral summary while it still showed the loading/unavailable placeholder `—`. PR #299 fixed the E2E boundary by awaiting the released referral API response and waiting for the summary placeholder to resolve.
+- After PR #299, both **SolMint Pay Production Browser UI E2E** and **SolMint Pay — Live Browser Audit** completed with **SUCCESS** on runtime commit `acdd75e3b2d3dbaf7ad02fda95cf274b88ace57b`.
+- The separate `Workers Builds: solsite` integration remains outside the Cloudflare Pages production path and is still classified separately.
 
 ### Checkpoint conclusion
 
-**Referral Signup Attribution is production-verified on the current runtime.** The observed cookie/auth-boundary parser defect is resolved, and the dedicated production lifecycle now proves click → secure cookie → real signup → authoritative attribution → click consumption → authoritative dashboard/UI counts.
+**Referral Signup Attribution and its surrounding Pay browser gate are production-verified.** The cookie/auth-boundary parser defect and the E2E readiness race are resolved. The dedicated production lifecycle proves click → secure cookie → real signup → authoritative attribution → click consumption → authoritative dashboard/UI counts, and the broader Pay browser gates now pass on the same runtime.
