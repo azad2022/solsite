@@ -80,7 +80,7 @@ jobs:
             const data = await response.json();
             const check = (data.check_runs || []).find((item) => item.name === 'Cloudflare Pages');
             const summary = check?.output?.summary || '';
-            const match = summary.match(/href=['\"](https:\\/\\/[^'\"]+\\.pages\\.dev)['\"]/i);
+            const match = summary.match(/https:\\/\\/[^'\"]+\\.pages\\.dev/);
             if (match) previewUrl = match[1].replace(/\/$/, '');
             console.log('PAGES_PREVIEW_ROUTE_WAIT attempt=' + attempt + ' status=' + (check?.status || 'missing') + ' conclusion=' + (check?.conclusion || 'pending') + ' preview=' + (previewUrl || 'missing'));
             if (check?.status === 'completed' && check.conclusion === 'success' && previewUrl) break;
