@@ -11,7 +11,7 @@ const paymentId = '44444444-4444-4444-8444-444444444444';
 const affiliate = {
   id: affiliateId,
   display_name: 'Partner',
-  referral_code: 'sm_abc123',
+  referral_code: 'sm_4a7c91d2e6b4',
   commission_rate_bps: 5000,
   status: 'active',
   created_at: '2026-09-18T00:00:00Z',
@@ -22,7 +22,7 @@ const referral = {
   id: referralId,
   affiliate_id: affiliateId,
   merchant_id: merchantId,
-  referral_code: 'sm_abc123',
+  referral_code: 'sm_4a7c91d2e6b4',
   attributed_at: '2026-09-18T00:00:00Z',
   active: true,
   user_attribution_id: '55555555-5555-4555-8555-555555555555',
@@ -79,8 +79,9 @@ function envelope() {
 
 test('referral service parses the released dashboard snapshot', async () => {
   const snapshot = await createPayReferralService(clientFor(envelope())).load();
-  assert.equal(snapshot.affiliate.referral_code, 'sm_abc123');
+  assert.equal(snapshot.affiliate.referral_code, 'sm_4a7c91d2e6b4');
   assert.equal(snapshot.affiliate.commission_rate_bps, 5000);
+  assert.match(snapshot.affiliate.referral_code, /^sm_[0-9a-f]{12}$/);
   assert.equal(snapshot.stats.clicks, '1000');
   assert.equal(snapshot.stats.directSignups, '80');
   assert.equal(snapshot.earnings_by_asset[0]?.commission_atomic, '500000');
