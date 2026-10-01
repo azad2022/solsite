@@ -3,10 +3,9 @@ import {
   referralCookieHeader,
   type ReferralServiceEnv,
 } from '../api/pay/_shared/referralAttribution';
+import { enforcePayRateLimit, hashCanonicalRequest, type PayRuntimeEnv } from '../api/pay/_shared/runtime';
 
-interface Env extends ReferralServiceEnv {
-  PAY_API_ENABLED?: string;
-}
+interface Env extends ReferralServiceEnv, PayRuntimeEnv {}
 
 const CODE = /^sm_[0-9a-f]{12}$/i;
 
@@ -47,11 +46,21 @@ export const onRequestGet = async ({ request, env, params }: {
   }
 
   try {
+    const sourceIp = request.headers.get('CF-Connecting-IP')?.trim() || 'unknown';
+    const subjectHash = await hashCanonicalRequest({ sourceIp });
+    await enforcePayRateLimit(env, 'referral_click', subjectHash, 60, 60);
     const click = await recordReferralClick(env, code);
     return homeRedirect(request, click);
   } catch (error) {
     if (error instanceof Error && error.message === 'REFERRAL_NOT_FOUND') {
       return notFoundResponse();
+    }
+
+    if (error instanceof Error && 'status' in error && Number((error as { status?: unknown }).status) === 429) {
+      return new Response('Too many referral clicks. Please try again later.', {
+        status: 429,
+        headers: { 'Retry-After': '60', 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store' },
+      });
     }
 
     console.error(JSON.stringify({
