@@ -228,6 +228,24 @@ export default function PayReferrals({ locale }: Props): React.ReactElement {
 
       {data && (
         <>
+          <section className="pay-referrals-promo" aria-labelledby="pay-referrals-promo-title">
+            <div className="pay-referrals-promo-copy">
+              <span className="pay-panel-kicker">{referralT(locale, 'promoKicker')}</span>
+              <h3 id="pay-referrals-promo-title">{referralT(locale, 'promoTitle')}</h3>
+              <p>{referralT(locale, 'promoDescription')}</p>
+            </div>
+            <div className="pay-referrals-video-shell">
+              <video
+                className="pay-referrals-video"
+                controls
+                playsInline
+                preload="metadata"
+                src="/assets/pay-referral-promo.mp4"
+                aria-label={referralT(locale, 'promoTitle')}
+              />
+            </div>
+          </section>
+
           <section className="pay-referrals-link-card">
             <div className="pay-referrals-link-icon" aria-hidden="true"><Link2 size={22} /></div>
             <div className="pay-referrals-link-copy">

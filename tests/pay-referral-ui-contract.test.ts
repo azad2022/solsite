@@ -38,3 +38,15 @@ test('Referral UI has all four required locales', () => {
   assert.match(i18n,/\bar:/);
   assert.match(i18n,/\bru:/);
 });
+
+
+test('Referral UI includes a localized promotional video asset without autoplay', () => {
+  assert.match(ui,/pay-referrals-promo/);
+  assert.match(ui,/\/assets\/pay-referral-promo\.mp4/);
+  assert.match(ui,/preload="metadata"/);
+  assert.match(ui,/playsInline/);
+  assert.doesNotMatch(ui,/autoplay/);
+  assert.match(i18n,/promoKicker/);
+  assert.match(i18n,/promoTitle/);
+  assert.match(i18n,/promoDescription/);
+});

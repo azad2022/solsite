@@ -5,6 +5,9 @@ const messages = {
   'fa-IR': {
     title:'معرفی و همکاری',
     subtitle:'لینک اختصاصی خود را منتشر کنید و آمار کلیک، ثبت‌نام، پذیرندگان و درآمد همکاری را ببینید.',
+    promoKicker:'ویدیوی معرفی',
+    promoTitle:'با معرفی SolMint Pay رشد کنید',
+    promoDescription:'ویدیوی معرفی را ببینید و لینک اختصاصی خود را برای جذب پذیرندگان و ساخت درآمد همکاری به اشتراک بگذارید.',
     refresh:'به‌روزرسانی',
     noData:'هنوز داده‌ای برای نمایش وجود ندارد.',
     loadFailed:'دریافت اطلاعات معرفی و همکاری ناموفق بود.',
@@ -58,6 +61,9 @@ const messages = {
   'en-US': {
     title:'Referrals & Partnerships',
     subtitle:'Share your dedicated link and track clicks, direct sign-ups, referred merchants, and partnership earnings.',
+    promoKicker:'Promo',
+    promoTitle:'Grow with SolMint Pay',
+    promoDescription:'Watch the introduction, then share your dedicated link to attract merchants and build partnership earnings.',
     refresh:'Refresh',
     noData:'There is no referral data to display yet.',
     loadFailed:'Referral data could not be loaded.',
@@ -111,6 +117,9 @@ const messages = {
   ar: {
     title:'الإحالات والشراكة',
     subtitle:'شارك رابطك المخصص وتابع النقرات والتسجيلات المباشرة والتجار المُحالين وأرباح الشراكة.',
+    promoKicker:'فيديو تعريفي',
+    promoTitle:'نمُ مع SolMint Pay',
+    promoDescription:'شاهد الفيديو التعريفي ثم شارك رابطك المخصص لجذب التجار وبناء أرباح الشراكة.',
     refresh:'تحديث',
     noData:'لا توجد بيانات إحالة للعرض بعد.',
     loadFailed:'تعذر تحميل بيانات الإحالات.',
@@ -164,6 +173,9 @@ const messages = {
   ru: {
     title:'Рефералы и партнёрство',
     subtitle:'Распространяйте персональную ссылку и отслеживайте клики, прямые регистрации, привлечённых мерчантов и доход.',
+    promoKicker:'Промо-видео',
+    promoTitle:'Растите вместе с SolMint Pay',
+    promoDescription:'Посмотрите видео о программе и делитесь персональной ссылкой, чтобы привлекать мерчантов и развивать партнёрский доход.',
     refresh:'Обновить',
     noData:'Пока нет данных для отображения.',
     loadFailed:'Не удалось загрузить реферальные данные.',
