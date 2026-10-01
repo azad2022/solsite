@@ -55,16 +55,16 @@ async function provisionReferrer() {
   return { id, email, password };
 }
 
-async function cleanupUser(userId) {
-  await db('delete from public.pay_referral_signup_email_deliveries where referrer_application_user_id = $1 or attribution_id in (select id from public.pay_referral_user_attributions where referred_user_id = $1)', [userId]).catch(() => {});
-  await db('delete from public.pay_referral_user_attributions where referred_user_id = $1 or affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [userId]).catch(() => {});
-  await db('delete from public.pay_referral_click_events where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [userId]).catch(() => {});
-  await db('delete from public.pay_referrals where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [userId]).catch(() => {});
-  await db('delete from public.pay_affiliates where owner_user_id = $1', [userId]).catch(() => {});
-  await db('delete from public.auth_identity_links where application_user_id = $1', [userId]).catch(() => {});
-  await db('delete from public.users where id = $1', [userId]).catch(() => {});
-  await db('delete from better_auth.account where user_id = $1', [userId]).catch(() => {});
-  await db('delete from better_auth."user" where id = $1', [userId]).catch(() => {});
+async function cleanupUser({ betterAuthUserId, applicationUserId = betterAuthUserId }) {
+  await db('delete from public.pay_referral_signup_email_deliveries where referrer_application_user_id = $1 or attribution_id in (select id from public.pay_referral_user_attributions where referred_user_id = $1)', [applicationUserId]);
+  await db('delete from public.pay_referral_user_attributions where referred_user_id = $1 or affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [applicationUserId]);
+  await db('delete from public.pay_referral_click_events where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [applicationUserId]);
+  await db('delete from public.pay_referrals where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [applicationUserId]);
+  await db('delete from public.pay_affiliates where owner_user_id = $1', [applicationUserId]);
+  await db('delete from public.auth_identity_links where application_user_id = $1 or better_auth_user_id = $2', [applicationUserId, betterAuthUserId]);
+  await db('delete from public.users where id = $1', [applicationUserId]);
+  await db('delete from better_auth.account where user_id = $1', [betterAuthUserId]);
+  await db('delete from better_auth."user" where id = $1', [betterAuthUserId]);
 }
 
 async function readJson(response) {
@@ -75,7 +75,8 @@ async function readJson(response) {
 assert.ok(SUPABASE_ACCESS_TOKEN, 'SUPABASE_ACCESS_TOKEN is required');
 
 const referrer = await provisionReferrer();
-let referredUserId = '';
+let referredBetterAuthUserId = '';
+let referredApplicationUserId = '';
 let browser;
 let referrerContext;
 let referredContext;
@@ -138,12 +139,22 @@ try {
   assert.ok([200, 201].includes(signupResponse.status()), `Referral signup failed: HTTP ${signupResponse.status()} ${signupBodyText}`);
   let signupBody = {};
   try { signupBody = signupBodyText ? JSON.parse(signupBodyText) : {}; } catch {}
-  referredUserId = String(signupBody?.user?.id || '');
-  assert.match(referredUserId, /^[^\\s]{8,}$/);
+  referredBetterAuthUserId = String(signupBody?.user?.id || '');
+  assert.ok(referredBetterAuthUserId.length >= 8, 'Better Auth signup must return a user id.');
+
+  const identityRows = rows(await db(
+    'select better_auth_user_id,application_user_id from public.auth_identity_links where better_auth_user_id = $1',
+    [referredBetterAuthUserId],
+    true,
+  ));
+  assert.equal(identityRows.length, 1, 'Signup must persist the Better Auth to application identity link.');
+  assert.equal(identityRows[0].better_auth_user_id, referredBetterAuthUserId);
+  referredApplicationUserId = String(identityRows[0].application_user_id || '');
+  assert.match(referredApplicationUserId, /^usr-[0-9a-f-]{36}$/i, 'Application user id must use the server-issued usr-UUID identity.');
 
   const attributionRows = rows(await db(
     'select id,affiliate_id,referred_user_id,click_event_id,referral_code from public.pay_referral_user_attributions where referred_user_id = $1',
-    [referredUserId],
+    [referredApplicationUserId],
     true,
   ));
   assert.equal(attributionRows.length, 1, 'Exactly one direct referral attribution must be persisted.');
@@ -184,11 +195,20 @@ try {
 
   await referredContext.close();
   referredContext = null;
-  await cleanupUser(referredUserId);
-  referredUserId = '';
+  await cleanupUser({
+    betterAuthUserId: referredBetterAuthUserId,
+    applicationUserId: referredApplicationUserId,
+  });
+  referredBetterAuthUserId = '';
+  referredApplicationUserId = '';
   console.log('REFERRAL_PRODUCTION_LIFECYCLE_E2E PASS');
 } finally {
-  if (referredUserId) await cleanupUser(referredUserId).catch(() => {});
-  await cleanupUser(referrer.id).catch(() => {});
+  if (referredBetterAuthUserId) {
+    await cleanupUser({
+      betterAuthUserId: referredBetterAuthUserId,
+      applicationUserId: referredApplicationUserId || undefined,
+    }).catch(() => {});
+  }
+  await cleanupUser({ betterAuthUserId: referrer.id, applicationUserId: referrer.id }).catch(() => {});
   await browser?.close().catch(() => {});
 }
