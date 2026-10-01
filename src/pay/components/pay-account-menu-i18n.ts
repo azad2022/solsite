@@ -18,6 +18,10 @@ type AccountMenuMessages = {
   logout: string;
   loggingOut: string;
   network: string;
+  directReferrals: string;
+  directReferralsDescription: string;
+  loadingReferralStats: string;
+  referralStatsUnavailable: string;
 };
 
 const messages: Record<PayLocale, AccountMenuMessages> = {
@@ -38,6 +42,10 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     logout:'خروج از حساب',
     loggingOut:'در حال خروج…',
     network:'شبکه',
+    directReferrals:'زیرمجموعه‌های مستقیم',
+    directReferralsDescription:'آمار ثبت‌نام‌های منتسب به لینک شما',
+    loadingReferralStats:'در حال دریافت آمار…',
+    referralStatsUnavailable:'آمار فعلاً در دسترس نیست',
   },
   'en-US': {
     accountMenu:'Account', close:'Close',
@@ -56,6 +64,10 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     logout:'Sign out',
     loggingOut:'Signing out…',
     network:'Network',
+    directReferrals:'Direct referrals',
+    directReferralsDescription:'Sign-ups attributed to your link',
+    loadingReferralStats:'Loading referral stats…',
+    referralStatsUnavailable:'Referral stats unavailable',
   },
   ar: {
     accountMenu:'الحساب', close:'إغلاق',
@@ -74,6 +86,10 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     logout:'تسجيل الخروج',
     loggingOut:'جارٍ تسجيل الخروج…',
     network:'الشبكة',
+    directReferrals:'الإحالات المباشرة',
+    directReferralsDescription:'التسجيلات المنسوبة إلى رابطك',
+    loadingReferralStats:'جارٍ تحميل الإحصاءات…',
+    referralStatsUnavailable:'إحصاءات الإحالة غير متاحة حاليًا',
   },
   ru: {
     accountMenu:'Аккаунт', close:'Закрыть',
@@ -92,6 +108,10 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     logout:'Выйти',
     loggingOut:'Выход…',
     network:'Сеть',
+    directReferrals:'Прямые рефералы',
+    directReferralsDescription:'Регистрации по вашей ссылке',
+    loadingReferralStats:'Загрузка статистики…',
+    referralStatsUnavailable:'Статистика рефералов недоступна',
   },
 };
 
