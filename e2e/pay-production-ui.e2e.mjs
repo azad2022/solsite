@@ -105,6 +105,9 @@ async function cleanup(fixture, merchantId) {
   if (merchantId) await db('delete from public.pay_invoices where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchant_members where merchant_id = $1', [merchantId]).catch(() => {});
   await db('delete from public.pay_merchants where id = $1', [merchantId]).catch(() => {});
+  // public.users cleanup leaves the trigger-created affiliate orphaned because owner_user_id is nullable.
+  // Remove the fixture-owned affiliate explicitly before deleting the application user.
+  await db('delete from public.pay_affiliates where owner_user_id = $1', [fixture.applicationUserId]).catch(() => {});
   await db('delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
   await db('delete from public.users where id = $1', [fixture.applicationUserId]).catch(() => {});
   await db('delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]).catch(() => {});
