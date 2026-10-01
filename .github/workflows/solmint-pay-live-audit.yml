@@ -70,10 +70,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Live browser audit
-        run: node e2e/pay-production-ui.e2e.mjs
       - name: Run dedicated production referral lifecycle E2E
         run: node e2e/pay-referral-production.e2e.mjs
+      - name: Live browser audit
+        run: node e2e/pay-production-ui.e2e.mjs
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
