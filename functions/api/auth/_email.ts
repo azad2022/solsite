@@ -44,6 +44,7 @@ type AuthEmailCopy = {
     greeting: (name: string) => string;
     body: string;
     button: string;
+    notice: string;
     footer: string;
   };
   direction: 'rtl' | 'ltr';
@@ -91,6 +92,7 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       greeting: (name) => `سلام ${name}`,
       body: 'حساب SolMint شما با موفقیت ایجاد شد. از همراهی شما خوشحالیم.',
       button: 'ورود به SolMint',
+      notice: 'برای امنیت حساب، فقط از لینک‌های رسمی SolMint استفاده کنید.',
       footer: 'این پیام برای خوش‌آمدگویی به شما ارسال شده است.',
     },
   },
@@ -133,6 +135,7 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       greeting: (name) => `Hello ${name}`,
       body: 'Your SolMint account has been created successfully. We are glad to have you with us.',
       button: 'Open SolMint',
+      notice: 'For your security, use only official SolMint links.',
       footer: 'This message was sent to welcome you to SolMint.',
     },
   },
@@ -175,6 +178,7 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       greeting: (name) => `مرحباً ${name}`,
       body: 'تم إنشاء حسابك في SolMint بنجاح. يسعدنا انضمامك إلينا.',
       button: 'فتح SolMint',
+      notice: 'لحماية حسابك، استخدم روابط SolMint الرسمية فقط.',
       footer: 'أُرسلت هذه الرسالة للترحيب بك في SolMint.',
     },
   },
@@ -217,6 +221,7 @@ const COPY: Record<AuthEmailLocale, AuthEmailCopy> = {
       greeting: (name) => `Здравствуйте, ${name}`,
       body: 'Ваш аккаунт SolMint успешно создан. Рады приветствовать вас.',
       button: 'Открыть SolMint',
+      notice: 'В целях безопасности используйте только официальные ссылки SolMint.',
       footer: 'Это сообщение отправлено в качестве приветствия от SolMint.',
     },
   },
@@ -374,6 +379,6 @@ export function buildWelcomeEmail(userName: string, locale: AuthEmailLocale = 'e
   return {
     subject: copy.subject,
     text: `${copy.greeting(userName)}\n\n${copy.body}\n\n${copy.button}: ${url}\n\n${copy.footer}`,
-    html: renderEmailHtml(locale, copy.title, copy.greeting(userName), copy.body, copy.button, url, copy.footer, copy.footer),
+    html: renderEmailHtml(locale, copy.title, copy.greeting(userName), copy.body, copy.button, url, copy.notice, copy.footer),
   };
 }
