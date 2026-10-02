@@ -326,7 +326,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     const normalizedSignature = txSignature.trim();
     if (!normalizedSignature) {
       setVerificationState('failed');
-      setVerificationMessage(checkoutLabel(uiLocale, 'signaturePlaceholder'));
+      setVerificationMessage(checkoutLabel(uiLocale, 'walletPaymentFailed'));
       return;
     }
     setVerificationState('submitting');
@@ -459,7 +459,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     : '';
 
   return (
-    <div className="solmint-pay pay-checkout" dir={uiDirection} lang={locale}>
+    <div className="solmint-pay pay-checkout" dir={uiDirection} lang={uiLocale}>
       <header className="pay-checkout-header">
         <div className="pay-checkout-brand"><div className="pay-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div><div className="pay-brand-copy"><strong>{translate(uiLocale, 'brand')}</strong><span>{translate(uiLocale, 'eyebrow')}</span></div></div>
         <div className="pay-checkout-trust"><LockKeyhole size={16} /> {translate(uiLocale, 'checkoutSecure')}</div>
