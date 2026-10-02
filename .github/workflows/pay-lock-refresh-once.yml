@@ -1,0 +1,30 @@
+name: Pay lock refresh once
+
+on:
+  push:
+    branches: [feat/pay-payment-link-hosted-checkout]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+      - run: bun install
+      - run: git config user.name 'github-actions[bot]'
+      - run: git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - run: git add bun.lock && git diff --cached --quiet || git commit -m 'chore(pay): synchronize bun lockfile'
+      - run: git push
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/pay-lock-refresh-once.yml
+          git commit -m 'chore(pay): remove temporary lock refresh workflow'
+          git push
