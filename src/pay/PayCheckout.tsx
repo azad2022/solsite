@@ -13,6 +13,42 @@ import type { PayLocale } from './types';
 import './pay-checkout.css';
 
 interface PayCheckoutProps { locale: PayLocale; intentId?: string; onBack: () => void; }
+import { encodeBase58 as base58Encoder_unused } from './services/base58';
+const base58Encoder = { encodeBase58: base58Encoder_unused };
+
+type WalletSignatureResult = string | { signature?: unknown };
+
+type SolanaWalletProvider = {
+  publicKey?: { toBase58(): string };
+  connect: () => Promise<unknown>;
+  signAndSendTransaction?: (transaction: Transaction) => Promise<WalletSignatureResult>;
+};
+
+function getSolanaWalletProvider(): SolanaWalletProvider | undefined {
+  return window.solana as unknown as SolanaWalletProvider | undefined;
+}
+
+function extractWalletSignature(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return '';
+  const signature = (value as { signature?: unknown }).signature;
+  if (typeof signature === 'string') return signature;
+  if (signature instanceof Uint8Array) {
+    const { encodeBase58 } = requireBase58Encoder();
+    return encodeBase58(signature);
+  }
+  if (signature && typeof signature === 'object' && typeof (signature as { toString?: unknown }).toString === 'function') {
+    const serialized = (signature as { toString(): string }).toString();
+    return serialized === '[object Object]' ? '' : serialized;
+  }
+  return '';
+}
+
+function requireBase58Encoder(): typeof import('./services/base58') {
+  // Static module loading keeps this helper browser-safe and avoids a second Solana SDK dependency.
+  return base58Encoder;
+}
+
 
 function dataStateForError(error: unknown): 'error' | 'empty' | 'unauthorized' | 'forbidden' | 'retryable' {
   if (error instanceof PayHttpError) {
@@ -124,7 +160,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const connectWallet = async () => {
     setVerificationState('idle');
     setVerificationMessage('');
-    const provider = window.solana;
+    const provider = getSolanaWalletProvider();
     if (!provider) {
       setVerificationState('failed');
       setVerificationMessage(checkoutLabel(locale, 'walletRequired'));
@@ -214,7 +250,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       if (!provider?.publicKey) {
         await connectWallet();
       }
-      const activeProvider = window.solana;
+      const activeProvider = getSolanaWalletProvider();
       const account = activeProvider?.publicKey?.toBase58?.() || '';
       if (!account) throw new Error('WALLET_NOT_CONNECTED');
 
@@ -222,7 +258,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
         const payload = await payTransactionRequestService.build(intent.id, account);
         const transaction = Transaction.from(payload.transaction);
         const result = await activeProvider.signAndSendTransaction(transaction);
-        const txSignature = typeof result === 'string' ? result : result?.signature?.toString?.() || '';
+        const txSignature = extractWalletSignature(result);
         if (!txSignature) throw new Error('WALLET_SIGNATURE_MISSING');
         await verifySignature(txSignature);
         return;
