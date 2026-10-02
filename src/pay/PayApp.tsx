@@ -71,6 +71,7 @@ function paySectionLabel(locale: PayLocale, section: PaySection): string {
 
 export function PayApp(): React.ReactElement {
   const [locale, setLocale] = useState<PayLocale>(initialPayLocale);
+  const [checkoutLocaleHint, setCheckoutLocaleHint] = useState<PayLocale | null>(null);
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [billingView, setBillingView] = useState<BillingPrimaryView>('invoices');
@@ -214,11 +215,20 @@ export function PayApp(): React.ReactElement {
   }
 
   if (route.kind === 'payment-link') {
-    return <PayPublicPaymentLink slug={route.slug} initialLocale={locale} />;
+    return <PayPublicPaymentLink
+      slug={route.slug}
+      initialLocale={locale}
+      onCheckoutLocaleResolved={setCheckoutLocaleHint}
+    />;
   }
 
   if (isCheckout) {
-    return <PayCheckout locale={locale} intentId={route.kind === 'checkout' ? route.intentId : undefined} onBack={() => navigate('overview')} />;
+    return <PayCheckout
+      locale={locale}
+      localeHint={checkoutLocaleHint}
+      intentId={route.kind === 'checkout' ? route.intentId : undefined}
+      onBack={() => navigate('overview')}
+    />;
   }
 
   const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : isBillingSection ? translate(locale, 'billingTitle') : isDeveloperSection ? translate(locale, 'developer') : paySectionLabel(locale, currentSection);
