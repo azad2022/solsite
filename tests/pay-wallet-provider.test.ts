@@ -45,9 +45,12 @@ test('selects an explicit wallet and otherwise prefers an already-connected prov
     solflare: solflareProvider,
   };
 
-  const explicit = getSolanaWalletProvider.call(undefined, 'solflare');
-  void explicit;
-  assert.equal(publicKeyString({ toBase58: () => 'Wallet444444444444444444444444444444444444' }), 'Wallet444444444444444444444444444444444444');
+  const explicit = getSolanaWalletProvider('solflare', globals);
+  assert.equal(explicit?.id, 'solflare');
+  assert.equal(explicit?.publicKey?.toBase58(), 'Solflare333333333333333333333333333333333333');
+
+  const preferred = getSolanaWalletProvider(undefined, globals);
+  assert.equal(preferred?.id, 'phantom');
 });
 
 test('publicKeyString safely normalizes supported public-key shapes', () => {
