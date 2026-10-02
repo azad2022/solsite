@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
-import { PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { Connection, PublicKey, SystemInstruction, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 import test from 'node:test';
-import { buildTransaction, validatePayment } from '../functions/api/pay/v1/payment-intents/[id]/transaction-request';
+import { buildTransaction, validatePayment, type PaymentRow } from '../functions/api/pay/v1/payment-intents/[id]/transaction-request';
 
 const BUYER = new PublicKey('11111111111111111111111111111111');
 const MERCHANT = new PublicKey('22222222222222222222222222222222');
 const FEE = new PublicKey('33333333333333333333333333333333');
 const REFERENCE = new PublicKey('44444444444444444444444444444444');
 
-function row(overrides: Record<string, unknown> = {}): any {
+function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
   return {
     id: '8f3d4dd1-4ef0-4a4a-9d98-8d9f2a1c9d91',
     merchant_id: '8f3d4dd1-4ef0-4a4a-9d98-8d9f2a1c9d92',
@@ -40,7 +40,7 @@ test('transaction request preserves authoritative financial invariants and embed
     async getLatestBlockhash() {
       return { blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 1 };
     },
-  } as never;
+  } as unknown as Connection;
 
   const encoded = await buildTransaction(payment, BUYER, connection);
   const transaction = Transaction.from(Buffer.from(encoded, 'base64'));
@@ -54,10 +54,14 @@ test('transaction request preserves authoritative financial invariants and embed
   assert.equal(transaction.instructions[2].programId.toBase58(), 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
   assert.ok(transaction.instructions[2] instanceof TransactionInstruction);
 
-  const merchantInstruction = SystemProgram.decodeInstructionType(transaction.instructions[0]);
-  const feeInstruction = SystemProgram.decodeInstructionType(transaction.instructions[1]);
-  assert.equal(merchantInstruction, 'Transfer');
-  assert.equal(feeInstruction, 'Transfer');
+  const merchantTransfer = SystemInstruction.decodeTransfer(transaction.instructions[0]);
+  const feeTransfer = SystemInstruction.decodeTransfer(transaction.instructions[1]);
+  assert.equal(merchantTransfer.lamports, 990000);
+  assert.equal(feeTransfer.lamports, 10000);
+  assert.equal(merchantTransfer.fromPubkey.toBase58(), BUYER.toBase58());
+  assert.equal(merchantTransfer.toPubkey.toBase58(), MERCHANT.toBase58());
+  assert.equal(feeTransfer.fromPubkey.toBase58(), BUYER.toBase58());
+  assert.equal(feeTransfer.toPubkey.toBase58(), FEE.toBase58());
 
   assert.throws(
     () => validatePayment(row({ customer_total_atomic: '1000001' })),
