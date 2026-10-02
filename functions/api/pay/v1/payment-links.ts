@@ -53,6 +53,15 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
       '/rest/v1/pay_payment_links?select=' + SELECT + '&' + conditions.join('&') + '&order=created_at.desc&limit=' + (linkId || slug ? '1' : String(limit)),
     );
     const rawRows = await response.json() as Array<Record<string, unknown>>;
+    const assetDecimals: Record<'SOL' | 'USDC' | 'USDT', number | null> = { SOL: 9, USDC: null, USDT: null };
+    for (const asset of ['SOL', 'USDC', 'USDT'] as const) {
+      try {
+        const config = resolveAssetFromEnvironment(asset, env as Record<string, string | undefined>);
+        assetDecimals[asset] = config.decimals ?? 9;
+      } catch {
+        assetDecimals[asset] = null;
+      }
+    }
     const rows = rawRows.map((row) => {
       const asset = row.asset;
       if (asset !== 'SOL' && asset !== 'USDC' && asset !== 'USDT') return { ...row, amount_decimals: null };
@@ -71,7 +80,9 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
     return payJson({
       apiVersion: 'v1',
       data: linkId || slug ? rows[0] : rows,
-      meta: linkId || slug ? { merchantId, paymentLinkId: linkId || null, slug: slug || null } : { merchantId, limit, returned: rows.length },
+      meta: linkId || slug
+        ? { merchantId, paymentLinkId: linkId || null, slug: slug || null, assetDecimals }
+        : { merchantId, limit, returned: rows.length, assetDecimals },
     }, 200, requestId);
   } catch (error) {
     if (error instanceof PayRuntimeError) {
