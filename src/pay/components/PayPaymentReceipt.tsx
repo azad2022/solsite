@@ -24,6 +24,21 @@ function address(value: string): string {
   return value.length > 20 ? value.slice(0, 10) + '…' + value.slice(-8) : value;
 }
 
+function receiptStatusLabel(locale: PayLocale, value: string): string {
+  switch (value) {
+    case 'confirmed': return paymentReceiptLabel(locale, 'confirmed');
+    case 'finalized': return paymentReceiptLabel(locale, 'finalized');
+    case 'verified': return paymentReceiptLabel(locale, 'verified');
+    default: return value;
+  }
+}
+
+function feePayerLabel(locale: PayLocale, value: PayPaymentReceipt['feePayer']): string {
+  return value === 'merchant'
+    ? paymentReceiptLabel(locale, 'merchantPayer')
+    : paymentReceiptLabel(locale, 'customerPayer');
+}
+
 function date(value: string | null, locale: PayLocale): string {
   if (!value) return '—';
   const parsed = new Date(value);
@@ -101,18 +116,18 @@ export default function PayPaymentReceipt({ locale, receipt }: Props): React.Rea
         <div><span>{paymentReceiptLabel(locale, 'destination')}</span><code>{address(receipt.recipient)}</code></div>
         <div><span>{paymentReceiptLabel(locale, 'reference')}</span><code>{receipt.reference}</code></div>
         <div><span>{paymentReceiptLabel(locale, 'network')}</span><strong>{receipt.network}</strong></div>
-        <div><span>{paymentReceiptLabel(locale, 'commitment')}</span><strong>{receipt.verificationCommitment}</strong></div>
+        <div><span>{paymentReceiptLabel(locale, 'commitment')}</span><strong>{receiptStatusLabel(locale, receipt.verificationCommitment)}</strong></div>
         <div><span>{paymentReceiptLabel(locale, 'verifiedAt')}</span><strong>{date(receipt.transaction.verifiedAt, locale)}</strong></div>
         <div><span>{paymentReceiptLabel(locale, 'blockTime')}</span><strong>{date(receipt.transaction.blockTime, locale)}</strong></div>
         <div><span>{paymentReceiptLabel(locale, 'slot')}</span><strong>{receipt.transaction.slot ?? '—'}</strong></div>
-        <div><span>{paymentReceiptLabel(locale, 'verificationStatus')}</span><strong>{receipt.transaction.verificationStatus}</strong></div>
+        <div><span>{paymentReceiptLabel(locale, 'verificationStatus')}</span><strong>{receiptStatusLabel(locale, receipt.transaction.verificationStatus)}</strong></div>
       </div>
 
       <details className="pay-receipt-technical">
         <summary><ShieldCheck size={15} /> {paymentReceiptLabel(locale, 'technicalDetails')} <span aria-hidden="true">+</span></summary>
         <div className="pay-receipt-technical-body">
           <div><span>{paymentReceiptLabel(locale, 'amount')}</span><code>{formatAtomic(receipt.amountAtomic, decimals)} {receipt.asset}</code></div>
-          <div><span>{paymentReceiptLabel(locale, 'feePayer')}</span><code>{receipt.feePayer}</code></div>
+          <div><span>{paymentReceiptLabel(locale, 'feePayer')}</span><code>{feePayerLabel(locale, receipt.feePayer)}</code></div>
           <div><span>{paymentReceiptLabel(locale, 'network')}</span><code>{receipt.network}</code></div>
           <div><span>{paymentReceiptLabel(locale, 'createdAt')}</span><code>{date(receipt.createdAt, locale)}</code></div>
           <div><span>{paymentReceiptLabel(locale, 'verifiedAt')}</span><code>{date(receipt.completedAt, locale)}</code></div>
