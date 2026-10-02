@@ -17,8 +17,7 @@ test('builds a transaction request URL on the SolMint origin', () => {
 
 test('builds a Solana transaction request URI safely', () => {
   const uri = buildSolanaTransactionRequestUri('https://solmint.ir', INTENT_ID);
-  assert.match(uri, /^solana:https%3A%2F%2Fsolmint\.ir%2Fapi%2Fpay%2Fv1%2Fpayment-intents%2F/);
-  assert.equal(decodeURIComponent(uri.slice('solana:'.length)), buildTransactionRequestUrl('https://solmint.ir', INTENT_ID));
+  assert.equal(uri, `solana:${buildTransactionRequestUrl('https://solmint.ir', INTENT_ID)}`);
 });
 
 test('builds supported mobile wallet browse links', () => {
