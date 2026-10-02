@@ -72,7 +72,7 @@ test('hosted transaction builder produces a real discoverable Devnet payment', {
 
   const payer = Keypair.generate();
   const merchant = Keypair.generate();
-  const feeRecipient = Keypair.generate();
+  const feeRecipient = EXPECTED_FUNDER;
   const reference = Keypair.generate();
 
   const fundingBlockhash = await connection.getLatestBlockhash('finalized');
