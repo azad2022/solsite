@@ -49,6 +49,6 @@ test('hosted transaction is always payer-signed and spends only from the supplie
   const destinations = transfers.map((transfer) => transfer.toPubkey.toBase58()).sort();
   assert.deepEqual(destinations, [feeRecipient.publicKey.toBase58(), merchant.publicKey.toBase58()].sort());
 
-  const amounts = transfers.map((transfer) => transfer.lamports).sort((a, b) => a - b);
-  assert.deepEqual(amounts, [10000, 990000]);
+  const amounts = transfers.map((transfer) => transfer.lamports.toString()).sort();
+  assert.deepEqual(amounts, ['10000', '990000']);
 });
