@@ -54,7 +54,6 @@ export interface PayPaymentReceipt {
 
 interface Envelope { success?: boolean; apiVersion?: string; data?: unknown; }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,128}$/;
 const LOCALES = new Set<PayLocale | 'auto'>(['fa-IR','en-US','ar','ru','auto']);
 const ASSETS = new Set<PayPaymentReceipt['asset']>(['SOL','USDC','USDT']);
 
@@ -102,14 +101,25 @@ function parseReceipt(value: unknown): PayPaymentReceipt {
   const verificationCommitment = requiredString(receipt, 'verificationCommitment');
   const txAsset = requiredString(transaction, 'asset');
   const txCommitment = requiredString(transaction, 'commitment');
+  const feeBps = receipt.feeBps;
+  const tokenDecimals = receipt.tokenDecimals;
+  const txTokenDecimals = transaction.tokenDecimals;
 
   if (!UUID.test(requiredString(receipt, 'id')) || status !== 'completed') throw new TypeError('Invalid completed payment receipt.');
+  if (!Number.isInteger(feeBps) || feeBps < 0 || feeBps > 10000) throw new TypeError('Invalid payment receipt fee rate.');
+  if (tokenDecimals !== null && (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 255)) throw new TypeError('Invalid payment receipt token decimals.');
+  if (txTokenDecimals !== null && (!Number.isInteger(txTokenDecimals) || txTokenDecimals < 0 || txTokenDecimals > 255)) throw new TypeError('Invalid payment receipt transaction token decimals.');
   if (!UUID.test(requiredString(merchant, 'id')) || !ASSETS.has(asset as PayPaymentReceipt['asset']) || (feePayer !== 'merchant' && feePayer !== 'customer') || network !== 'solana') {
     throw new TypeError('Invalid payment receipt snapshot.');
   }
   if (verificationCommitment !== 'confirmed' && verificationCommitment !== 'finalized') throw new TypeError('Invalid payment receipt commitment.');
   if (!ASSETS.has(txAsset as PayPaymentReceipt['asset']) || (txCommitment !== 'confirmed' && txCommitment !== 'finalized')) {
     throw new TypeError('Invalid payment receipt transaction.');
+  }
+  const transactionSignature = requiredString(transaction, 'signature').replace(/\s/g, '');
+  if (!/^[1-9A-HJ-NP-Za-km-z]{64,128}$/.test(transactionSignature)) throw new TypeError('Invalid payment receipt transaction signature.');
+  if (bool(transaction, 'isAuthoritative') !== true || bool(transaction, 'referenceMatched') !== true || bool(transaction, 'confirmed') !== true) {
+    throw new TypeError('Invalid authoritative payment receipt transaction.');
   }
 
   let parsedLink: PayPaymentReceipt['paymentLink'] = null;
@@ -133,12 +143,12 @@ function parseReceipt(value: unknown): PayPaymentReceipt {
     customerTotalAtomic: atomic(receipt, 'customerTotalAtomic'),
     merchantSettlementAtomic: atomic(receipt, 'merchantSettlementAtomic'),
     feeAtomic: atomic(receipt, 'feeAtomic'),
-    feeBps: Number(receipt.feeBps),
+    feeBps,
     feePayer: feePayer as PayPaymentReceipt['feePayer'],
     asset: asset as PayPaymentReceipt['asset'],
     tokenMint: nullableString(receipt, 'tokenMint'),
     tokenProgram: nullableString(receipt, 'tokenProgram'),
-    tokenDecimals: receipt.tokenDecimals === null ? null : Number(receipt.tokenDecimals),
+    tokenDecimals: tokenDecimals === null ? null : Number(tokenDecimals),
     recipient: requiredString(receipt, 'recipient'),
     feeRecipient: requiredString(receipt, 'feeRecipient'),
     reference: requiredString(receipt, 'reference'),
@@ -149,7 +159,7 @@ function parseReceipt(value: unknown): PayPaymentReceipt {
     payerWallet: nullableString(receipt, 'payerWallet'),
     transaction: {
       id: requiredString(transaction, 'id'),
-      signature: requiredString(transaction, 'signature').replace(/\s/g, ''),
+      signature: transactionSignature,
       slot: nullableInteger(transaction, 'slot'),
       blockTime: nullableString(transaction, 'blockTime'),
       observedAmountAtomic: atomic(transaction, 'observedAmountAtomic'),
@@ -165,7 +175,7 @@ function parseReceipt(value: unknown): PayPaymentReceipt {
       isAuthoritative: bool(transaction, 'isAuthoritative'),
       tokenMint: nullableString(transaction, 'tokenMint'),
       tokenProgram: nullableString(transaction, 'tokenProgram'),
-      tokenDecimals: transaction.tokenDecimals === null ? null : Number(transaction.tokenDecimals),
+      tokenDecimals: txTokenDecimals === null ? null : Number(txTokenDecimals),
     },
     transfers: Array.isArray(root.transfers) ? root.transfers.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) as Record<string, unknown>[] : [],
   };
