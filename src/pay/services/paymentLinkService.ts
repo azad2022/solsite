@@ -143,6 +143,10 @@ function parseAssetDecimals(value: unknown): PayAssetDecimals {
   const result: PayAssetDecimals = { SOL: null, USDC: null, USDT: null };
   for (const asset of ['SOL', 'USDC', 'USDT'] as const) {
     const decimal = row[asset];
+    if (decimal === null) {
+      result[asset] = null;
+      continue;
+    }
     if (!Number.isInteger(decimal) || (decimal as number) < 0 || (decimal as number) > 255) {
       throw new TypeError('Invalid Pay payment-link asset decimals: ' + asset);
     }
@@ -293,7 +297,11 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
       };
     },
     async list(merchantId: string, limit = 50): Promise<PayPaymentLink[]> {
-      return (await this.listWithMeta(merchantId, limit)).rows;
+      if (!UUID.test(merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new TypeError('Payment link limit is invalid.');
+      const payload = await client.request<Envelope>('/api/pay/v1/payment-links?merchantId=' + encodeURIComponent(merchantId.trim()) + '&limit=' + limit);
+      if (payload.success !== true || payload.apiVersion !== 'v1' || !Array.isArray(payload.data)) throw new TypeError('Invalid Pay payment link list envelope.');
+      return payload.data.map(parseLink);
     },
     async get(merchantId: string, linkId: string): Promise<PayPaymentLink> {
       if (!UUID.test(merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
