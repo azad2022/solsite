@@ -348,7 +348,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
 
     const body = await readJsonBody(request);
     const signature = typeof body.signature === 'string' ? body.signature.trim() : '';
-    if (!isSignature(signature)) return payJson({ code: 'INVALID_SIGNATURE', message: 'A valid Solana transaction signature is required.' }, 400, requestId);
+    if (signature && !isSignature(signature)) return payJson({ code: 'INVALID_SIGNATURE', message: 'A valid Solana transaction signature is required.' }, 400, requestId);
 
     const source = request.headers.get('CF-Connecting-IP') || request.headers.get('x-forwarded-for') || 'anonymous';
     const subjectHash = await sha256Hex(`${paymentId}:${source}`);
@@ -388,7 +388,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     );
     const payment = mapPayment(row);
     const repository = createRepository(env, requestId);
-    const result = await reconcilePayment(provider, repository, payment, signature);
+    const result = await reconcilePayment(provider, repository, payment, signature || undefined);
 
     if (result.outcome === 'no_match') {
       if (SUCCESS_EMAIL_STATUSES.has(row.status) || FAILURE_EMAIL_STATUSES.has(row.status)) {
