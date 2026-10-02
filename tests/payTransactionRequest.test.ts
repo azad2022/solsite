@@ -47,7 +47,7 @@ test('transaction request preserves authoritative financial invariants and embed
   const compiled = transaction.compileMessage();
 
   assert.equal(transaction.feePayer?.toBase58(), BUYER.toBase58());
-  assert.ok(compiled.accountKeys.some((key) => key.pubkey.equals(REFERENCE)));
+  assert.ok(compiled.accountKeys.some((key) => key.equals(REFERENCE)));
   assert.equal(transaction.instructions.length, 2);
   assert.equal(transaction.instructions[0].programId.toBase58(), SystemProgram.programId.toBase58());
   assert.equal(transaction.instructions[1].programId.toBase58(), SystemProgram.programId.toBase58());
