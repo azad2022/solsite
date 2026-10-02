@@ -1,3 +1,4 @@
+import type { PayLocale } from './types';
 import { defaultPayHttpClient, PayHttpError, type PayHttpClient } from './http';
 
 export type PayPaymentStatus =
@@ -30,6 +31,9 @@ export interface PayPaymentIntent {
   readonly merchantSettlementAtomic: string;
   readonly network: 'solana';
   readonly verificationCommitment: 'confirmed' | 'finalized';
+  readonly checkoutLocale: PayLocale | null;
+  readonly paymentLinkTitle: string | null;
+  readonly paymentLinkDescription: string | null;
 }
 
 interface PaymentIntentEnvelope {
