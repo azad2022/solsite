@@ -31,7 +31,7 @@ export interface PayPaymentIntent {
   readonly merchantSettlementAtomic: string;
   readonly network: 'solana';
   readonly verificationCommitment: 'confirmed' | 'finalized';
-  readonly checkoutLocale: PayLocale | null;
+  readonly checkoutLocale: PayLocale | 'auto' | null;
   readonly paymentLinkTitle: string | null;
   readonly paymentLinkDescription: string | null;
 }
