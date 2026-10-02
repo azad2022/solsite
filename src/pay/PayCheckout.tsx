@@ -113,6 +113,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
   const BackIcon = uiDirection === 'rtl' ? ArrowRight : ArrowLeft;
   const expectedWalletAddress = walletAddressInput.trim();
   const mobileWalletContext = isMobileWalletContext();
+  const paymentReturnHint = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payment') === 'return';
   const walletTransactionRequestUrl = useCallback(
     () => buildTransactionRequestUrl(window.location.origin, intent?.id ?? '', undefined),
     [intent?.id],
@@ -172,6 +173,38 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
       document.removeEventListener('visibilitychange', refreshOnWalletReturn);
     };
   }, [currentIntentId, loadIntent]);
+
+  useEffect(() => {
+    if (!currentIntentId || !currentStatus || !NON_TERMINAL_STATUSES.has(currentStatus)) return;
+    if (!paymentReturnHint && !walletFallbackOpen) return;
+
+    let cancelled = false;
+    const reconcile = () => {
+      void payPaymentVerificationService.reconcile(currentIntentId)
+        .then(result => {
+          if (cancelled || !mountedRef.current) return;
+          setIntent(current => current ? { ...current, status: result.status } : current);
+          if (result.outcome === 'confirmed' || result.status === 'confirmed') {
+            setVerificationState('idle');
+            setVerificationMessage(checkoutLabel(uiLocale, 'paymentConfirmed'));
+          } else if (result.status === 'completed') {
+            setVerificationState('idle');
+            setVerificationMessage(checkoutLabel(uiLocale, 'paymentCompleted'));
+          }
+        })
+        .catch(() => {
+          // Keep the last authoritative snapshot; the next interval retries automatically.
+        });
+    };
+
+    const first = window.setTimeout(reconcile, 1200);
+    const timer = window.setInterval(reconcile, 7000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+    };
+  }, [currentIntentId, currentStatus, paymentReturnHint, walletFallbackOpen, uiLocale]);
 
   useEffect(() => {
     if (!currentIntentId || !currentStatus || !NON_TERMINAL_STATUSES.has(currentStatus)) return;
@@ -340,6 +373,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     setWalletAddressInputError(false);
     const target = new URL(window.location.href);
     if (value) target.searchParams.set('wallet', value); else target.searchParams.delete('wallet');
+    target.searchParams.set('payment', 'return');
     setWalletPaymentState('opening');
     window.location.assign(buildWalletBrowseUrl(wallet, target.toString()));
   };
@@ -369,6 +403,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
   const payWithConnectedWallet = async () => {
     if (!intent || walletPayDisabled || walletPaymentInFlightRef.current) return;
     walletPaymentInFlightRef.current = true;
+    setWalletFallbackOpen(false);
     setWalletPaymentState('preparing');
     setVerificationState('idle');
     setVerificationMessage('');
