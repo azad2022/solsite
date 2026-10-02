@@ -352,7 +352,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
   const walletPayDisabled = !intent || !['created', 'pending'].includes(intent.status) || verificationState === 'submitting' || walletPaymentState !== 'idle';
   const verificationDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
   const selectedWalletName = selectedWalletId
-    ? (availableWallets.find((item) => item.id === selectedWalletId)?.name ?? 'Solana Wallet')
+    ? (availableWallets.find((item) => item.id === selectedWalletId)?.name ?? checkoutLabel(uiLocale, 'walletGeneric'))
     : '';
 
   return (
@@ -364,7 +364,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
       <main className="pay-checkout-main">
         <button type="button" className="pay-checkout-back" onClick={onBack}><BackIcon size={17} />{translate(uiLocale, 'backToPay')}</button>
         <section className="pay-checkout-card" aria-labelledby="pay-checkout-title">
-          <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(uiLocale, 'checkout')}</span><h1 id="pay-checkout-title">{intent?.paymentLinkTitle || (intent ? intent.merchant.businessName : translate(uiLocale, 'checkoutWaitingTitle'))}</h1><p>{intent?.paymentLinkDescription || translate(uiLocale, 'checkoutWaitingDescription')}</p><div className="pay-checkout-merchant-caption">{checkoutLabel(uiLocale, 'merchant')}: {intent?.merchant.businessName ?? 'SolMint Pay'}</div></div></div>
+          <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(uiLocale, 'checkout')}</span><h1 id="pay-checkout-title">{intent?.paymentLinkTitle || (intent ? intent.merchant.businessName : translate(uiLocale, 'checkoutWaitingTitle'))}</h1><p>{intent?.paymentLinkDescription || translate(uiLocale, 'checkoutWaitingDescription')}</p><div className="pay-checkout-merchant-caption">{checkoutLabel(uiLocale, 'merchant')}: {intent?.merchant.businessName ?? translate(uiLocale, 'brand')}</div></div></div>
           {!intentId ? (
             <form
               className="pay-checkout-intent-lookup"
