@@ -100,14 +100,19 @@ function parseReceipt(value: unknown): PayPaymentReceipt {
   const verificationCommitment = requiredString(receipt, 'verificationCommitment');
   const txAsset = requiredString(transaction, 'asset');
   const txCommitment = requiredString(transaction, 'commitment');
-  const feeBps = receipt.feeBps;
-  const tokenDecimals = receipt.tokenDecimals;
-  const txTokenDecimals = transaction.tokenDecimals;
+  const rawFeeBps = receipt.feeBps;
+  const feeBps = Number.isInteger(rawFeeBps) ? rawFeeBps as number : null;
+  const rawTokenDecimals = receipt.tokenDecimals;
+  const tokenDecimals = rawTokenDecimals === null ? null : Number.isInteger(rawTokenDecimals) ? rawTokenDecimals as number : null;
+  const rawTxTokenDecimals = transaction.tokenDecimals;
+  const txTokenDecimals = rawTxTokenDecimals === null ? null : Number.isInteger(rawTxTokenDecimals) ? rawTxTokenDecimals as number : null;
 
   if (!UUID.test(requiredString(receipt, 'id')) || status !== 'completed') throw new TypeError('Invalid completed payment receipt.');
-  if (!Number.isInteger(feeBps) || feeBps < 0 || feeBps > 10000) throw new TypeError('Invalid payment receipt fee rate.');
-  if (tokenDecimals !== null && (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 255)) throw new TypeError('Invalid payment receipt token decimals.');
-  if (txTokenDecimals !== null && (!Number.isInteger(txTokenDecimals) || txTokenDecimals < 0 || txTokenDecimals > 255)) throw new TypeError('Invalid payment receipt transaction token decimals.');
+  if (feeBps === null || feeBps < 0 || feeBps > 10000) throw new TypeError('Invalid payment receipt fee rate.');
+  if (rawTokenDecimals !== null && tokenDecimals === null) throw new TypeError('Invalid payment receipt token decimals.');
+  if (rawTokenDecimals !== null && (tokenDecimals < 0 || tokenDecimals > 255)) throw new TypeError('Invalid payment receipt token decimals.');
+  if (rawTxTokenDecimals !== null && txTokenDecimals === null) throw new TypeError('Invalid payment receipt transaction token decimals.');
+  if (rawTxTokenDecimals !== null && (txTokenDecimals < 0 || txTokenDecimals > 255)) throw new TypeError('Invalid payment receipt transaction token decimals.');
   if (!UUID.test(requiredString(merchant, 'id')) || !ASSETS.has(asset as PayPaymentReceipt['asset']) || (feePayer !== 'merchant' && feePayer !== 'customer') || network !== 'solana') {
     throw new TypeError('Invalid payment receipt snapshot.');
   }
