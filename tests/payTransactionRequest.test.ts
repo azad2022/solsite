@@ -48,11 +48,16 @@ test('transaction request preserves authoritative financial invariants and embed
 
   assert.equal(transaction.feePayer?.toBase58(), BUYER.toBase58());
   assert.ok(compiled.accountKeys.some((key) => key.pubkey.equals(REFERENCE)));
-  assert.equal(transaction.instructions.length, 3);
+  assert.equal(transaction.instructions.length, 2);
   assert.equal(transaction.instructions[0].programId.toBase58(), SystemProgram.programId.toBase58());
   assert.equal(transaction.instructions[1].programId.toBase58(), SystemProgram.programId.toBase58());
-  assert.equal(transaction.instructions[2].programId.toBase58(), 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
-  assert.ok(transaction.instructions[2] instanceof TransactionInstruction);
+  assert.equal(transaction.instructions[0].keys[2]?.pubkey.toBase58(), REFERENCE.toBase58());
+  assert.equal(transaction.instructions[0].keys[2]?.isSigner, false);
+  assert.equal(transaction.instructions[0].keys[2]?.isWritable, false);
+  assert.equal(transaction.instructions[1].keys[2]?.pubkey.toBase58(), REFERENCE.toBase58());
+  assert.equal(transaction.instructions[1].keys[2]?.isSigner, false);
+  assert.equal(transaction.instructions[1].keys[2]?.isWritable, false);
+  assert.ok(transaction.instructions[0] instanceof TransactionInstruction);
 
   const merchantTransfer = SystemInstruction.decodeTransfer(transaction.instructions[0]);
   const feeTransfer = SystemInstruction.decodeTransfer(transaction.instructions[1]);
