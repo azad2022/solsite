@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Keypair, Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { Keypair, Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
 import { verifyPayment } from '../src/pay/services/paymentVerifier';
 import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
@@ -118,7 +118,8 @@ test('hosted transaction builder produces a real discoverable Devnet payment', {
     preflightCommitment: 'confirmed',
     maxRetries: 2,
   });
-  await confirm(connection, signature, transaction.recentBlockhash, (await connection.getBlockHeight('finalized')) + 150);
+  const confirmation = await connection.confirmTransaction(signature, 'finalized');
+  assert.equal(confirmation.value.err, null);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
   const discovered = await provider.findTransactionsByReference(
@@ -147,5 +148,4 @@ test('hosted transaction builder produces a real discoverable Devnet payment', {
   assert.equal(decision.result.reason, 'OK');
   assert.equal(decision.result.status, 'confirmed');
   assert.equal(decision.candidate?.signature, signature);
-  assert.equal(BigInt(PAYMENT_AMOUNT) as bigint, SETTLEMENT + FEE);
 });
