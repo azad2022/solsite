@@ -31,6 +31,13 @@ type PaymentIntentRow = {
 };
 
 type MerchantRow = { id: string; business_name: string; status: string };
+type PaymentPresentationRow = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  checkout_locale: string;
+};
 
 const PUBLIC_STATUS = new Set([
   'created', 'pending', 'detected', 'verifying', 'confirmed', 'completed',
@@ -79,6 +86,16 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const merchant = merchantRows[0];
     if (!merchant || merchant.status !== 'active') return error(request, 'MERCHANT_UNAVAILABLE', 'Merchant is not available for checkout.', 404);
 
+    let paymentLink: PaymentPresentationRow | null = null;
+    if (typeof payment.payment_link_id === 'string' && payment.payment_link_id) {
+      const linkRows = await supabaseGet<PaymentPresentationRow>(
+        supabase.base,
+        supabase.headers,
+        `pay_payment_links?select=id,slug,title,description,checkout_locale&id=eq.${encodeURIComponent(payment.payment_link_id)}&limit=1`,
+      );
+      paymentLink = linkRows[0] || null;
+    }
+
     return json(request, {
       success: true,
       apiVersion: 'v1',
@@ -103,7 +120,10 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
         merchantNetAtomic: atomic(payment.merchant_net_atomic),
         merchantSettlementAtomic: atomic(payment.merchant_settlement_atomic),
         network: payment.network,
-        verificationCommitment: payment.verification_commitment
+        verificationCommitment: payment.verification_commitment,
+        checkoutLocale: paymentLink?.checkout_locale ?? null,
+        paymentLinkTitle: paymentLink?.title ?? null,
+        paymentLinkDescription: paymentLink?.description ?? null,
       }
     }, 200, 'no-store');
   } catch (cause) {
