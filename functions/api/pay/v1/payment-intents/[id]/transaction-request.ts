@@ -12,6 +12,7 @@ import {
   makePayRequestId,
   payFeatureEnabled,
   payJson,
+  readJsonBody,
   supabaseRequest,
 } from '../../../_shared/runtime';
 import type { PaymentAsset, TokenProgram } from '../../../../../../src/pay/types/domain';
@@ -22,8 +23,6 @@ interface PayEnv {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   PAY_API_ENABLED?: string;
   SOLANA_RPC_URL?: string;
-  PAY_USDC_MINT?: string;
-  PAY_USDT_MINT?: string;
 }
 
 interface PaymentRow {
@@ -59,6 +58,11 @@ function asBigInt(value: string): bigint {
   return BigInt(value);
 }
 
+function asSafeSolLamports(value: bigint): number {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('SOL_AMOUNT_TOO_LARGE');
+  return Number(value);
+}
+
 function bytesToBase64(value: Uint8Array): string {
   let binary = '';
   const chunk = 0x8000;
@@ -68,13 +72,17 @@ function bytesToBase64(value: Uint8Array): string {
   return btoa(binary);
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 async function loadPayment(env: PayEnv, paymentId: string): Promise<PaymentRow | null> {
   const response = await supabaseRequest(
     env,
     `/rest/v1/pay_payment_intents?select=id,merchant_id,amount_atomic,customer_total_atomic,merchant_settlement_atomic,fee_atomic,asset,token_mint,token_program,token_decimals,recipient,fee_recipient,reference,status,expires_at,merchant:pay_merchants!inner(business_name)&id=eq.${encodeURIComponent(paymentId)}&limit=1`,
     { headers: { Accept: 'application/json' } },
   );
-  if (!response.ok) throw new Error(`PAYMENT_READ_${response.status}`);
   const rows = await response.json() as Array<Omit<PaymentRow, 'merchant_business_name'> & { merchant?: { business_name?: string } }>;
   const row = rows[0];
   if (!row || !row.merchant?.business_name) return null;
@@ -98,50 +106,48 @@ function validatePayment(row: PaymentRow): void {
   if (row.recipient === row.fee_recipient) throw new Error('PAYMENT_DESTINATION_COLLISION');
 }
 
-function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: Connection): Promise<string> {
-  return (async () => {
-    const transaction = new Transaction();
-    const { blockhash } = await connection.getLatestBlockhash('confirmed');
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = buyer;
+async function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: Connection): Promise<string> {
+  const transaction = new Transaction();
+  const { blockhash } = await connection.getLatestBlockhash('confirmed');
+  transaction.recentBlockhash = blockhash;
+  transaction.feePayer = buyer;
 
-    const merchantAmount = asBigInt(row.merchant_settlement_atomic);
-    const feeAmount = asBigInt(row.fee_atomic);
+  const merchantAmount = asBigInt(row.merchant_settlement_atomic);
+  const feeAmount = asBigInt(row.fee_atomic);
 
-    if (row.asset === 'SOL') {
+  if (row.asset === 'SOL') {
+    transaction.add(
+      SystemProgram.transfer({ fromPubkey: buyer, toPubkey: new PublicKey(row.recipient), lamports: asSafeSolLamports(merchantAmount) }),
+    );
+    if (feeAmount > 0n) {
       transaction.add(
-        SystemProgram.transfer({ fromPubkey: buyer, toPubkey: new PublicKey(row.recipient), lamports: Number(merchantAmount) }),
+        SystemProgram.transfer({ fromPubkey: buyer, toPubkey: new PublicKey(row.fee_recipient), lamports: asSafeSolLamports(feeAmount) }),
       );
-      if (feeAmount > 0n) {
-        transaction.add(
-          SystemProgram.transfer({ fromPubkey: buyer, toPubkey: new PublicKey(row.fee_recipient), lamports: Number(feeAmount) }),
-        );
-      }
-    } else {
-      const mint = new PublicKey(row.token_mint!);
-      const programId = row.token_program === 'token-2022' ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
-      const source = getAssociatedTokenAddressSync(mint, buyer, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
-      const merchantOwner = new PublicKey(row.recipient);
-      const feeOwner = new PublicKey(row.fee_recipient);
-      const merchantDestination = getAssociatedTokenAddressSync(mint, merchantOwner, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
-      const feeDestination = getAssociatedTokenAddressSync(mint, feeOwner, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
-
-      const sourceInfo = await connection.getAccountInfo(source, 'confirmed');
-      if (!sourceInfo) throw new Error('CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND');
-
-      transaction.add(createAssociatedTokenAccountIdempotentInstruction(buyer, merchantDestination, merchantOwner, mint, programId, ASSOCIATED_TOKEN_PROGRAM_ID));
-      if (feeAmount > 0n) {
-        transaction.add(createAssociatedTokenAccountIdempotentInstruction(buyer, feeDestination, feeOwner, mint, programId, ASSOCIATED_TOKEN_PROGRAM_ID));
-      }
-      transaction.add(createTransferCheckedInstruction(source, mint, merchantDestination, buyer, merchantAmount, row.token_decimals!, [], programId));
-      if (feeAmount > 0n) {
-        transaction.add(createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId));
-      }
     }
+  } else {
+    const mint = new PublicKey(row.token_mint!);
+    const programId = row.token_program === 'token-2022' ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+    const source = getAssociatedTokenAddressSync(mint, buyer, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
+    const merchantOwner = new PublicKey(row.recipient);
+    const feeOwner = new PublicKey(row.fee_recipient);
+    const merchantDestination = getAssociatedTokenAddressSync(mint, merchantOwner, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
+    const feeDestination = getAssociatedTokenAddressSync(mint, feeOwner, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
 
-    const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
-    return bytesToBase64(serialized);
-  })();
+    const sourceInfo = await connection.getAccountInfo(source, 'confirmed');
+    if (!sourceInfo) throw new Error('CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND');
+
+    transaction.add(createAssociatedTokenAccountIdempotentInstruction(buyer, merchantDestination, merchantOwner, mint, programId, ASSOCIATED_TOKEN_PROGRAM_ID));
+    if (feeAmount > 0n) {
+      transaction.add(createAssociatedTokenAccountIdempotentInstruction(buyer, feeDestination, feeOwner, mint, programId, ASSOCIATED_TOKEN_PROGRAM_ID));
+    }
+    transaction.add(createTransferCheckedInstruction(source, mint, merchantDestination, buyer, merchantAmount, row.token_decimals!, [], programId));
+    if (feeAmount > 0n) {
+      transaction.add(createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId));
+    }
+  }
+
+  const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
+  return bytesToBase64(serialized);
 }
 
 export const onRequestGet = async ({ request, env, params }: { request: Request; env: PayEnv; params: { id?: string } }) => {
@@ -155,10 +161,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     if (!row) return payJson({ code: 'PAYMENT_INTENT_NOT_FOUND', message: 'Payment Intent was not found.' }, 404, requestId);
     validatePayment(row);
     const origin = new URL(request.url).origin;
-    return payJson({
-      label: `${row.merchant_business_name} · SolMint Pay`,
-      icon: `${origin}/assets/solmint-mascot-solana-coin.webp`,
-    }, 200, requestId);
+    return payJson({ label: `${row.merchant_business_name} · SolMint Pay`, icon: `${origin}/assets/solmint-mascot-solana-coin.webp` }, 200, requestId);
   } catch (cause) {
     const code = cause instanceof Error ? cause.message : 'TRANSACTION_REQUEST_FAILED';
     const status = code === 'PAYMENT_EXPIRED' ? 410 : code === 'PAYMENT_NOT_PAYABLE' ? 409 : 422;
@@ -173,11 +176,11 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
   if (!isUuid(paymentId)) return payJson({ code: 'PAYMENT_INTENT_ID_INVALID', message: 'Payment Intent ID is invalid.' }, 400, requestId);
 
   try {
-    const body = await request.json() as { account?: unknown };
-    if (!isBase58PublicKey(body?.account)) return payJson({ code: 'INVALID_ACCOUNT', message: 'A valid wallet account is required.' }, 400, requestId);
+    const body = await readJsonBody(request);
+    if (!isBase58PublicKey(body.account)) return payJson({ code: 'INVALID_ACCOUNT', message: 'A valid wallet account is required.' }, 400, requestId);
     const buyer = new PublicKey(body.account);
     const source = request.headers.get('CF-Connecting-IP') || request.headers.get('x-forwarded-for') || 'anonymous';
-    const rateSubject = `${paymentId}:${source}`;
+    const rateSubject = await sha256Hex(`${paymentId}:${source}`);
     await enforcePayRateLimit(env, 'payment-intents:transaction-request', rateSubject, 30, 6);
 
     const row = await loadPayment(env, paymentId);
@@ -195,7 +198,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     }, 200, requestId);
   } catch (cause) {
     const code = cause instanceof Error ? cause.message : 'TRANSACTION_BUILD_FAILED';
-    const known = new Set(['PAYMENT_EXPIRED', 'PAYMENT_NOT_PAYABLE', 'PAYMENT_TOTAL_MISMATCH', 'PAYMENT_AMOUNT_INVALID', 'PAYMENT_RECIPIENT_INVALID', 'PAYMENT_DESTINATION_COLLISION', 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND']);
+    const known = new Set(['PAYMENT_EXPIRED', 'PAYMENT_NOT_PAYABLE', 'PAYMENT_TOTAL_MISMATCH', 'PAYMENT_AMOUNT_INVALID', 'PAYMENT_RECIPIENT_INVALID', 'PAYMENT_DESTINATION_COLLISION', 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND', 'SOL_AMOUNT_TOO_LARGE']);
     const status = code === 'PAYMENT_EXPIRED' ? 410 : code === 'PAYMENT_NOT_PAYABLE' ? 409 : known.has(code) ? 422 : 502;
     console.error('Pay transaction request failed:', JSON.stringify({ requestId, paymentId, code }));
     return payJson({ code, message: code === 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND' ? 'Your wallet does not have the required token account.' : 'Payment transaction could not be prepared.' }, status, requestId);
