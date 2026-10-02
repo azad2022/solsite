@@ -8,84 +8,14 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  inspect:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.2.15
-      - name: Install dependencies and refresh lockfile
-        run: bun install
-      - name: Patch hosted checkout
-        env:
-          PYTHONUNBUFFERED: '1'
+          fetch-depth: 1
+      - name: Inspect checkout verification anchors
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          checkout = Path('src/pay/PayCheckout.tsx')
-          text = checkout.read_text()
-          text = text.replace(
-              "import React, { useCallback, useEffect, useRef, useState } from 'react';",
-              "import React, { useCallback, useEffect, useRef, useState } from 'react';\nimport { Transaction } from '@solana/web3.js';",
-              1,
-          )
-          text = text.replace(
-              "import { payPaymentVerificationService } from './payment-verification-service';",
-              "import { payPaymentVerificationService } from './payment-verification-service';\nimport { payTransactionRequestService } from './payment-transaction-request-service';",
-              1,
-          )
-          text = text.replace(
-              "const [verificationState, setVerificationState] = useState<'idle' | 'submitting' | 'not_detected' | 'underpaid' | 'overpaid' | 'ambiguous' | 'failed'>('idle');",
-              "const [verificationState, setVerificationState] = useState<'idle' | 'submitting' | 'not_detected' | 'underpaid' | 'overpaid' | 'ambiguous' | 'failed'>('idle');\n  const [walletPaymentState, setWalletPaymentState] = useState<'idle' | 'preparing' | 'opening'>('idle');",
-              1,
-          )
-          pattern = re.compile(r"  const verify = async \(\) => \{.*?\n  \};\n\n  const decimals =", re.S)
-          replacement = '''  const verifySignature = async (txSignature: string) => {\n    if (!intent) return;\n    const normalizedSignature = txSignature.trim();\n    if (!normalizedSignature) {\n      setVerificationState('failed');\n      setVerificationMessage(checkoutLabel(locale, 'signaturePlaceholder'));\n      return;\n    }\n    setVerificationState('submitting');\n    setVerificationMessage(checkoutLabel(locale, 'verificationSubmitted'));\n    try {\n      const result = await payPaymentVerificationService.verify(intent.id, normalizedSignature);\n      if (!mountedRef.current) return;\n      setSignature(normalizedSignature);\n      setIntent(current => current ? { ...current, status: result.status } : current);\n      if (result.outcome === 'confirmed') {\n        setVerificationState('idle');\n        setVerificationMessage(checkoutLabel(locale, 'paymentConfirmed'));\n        await loadIntent(false);\n      } else if (result.outcome === 'underpaid') {\n        setVerificationState('underpaid');\n        setVerificationMessage(checkoutLabel(locale, 'paymentUnderpaid'));\n      } else if (result.outcome === 'overpaid') {\n        setVerificationState('overpaid');\n        setVerificationMessage(checkoutLabel(locale, 'paymentOverpaid'));\n      } else if (result.outcome === 'ambiguous') {\n        setVerificationState('ambiguous');\n        setVerificationMessage(checkoutLabel(locale, 'paymentAmbiguous'));\n      } else if (result.outcome === 'not_detected') {\n        setVerificationState('not_detected');\n        setVerificationMessage(checkoutLabel(locale, 'notDetected'));\n      } else {\n        setVerificationState('failed');\n        setVerificationMessage(checkoutLabel(locale, 'verificationFailed'));\n      }\n    } catch {\n      if (!mountedRef.current) return;\n      setVerificationState('failed');\n      setVerificationMessage(checkoutLabel(locale, 'verificationFailed'));\n    } finally {\n      if (mountedRef.current) setWalletPaymentState('idle');\n    }\n  };\n\n  const verify = async () => verifySignature(signature);\n\n  const payWithConnectedWallet = async () => {\n    if (!intent || actionDisabled) return;\n    setWalletPaymentState('preparing');\n    setVerificationState('idle');\n    setVerificationMessage('');\n    try {\n      const provider = window.solana;\n      if (!provider?.publicKey) {\n        await connectWallet();\n      }\n      const activeProvider = window.solana;\n      const account = activeProvider?.publicKey?.toBase58?.() || '';\n      if (!account) throw new Error('WALLET_NOT_CONNECTED');\n\n      if (typeof activeProvider.signAndSendTransaction === 'function') {\n        const payload = await payTransactionRequestService.build(intent.id, account);\n        const transaction = Transaction.from(payload.transaction);\n        const result = await activeProvider.signAndSendTransaction(transaction);\n        const txSignature = typeof result === 'string' ? result : result?.signature?.toString?.() || '';\n        if (!txSignature) throw new Error('WALLET_SIGNATURE_MISSING');\n        await verifySignature(txSignature);\n        return;\n      }\n\n      const requestUrl = `${window.location.origin}/api/pay/v1/payment-intents/${encodeURIComponent(intent.id)}/transaction-request`;\n      setWalletPaymentState('opening');\n      window.location.assign(`solana:${requestUrl}`);\n    } catch (cause) {\n      if (!mountedRef.current) return;\n      setWalletPaymentState('idle');\n      const code = cause instanceof Error ? cause.message : 'WALLET_PAYMENT_FAILED';\n      setVerificationState('failed');\n      setVerificationMessage(code === 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND'\n        ? checkoutLabel(locale, 'walletTokenAccountMissing')\n        : checkoutLabel(locale, 'walletPaymentFailed'));\n    }\n  };\n\n  const decimals ='''
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit('PayCheckout verify block not found')
-
-          needle = "                <div className=\"pay-checkout-wallet-row\">"
-          insert_after = "                <div className=\"pay-checkout-wallet-row\">"
-          marker = "                </div>\n\n                <label className=\"pay-checkout-signature-field\">"
-          payment_button = '''                </div>\n\n                <button type=\"button\" className=\"pay-primary-action pay-checkout-wallet-pay\" onClick={() => void payWithConnectedWallet()} disabled={actionDisabled || walletPaymentState !== 'idle'}>\n                  <WalletCards size={17} /> {walletPaymentState === 'preparing' ? checkoutLabel(locale, 'preparingPayment') : walletPaymentState === 'opening' ? checkoutLabel(locale, 'openingWallet') : checkoutLabel(locale, 'payWithWallet')}\n                </button>\n\n                <div className=\"pay-checkout-manual-fallback\">\n                  <strong>{checkoutLabel(locale, 'manualVerification')}</strong>\n                  <span>{checkoutLabel(locale, 'manualVerificationHint')}</span>\n                </div>\n\n                <label className=\"pay-checkout-signature-field\">'''
-          if marker not in text:
-              raise SystemExit('PayCheckout wallet/signature marker not found')
-          text = text.replace(marker, payment_button, 1)
-          checkout.write_text(text)
-
-          i18n = Path('src/pay/checkout-i18n.ts')
-          t = i18n.read_text()
-          replacements = {
-            "verificationFailed: 'بررسی تراکنش کامل نشد. دوباره تلاش کنید.'": "verificationFailed: 'بررسی تراکنش کامل نشد. دوباره تلاش کنید.', payWithWallet: 'پرداخت با کیف پول', preparingPayment: 'در حال آماده‌سازی پرداخت...', openingWallet: 'در حال باز کردن کیف پول...', walletPaymentFailed: 'پرداخت با کیف پول انجام نشد. دوباره تلاش کنید.', walletTokenAccountMissing: 'کیف پول شما حساب توکن لازم را ندارد.', manualVerification: 'روش جایگزین', manualVerificationHint: 'اگر کیف پول شما از پرداخت مستقیم پشتیبانی نمی‌کند، می‌توانید Signature تراکنش را وارد و بررسی کنید.'",
-            "verificationFailed: 'The transaction could not be verified. Try again.'": "verificationFailed: 'The transaction could not be verified. Try again.', payWithWallet: 'Pay with wallet', preparingPayment: 'Preparing payment...', openingWallet: 'Opening wallet...', walletPaymentFailed: 'Wallet payment could not be completed. Try again.', walletTokenAccountMissing: 'Your wallet does not have the required token account.', manualVerification: 'Alternative method', manualVerificationHint: 'If your wallet does not support direct checkout, you can enter the transaction signature for verification.'",
-            "verificationFailed: 'تعذر التحقق من المعاملة. حاول مرة أخرى.'": "verificationFailed: 'تعذر التحقق من المعاملة. حاول مرة أخرى.', payWithWallet: 'الدفع بالمحفظة', preparingPayment: 'جارٍ تجهيز الدفع...', openingWallet: 'جارٍ فتح المحفظة...', walletPaymentFailed: 'تعذر إكمال الدفع بالمحفظة. حاول مرة أخرى.', walletTokenAccountMissing: 'لا تحتوي محفظتك على حساب الرمز المطلوب.', manualVerification: 'طريقة بديلة', manualVerificationHint: 'إذا كانت محفظتك لا تدعم الدفع المباشر، يمكنك إدخال توقيع المعاملة للتحقق.'",
-            "verificationFailed: 'Не удалось проверить транзакцию. Повторите попытку.'": "verificationFailed: 'Не удалось проверить транзакцию. Повторите попытку.', payWithWallet: 'Оплатить кошельком', preparingPayment: 'Подготовка платежа...', openingWallet: 'Открываем кошелёк...', walletPaymentFailed: 'Не удалось выполнить оплату через кошелёк. Повторите попытку.', walletTokenAccountMissing: 'В вашем кошельке отсутствует необходимый токеновый аккаунт.', manualVerification: 'Альтернативный способ', manualVerificationHint: 'Если кошелёк не поддерживает прямую оплату, можно ввести подпись транзакции для проверки.'",
-          }
-          for old, new in replacements.items():
-              if old not in t: raise SystemExit('Missing i18n anchor: ' + old[:60])
-              t = t.replace(old, new, 1)
-          i18n.write_text(t)
-
-          css = Path('src/pay/pay-checkout.css')
-          c = css.read_text()
-          c += '''\n\n.pay-checkout-wallet-pay { width: 100%; justify-content: center; margin-top: 12px; }\n.pay-checkout-manual-fallback { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--pay-border, rgba(15,23,42,.08)); font-size: 12px; line-height: 1.55; }\n.pay-checkout-manual-fallback strong { font-size: 12px; }\n.pay-checkout-manual-fallback span { color: var(--pay-muted, #64748b); }\n'''
-          css.write_text(c)
-
-          print('Hosted checkout patch applied.')
-          PY
-      - name: Remove temporary workflow and commit
-        run: |
-          rm -f .github/workflows/pay-hosted-checkout-patch.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json bun.lock src/pay/PayCheckout.tsx src/pay/checkout-i18n.ts src/pay/pay-checkout.css src/pay/payment-transaction-request-service.ts functions/api/pay/v1/payment-intents/[id]/transaction-request.ts
-          git diff --cached --check
-          git commit -m 'feat(pay): enable hosted wallet checkout for payment links'
-          git push
+          grep -n -E "const .*verify|verifyPayment|verificationState|signature" src/pay/PayCheckout.tsx | head -80
+          sed -n '150,290p' src/pay/PayCheckout.tsx
