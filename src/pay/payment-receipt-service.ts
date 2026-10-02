@@ -28,7 +28,6 @@ export interface PayPaymentReceipt {
   readonly verificationCommitment: 'confirmed' | 'finalized';
   readonly createdAt: string;
   readonly completedAt: string;
-  readonly payerWallet: string | null;
   readonly transaction: {
     readonly id: string;
     readonly signature: string;
@@ -156,7 +155,6 @@ function parseReceipt(value: unknown): PayPaymentReceipt {
     verificationCommitment: verificationCommitment as PayPaymentReceipt['verificationCommitment'],
     createdAt: requiredString(receipt, 'createdAt'),
     completedAt: requiredString(receipt, 'completedAt'),
-    payerWallet: nullableString(receipt, 'payerWallet'),
     transaction: {
       id: requiredString(transaction, 'id'),
       signature: transactionSignature,
