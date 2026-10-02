@@ -1,9 +1,10 @@
 import { defaultPayHttpClient, type PayHttpClient } from './http';
 
-interface TransactionRequestEnvelope {
+interface TransactionRequestResponse {
   success?: boolean;
-  apiVersion?: 'v1';
-  data?: { transaction?: string; message?: string; redirect?: string };
+  transaction?: unknown;
+  message?: unknown;
+  redirect?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -30,19 +31,19 @@ export function createPayTransactionRequestService(httpClient: PayHttpClient = d
       const id = intentId.trim();
       const wallet = account.trim();
       if (!id || !wallet) throw new TypeError('Payment Intent ID and wallet account are required.');
-      const payload = await httpClient.request<TransactionRequestEnvelope>(PATH(id), {
+      const payload = await httpClient.request<TransactionRequestResponse>(PATH(id), {
         method: 'POST',
         body: JSON.stringify({ account: wallet }),
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       });
-      if (!isRecord(payload) || payload.success !== true || payload.apiVersion !== 'v1' || !isRecord(payload.data)) {
+      if (!isRecord(payload) || payload.success !== true) {
         throw new TypeError('Invalid transaction request response envelope.');
       }
-      const transaction = requiredString(payload.data.transaction, 'transaction');
+      const transaction = requiredString(payload.transaction, 'transaction');
       return {
         transaction: decodeBase64(transaction),
-        message: typeof payload.data.message === 'string' ? payload.data.message : 'Payment ready',
-        redirect: typeof payload.data.redirect === 'string' ? payload.data.redirect : undefined,
+        message: typeof payload.message === 'string' ? payload.message : 'Payment ready',
+        redirect: typeof payload.redirect === 'string' ? payload.redirect : undefined,
       };
     },
   };
