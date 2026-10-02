@@ -1524,3 +1524,23 @@ Separately classified:
 ### Checkpoint conclusion
 
 **Referral Signup Attribution and its surrounding Pay browser gate are production-verified.** The cookie/auth-boundary parser defect and the E2E readiness race are resolved. The dedicated production lifecycle proves click → secure cookie → real signup → authoritative attribution → click consumption → authoritative dashboard/UI counts, and the broader Pay browser gates now pass on the same runtime.
+## 2026-10-02 — Hosted Checkout wallet UX hardening checkpoint
+
+Status: **IMPLEMENTED / CI VERIFIED / PRODUCTION BROWSER E2E PENDING**
+
+- PR **#311** hardens the already-merged Hosted Checkout runtime without adding a Backend endpoint, database field, financial rule, RPC fallback, or client-side financial calculation.
+- Customer Checkout now centralizes injected Solana wallet discovery for Phantom, Solflare, Backpack, and the existing legacy provider boundary.
+- When multiple compatible injected wallets are present, Checkout exposes an explicit wallet chooser; the selected wallet is preserved for the payment action.
+- The authoritative merchantSettlementAtomic snapshot is now visible beside customer total and gateway fee.
+- The primary Checkout path is wallet payment; manual Transaction Signature verification remains available only as a collapsed recovery method.
+- Checkout copy in fa-IR, en-US, ar, and ru now describes the automatic wallet-payment lifecycle instead of instructing every customer to copy/paste a signature.
+- New unit coverage validates provider discovery, deduplication, explicit wallet selection, and public-key normalization.
+- Production browser E2E now asserts the Hosted Checkout settlement field, wallet payment action, and collapsed manual recovery.
+- At commit 83c0c08905cd4b2f1018075f9bebea10b20451af, CI SUCCESS, Production Build SUCCESS, SolMint Pay Database Security SUCCESS, Mainnet read-only SUCCESS, and Cloudflare Pages preview SUCCESS.
+- The existing funded Devnet transaction-builder E2E remains green from the previously merged Hosted Checkout runtime; this PR does not change transaction construction.
+- The repository's Production Browser UI and Live Browser Audit workflows are configured for main pushes/workflow dispatch, not pull requests. Therefore the new browser assertions have not been honestly marked as production-runtime evidence for this draft PR.
+- Receipt ID, customer email receipt capture, and QR generation were not invented because no authoritative repository Backend/API contract currently exposes them. Existing server-side merchant payment email delivery remains unchanged.
+
+### Checkpoint conclusion
+
+The Hosted Wallet Checkout frontend boundary is hardened and CI-verified. The PR remains Draft until the production browser lifecycle is executed against the resulting main deployment; no production-ready claim is made before that evidence exists.
