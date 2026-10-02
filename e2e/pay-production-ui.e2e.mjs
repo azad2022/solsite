@@ -909,7 +909,7 @@ try {
   const paymentLinkForm = page.locator('.pay-payment-link-create');
   await paymentLinkForm.locator('input').nth(0).fill(paymentLinkSlug);
   await paymentLinkForm.locator('input').nth(1).fill('Browser E2E Payment Link');
-  await paymentLinkForm.locator('input').nth(2).fill('2000000');
+  await paymentLinkForm.locator('input').nth(2).fill('2');
   await paymentLinkForm.locator('select').nth(0).selectOption('USDC');
   await paymentLinkForm.locator('select').nth(1).selectOption('merchant');
   await paymentLinkForm.locator('select').nth(2).selectOption('en-US');
@@ -991,7 +991,7 @@ try {
   const disposableForm = page.locator('.pay-payment-link-create');
   await disposableForm.locator('input').nth(0).fill(disposableLinkSlug);
   await disposableForm.locator('input').nth(1).fill('Disposable Browser E2E Link');
-  await disposableForm.locator('input').nth(2).fill('1000000');
+  await disposableForm.locator('input').nth(2).fill('1');
   await disposableForm.locator('select').nth(0).selectOption('USDC');
   await disposableForm.locator('select').nth(1).selectOption('merchant');
   await disposableForm.locator('select').nth(2).selectOption('en-US');
