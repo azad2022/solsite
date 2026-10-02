@@ -19,6 +19,7 @@ on:
       - 'src/pay/checkout-status.ts'
       - 'e2e/pay-devnet-native.e2e.ts'
       - 'e2e/pay-payment-intent-devnet-lifecycle.e2e.ts'
+      - 'e2e/pay-transaction-request-devnet.e2e.ts'
       - 'package.json'
       - 'bun.lock'
   push:
@@ -98,6 +99,12 @@ jobs:
           DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
           DEVNET_PAYMENT_FIXTURE_PATH: /tmp/solmint-pay-devnet-fixture.json
         run: bun run test:pay:devnet
+
+      - name: Run hosted transaction builder Devnet E2E
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
+          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: bun run test:e2e:pay-transaction-request-devnet
 
       - name: Run real Devnet Payment Intent reconciliation E2E
         env:
