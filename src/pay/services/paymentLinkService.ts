@@ -111,11 +111,9 @@ function parseLink(value: unknown): PayPaymentLink {
   const id = requiredString(row, 'id');
   const merchantId = requiredString(row, 'merchant_id');
   const rawDecimals = row.amount_decimals;
-  const amountDecimals = rawDecimals === null || rawDecimals === undefined
-    ? null
-    : Number.isInteger(rawDecimals) && rawDecimals >= 0 && rawDecimals <= 255
-      ? rawDecimals as number
-      : null;
+  const amountDecimals = typeof rawDecimals === 'number' && Number.isInteger(rawDecimals) && rawDecimals >= 0 && rawDecimals <= 255
+    ? rawDecimals
+    : null;
   if (!UUID.test(id) || !UUID.test(merchantId)) throw new TypeError('Invalid Pay payment link UUID.');
   return {
     id,
@@ -147,10 +145,10 @@ function parseAssetDecimals(value: unknown): PayAssetDecimals {
       result[asset] = null;
       continue;
     }
-    if (!Number.isInteger(decimal) || (decimal as number) < 0 || (decimal as number) > 255) {
+    if (typeof decimal !== 'number' || !Number.isInteger(decimal) || decimal < 0 || decimal > 255) {
       throw new TypeError('Invalid Pay payment-link asset decimals: ' + asset);
     }
-    result[asset] = decimal as number;
+    result[asset] = decimal;
   }
   return result;
 }
