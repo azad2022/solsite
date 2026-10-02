@@ -60,8 +60,11 @@ export function detectSolanaWalletProviders(globalsValue: unknown = typeof windo
   return result;
 }
 
-export function getSolanaWalletProvider(id?: SolanaInjectedWalletId): SolanaInjectedWalletProvider | undefined {
-  const providers = detectSolanaWalletProviders();
+export function getSolanaWalletProvider(
+  id?: SolanaInjectedWalletId,
+  globalsValue: unknown = typeof window !== 'undefined' ? window : undefined,
+): SolanaInjectedWalletProvider | undefined {
+  const providers = detectSolanaWalletProviders(globalsValue);
   if (!id) {
     return providers.find((item) => item.publicKey) ?? providers[0];
   }
