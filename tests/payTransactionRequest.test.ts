@@ -3,10 +3,10 @@ import { Connection, PublicKey, SystemInstruction, SystemProgram, Transaction, T
 import test from 'node:test';
 import { buildTransaction, validatePayment, type PaymentRow } from '../functions/api/pay/v1/payment-intents/[id]/transaction-request';
 
-const BUYER = new PublicKey('11111111111111111111111111111111');
-const MERCHANT = new PublicKey('22222222222222222222222222222222');
-const FEE = new PublicKey('33333333333333333333333333333333');
-const REFERENCE = new PublicKey('44444444444444444444444444444444');
+const BUYER = Keypair.generate().publicKey;
+const MERCHANT = Keypair.generate().publicKey;
+const FEE = Keypair.generate().publicKey;
+const REFERENCE = Keypair.generate().publicKey;
 
 function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
   return {
