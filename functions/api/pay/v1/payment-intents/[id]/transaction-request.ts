@@ -91,7 +91,7 @@ async function loadPayment(env: PayEnv, paymentId: string): Promise<PaymentRow |
   return { ...row, merchant_business_name: row.merchant.business_name };
 }
 
-function validatePayment(row: PaymentRow): void {
+export function validatePayment(row: PaymentRow): void {
   if (!['created', 'pending', 'detected', 'verifying'].includes(row.status)) throw new Error('PAYMENT_NOT_PAYABLE');
   if (Date.parse(row.expires_at) <= Date.now()) throw new Error('PAYMENT_EXPIRED');
   if (row.asset === 'SOL') {
@@ -124,7 +124,7 @@ function createReferenceInstruction(reference: string): TransactionInstruction {
   });
 }
 
-async function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: Connection): Promise<string> {
+export async function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: Connection): Promise<string> {
   const transaction = new Transaction();
   const { blockhash } = await connection.getLatestBlockhash('confirmed');
   transaction.recentBlockhash = blockhash;
@@ -160,7 +160,7 @@ async function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: C
     }
     transaction.add(createTransferCheckedInstruction(source, mint, merchantDestination, buyer, merchantAmount, row.token_decimals!, [], programId));
     if (feeAmount > 0n) {
-        transaction.add(createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId));
+      transaction.add(createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId));
     }
   }
 
