@@ -1043,14 +1043,25 @@ try {
   assert.equal(publicLinkApiResponse.status(), 200, publicLinkApiText);
   const publicLinkApiBody = publicLinkApiText ? JSON.parse(publicLinkApiText) : {};
   assert.equal(publicLinkApiBody.apiVersion, 'v1');
-  assert.equal(publicLinkApiBody.data?.amountAtomic, '2000000');
-  assert.equal(publicLinkApiBody.data?.asset, 'USDC');
-  assert.equal(typeof publicLinkApiBody.data?.amountDecimals, 'number');
+   assert.equal(publicLinkApiBody.data?.amountAtomic, '2000000');
+   assert.equal(publicLinkApiBody.data?.asset, 'USDC');
+   assert.equal(publicLinkApiBody.data?.checkoutLocale, 'en-US');
+   assert.equal(publicLinkApiBody.data?.feeBps, 100);
+   assert.equal(publicLinkApiBody.data?.feeAtomic, '20000');
+   assert.equal(publicLinkApiBody.data?.customerTotalAtomic, '2000000');
+   assert.equal(publicLinkApiBody.data?.merchantSettlementAtomic, '2000000');
+   assert.equal(typeof publicLinkApiBody.data?.amountDecimals, 'number');
+   assert.equal(await publicPage.locator('html').getAttribute('lang'), 'en-US');
+   assert.equal(await publicPage.locator('html').getAttribute('dir'), 'ltr');
   const expectedPublicAmount = `${formatAtomicForE2e(publicLinkApiBody.data.amountAtomic, publicLinkApiBody.data.amountDecimals)} ${publicLinkApiBody.data.asset}`;
   await publicPage.locator('.pay-public-link-card').waitFor({ state: 'visible', timeout: 10000 });
   const publicLinkText = (await publicPage.locator('.pay-public-link-card').innerText()).replace(/\s+/g, ' ').trim();
   console.log(`PUBLIC_PAYMENT_LINK_RENDER ${JSON.stringify({ amountAtomic: publicLinkApiBody.data.amountAtomic, amountDecimals: publicLinkApiBody.data.amountDecimals, asset: publicLinkApiBody.data.asset, expectedPublicAmount, cardText: publicLinkText.slice(0, 1000) })}`);
-  assert.ok(publicLinkText.includes(expectedPublicAmount), `Public payment link must render the authoritative amount as ${expectedPublicAmount}. Body: ${publicLinkText}`);
+   assert.ok(publicLinkText.includes('You pay'), 'English payment link must use English customer-total copy.');
+   assert.ok(publicLinkText.includes(expectedPublicAmount), `Public payment link must render the authoritative amount as ${expectedPublicAmount}. Body: ${publicLinkText}`);
+   assert.ok(publicLinkText.includes('SolMint fee'), 'Public payment link must expose the authoritative gateway fee.');
+   assert.ok(publicLinkText.includes('Merchant receives'), 'Public payment link must expose the authoritative merchant settlement.');
+   assert.equal(/[\u0600-\u06FF]|[\u0400-\u04FF]/.test(publicLinkText), false, 'English payment link UI must not leak Persian, Arabic, or Cyrillic UI text.');
 
   const publicCustomerForm = publicPage.locator('.pay-public-link-customer');
   await publicCustomerForm.waitFor({ state: 'visible', timeout: 10000 });
@@ -1154,9 +1165,15 @@ try {
   })}`);
 
   await publicPage.locator('.pay-checkout-card').waitFor({ state: 'visible', timeout: 10000 });
-  const publicCheckoutUiText = await publicPage.locator('.pay-checkout-card').innerText();
-  assert.ok(publicCheckoutUiText.includes('2 USDC') || publicCheckoutUiText.includes('2.000000 USDC'),
-    'Public payment link must open the authoritative Checkout snapshot.');
+   const publicCheckoutUiText = (await publicPage.locator('.pay-checkout-card').innerText()).replace(/\s+/g, ' ').trim();
+   assert.equal(await publicPage.locator('html').getAttribute('lang'), 'en-US');
+   assert.equal(await publicPage.locator('html').getAttribute('dir'), 'ltr');
+   assert.ok(publicCheckoutUiText.includes('2 USDC') || publicCheckoutUiText.includes('2.000000 USDC'),
+     'Public payment link must open the authoritative Checkout snapshot.');
+   assert.ok(publicCheckoutUiText.includes('Merchant receives'), 'Checkout must expose the authoritative merchant settlement.');
+   assert.ok(publicCheckoutUiText.includes('Pay with wallet'), 'Checkout must expose the wallet payment action.');
+   assert.ok(publicCheckoutUiText.includes('Reusable fixed payment link for production E2E.'), 'Checkout must preserve the merchant-authored description.');
+   assert.equal(/[\u0600-\u06FF]|[\u0400-\u04FF]/.test(publicCheckoutUiText), false, 'English Checkout UI must not leak Persian, Arabic, or Cyrillic UI text.');
   const publicIntentFromDb = rows(await db(
     `select id, merchant_id, payment_link_id, amount_atomic::text as amount_atomic, asset, status
        from public.pay_payment_intents
