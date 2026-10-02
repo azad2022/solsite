@@ -1228,7 +1228,7 @@ try {
   await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
   assert.match(await page.locator('.pay-ticket-success').innerText(), /Reply sent/);
   await page.getByText(ticketReplyMessage, { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText(/Waiting for support/, { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-ticket-thread p').filter({ hasText: 'Status: Waiting for support' }).waitFor({ state: 'visible', timeout: 10000 });
   assert.ok((await page.locator('.pay-ticket-thread').innerText()).includes(ticketReplyMessage));
 
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -1257,7 +1257,7 @@ try {
   await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
   assert.match(await page.locator('.pay-ticket-success').innerText(), /Reply sent/);
   await page.getByText(ticketAdminReply, { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText(/Waiting for merchant/, { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-ticket-thread p').filter({ hasText: 'Status: Waiting for merchant' }).waitFor({ state: 'visible', timeout: 10000 });
   assert.ok((await page.locator('.pay-ticket-messages').innerText()).includes(ticketAdminReply));
 
   const statusSelect = page.locator('.pay-ticket-thread-header select');
