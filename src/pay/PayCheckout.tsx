@@ -19,7 +19,7 @@ type WalletSignatureResult = string | { signature?: unknown };
 
 type SolanaWalletProvider = {
   publicKey?: { toBase58(): string };
-  connect: () => Promise<unknown>;
+  connect: () => Promise<{ publicKey?: { toBase58?: () => string } } | void>;
   signAndSendTransaction?: (transaction: Transaction) => Promise<WalletSignatureResult>;
 };
 
