@@ -115,7 +115,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
   const mobileWalletContext = isMobileWalletContext();
   const paymentReturnHint = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payment') === 'return';
   const walletTransactionRequestUrl = useCallback(
-    () => buildTransactionRequestUrl(window.location.origin, intent?.id ?? '', undefined),
+    () => buildTransactionRequestUrl(window.location.origin, intent?.id ?? ''),
     [intent?.id],
   );
 
