@@ -560,7 +560,9 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
                           key={wallet.id}
                           type="button"
                           className={wallet.id === selectedWalletId ? 'pay-wallet-option is-selected' : 'pay-wallet-option'}
-                          onClick={() => void connectWallet(wallet.id)}
+                          onClick={() => void connectWallet(wallet.id).then((provider) => {
+                            if (provider) void payWithConnectedWallet();
+                          })}
                           disabled={verificationState === 'submitting' || walletPaymentState !== 'idle'}
                         >
                           <span className="pay-wallet-option-badge" aria-hidden="true">{wallet.name.slice(0, 1)}</span>
