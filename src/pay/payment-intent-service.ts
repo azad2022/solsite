@@ -77,6 +77,15 @@ function boundedInteger(value: unknown, name: string, min: number, max: number):
   return value as number;
 }
 
+const CHECKOUT_LOCALES = new Set<PayLocale | 'auto'>(['fa-IR', 'en-US', 'ar', 'ru', 'auto']);
+
+function parseCheckoutLocale(value: unknown): PayLocale | 'auto' {
+  if (typeof value !== 'string' || !CHECKOUT_LOCALES.has(value as PayLocale | 'auto')) {
+    throw new TypeError('Invalid Pay contract field: checkoutLocale');
+  }
+  return value as PayLocale | 'auto';
+}
+
 function requiredBoolean(value: unknown, name: string): boolean {
   if (typeof value !== 'boolean') throw new TypeError(`Invalid Pay contract field: ${name}`);
   return value;
@@ -160,6 +169,15 @@ function parsePaymentIntent(payload: unknown): PayPaymentIntent {
     merchantSettlementAtomic: atomicString(data.merchantSettlementAtomic, 'merchantSettlementAtomic'),
     network: 'solana',
     verificationCommitment: commitment,
+    checkoutLocale: data.checkoutLocale === null || data.checkoutLocale === undefined
+      ? null
+      : parseCheckoutLocale(data.checkoutLocale),
+    paymentLinkTitle: data.paymentLinkTitle === null || data.paymentLinkTitle === undefined
+      ? null
+      : requiredString(data.paymentLinkTitle, 'paymentLinkTitle'),
+    paymentLinkDescription: data.paymentLinkDescription === null || data.paymentLinkDescription === undefined
+      ? null
+      : requiredString(data.paymentLinkDescription, 'paymentLinkDescription'),
   };
 }
 
