@@ -79,8 +79,6 @@ const NON_TERMINAL_STATUSES: ReadonlySet<PayPaymentStatus> = new Set([
 ]);
 
 export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckoutProps): React.ReactElement {
-  const direction = uiDirection;
-  const BackIcon = uiBackIcon;
   const [intent, setIntent] = useState<PayPaymentIntent | null>(null);
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'unauthorized' | 'forbidden' | 'retryable'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
@@ -108,7 +106,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
       : localeHint ?? locale;
 
   const uiDirection = directionFor(uiLocale);
-  const uiBackIcon = uiDirection === 'rtl' ? ArrowRight : ArrowLeft;
+  const BackIcon = uiDirection === 'rtl' ? ArrowRight : ArrowLeft;
 
   const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
