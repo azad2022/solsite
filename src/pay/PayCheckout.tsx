@@ -239,7 +239,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     setVerificationState('idle');
     setVerificationMessage('');
     try {
-      const provider = window.solana;
+      const provider = getSolanaWalletProvider();
       if (!provider?.publicKey) {
         await connectWallet();
       }
