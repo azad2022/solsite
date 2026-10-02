@@ -114,15 +114,9 @@ export function validatePayment(row: PaymentRow): void {
   if (row.recipient === row.fee_recipient) throw new Error('PAYMENT_DESTINATION_COLLISION');
 }
 
-const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
-
-function createReferenceInstruction(reference: string): TransactionInstruction {
-  const referenceKey = new PublicKey(reference);
-  return new TransactionInstruction({
-    programId: MEMO_PROGRAM_ID,
-    keys: [{ pubkey: referenceKey, isSigner: false, isWritable: false }],
-    data: Buffer.from(`solmint-pay:${reference}`, 'utf8'),
-  });
+function withReference(instruction: TransactionInstruction, reference: PublicKey): TransactionInstruction {
+  instruction.keys.push({ pubkey: reference, isSigner: false, isWritable: false });
+  return instruction;
 }
 
 export async function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: Connection): Promise<string> {
@@ -135,13 +129,15 @@ export async function buildTransaction(row: PaymentRow, buyer: PublicKey, connec
   const feeAmount = asBigInt(row.fee_atomic);
 
   if (row.asset === 'SOL') {
-    transaction.add(
+    transaction.add(withReference(
       SystemProgram.transfer({ fromPubkey: buyer, toPubkey: new PublicKey(row.recipient), lamports: asSafeSolLamports(merchantAmount) }),
-    );
+      new PublicKey(row.reference),
+    ));
     if (feeAmount > 0n) {
-      transaction.add(
+      transaction.add(withReference(
         SystemProgram.transfer({ fromPubkey: buyer, toPubkey: new PublicKey(row.fee_recipient), lamports: asSafeSolLamports(feeAmount) }),
-      );
+        new PublicKey(row.reference),
+      ));
     }
   } else {
     const mint = new PublicKey(row.token_mint!);
@@ -159,14 +155,17 @@ export async function buildTransaction(row: PaymentRow, buyer: PublicKey, connec
     if (feeAmount > 0n) {
       transaction.add(createAssociatedTokenAccountIdempotentInstruction(buyer, feeDestination, feeOwner, mint, programId, ASSOCIATED_TOKEN_PROGRAM_ID));
     }
-    transaction.add(createTransferCheckedInstruction(source, mint, merchantDestination, buyer, merchantAmount, row.token_decimals!, [], programId));
+    transaction.add(withReference(
+      createTransferCheckedInstruction(source, mint, merchantDestination, buyer, merchantAmount, row.token_decimals!, [], programId),
+      new PublicKey(row.reference),
+    ));
     if (feeAmount > 0n) {
-      transaction.add(createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId));
+      transaction.add(withReference(
+        createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId),
+        new PublicKey(row.reference),
+      ));
     }
   }
-
-  // Reference is embedded as an account key so the existing authoritative discovery path can locate this payment.
-  transaction.add(createReferenceInstruction(row.reference));
 
   const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
   return bytesToBase64(serialized);
