@@ -25,7 +25,7 @@ interface PayEnv {
   SOLANA_RPC_URL?: string;
 }
 
-interface PaymentRow {
+export interface PaymentRow {
   id: string;
   merchant_id: string;
   amount_atomic: string;
