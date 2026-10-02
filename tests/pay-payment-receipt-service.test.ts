@@ -38,7 +38,7 @@ const base = {
   },
   transaction: {
     id: txId,
-    signature: '5KQwrPbHn1PTfJ8bV2D8X1hW7x2qZQp6Q8Q1dJfK7Yh4wE6M2J8Q1V9D2Q6H8K3',
+    signature: '5'.repeat(88),
     slot: 123456,
     blockTime: '2026-10-02T12:01:00Z',
     observedAmountAtomic: '1010000000',
