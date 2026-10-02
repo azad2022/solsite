@@ -32,7 +32,7 @@ function assertRecord(value: unknown): asserts value is Record<string, unknown> 
   if (!value || typeof value !== 'object') throw new TypeError('Invalid Pay verification response.');
 }
 
-function parseResult(payload: unknown, paymentId: string, signature: string): PayPaymentVerificationResult {
+function parseResult(payload: unknown, paymentId: string, expectedSignature?: string): PayPaymentVerificationResult {
   assertRecord(payload);
   const data = payload.data;
   assertRecord(data);
@@ -40,7 +40,11 @@ function parseResult(payload: unknown, paymentId: string, signature: string): Pa
     throw new TypeError('Invalid Pay verification response envelope.');
   }
   if (!STATUSES.has(data.status as PayPaymentStatus)) throw new TypeError('Invalid Pay verification status.');
-  if (!SOLANA_SIGNATURE.test(data.signature) || data.signature !== signature) throw new TypeError('Invalid Pay verification signature.');
+  if (expectedSignature !== undefined) {
+    if (!SOLANA_SIGNATURE.test(data.signature) || data.signature !== expectedSignature) throw new TypeError('Invalid Pay verification signature.');
+  } else if (data.signature && !SOLANA_SIGNATURE.test(data.signature)) {
+    throw new TypeError('Invalid Pay reconciliation signature.');
+  }
 
   const checkedRaw = data.checkedSignatures;
   let checkedSignatures: string[] = [];
@@ -62,6 +66,17 @@ function parseResult(payload: unknown, paymentId: string, signature: string): Pa
 
 export function createPayPaymentVerificationService(httpClient: PayHttpClient = defaultPayHttpClient) {
   return {
+    async reconcile(paymentId: string): Promise<PayPaymentVerificationResult> {
+      const id = paymentId.trim();
+      if (!PAYMENT_ID.test(id)) throw new TypeError('Payment Intent ID is invalid.');
+      const payload = await httpClient.request<VerificationEnvelope>(`/api/pay/v1/payment-intents/${encodeURIComponent(id)}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      return parseResult(payload, id);
+    },
+
     async verify(paymentId: string, signature: string): Promise<PayPaymentVerificationResult> {
       const id = paymentId.trim();
       const txSignature = signature.trim();
