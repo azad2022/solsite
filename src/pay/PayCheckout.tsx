@@ -154,9 +154,6 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     setAvailableWallets(providers);
 
     let selectedProvider = walletId ? providers.find((item) => item.id === walletId) : null;
-    if (!selectedProvider && selectedWalletId) {
-      selectedProvider = providers.find((item) => item.id === selectedWalletId) ?? null;
-    }
     if (!selectedProvider && providers.length === 1) selectedProvider = providers[0];
 
     if (!selectedProvider) {
