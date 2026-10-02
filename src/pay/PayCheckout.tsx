@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Transaction } from '@solana/web3.js';
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Copy, LockKeyhole, ReceiptText, RefreshCcw, ShieldCheck, WalletCards, XCircle } from 'lucide-react';
 import { checkoutLabel } from './checkout-i18n';
 import { directionFor, translate } from './i18n';
@@ -6,6 +7,7 @@ import { translateTransactionStatus } from './components/pay-transactions-i18n';
 import { PayHttpError } from './http';
 import { payPaymentIntentService, type PayPaymentIntent, type PayPaymentStatus } from './payment-intent-service';
 import { payPaymentVerificationService } from './payment-verification-service';
+import { payTransactionRequestService } from './payment-transaction-request-service';
 import PayDataStateView from './DataStateView';
 import type { PayLocale } from './types';
 import './pay-checkout.css';
@@ -58,6 +60,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const [walletAddress, setWalletAddress] = useState('');
   const [signature, setSignature] = useState('');
   const [verificationState, setVerificationState] = useState<'idle' | 'submitting' | 'not_detected' | 'underpaid' | 'overpaid' | 'ambiguous' | 'failed'>('idle');
+  const [walletPaymentState, setWalletPaymentState] = useState<'idle' | 'preparing' | 'opening'>('idle');
   const [verificationMessage, setVerificationMessage] = useState('');
   const [copiedField, setCopiedField] = useState<'amount' | 'destination' | 'reference' | null>(null);
   const mountedRef = useRef(true);
@@ -155,10 +158,10 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     }
   };
 
-  const verify = async () => {
+  const verifySignature = async (txSignature: string) => {
     if (!intent) return;
-    const txSignature = signature.trim();
-    if (!txSignature) {
+    const normalizedSignature = txSignature.trim();
+    if (!normalizedSignature) {
       setVerificationState('failed');
       setVerificationMessage(checkoutLabel(locale, 'signaturePlaceholder'));
       return;
@@ -166,8 +169,9 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     setVerificationState('submitting');
     setVerificationMessage(checkoutLabel(locale, 'verificationSubmitted'));
     try {
-      const result = await payPaymentVerificationService.verify(intent.id, txSignature);
+      const result = await payPaymentVerificationService.verify(intent.id, normalizedSignature);
       if (!mountedRef.current) return;
+      setSignature(normalizedSignature);
       setIntent(current => current ? { ...current, status: result.status } : current);
       if (result.outcome === 'confirmed') {
         setVerificationState('idle');
@@ -193,6 +197,48 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       if (!mountedRef.current) return;
       setVerificationState('failed');
       setVerificationMessage(checkoutLabel(locale, 'verificationFailed'));
+    } finally {
+      if (mountedRef.current) setWalletPaymentState('idle');
+    }
+  };
+
+  const verify = async () => verifySignature(signature);
+
+  const payWithConnectedWallet = async () => {
+    if (!intent || actionDisabled) return;
+    setWalletPaymentState('preparing');
+    setVerificationState('idle');
+    setVerificationMessage('');
+    try {
+      const provider = window.solana;
+      if (!provider?.publicKey) {
+        await connectWallet();
+      }
+      const activeProvider = window.solana;
+      const account = activeProvider?.publicKey?.toBase58?.() || '';
+      if (!account) throw new Error('WALLET_NOT_CONNECTED');
+
+      if (typeof activeProvider.signAndSendTransaction === 'function') {
+        const payload = await payTransactionRequestService.build(intent.id, account);
+        const transaction = Transaction.from(payload.transaction);
+        const result = await activeProvider.signAndSendTransaction(transaction);
+        const txSignature = typeof result === 'string' ? result : result?.signature?.toString?.() || '';
+        if (!txSignature) throw new Error('WALLET_SIGNATURE_MISSING');
+        await verifySignature(txSignature);
+        return;
+      }
+
+      const requestUrl = `${window.location.origin}/api/pay/v1/payment-intents/${encodeURIComponent(intent.id)}/transaction-request`;
+      setWalletPaymentState('opening');
+      window.location.assign(`solana:${requestUrl}`);
+    } catch (cause) {
+      if (!mountedRef.current) return;
+      setWalletPaymentState('idle');
+      const code = cause instanceof Error ? cause.message : 'WALLET_PAYMENT_FAILED';
+      setVerificationState('failed');
+      setVerificationMessage(code === 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND'
+        ? checkoutLabel(locale, 'walletTokenAccountMissing')
+        : checkoutLabel(locale, 'walletPaymentFailed'));
     }
   };
 
@@ -279,6 +325,15 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                 <div className="pay-checkout-wallet-row">
                   <div><span>{checkoutLabel(locale, 'walletConnect')}</span><strong>{walletAddress ? `${checkoutLabel(locale, 'walletConnected')}: ${truncateAddress(walletAddress)}` : checkoutLabel(locale, 'walletRequired')}</strong></div>
                   <button type="button" className="pay-secondary-action" onClick={() => void connectWallet()} disabled={verificationState === 'submitting'}><WalletCards size={16} /> {walletAddress ? checkoutLabel(locale, 'walletConnected') : checkoutLabel(locale, 'connect')}</button>
+                </div>
+
+                <button type="button" className="pay-primary-action pay-checkout-wallet-pay" onClick={() => void payWithConnectedWallet()} disabled={actionDisabled || walletPaymentState !== 'idle'}>
+                  <WalletCards size={17} /> {walletPaymentState === 'preparing' ? checkoutLabel(locale, 'preparingPayment') : walletPaymentState === 'opening' ? checkoutLabel(locale, 'openingWallet') : checkoutLabel(locale, 'payWithWallet')}
+                </button>
+
+                <div className="pay-checkout-manual-fallback">
+                  <strong>{checkoutLabel(locale, 'manualVerification')}</strong>
+                  <span>{checkoutLabel(locale, 'manualVerificationHint')}</span>
                 </div>
 
                 <label className="pay-checkout-signature-field">
