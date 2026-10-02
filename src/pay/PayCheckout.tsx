@@ -364,7 +364,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
       <main className="pay-checkout-main">
         <button type="button" className="pay-checkout-back" onClick={onBack}><BackIcon size={17} />{translate(uiLocale, 'backToPay')}</button>
         <section className="pay-checkout-card" aria-labelledby="pay-checkout-title">
-          <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(uiLocale, 'checkout')}</span><h1 id="pay-checkout-title">{intent ? intent.merchant.businessName : translate(uiLocale, 'checkoutWaitingTitle')}</h1><p>{translate(uiLocale, 'checkoutWaitingDescription')}</p></div></div>
+          <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(uiLocale, 'checkout')}</span><h1 id="pay-checkout-title">{intent?.paymentLinkTitle || (intent ? intent.merchant.businessName : translate(uiLocale, 'checkoutWaitingTitle'))}</h1><p>{intent?.paymentLinkDescription || translate(uiLocale, 'checkoutWaitingDescription')}</p><div className="pay-checkout-merchant-caption">{checkoutLabel(uiLocale, 'merchant')}: {intent?.merchant.businessName ?? 'SolMint Pay'}</div></div></div>
           {!intentId ? (
             <form
               className="pay-checkout-intent-lookup"
@@ -417,7 +417,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'merchantSettlement')}</span><strong>{formatAtomic(intent.merchantSettlementAtomic, decimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(uiLocale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(uiLocale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong><small>{checkoutLabel(uiLocale, 'feePayer')}: {intent.feePayer === 'merchant' ? checkoutLabel(uiLocale, 'merchant') : checkoutLabel(uiLocale, 'customer')}</small></div></div>
                 <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(uiLocale, 'intentStatus')}</span><strong>{translateTransactionStatus(uiLocale, intent.status)}</strong></div></div>
                 <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(uiLocale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
               </div>
