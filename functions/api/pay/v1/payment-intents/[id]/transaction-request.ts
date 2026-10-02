@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { PublicKey, Connection, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
