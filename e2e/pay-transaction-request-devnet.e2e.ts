@@ -3,6 +3,7 @@ import test from 'node:test';
 import { Keypair, Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
 import { verifyPayment } from '../src/pay/services/paymentVerifier';
+import { reconcilePayment, type ReconciliationPayment, type ReconciliationRepository } from '../src/pay/services/reconciliationEngine';
 import type { ExpectedPayment } from '../src/pay/services/verificationPolicy';
 import { buildTransaction, type PaymentRow } from '../functions/api/pay/v1/payment-intents/[id]/transaction-request';
 
@@ -148,4 +149,38 @@ test('hosted transaction builder produces a real discoverable Devnet payment', {
   assert.equal(decision.result.reason, 'OK');
   assert.equal(decision.result.status, 'confirmed');
   assert.equal(decision.candidate?.signature, signature);
+
+  const reconciliationPayment: ReconciliationPayment = {
+    id: payment.id,
+    merchantId: payment.merchant_id,
+    createdAt,
+    amountAtomic: payment.amount_atomic,
+    customerTotalAtomic: payment.customer_total_atomic,
+    merchantSettlementAtomic: payment.merchant_settlement_atomic,
+    gatewayFeeAtomic: payment.fee_atomic,
+    asset: payment.asset,
+    tokenMint: payment.token_mint,
+    tokenProgram: payment.token_program,
+    tokenDecimals: payment.token_decimals,
+    recipient: payment.recipient,
+    feeRecipient: payment.fee_recipient,
+    reference: payment.reference,
+    verificationCommitment: 'finalized',
+    expiresAt,
+    status: 'pending',
+  };
+
+  const repository: ReconciliationRepository = {
+    async loadKnownSignatures() { return new Set<string>(); },
+    async prepareVerification() { return 'ready'; },
+    async recordRejectedObservation() {},
+    async recordOutcome() { return 'recorded'; },
+    async applyVerifiedObservation() { return 'confirmed'; },
+    async expirePayment() { return 'expired'; },
+  };
+
+  const automatic = await reconcilePayment(provider, repository, reconciliationPayment);
+  assert.equal(automatic.outcome, 'confirmed');
+  assert.equal(automatic.verification?.candidate?.signature, signature);
 });
+
