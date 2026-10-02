@@ -28,6 +28,7 @@ type PaymentIntentRow = {
   merchant_settlement_atomic: string | number;
   network: string;
   verification_commitment: string;
+  metadata: Record<string, unknown> | null;
 };
 
 type MerchantRow = { id: string; business_name: string; status: string };
@@ -49,7 +50,7 @@ const PAYMENT_INTENT_SELECT = [
   'id', 'merchant_id', 'amount_atomic', 'asset', 'token_mint', 'token_program',
   'token_decimals', 'recipient', 'reference', 'fee_bps', 'fee_payer', 'fee_atomic',
   'fee_recipient', 'gas_sponsored', 'status', 'expires_at', 'customer_total_atomic',
-  'merchant_net_atomic', 'merchant_settlement_atomic', 'network', 'verification_commitment'
+  'merchant_net_atomic', 'merchant_settlement_atomic', 'network', 'verification_commitment', 'metadata'
 ].join(',');
 
 async function supabaseGet<T>(base: string, headers: Record<string, string>, query: string): Promise<T[]> {
@@ -86,6 +87,13 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const merchant = merchantRows[0];
     if (!merchant || merchant.status !== 'active') return error(request, 'MERCHANT_UNAVAILABLE', 'Merchant is not available for checkout.', 404);
 
+    const metadata = payment.metadata && typeof payment.metadata === 'object' && !Array.isArray(payment.metadata) ? payment.metadata : {};
+    const snapshotLocale = metadata.paymentLinkCheckoutLocale === 'fa-IR' || metadata.paymentLinkCheckoutLocale === 'en-US' || metadata.paymentLinkCheckoutLocale === 'ar' || metadata.paymentLinkCheckoutLocale === 'ru' || metadata.paymentLinkCheckoutLocale === 'auto'
+      ? metadata.paymentLinkCheckoutLocale
+      : null;
+    const snapshotTitle = typeof metadata.paymentLinkTitle === 'string' ? metadata.paymentLinkTitle : null;
+    const snapshotDescription = typeof metadata.paymentLinkDescription === 'string' ? metadata.paymentLinkDescription : null;
+
     let paymentLink: PaymentPresentationRow | null = null;
     if (typeof payment.payment_link_id === 'string' && payment.payment_link_id) {
       const linkRows = await supabaseGet<PaymentPresentationRow>(
@@ -121,9 +129,9 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
         merchantSettlementAtomic: atomic(payment.merchant_settlement_atomic),
         network: payment.network,
         verificationCommitment: payment.verification_commitment,
-        checkoutLocale: paymentLink?.checkout_locale ?? null,
-        paymentLinkTitle: paymentLink?.title ?? null,
-        paymentLinkDescription: paymentLink?.description ?? null,
+        checkoutLocale: snapshotLocale ?? paymentLink?.checkout_locale ?? null,
+        paymentLinkTitle: snapshotTitle ?? paymentLink?.title ?? null,
+        paymentLinkDescription: snapshotDescription ?? paymentLink?.description ?? null,
       }
     }, 200, 'no-store');
   } catch (cause) {
