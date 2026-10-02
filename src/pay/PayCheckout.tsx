@@ -8,6 +8,8 @@ import { PayHttpError } from './http';
 import { payPaymentIntentService, type PayPaymentIntent, type PayPaymentStatus } from './payment-intent-service';
 import { payPaymentVerificationService } from './payment-verification-service';
 import { payTransactionRequestService } from './payment-transaction-request-service';
+import { payPaymentReceiptService, type PayPaymentReceipt } from './payment-receipt-service';
+import PayPaymentReceiptView from './components/PayPaymentReceipt';
 import PayDataStateView from './DataStateView';
 import type { PayLocale } from './types';
 import './pay-checkout.css';
@@ -20,7 +22,12 @@ import {
   type SolanaInjectedWalletProvider,
 } from './solana-wallet-provider';
 
-interface PayCheckoutProps { locale: PayLocale; intentId?: string; onBack: () => void; }
+interface PayCheckoutProps {
+  locale: PayLocale;
+  localeHint?: PayLocale | null;
+  intentId?: string;
+  onBack: () => void;
+}
 
 function extractWalletSignature(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -71,9 +78,9 @@ const NON_TERMINAL_STATUSES: ReadonlySet<PayPaymentStatus> = new Set([
   'created', 'pending', 'detected', 'verifying', 'confirmed', 'underpaid', 'overpaid', 'ambiguous',
 ]);
 
-export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): React.ReactElement {
-  const direction = directionFor(locale);
-  const BackIcon = direction === 'rtl' ? ArrowRight : ArrowLeft;
+export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckoutProps): React.ReactElement {
+  const direction = uiDirection;
+  const BackIcon = uiBackIcon;
   const [intent, setIntent] = useState<PayPaymentIntent | null>(null);
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'unauthorized' | 'forbidden' | 'retryable'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
@@ -91,7 +98,17 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const currentIntentId = intent?.id;
   const currentStatus = intent?.status;
   const [intentLookupId, setIntentLookupId] = useState('');
+  const [receipt, setReceipt] = useState<PayPaymentReceipt | null>(null);
+  const [receiptState, setReceiptState] = useState<'idle' | 'loading' | 'ready' | 'retryable'>('idle');
   const walletPaymentInFlightRef = useRef(false);
+
+  const uiLocale: PayLocale =
+    intent?.checkoutLocale && intent.checkoutLocale !== 'auto'
+      ? intent.checkoutLocale
+      : localeHint ?? locale;
+
+  const uiDirection = directionFor(uiLocale);
+  const uiBackIcon = uiDirection === 'rtl' ? ArrowRight : ArrowLeft;
 
   const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
@@ -113,10 +130,10 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       if (showLoading) {
         setIntent(null);
         setState(dataStateForError(cause));
-        setErrorMessage(checkoutLabel(locale, 'loadFailed'));
+        setErrorMessage(checkoutLabel(localeHint ?? locale, 'loadFailed'));
       }
     }
-  }, [intentId, locale]);
+  }, [intentId, localeHint, locale]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -146,6 +163,44 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     return () => window.clearInterval(timer);
   }, [currentIntentId, currentStatus]);
 
+  const loadReceipt = useCallback(async (paymentId: string) => {
+    setReceiptState('loading');
+    try {
+      const value = await payPaymentReceiptService.get(paymentId);
+      if (!mountedRef.current) return;
+      setReceipt(value);
+      setReceiptState('ready');
+    } catch {
+      if (!mountedRef.current) return;
+      setReceiptState('retryable');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!currentIntentId || currentStatus !== 'completed') {
+      setReceipt(null);
+      setReceiptState('idle');
+      return;
+    }
+    if (receipt) return;
+
+    void loadReceipt(currentIntentId);
+    const timer = window.setInterval(() => void loadReceipt(currentIntentId), 4000);
+    return () => window.clearInterval(timer);
+  }, [currentIntentId, currentStatus, receipt, loadReceipt]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const previousLang = root.getAttribute('lang');
+    const previousDir = root.getAttribute('dir');
+    root.lang = uiLocale;
+    root.dir = uiDirection;
+    return () => {
+      if (previousLang === null) root.removeAttribute('lang'); else root.setAttribute('lang', previousLang);
+      if (previousDir === null) root.removeAttribute('dir'); else root.setAttribute('dir', previousDir);
+    };
+  }, [uiLocale, uiDirection]);
+
   const connectWallet = async (walletId?: SolanaInjectedWalletId): Promise<SolanaInjectedWalletProvider | null> => {
     setVerificationState('idle');
     setVerificationMessage('');
@@ -162,7 +217,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
         return null;
       }
       setVerificationState('failed');
-      setVerificationMessage(checkoutLabel(locale, 'walletRequired'));
+      setVerificationMessage(checkoutLabel(uiLocale, 'walletRequired'));
       return null;
     }
 
@@ -181,7 +236,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     } catch {
       setWalletChooserOpen(false);
       setVerificationState('failed');
-      setVerificationMessage(checkoutLabel(locale, 'walletConnectionFailed'));
+      setVerificationMessage(checkoutLabel(uiLocale, 'walletConnectionFailed'));
       return null;
     }
   };
@@ -206,11 +261,11 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     const normalizedSignature = txSignature.trim();
     if (!normalizedSignature) {
       setVerificationState('failed');
-      setVerificationMessage(checkoutLabel(locale, 'signaturePlaceholder'));
+      setVerificationMessage(checkoutLabel(uiLocale, 'signaturePlaceholder'));
       return;
     }
     setVerificationState('submitting');
-    setVerificationMessage(checkoutLabel(locale, 'verificationSubmitted'));
+    setVerificationMessage(checkoutLabel(uiLocale, 'verificationSubmitted'));
     try {
       const result = await payPaymentVerificationService.verify(intent.id, normalizedSignature);
       if (!mountedRef.current) return;
@@ -218,28 +273,28 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       setIntent(current => current ? { ...current, status: result.status } : current);
       if (result.outcome === 'confirmed') {
         setVerificationState('idle');
-        setVerificationMessage(checkoutLabel(locale, 'paymentConfirmed'));
+        setVerificationMessage(checkoutLabel(uiLocale, 'paymentConfirmed'));
         await loadIntent(false);
       } else if (result.outcome === 'underpaid') {
         setVerificationState('underpaid');
-        setVerificationMessage(checkoutLabel(locale, 'paymentUnderpaid'));
+        setVerificationMessage(checkoutLabel(uiLocale, 'paymentUnderpaid'));
       } else if (result.outcome === 'overpaid') {
         setVerificationState('overpaid');
-        setVerificationMessage(checkoutLabel(locale, 'paymentOverpaid'));
+        setVerificationMessage(checkoutLabel(uiLocale, 'paymentOverpaid'));
       } else if (result.outcome === 'ambiguous') {
         setVerificationState('ambiguous');
-        setVerificationMessage(checkoutLabel(locale, 'paymentAmbiguous'));
+        setVerificationMessage(checkoutLabel(uiLocale, 'paymentAmbiguous'));
       } else if (result.outcome === 'not_detected') {
         setVerificationState('not_detected');
-        setVerificationMessage(checkoutLabel(locale, 'notDetected'));
+        setVerificationMessage(checkoutLabel(uiLocale, 'notDetected'));
       } else {
         setVerificationState('failed');
-        setVerificationMessage(checkoutLabel(locale, 'verificationFailed'));
+        setVerificationMessage(checkoutLabel(uiLocale, 'verificationFailed'));
       }
     } catch {
       if (!mountedRef.current) return;
       setVerificationState('failed');
-      setVerificationMessage(checkoutLabel(locale, 'verificationFailed'));
+      setVerificationMessage(checkoutLabel(uiLocale, 'verificationFailed'));
     } finally {
       if (mountedRef.current) setWalletPaymentState('idle');
     }
@@ -286,10 +341,10 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       const code = cause instanceof Error ? cause.message : 'WALLET_PAYMENT_FAILED';
       setVerificationState('failed');
       setVerificationMessage(code === 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND'
-        ? checkoutLabel(locale, 'walletTokenAccountMissing')
+        ? checkoutLabel(uiLocale, 'walletTokenAccountMissing')
         : code === 'WALLET_SIGNATURE_MISSING'
-          ? checkoutLabel(locale, 'walletSignatureMissing')
-          : checkoutLabel(locale, 'walletPaymentFailed'));
+          ? checkoutLabel(uiLocale, 'walletSignatureMissing')
+          : checkoutLabel(uiLocale, 'walletPaymentFailed'));
     } finally {
       walletPaymentInFlightRef.current = false;
     }
@@ -303,15 +358,15 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
     : '';
 
   return (
-    <div className="solmint-pay pay-checkout" dir={direction} lang={locale}>
+    <div className="solmint-pay pay-checkout" dir={uiDirection} lang={locale}>
       <header className="pay-checkout-header">
-        <div className="pay-checkout-brand"><div className="pay-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div><div className="pay-brand-copy"><strong>{translate(locale, 'brand')}</strong><span>{translate(locale, 'eyebrow')}</span></div></div>
-        <div className="pay-checkout-trust"><LockKeyhole size={16} /> {translate(locale, 'checkoutSecure')}</div>
+        <div className="pay-checkout-brand"><div className="pay-brand-mark" aria-hidden="true"><img src="/assets/solmint-mascot-solana-coin.webp" alt="" /></div><div className="pay-brand-copy"><strong>{translate(uiLocale, 'brand')}</strong><span>{translate(uiLocale, 'eyebrow')}</span></div></div>
+        <div className="pay-checkout-trust"><LockKeyhole size={16} /> {translate(uiLocale, 'checkoutSecure')}</div>
       </header>
       <main className="pay-checkout-main">
-        <button type="button" className="pay-checkout-back" onClick={onBack}><BackIcon size={17} />{translate(locale, 'backToPay')}</button>
+        <button type="button" className="pay-checkout-back" onClick={onBack}><BackIcon size={17} />{translate(uiLocale, 'backToPay')}</button>
         <section className="pay-checkout-card" aria-labelledby="pay-checkout-title">
-          <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(locale, 'checkout')}</span><h1 id="pay-checkout-title">{intent ? intent.merchant.businessName : translate(locale, 'checkoutWaitingTitle')}</h1><p>{translate(locale, 'checkoutWaitingDescription')}</p></div></div>
+          <div className="pay-checkout-card-header"><div className="pay-checkout-icon" aria-hidden="true"><ReceiptText size={22} /></div><div><span className="pay-panel-kicker">{translate(uiLocale, 'checkout')}</span><h1 id="pay-checkout-title">{intent ? intent.merchant.businessName : translate(uiLocale, 'checkoutWaitingTitle')}</h1><p>{translate(uiLocale, 'checkoutWaitingDescription')}</p></div></div>
           {!intentId ? (
             <form
               className="pay-checkout-intent-lookup"
@@ -326,19 +381,19 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
             >
               <div className="pay-checkout-lookup-icon"><ReceiptText size={19} /></div>
               <div className="pay-checkout-lookup-copy">
-                <strong>{checkoutLabel(locale, 'intentLookupTitle')}</strong>
-                <p>{checkoutLabel(locale, 'intentLookupDescription')}</p>
+                <strong>{checkoutLabel(uiLocale, 'intentLookupTitle')}</strong>
+                <p>{checkoutLabel(uiLocale, 'intentLookupDescription')}</p>
               </div>
               <label className="pay-checkout-intent-input">
-                <span>{checkoutLabel(locale, 'intentLookupLabel')}</span>
+                <span>{checkoutLabel(uiLocale, 'intentLookupLabel')}</span>
                 <input
                   value={intentLookupId}
                   onChange={(event) => setIntentLookupId(event.target.value)}
-                  placeholder={checkoutLabel(locale, 'intentLookupPlaceholder')}
+                  placeholder={checkoutLabel(uiLocale, 'intentLookupPlaceholder')}
                   spellCheck={false}
                   autoComplete="off"
                   inputMode="text"
-                  aria-label={checkoutLabel(locale, 'intentLookupLabel')}
+                  aria-label={checkoutLabel(uiLocale, 'intentLookupLabel')}
                 />
               </label>
               <button
@@ -346,55 +401,55 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                 className="pay-primary-action"
                 disabled={!PAYMENT_INTENT_ID.test(intentLookupId.trim())}
               >
-                <ShieldCheck size={17} /> {checkoutLabel(locale, 'checkIntent')}
+                <ShieldCheck size={17} /> {checkoutLabel(uiLocale, 'checkIntent')}
               </button>
               {intentLookupId.trim() && !PAYMENT_INTENT_ID.test(intentLookupId.trim()) ? (
                 <div className="pay-checkout-verification-message is-failed" role="alert">
                   <XCircle size={18} />
-                  <span>{checkoutLabel(locale, 'invalidIntentId')}</span>
+                  <span>{checkoutLabel(uiLocale, 'invalidIntentId')}</span>
                 </div>
               ) : null}
             </form>
           ) : state !== 'ready' ? (
-            <PayDataStateView locale={locale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent(true) : undefined} />
+            <PayDataStateView locale={uiLocale} state={state} message={errorMessage} onRetry={state === 'retryable' ? () => void loadIntent(true) : undefined} />
           ) : intent ? (
             <>
               <div className="pay-checkout-status-grid">
-                <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'merchant')}</span><strong>{intent.merchant.businessName}</strong></div></div>
-                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'merchantSettlement')}</span><strong>{formatAtomic(intent.merchantSettlementAtomic, decimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(locale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong></div></div>
-                <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'intentStatus')}</span><strong>{translateTransactionStatus(locale, intent.status)}</strong></div></div>
-                <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(locale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
+                <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(uiLocale, 'merchant')}</span><strong>{intent.merchant.businessName}</strong></div></div>
+                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'merchantSettlement')}</span><strong>{formatAtomic(intent.merchantSettlementAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(uiLocale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(uiLocale, 'intentStatus')}</span><strong>{translateTransactionStatus(uiLocale, intent.status)}</strong></div></div>
+                <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(uiLocale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
               </div>
 
               <div className="pay-checkout-notice">
-                <strong>{translateTransactionStatus(locale, intent.status)}</strong>
-                <p>{checkoutLabel(locale, 'payInstructions')}</p>
+                <strong>{translateTransactionStatus(uiLocale, intent.status)}</strong>
+                <p>{checkoutLabel(uiLocale, 'payInstructions')}</p>
                 <div className="pay-checkout-payment-actions">
-                  <div className="pay-checkout-action-row"><div><span>{checkoutLabel(locale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div><button type="button" onClick={() => void copyValue('amount')} aria-label={checkoutLabel(locale, 'copy')} title={checkoutLabel(locale, copiedField === 'amount' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
-                  <div className="pay-checkout-action-row"><div><span>{checkoutLabel(locale, 'destination')}</span><SnapshotValue value={truncateAddress(intent.recipient)} /></div><button type="button" onClick={() => void copyValue('destination')} aria-label={checkoutLabel(locale, 'copy')} title={checkoutLabel(locale, copiedField === 'destination' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
-                  <div className="pay-checkout-action-row"><div><span>{checkoutLabel(locale, 'reference')}</span><SnapshotValue value={intent.reference} /></div><button type="button" onClick={() => void copyValue('reference')} aria-label={checkoutLabel(locale, 'copy')} title={checkoutLabel(locale, copiedField === 'reference' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
+                  <div className="pay-checkout-action-row"><div><span>{checkoutLabel(uiLocale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div><button type="button" onClick={() => void copyValue('amount')} aria-label={checkoutLabel(uiLocale, 'copy')} title={checkoutLabel(uiLocale, copiedField === 'amount' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
+                  <div className="pay-checkout-action-row"><div><span>{checkoutLabel(uiLocale, 'destination')}</span><SnapshotValue value={truncateAddress(intent.recipient)} /></div><button type="button" onClick={() => void copyValue('destination')} aria-label={checkoutLabel(uiLocale, 'copy')} title={checkoutLabel(uiLocale, copiedField === 'destination' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
+                  <div className="pay-checkout-action-row"><div><span>{checkoutLabel(uiLocale, 'reference')}</span><SnapshotValue value={intent.reference} /></div><button type="button" onClick={() => void copyValue('reference')} aria-label={checkoutLabel(uiLocale, 'copy')} title={checkoutLabel(uiLocale, copiedField === 'reference' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
                 </div>
 
                 <div className="pay-checkout-wallet-row">
                   <div>
-                    <span>{checkoutLabel(locale, 'walletConnect')}</span>
+                    <span>{checkoutLabel(uiLocale, 'walletConnect')}</span>
                     <strong>{walletAddress
-                      ? (selectedWalletName ? selectedWalletName + ': ' : '') + checkoutLabel(locale, 'walletConnected') + ': ' + truncateAddress(walletAddress)
-                      : checkoutLabel(locale, 'walletRequired')}</strong>
+                      ? (selectedWalletName ? selectedWalletName + ': ' : '') + checkoutLabel(uiLocale, 'walletConnected') + ': ' + truncateAddress(walletAddress)
+                      : checkoutLabel(uiLocale, 'walletRequired')}</strong>
                   </div>
                   <button type="button" className="pay-secondary-action" onClick={() => void connectWallet()} disabled={verificationState === 'submitting'}>
-                    <WalletCards size={16} /> {walletAddress ? checkoutLabel(locale, 'changeWallet') : checkoutLabel(locale, 'connect')}
+                    <WalletCards size={16} /> {walletAddress ? checkoutLabel(uiLocale, 'changeWallet') : checkoutLabel(uiLocale, 'connect')}
                   </button>
                 </div>
 
                 {walletChooserOpen ? (
-                  <div className="pay-checkout-wallet-chooser" role="group" aria-label={checkoutLabel(locale, 'chooseWallet')}>
+                  <div className="pay-checkout-wallet-chooser" role="group" aria-label={checkoutLabel(uiLocale, 'chooseWallet')}>
                     <div className="pay-checkout-wallet-chooser-heading">
-                      <strong>{checkoutLabel(locale, 'chooseWallet')}</strong>
-                      <span>{checkoutLabel(locale, 'walletOptionsHint')}</span>
+                      <strong>{checkoutLabel(uiLocale, 'chooseWallet')}</strong>
+                      <span>{checkoutLabel(uiLocale, 'walletOptionsHint')}</span>
                     </div>
                     <div className="pay-checkout-wallet-options">
                       {availableWallets.map((wallet) => (
@@ -414,21 +469,21 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                 ) : null}
 
                 <button type="button" className="pay-primary-action pay-checkout-wallet-pay" onClick={() => void payWithConnectedWallet()} disabled={walletPayDisabled}>
-                  <WalletCards size={17} /> {walletPaymentState === 'preparing' ? checkoutLabel(locale, 'preparingPayment') : walletPaymentState === 'opening' ? checkoutLabel(locale, 'openingWallet') : checkoutLabel(locale, 'payWithWallet')}
+                  <WalletCards size={17} /> {walletPaymentState === 'preparing' ? checkoutLabel(uiLocale, 'preparingPayment') : walletPaymentState === 'opening' ? checkoutLabel(uiLocale, 'openingWallet') : checkoutLabel(uiLocale, 'payWithWallet')}
                 </button>
 
                 <details className="pay-checkout-manual-details">
                   <summary>
-                    <span>{checkoutLabel(locale, 'manualVerification')}</span>
+                    <span>{checkoutLabel(uiLocale, 'manualVerification')}</span>
                     <span aria-hidden="true">+</span>
                   </summary>
                   <div className="pay-checkout-manual-details-body">
-                    <p>{checkoutLabel(locale, 'manualVerificationHint')}</p>
+                    <p>{checkoutLabel(uiLocale, 'manualVerificationHint')}</p>
                     <label className="pay-checkout-signature-field">
-                      <span>{checkoutLabel(locale, 'signatureLabel')}</span>
-                      <input value={signature} onChange={(event) => { setSignature(event.target.value); setVerificationState('idle'); setVerificationMessage(''); }} placeholder={checkoutLabel(locale, 'signaturePlaceholder')} spellCheck={false} autoComplete="off" inputMode="text" disabled={verificationDisabled} />
+                      <span>{checkoutLabel(uiLocale, 'signatureLabel')}</span>
+                      <input value={signature} onChange={(event) => { setSignature(event.target.value); setVerificationState('idle'); setVerificationMessage(''); }} placeholder={checkoutLabel(uiLocale, 'signaturePlaceholder')} spellCheck={false} autoComplete="off" inputMode="text" disabled={verificationDisabled} />
                     </label>
-                    <button type="button" className="pay-primary-action" onClick={() => void verify()} disabled={verificationDisabled}>{verificationState === 'submitting' ? <RefreshCcw size={17} className="animate-spin" /> : <ShieldCheck size={17} />} {verificationState === 'submitting' ? checkoutLabel(locale, 'verifying') : checkoutLabel(locale, 'verifyPayment')}</button>
+                    <button type="button" className="pay-primary-action" onClick={() => void verify()} disabled={verificationDisabled}>{verificationState === 'submitting' ? <RefreshCcw size={17} className="animate-spin" /> : <ShieldCheck size={17} />} {verificationState === 'submitting' ? checkoutLabel(uiLocale, 'verifying') : checkoutLabel(uiLocale, 'verifyPayment')}</button>
                   </div>
                 </details>
 
@@ -439,23 +494,30 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
               </div>
 
               <details className="pay-checkout-details">
-                <summary><span>{checkoutLabel(locale, 'technicalDetails')}</span><span aria-hidden="true">+</span></summary>
+                <summary><span>{checkoutLabel(uiLocale, 'technicalDetails')}</span><span aria-hidden="true">+</span></summary>
                 <div className="pay-checkout-details-body">
-                  <p>{checkoutLabel(locale, 'checkoutSnapshotDescription')}</p>
+                  <p>{checkoutLabel(uiLocale, 'checkoutSnapshotDescription')}</p>
                   <div className="pay-checkout-status-grid">
-                    <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'asset')}</span><SnapshotValue value={intent.asset} /></div></div>
-                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'feePayer')}</span><SnapshotValue value={intent.feePayer} /></div></div>
-                    <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'network')}</span><SnapshotValue value={intent.network} /></div></div>
-                    <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(locale, 'destination')}</span><SnapshotValue value={intent.recipient} /></div></div>
-                    <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(locale, 'reference')}</span><SnapshotValue value={intent.reference} /></div></div>
-                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(locale, 'commitment')}</span><SnapshotValue value={intent.verificationCommitment} /></div></div>
+                    <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(uiLocale, 'asset')}</span><SnapshotValue value={intent.asset} /></div></div>
+                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(uiLocale, 'feePayer')}</span><SnapshotValue value={intent.feePayer} /></div></div>
+                    <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'network')}</span><SnapshotValue value={intent.network} /></div></div>
+                    <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(uiLocale, 'destination')}</span><SnapshotValue value={intent.recipient} /></div></div>
+                    <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'reference')}</span><SnapshotValue value={intent.reference} /></div></div>
+                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(uiLocale, 'commitment')}</span><SnapshotValue value={intent.verificationCommitment} /></div></div>
                   </div>
                 </div>
               </details>
-              {isRefreshing ? <div className="pay-checkout-refresh" role="status" aria-live="polite"><RefreshCcw size={15} /> {translate(locale, 'verification')}</div> : null}
+              {receiptState === 'ready' && receipt ? <PayPaymentReceiptView locale={uiLocale} receipt={receipt} /> : null}
+              {receiptState === 'retryable' && intent.status === 'completed' ? (
+                <div className="pay-checkout-verification-message is-submitting" role="status" aria-live="polite">
+                  <RefreshCcw size={18} />
+                  <span>{checkoutLabel(uiLocale, 'receiptUnavailable')}</span>
+                </div>
+              ) : null}
+              {isRefreshing ? <div className="pay-checkout-refresh" role="status" aria-live="polite"><RefreshCcw size={15} /> {translate(uiLocale, 'verification')}</div> : null}
             </>
           ) : null}
-          {intentId ? <code className="pay-checkout-intent-id">{intentId}</code> : <span>{translate(locale, 'checkoutIntentMissing')}</span>}
+          {intentId ? <code className="pay-checkout-intent-id">{intentId}</code> : <span>{translate(uiLocale, 'checkoutIntentMissing')}</span>}
         </section>
       </main>
     </div>
