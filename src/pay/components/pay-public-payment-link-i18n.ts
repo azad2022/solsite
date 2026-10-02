@@ -37,4 +37,7 @@ const messages = {
 } as const;
 
 export type PublicPaymentLinkKey = keyof typeof messages['fa-IR'];
-export function publicPaymentLinkT(locale: PayLocale,key:PublicPaymentLinkKey): string { return messages[locale][key]; }
+export const publicPaymentLinkKeys = Object.keys(messages['fa-IR']) as PublicPaymentLinkKey[];
+export function publicPaymentLinkT(locale: PayLocale, key: PublicPaymentLinkKey): string {
+  return (messages[locale] as Record<PublicPaymentLinkKey, string>)[key] ?? '';
+}
