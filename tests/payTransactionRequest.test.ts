@@ -1,0 +1,86 @@
+import assert from 'node:assert/strict';
+import { PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import test from 'node:test';
+import { buildTransaction, validatePayment } from '../functions/api/pay/v1/payment-intents/[id]/transaction-request';
+
+const BUYER = new PublicKey('11111111111111111111111111111111');
+const MERCHANT = new PublicKey('22222222222222222222222222222222');
+const FEE = new PublicKey('33333333333333333333333333333333');
+const REFERENCE = new PublicKey('44444444444444444444444444444444');
+
+function row(overrides: Record<string, unknown> = {}): any {
+  return {
+    id: '8f3d4dd1-4ef0-4a4a-9d98-8d9f2a1c9d91',
+    merchant_id: '8f3d4dd1-4ef0-4a4a-9d98-8d9f2a1c9d92',
+    amount_atomic: '1000000',
+    customer_total_atomic: '1000000',
+    merchant_net_atomic: '990000',
+    merchant_settlement_atomic: '990000',
+    fee_atomic: '10000',
+    fee_payer: 'merchant',
+    asset: 'SOL',
+    token_mint: null,
+    token_program: null,
+    token_decimals: null,
+    recipient: MERCHANT.toBase58(),
+    fee_recipient: FEE.toBase58(),
+    reference: REFERENCE.toBase58(),
+    status: 'created',
+    expires_at: new Date(Date.now() + 300000).toISOString(),
+    merchant_business_name: 'Contract Test Merchant',
+    ...overrides,
+  };
+}
+
+test('transaction request preserves authoritative financial invariants and embeds the Pay reference', async () => {
+  const payment = row();
+  validatePayment(payment);
+
+  const connection = {
+    async getLatestBlockhash() {
+      return { blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 1 };
+    },
+  } as never;
+
+  const encoded = await buildTransaction(payment, BUYER, connection);
+  const transaction = Transaction.from(Buffer.from(encoded, 'base64'));
+  const compiled = transaction.compileMessage();
+
+  assert.equal(transaction.feePayer?.toBase58(), BUYER.toBase58());
+  assert.ok(compiled.accountKeys.some((key) => key.pubkey.equals(REFERENCE)));
+  assert.equal(transaction.instructions.length, 3);
+  assert.equal(transaction.instructions[0].programId.toBase58(), SystemProgram.programId.toBase58());
+  assert.equal(transaction.instructions[1].programId.toBase58(), SystemProgram.programId.toBase58());
+  assert.equal(transaction.instructions[2].programId.toBase58(), 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+  assert.ok(transaction.instructions[2] instanceof TransactionInstruction);
+
+  const merchantInstruction = SystemProgram.decodeInstructionType(transaction.instructions[0]);
+  const feeInstruction = SystemProgram.decodeInstructionType(transaction.instructions[1]);
+  assert.equal(merchantInstruction, 'Transfer');
+  assert.equal(feeInstruction, 'Transfer');
+
+  assert.throws(
+    () => validatePayment(row({ customer_total_atomic: '1000001' })),
+    /PAYMENT_TOTAL_MISMATCH/,
+  );
+  assert.throws(
+    () => validatePayment(row({ reference: 'invalid-reference' })),
+    /PAYMENT_REFERENCE_INVALID/,
+  );
+});
+
+test('transaction request enforces customer-paid gateway fee snapshot semantics', () => {
+  validatePayment(row({
+    amount_atomic: '1000000',
+    customer_total_atomic: '1010000',
+    merchant_net_atomic: '1000000',
+    merchant_settlement_atomic: '1000000',
+    fee_atomic: '10000',
+    fee_payer: 'customer',
+  }));
+
+  assert.throws(
+    () => validatePayment(row({ fee_payer: 'customer', amount_atomic: '1010000' })),
+    /PAYMENT_TOTAL_MISMATCH/,
+  );
+});
