@@ -22,9 +22,9 @@ test('builds a Solana transaction request URI safely', () => {
 
 test('builds supported mobile wallet browse links', () => {
   const page = `https://solmint.ir/pay/checkout/${INTENT_ID}`;
-  assert.match(buildWalletBrowseUrl('phantom', page), /^https://phantom\.app\/ul\/browse\//);
-  assert.match(buildWalletBrowseUrl('solflare', page), /^https://solflare\.com\/ul\/v1\/browse\//);
-  assert.match(buildWalletBrowseUrl('backpack', page), /^https://backpack\.app\/ul\/browse\//);
+  assert.match(buildWalletBrowseUrl('phantom', page), /^https:\/\/phantom\.app\/ul\/browse\//);
+  assert.match(buildWalletBrowseUrl('solflare', page), /^https:\/\/solflare\.com\/ul\/v1\/browse\//);
+  assert.match(buildWalletBrowseUrl('backpack', page), /^https:\/\/backpack\.app\/ul\/browse\//);
 });
 
 test('detects mobile wallet contexts deterministically', () => {
