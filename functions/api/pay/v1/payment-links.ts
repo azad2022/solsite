@@ -1,4 +1,4 @@
-import { PayRuntimeError, assertIdempotencyKey, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody } from '../_shared/runtime';
+import { PayRuntimeError, assertIdempotencyKey, calculateSnapshot, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody } from '../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
 import { resolveAssetFromEnvironment } from '../../../../src/pay/services/assetPolicy';
 
@@ -111,6 +111,12 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     }
     if (feePayer !== 'merchant' && feePayer !== 'customer') return payJson({ code: 'INVALID_PAYMENT_LINK_INPUT', message: 'Payment link fee payer is invalid.' }, 400, requestId);
     if (checkoutLocale !== 'fa-IR' && checkoutLocale !== 'en-US' && checkoutLocale !== 'ar' && checkoutLocale !== 'ru' && checkoutLocale !== 'auto') return payJson({ code: 'INVALID_PAYMENT_LINK_INPUT', message: 'Payment link locale is invalid.' }, 400, requestId);
+    try {
+      const snapshot = calculateSnapshot(amountAtomic, feePayer, 100);
+      if (BigInt(snapshot.merchantNetAtomic) <= 0n) return payJson({ code: 'PAYMENT_LINK_AMOUNT_TOO_SMALL', message: 'Payment link amount is too small after the gateway fee.' }, 400, requestId);
+    } catch {
+      return payJson({ code: 'INVALID_PAYMENT_LINK_AMOUNT', message: 'Payment link amount is invalid.' }, 400, requestId);
+    }
 
     let normalizedExpiresAt: string | null = null;
     if (expiresAt !== null) {
@@ -221,6 +227,12 @@ export const onRequestPatch = async ({ request, env }: { request: Request; env: 
 
     const body = await readJsonBody(request);
     const input = parseMutationInput({ ...body, merchantId, linkId });
+    try {
+      const snapshot = calculateSnapshot(input.fixedAmountAtomic, input.feePayer as 'merchant' | 'customer', 100);
+      if (BigInt(snapshot.merchantNetAtomic) <= 0n) return payJson({ code: 'PAYMENT_LINK_AMOUNT_TOO_SMALL', message: 'Payment link amount is too small after the gateway fee.' }, 400, requestId);
+    } catch {
+      return payJson({ code: 'INVALID_PAYMENT_LINK_AMOUNT', message: 'Payment link amount is invalid.' }, 400, requestId);
+    }
     resolveAssetFromEnvironment(input.asset as 'SOL' | 'USDC' | 'USDT', env as Record<string, string | undefined>);
 
     const idempotencyKey = await assertIdempotencyKey(request);
