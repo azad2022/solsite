@@ -28,6 +28,7 @@ const messages = {
     copySignature: 'کپی Signature',
     copied: 'کپی شد',
     description: 'توضیحات',
+    createdAt: 'زمان ایجاد',
     generatedFrom: 'منبع رسید: Payment Intent تأییدشده',
   },
   'en-US': {
@@ -57,6 +58,7 @@ const messages = {
     copySignature: 'Copy signature',
     copied: 'Copied',
     description: 'Description',
+    createdAt: 'Created at',
     generatedFrom: 'Receipt source: verified Payment Intent',
   },
   ar: {
@@ -86,6 +88,7 @@ const messages = {
     copySignature: 'نسخ التوقيع',
     copied: 'تم النسخ',
     description: 'الوصف',
+    createdAt: 'تاريخ الإنشاء',
     generatedFrom: 'مصدر الإيصال: Payment Intent موثوق',
   },
   ru: {
@@ -115,6 +118,7 @@ const messages = {
     copySignature: 'Копировать подпись',
     copied: 'Скопировано',
     description: 'Описание',
+    createdAt: 'Создано',
     generatedFrom: 'Источник квитанции: проверенный Payment Intent',
   },
 } as const;
