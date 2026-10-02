@@ -51,7 +51,17 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
       identity.accessToken,
       '/rest/v1/pay_payment_links?select=' + SELECT + '&' + conditions.join('&') + '&order=created_at.desc&limit=' + (linkId || slug ? '1' : String(limit)),
     );
-    const rows = await response.json() as Array<Record<string, unknown>>;
+    const rawRows = await response.json() as Array<Record<string, unknown>>;
+    const rows = rawRows.map((row) => {
+      const asset = row.asset;
+      if (asset !== 'SOL' && asset !== 'USDC' && asset !== 'USDT') return { ...row, amount_decimals: null };
+      try {
+        const config = resolveAssetFromEnvironment(asset, env as Record<string, string | undefined>);
+        return { ...row, amount_decimals: config.decimals ?? 9 };
+      } catch {
+        return { ...row, amount_decimals: null };
+      }
+    });
 
     if ((linkId || slug) && rows.length === 0) {
       return payJson({ code: 'PAYMENT_LINK_NOT_FOUND', message: 'Payment link was not found.' }, 404, requestId);
