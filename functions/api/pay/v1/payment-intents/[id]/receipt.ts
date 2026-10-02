@@ -1,5 +1,4 @@
-import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, type PayRuntimeEnv } from '../../../_shared/runtime';
-import { supabaseSecret } from '../../../v1/_shared';
+import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, supabaseRequest, type PayRuntimeEnv } from '../../../_shared/runtime';
 
 interface PayEnv extends PayRuntimeEnv {
   PAY_API_ENABLED?: string;
@@ -12,10 +11,8 @@ function isUuid(value: string): boolean {
 }
 
 async function getJson<T>(env: PayEnv, path: string): Promise<T[]> {
-  const config = supabaseSecret(env);
-  const response = await fetch(config.base + path, {
+  const response = await supabaseRequest(env, path, {
     headers: {
-      ...config.headers,
       Accept: 'application/json',
       'Cache-Control': 'no-store',
     },
