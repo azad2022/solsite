@@ -96,7 +96,8 @@ export default function PayPublicPaymentLink({ slug, initialLocale, onCheckoutLo
     setCreating(true);
     try {
       const result = await payPaymentLinkService.createFromPublic(slug, customer, crypto.randomUUID());
-      const target = '/pay/checkout/' + encodeURIComponent(result.id);
+      const resolvedLocale = publicLocale(link.checkoutLocale, initialLocale);
+      const target = '/pay/checkout/' + encodeURIComponent(result.id) + '?locale=' + encodeURIComponent(resolvedLocale);
       window.history.pushState({}, '', target);
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (cause) {
