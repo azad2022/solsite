@@ -10,6 +10,7 @@ const link = {
   description: 'Pay for your order', fixed_amount_atomic: '1000000', asset: 'USDC',
   fee_payer: 'merchant', checkout_locale: 'en-US', is_active: true, expires_at: null,
   created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z',
+  amount_decimals: 6,
 };
 function clientFor(payload: unknown, capture?: (path: string, init: RequestInit) => void): PayHttpClient {
   return { request: async <T>(path: string, init: RequestInit = {}) => { capture?.(path, init); return payload as T; } } as unknown as PayHttpClient;
@@ -47,6 +48,62 @@ test('payment link service creates through the same-origin API with idempotency'
   assert.equal(path, '/api/pay/v1/payment-links');
   assert.equal(init?.method, 'POST');
   assert.equal(new Headers(init?.headers).get('Idempotency-Key'), 'link-create-e2e-key');
+});
+
+test('public payment link service parses the authoritative fee snapshot', async () => {
+  const payload = {
+    success: true,
+    apiVersion: 'v1',
+    data: {
+      slug: 'solmint-store',
+      title: 'Store payment',
+      description: 'Pay for your order',
+      amountAtomic: '1000000',
+      amountDecimals: 6,
+      feeBps: 100,
+      feeAtomic: '10000',
+      customerTotalAtomic: '1010000',
+      merchantSettlementAtomic: '1000000',
+      asset: 'USDC',
+      feePayer: 'customer',
+      checkoutLocale: 'en-US',
+      expiresAt: null,
+      merchant: { businessName: 'Test Store' },
+    },
+  };
+  const result = await createPayPaymentLinkService(clientFor(payload)).getPublic('solmint-store');
+  assert.equal(result.amountAtomic, '1000000');
+  assert.equal(result.amountDecimals, 6);
+  assert.equal(result.feeBps, 100);
+  assert.equal(result.feeAtomic, '10000');
+  assert.equal(result.customerTotalAtomic, '1010000');
+  assert.equal(result.merchantSettlementAtomic, '1000000');
+});
+
+test('public payment link service rejects a malformed fee snapshot', async () => {
+  await assert.rejects(
+    () => createPayPaymentLinkService(clientFor({
+      success: true,
+      apiVersion: 'v1',
+      data: {
+        slug: 'solmint-store',
+        title: 'Store payment',
+        description: null,
+        amountAtomic: '1000000',
+        amountDecimals: 6,
+        feeBps: 101.5,
+        feeAtomic: '10000',
+        customerTotalAtomic: '1010000',
+        merchantSettlementAtomic: '1000000',
+        asset: 'USDC',
+        feePayer: 'customer',
+        checkoutLocale: 'en-US',
+        expiresAt: null,
+        merchant: { businessName: 'Test Store' },
+      },
+    })).getPublic('solmint-store'),
+    /Invalid public Pay payment link fee snapshot/,
+  );
 });
 
 test('public payment link service creates a Payment Intent only through the public link route', async () => {
