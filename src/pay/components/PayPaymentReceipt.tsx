@@ -99,7 +99,6 @@ export default function PayPaymentReceipt({ locale, receipt }: Props): React.Rea
         <div><span>{paymentReceiptLabel(locale, 'paymentId')}</span><code>{receipt.id}</code></div>
         <div><span>{paymentReceiptLabel(locale, 'transactionId')}</span><code>{receipt.transaction.id}</code></div>
         <div><span>{paymentReceiptLabel(locale, 'transactionSignature')}</span><code>{receipt.transaction.signature}</code></div>
-        <div><span>{paymentReceiptLabel(locale, 'payerWallet')}</span><code>{address(receipt.payerWallet)}</code></div>
         <div><span>{paymentReceiptLabel(locale, 'destination')}</span><code>{address(receipt.recipient)}</code></div>
         <div><span>{paymentReceiptLabel(locale, 'reference')}</span><code>{receipt.reference}</code></div>
         <div><span>{paymentReceiptLabel(locale, 'network')}</span><strong>{receipt.network}</strong></div>
