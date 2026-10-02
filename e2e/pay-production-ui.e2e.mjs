@@ -1049,7 +1049,7 @@ try {
    assert.equal(publicLinkApiBody.data?.feeBps, 100);
    assert.equal(publicLinkApiBody.data?.feeAtomic, '20000');
    assert.equal(publicLinkApiBody.data?.customerTotalAtomic, '2000000');
-   assert.equal(publicLinkApiBody.data?.merchantSettlementAtomic, '2000000');
+   assert.equal(publicLinkApiBody.data?.merchantSettlementAtomic, '1980000');
    assert.equal(typeof publicLinkApiBody.data?.amountDecimals, 'number');
    assert.equal(await publicPage.locator('html').getAttribute('lang'), 'en-US');
    assert.equal(await publicPage.locator('html').getAttribute('dir'), 'ltr');
