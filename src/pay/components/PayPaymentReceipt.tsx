@@ -20,11 +20,6 @@ function formatAtomic(value: string, decimals: number): string {
   return fraction ? whole + '.' + fraction : whole;
 }
 
-function address(value: string | null): string {
-  if (!value) return '—';
-  return value.length > 20 ? value.slice(0, 10) + '…' + value.slice(-8) : value;
-}
-
 function date(value: string | null, locale: PayLocale): string {
   if (!value) return '—';
   const parsed = new Date(value);
