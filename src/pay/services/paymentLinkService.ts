@@ -65,6 +65,7 @@ export interface PayPaymentLink {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+  amount_decimals: number | null;
 }
 
 interface Envelope { success?: boolean; apiVersion?: string; data?: unknown; }
@@ -105,6 +106,12 @@ function parseLink(value: unknown): PayPaymentLink {
   const row = record(value);
   const id = requiredString(row, 'id');
   const merchantId = requiredString(row, 'merchant_id');
+  const rawDecimals = row.amount_decimals;
+  const amountDecimals = rawDecimals === null || rawDecimals === undefined
+    ? null
+    : Number.isInteger(rawDecimals) && rawDecimals >= 0 && rawDecimals <= 255
+      ? rawDecimals as number
+      : null;
   if (!UUID.test(id) || !UUID.test(merchantId)) throw new TypeError('Invalid Pay payment link UUID.');
   return {
     id,
@@ -120,6 +127,7 @@ function parseLink(value: unknown): PayPaymentLink {
     expires_at: nullableString(row, 'expires_at'),
     created_at: requiredString(row, 'created_at'),
     updated_at: requiredString(row, 'updated_at'),
+    amount_decimals: amountDecimals,
   };
 }
 
