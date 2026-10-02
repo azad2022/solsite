@@ -1,3 +1,4 @@
+import type { PayLocale } from './types';
 import { defaultPayHttpClient, PayHttpError, type PayHttpClient } from './http';
 
 export type PayPaymentStatus =
@@ -30,6 +31,9 @@ export interface PayPaymentIntent {
   readonly merchantSettlementAtomic: string;
   readonly network: 'solana';
   readonly verificationCommitment: 'confirmed' | 'finalized';
+  readonly checkoutLocale: PayLocale | 'auto' | null;
+  readonly paymentLinkTitle: string | null;
+  readonly paymentLinkDescription: string | null;
 }
 
 interface PaymentIntentEnvelope {
@@ -71,6 +75,15 @@ function boundedInteger(value: unknown, name: string, min: number, max: number):
     throw new TypeError(`Invalid Pay contract field: ${name}`);
   }
   return value as number;
+}
+
+const CHECKOUT_LOCALES = new Set<PayLocale | 'auto'>(['fa-IR', 'en-US', 'ar', 'ru', 'auto']);
+
+function parseCheckoutLocale(value: unknown): PayLocale | 'auto' {
+  if (typeof value !== 'string' || !CHECKOUT_LOCALES.has(value as PayLocale | 'auto')) {
+    throw new TypeError('Invalid Pay contract field: checkoutLocale');
+  }
+  return value as PayLocale | 'auto';
 }
 
 function requiredBoolean(value: unknown, name: string): boolean {
@@ -156,6 +169,15 @@ function parsePaymentIntent(payload: unknown): PayPaymentIntent {
     merchantSettlementAtomic: atomicString(data.merchantSettlementAtomic, 'merchantSettlementAtomic'),
     network: 'solana',
     verificationCommitment: commitment,
+    checkoutLocale: data.checkoutLocale === null || data.checkoutLocale === undefined
+      ? null
+      : parseCheckoutLocale(data.checkoutLocale),
+    paymentLinkTitle: data.paymentLinkTitle === null || data.paymentLinkTitle === undefined
+      ? null
+      : requiredString(data.paymentLinkTitle, 'paymentLinkTitle'),
+    paymentLinkDescription: data.paymentLinkDescription === null || data.paymentLinkDescription === undefined
+      ? null
+      : requiredString(data.paymentLinkDescription, 'paymentLinkDescription'),
   };
 }
 

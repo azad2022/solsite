@@ -45,7 +45,8 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
     try {
       const result = await payPaymentLinkService.getPublic(slug);
       setLink(result);
-      setLocale(publicLocale(result.checkoutLocale, initialLocale));
+      const resolvedLocale = publicLocale(result.checkoutLocale, initialLocale);
+      setLocale(resolvedLocale);
       setState('ready');
     } catch (cause) {
       if (cause instanceof PayHttpError && cause.status === 410) setState('expired');
@@ -94,7 +95,8 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
     setCreating(true);
     try {
       const result = await payPaymentLinkService.createFromPublic(slug, customer, crypto.randomUUID());
-      const target = '/pay/checkout/' + encodeURIComponent(result.id);
+      const resolvedLocale = publicLocale(link.checkoutLocale, initialLocale);
+      const target = '/pay/checkout/' + encodeURIComponent(result.id) + '?locale=' + encodeURIComponent(resolvedLocale);
       window.history.pushState({}, '', target);
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (cause) {
@@ -114,7 +116,18 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
         <span className="pay-public-link-kicker">{publicPaymentLinkT(locale,'paymentLink')}</span>
         <h1 id="pay-public-link-title">{link.title}</h1>
         <div className="pay-public-link-merchant"><span>{publicPaymentLinkT(locale,'merchant')}</span><strong>{link.merchant.businessName}</strong></div>
-        <div className="pay-public-link-amount"><span>{publicPaymentLinkT(locale,'amount')}</span><strong>{formatAtomic(link.amountAtomic, link.amountDecimals)} {link.asset}</strong></div>
+        <div className="pay-public-link-amount">
+          <span>{publicPaymentLinkT(locale,'amount')}</span>
+          <strong>{link.feePayer === 'merchant'
+            ? formatAtomic(link.customerTotalAtomic, link.amountDecimals)
+            : formatAtomic(link.customerTotalAtomic, link.amountDecimals)} {link.asset}</strong>
+          <small>{publicPaymentLinkT(locale, 'customerTotal')}</small>
+          <div className="pay-public-link-fee-breakdown">
+            <div><span>{publicPaymentLinkT(locale,'baseAmount')}</span><strong>{formatAtomic(link.amountAtomic, link.amountDecimals)} {link.asset}</strong></div>
+            <div><span>{publicPaymentLinkT(locale,'gatewayFee')}</span><strong>{formatAtomic(link.feeAtomic, link.amountDecimals)} {link.asset}</strong></div>
+            <div><span>{publicPaymentLinkT(locale,'merchantSettlement')}</span><strong>{formatAtomic(link.merchantSettlementAtomic, link.amountDecimals)} {link.asset}</strong></div>
+          </div>
+        </div>
         <div className="pay-public-link-meta"><div><span>{publicPaymentLinkT(locale,'feePayer')}</span><strong>{link.feePayer==='merchant'?publicPaymentLinkT(locale,'merchant'):publicPaymentLinkT(locale,'customer')}</strong></div><div><span>{publicPaymentLinkT(locale,'expires')}</span><strong>{link.expiresAt ? new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : locale,{dateStyle:'medium',timeStyle:'short'}).format(new Date(link.expiresAt)) : publicPaymentLinkT(locale,'noExpiry')}</strong></div></div>
         {link.description ? <div className="pay-public-link-description"><strong>{publicPaymentLinkT(locale,'description')}</strong><div>{link.description}</div></div> : null}
         <div className="pay-public-link-customer">

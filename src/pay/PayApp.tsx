@@ -218,7 +218,17 @@ export function PayApp(): React.ReactElement {
   }
 
   if (isCheckout) {
-    return <PayCheckout locale={locale} intentId={route.kind === 'checkout' ? route.intentId : undefined} onBack={() => navigate('overview')} />;
+    const hintedLocaleValue = new URLSearchParams(window.location.search).get('locale');
+    const checkoutLocaleHint: PayLocale | null =
+      hintedLocaleValue === 'fa-IR' || hintedLocaleValue === 'en-US' || hintedLocaleValue === 'ar' || hintedLocaleValue === 'ru'
+        ? hintedLocaleValue
+        : null;
+    return <PayCheckout
+      locale={locale}
+      localeHint={checkoutLocaleHint}
+      intentId={route.kind === 'checkout' ? route.intentId : undefined}
+      onBack={() => navigate('overview')}
+    />;
   }
 
   const title = currentSection === 'overview' ? translate(locale, 'overviewTitle') : isBillingSection ? translate(locale, 'billingTitle') : isDeveloperSection ? translate(locale, 'developer') : paySectionLabel(locale, currentSection);

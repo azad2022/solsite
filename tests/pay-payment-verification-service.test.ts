@@ -65,6 +65,36 @@ test('verification service rejects malformed checked-signature evidence', async 
   await assert.rejects(() => service.verify(PAYMENT_ID, SIGNATURE), TypeError);
 });
 
+test('verification service can request automatic reconciliation without a customer-supplied signature', async () => {
+  let requestBody = '';
+  const client = new PayHttpClient({
+    fetchImpl: (async (_input, init) => {
+      requestBody = String(init?.body ?? '');
+      return new Response(JSON.stringify({
+        success: true,
+        data: {
+          paymentId: PAYMENT_ID,
+          status: 'confirmed',
+          outcome: 'confirmed',
+          signature: SIGNATURE,
+          checkedSignatures: [SIGNATURE],
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+      });
+    }) as typeof fetch,
+  });
+  const service = createPayPaymentVerificationService(client);
+  const result = await service.reconcile(PAYMENT_ID);
+
+  assert.equal(requestBody, '{}');
+  assert.equal(result.status, 'confirmed');
+  assert.equal(result.outcome, 'confirmed');
+  assert.equal(result.signature, SIGNATURE);
+  assert.deepEqual(result.checkedSignatures, [SIGNATURE]);
+});
+
 test('verification service validates payment id and transaction signature before network access', async () => {
   let requests = 0;
   const client = new PayHttpClient({
