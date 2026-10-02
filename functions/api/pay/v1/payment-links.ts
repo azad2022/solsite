@@ -1,5 +1,6 @@
 import { PayRuntimeError, assertIdempotencyKey, calculateSnapshot, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody } from '../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
+import { calculateSnapshot } from '../_shared/runtime';
 import { resolveAssetFromEnvironment } from '../../../../src/pay/services/assetPolicy';
 
 interface PayEnv extends PayIdentityEnv {
