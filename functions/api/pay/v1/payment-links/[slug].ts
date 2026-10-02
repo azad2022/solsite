@@ -98,6 +98,10 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     if (!validSlug(slug)) return payJson({ code: 'PAYMENT_LINK_SLUG_INVALID', message: 'Payment link is invalid.' }, 400, requestId);
     const link = await readLink(env, slug);
     const assetConfig = resolveAssetFromEnvironment(link.asset as 'SOL' | 'USDC' | 'USDT', env as Record<string, string | undefined>);
+    const snapshot = calculateSnapshot(link.fixed_amount_atomic!, link.fee_payer as 'merchant' | 'customer', 100);
+    if (BigInt(snapshot.merchantNetAtomic) <= 0n) {
+      return payJson({ code: 'PAYMENT_LINK_AMOUNT_TOO_SMALL', message: 'Payment link amount is too small after the gateway fee.' }, 409, requestId);
+    }
     const merchantResponse = await publicSupabaseRequest(env, '/rest/v1/pay_merchants?select=id,business_name,status&id=eq.' + encodeURIComponent(link.merchant_id) + '&limit=1', { headers: { Accept: 'application/json' } });
     const merchants = await merchantResponse.json() as Array<{ id: string; business_name: string; status: string }>;
     const merchant = merchants[0];
@@ -107,6 +111,10 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
       data: {
         slug: link.slug, title: link.title, description: link.description, amountAtomic: link.fixed_amount_atomic,
         amountDecimals: assetConfig.decimals === null ? 9 : assetConfig.decimals,
+        feeBps: 100,
+        feeAtomic: snapshot.gatewayFeeAtomic,
+        customerTotalAtomic: snapshot.customerTotalAtomic,
+        merchantSettlementAtomic: snapshot.merchantNetAtomic,
         asset: link.asset, feePayer: link.fee_payer, checkoutLocale: link.checkout_locale, expiresAt: link.expires_at,
         merchant: { businessName: merchant.business_name },
       },
