@@ -34,7 +34,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
 
     const payments = await getJson<Record<string, unknown>>(
       env,
-      '/rest/v1/pay_payment_intents?select=id,merchant_id,amount_atomic::text,customer_total_atomic::text,merchant_settlement_atomic::text,fee_atomic::text,fee_payer,fee_bps,asset,token_mint,token_program,token_decimals,recipient,fee_recipient,reference,network,status,verification_commitment,created_at,updated_at,payment_link_id,invoice_id,customer_wallet_address,metadata&id=eq.' + encodeURIComponent(paymentId) + '&limit=1',
+      '/rest/v1/pay_payment_intents?select=id,merchant_id,amount_atomic::text,customer_total_atomic::text,merchant_settlement_atomic::text,fee_atomic::text,fee_payer,fee_bps,asset,token_mint,token_program,token_decimals,recipient,fee_recipient,reference,network,status,verification_commitment,created_at,updated_at,payment_link_id,invoice_id,metadata&id=eq.' + encodeURIComponent(paymentId) + '&limit=1',
     );
     const payment = payments[0];
     if (!payment) return payJson({ code: 'PAYMENT_INTENT_NOT_FOUND', message: 'Payment Intent was not found.' }, 404, requestId);
@@ -60,7 +60,9 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
       return payJson({ code: 'PAYMENT_RECEIPT_NOT_READY', message: 'The payment receipt is not ready yet.' }, 409, requestId);
     }
 
-    const metadata = payment.metadata && typeof payment.metadata === 'object' && !Array.isArray(payment.metadata) ? payment.metadata : {};
+    const metadata = payment.metadata && typeof payment.metadata === 'object' && !Array.isArray(payment.metadata)
+      ? payment.metadata as Record<string, unknown>
+      : {};
     let paymentLink: Record<string, unknown> | null = null;
     if (
       typeof metadata.paymentLinkSlug === 'string'
