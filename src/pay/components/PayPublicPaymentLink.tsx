@@ -7,7 +7,7 @@ import { payPaymentLinkService, type PublicPayPaymentLink } from '../services/pa
 import { publicPaymentLinkT } from './pay-public-payment-link-i18n';
 import './pay-public-payment-link.css';
 
-interface Props { slug: string; initialLocale: PayLocale; }
+interface Props { slug: string; initialLocale: PayLocale; onCheckoutLocaleResolved?: (locale: PayLocale) => void; }
 
 function formatAtomic(value: string, decimals: number): string {
   try {
@@ -26,7 +26,7 @@ function normalizeCustomerText(value: string): string {
   return value.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export default function PayPublicPaymentLink({ slug, initialLocale }: Props): React.ReactElement {
+export default function PayPublicPaymentLink({ slug, initialLocale, onCheckoutLocaleResolved }: Props): React.ReactElement {
   const [link, setLink] = useState<PublicPayPaymentLink | null>(null);
   const [locale, setLocale] = useState<PayLocale>(initialLocale);
   const [state, setState] = useState<'loading'|'ready'|'not-found'|'expired'|'unavailable'|'error'>('loading');
@@ -45,7 +45,9 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
     try {
       const result = await payPaymentLinkService.getPublic(slug);
       setLink(result);
-      setLocale(publicLocale(result.checkoutLocale, initialLocale));
+      const resolvedLocale = publicLocale(result.checkoutLocale, initialLocale);
+      setLocale(resolvedLocale);
+      onCheckoutLocaleResolved?.(resolvedLocale);
       setState('ready');
     } catch (cause) {
       if (cause instanceof PayHttpError && cause.status === 410) setState('expired');
