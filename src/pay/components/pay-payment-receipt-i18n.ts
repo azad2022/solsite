@@ -124,7 +124,8 @@ const messages = {
 } as const;
 
 export type PaymentReceiptLabelKey = keyof typeof messages['fa-IR'];
+export const paymentReceiptLabelKeys = Object.keys(messages['fa-IR']) as PaymentReceiptLabelKey[];
 
 export function paymentReceiptLabel(locale: PayLocale, key: PaymentReceiptLabelKey): string {
-  return messages[locale][key] ?? messages['fa-IR'][key];
+  return (messages[locale] as Record<PaymentReceiptLabelKey, string>)[key] ?? '';
 }
