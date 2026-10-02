@@ -40,6 +40,6 @@ export function buildWalletBrowseUrl(wallet: MobileWalletId, pageUrl: string): s
   switch (wallet) {
     case 'phantom': return `https://phantom.app/ul/browse/${encodedPage}?ref=${ref}`;
     case 'solflare': return `https://solflare.com/ul/v1/browse/${encodedPage}?ref=${ref}`;
-    case 'backpack': return `https://backpack.app/ul/browse/${encodedPage}?ref=${ref}`;
+    case 'backpack': return `https://backpack.app/ul/v1/browse/${encodedPage}?ref=${ref}`;
   }
 }
