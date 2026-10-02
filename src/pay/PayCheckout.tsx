@@ -400,7 +400,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     }
   };
 
-  const payWithConnectedWallet = async () => {
+  const payWithConnectedWallet = async (providerOverride?: SolanaInjectedWalletProvider) => {
     if (!intent || walletPayDisabled || walletPaymentInFlightRef.current) return;
     walletPaymentInFlightRef.current = true;
     setWalletFallbackOpen(false);
@@ -409,7 +409,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     setVerificationMessage('');
 
     try {
-      let activeProvider = selectedWalletId ? getSolanaWalletProvider(selectedWalletId) : undefined;
+      let activeProvider = providerOverride ?? (selectedWalletId ? getSolanaWalletProvider(selectedWalletId) : undefined);
       if (!activeProvider?.publicKey) {
         activeProvider = await connectWallet(selectedWalletId ?? undefined);
       }
@@ -561,7 +561,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
                           type="button"
                           className={wallet.id === selectedWalletId ? 'pay-wallet-option is-selected' : 'pay-wallet-option'}
                           onClick={() => void connectWallet(wallet.id).then((provider) => {
-                            if (provider) void payWithConnectedWallet();
+                            if (provider) void payWithConnectedWallet(provider);
                           })}
                           disabled={verificationState === 'submitting' || walletPaymentState !== 'idle'}
                         >
