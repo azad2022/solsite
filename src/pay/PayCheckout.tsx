@@ -12,6 +12,7 @@ import { payPaymentReceiptService, type PayPaymentReceipt } from './payment-rece
 import PayPaymentReceiptView from './components/PayPaymentReceipt';
 import PayDataStateView from './DataStateView';
 import type { PayLocale } from './types';
+import { buildSolanaTransactionRequestUri, buildTransactionRequestUrl, buildWalletBrowseUrl, isMobileWalletContext, isValidWalletAddress, type MobileWalletId } from './wallet-payment-transport';
 import './pay-checkout.css';
 import { encodeBase58 } from './services/base58';
 import {
@@ -87,9 +88,12 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
   const [selectedWalletId, setSelectedWalletId] = useState<SolanaInjectedWalletId | null>(null);
   const [availableWallets, setAvailableWallets] = useState<readonly SolanaInjectedWalletProvider[]>([]);
   const [walletChooserOpen, setWalletChooserOpen] = useState(false);
-  const [signature, setSignature] = useState('');
   const [verificationState, setVerificationState] = useState<'idle' | 'submitting' | 'not_detected' | 'underpaid' | 'overpaid' | 'ambiguous' | 'failed'>('idle');
   const [walletPaymentState, setWalletPaymentState] = useState<'idle' | 'preparing' | 'opening'>('idle');
+  const [walletFallbackOpen, setWalletFallbackOpen] = useState(false);
+  const [walletRequestCopied, setWalletRequestCopied] = useState(false);
+  const [walletAddressInput, setWalletAddressInput] = useState('');
+  const [walletAddressInputError, setWalletAddressInputError] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [copiedField, setCopiedField] = useState<'amount' | 'destination' | 'reference' | null>(null);
   const mountedRef = useRef(true);
@@ -107,6 +111,12 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
 
   const uiDirection = directionFor(uiLocale);
   const BackIcon = uiDirection === 'rtl' ? ArrowRight : ArrowLeft;
+  const expectedWalletAddress = walletAddressInput.trim();
+  const mobileWalletContext = isMobileWalletContext();
+  const walletTransactionRequestUrl = useCallback(
+    () => buildTransactionRequestUrl(window.location.origin, intent?.id ?? '', undefined),
+    [intent?.id],
+  );
 
   const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
@@ -138,6 +148,30 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     void loadIntent(true);
     return () => { mountedRef.current = false; };
   }, [loadIntent]);
+
+  useEffect(() => {
+    if (!currentIntentId) return;
+    const params = new URLSearchParams(window.location.search);
+    const wallet = params.get('wallet')?.trim() ?? '';
+    setWalletAddressInput(wallet);
+    setWalletAddressInputError(Boolean(wallet) && !isValidWalletAddress(wallet));
+    const providers = detectSolanaWalletProviders();
+    setAvailableWallets(providers);
+    setWalletFallbackOpen(providers.length === 0);
+  }, [currentIntentId]);
+
+  useEffect(() => {
+    const refreshOnWalletReturn = () => {
+      if (document.visibilityState === 'hidden' || !currentIntentId) return;
+      void loadIntent(false);
+    };
+    window.addEventListener('pageshow', refreshOnWalletReturn);
+    document.addEventListener('visibilitychange', refreshOnWalletReturn);
+    return () => {
+      window.removeEventListener('pageshow', refreshOnWalletReturn);
+      document.removeEventListener('visibilitychange', refreshOnWalletReturn);
+    };
+  }, [currentIntentId, loadIntent]);
 
   useEffect(() => {
     if (!currentIntentId || !currentStatus || !NON_TERMINAL_STATUSES.has(currentStatus)) return;
@@ -214,8 +248,8 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
         setWalletChooserOpen(true);
         return null;
       }
-      setVerificationState('failed');
-      setVerificationMessage(checkoutLabel(uiLocale, 'walletRequired'));
+      setWalletFallbackOpen(true);
+      setWalletPaymentState('idle');
       return null;
     }
 
@@ -267,7 +301,6 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     try {
       const result = await payPaymentVerificationService.verify(intent.id, normalizedSignature);
       if (!mountedRef.current) return;
-      setSignature(normalizedSignature);
       setIntent(current => current ? { ...current, status: result.status } : current);
       if (result.outcome === 'confirmed') {
         setVerificationState('idle');
@@ -298,7 +331,40 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     }
   };
 
-  const verify = async () => verifySignature(signature);
+  const openWalletBrowse = (wallet: MobileWalletId) => {
+    const value = expectedWalletAddress;
+    if (value && !isValidWalletAddress(value)) {
+      setWalletAddressInputError(true);
+      return;
+    }
+    setWalletAddressInputError(false);
+    const target = new URL(window.location.href);
+    if (value) target.searchParams.set('wallet', value); else target.searchParams.delete('wallet');
+    setWalletPaymentState('opening');
+    window.location.assign(buildWalletBrowseUrl(wallet, target.toString()));
+  };
+
+  const openGenericWallet = () => {
+    const value = expectedWalletAddress;
+    if (value && !isValidWalletAddress(value)) {
+      setWalletAddressInputError(true);
+      return;
+    }
+    setWalletAddressInputError(false);
+    setWalletPaymentState('opening');
+    window.location.assign(buildSolanaTransactionRequestUri(window.location.origin, intent?.id ?? ''));
+  };
+
+  const copyWalletRequest = async () => {
+    if (!intent || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(walletTransactionRequestUrl());
+      setWalletRequestCopied(true);
+      window.setTimeout(() => setWalletRequestCopied(false), 1400);
+    } catch {
+      setWalletRequestCopied(false);
+    }
+  };
 
   const payWithConnectedWallet = async () => {
     if (!intent || walletPayDisabled || walletPaymentInFlightRef.current) return;
@@ -319,6 +385,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
 
       const account = publicKeyString(activeProvider.provider.publicKey) || walletAddress;
       if (!account) throw new Error('WALLET_NOT_CONNECTED');
+      if (expectedWalletAddress && account !== expectedWalletAddress) throw new Error('WALLET_ACCOUNT_MISMATCH');
 
       if (typeof activeProvider.provider.signAndSendTransaction === 'function') {
         const payload = await payTransactionRequestService.build(intent.id, account);
@@ -330,9 +397,9 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
         return;
       }
 
-      const requestUrl = window.location.origin + '/api/pay/v1/payment-intents/' + encodeURIComponent(intent.id) + '/transaction-request';
+      const requestUri = buildSolanaTransactionRequestUri(window.location.origin, intent.id);
       setWalletPaymentState('opening');
-      window.location.assign('solana:' + requestUrl);
+      window.location.assign(requestUri);
     } catch (cause) {
       if (!mountedRef.current) return;
       setWalletPaymentState('idle');
@@ -342,7 +409,9 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
         ? checkoutLabel(uiLocale, 'walletTokenAccountMissing')
         : code === 'WALLET_SIGNATURE_MISSING'
           ? checkoutLabel(uiLocale, 'walletSignatureMissing')
-          : checkoutLabel(uiLocale, 'walletPaymentFailed'));
+          : code === 'WALLET_ACCOUNT_MISMATCH'
+            ? checkoutLabel(uiLocale, 'walletAccountMismatch')
+            : checkoutLabel(uiLocale, 'walletPaymentFailed'));
     } finally {
       walletPaymentInFlightRef.current = false;
     }
@@ -350,7 +419,6 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
 
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
   const walletPayDisabled = !intent || !['created', 'pending'].includes(intent.status) || verificationState === 'submitting' || walletPaymentState !== 'idle';
-  const verificationDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
   const selectedWalletName = selectedWalletId
     ? (availableWallets.find((item) => item.id === selectedWalletId)?.name ?? checkoutLabel(uiLocale, 'walletGeneric'))
     : '';
@@ -436,11 +504,13 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
                     <span>{checkoutLabel(uiLocale, 'walletConnect')}</span>
                     <strong>{walletAddress
                       ? (selectedWalletName ? selectedWalletName + ': ' : '') + checkoutLabel(uiLocale, 'walletConnected') + ': ' + truncateAddress(walletAddress)
-                      : checkoutLabel(uiLocale, 'walletRequired')}</strong>
+                      : availableWallets.length > 0 ? checkoutLabel(uiLocale, 'walletDetected') : checkoutLabel(uiLocale, 'walletNotDetected')}</strong>
                   </div>
-                  <button type="button" className="pay-secondary-action" onClick={() => void connectWallet()} disabled={verificationState === 'submitting'}>
-                    <WalletCards size={16} /> {walletAddress ? checkoutLabel(uiLocale, 'changeWallet') : checkoutLabel(uiLocale, 'connect')}
-                  </button>
+                  {walletAddress ? (
+                    <button type="button" className="pay-secondary-action" onClick={() => void connectWallet()} disabled={verificationState === 'submitting' || walletPaymentState !== 'idle'}>
+                      <WalletCards size={16} /> {checkoutLabel(uiLocale, 'changeWallet')}
+                    </button>
+                  ) : null}
                 </div>
 
                 {walletChooserOpen ? (
@@ -466,24 +536,46 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
                   </div>
                 ) : null}
 
+                {walletFallbackOpen ? (
+                  <div className="pay-checkout-wallet-fallback">
+                    <div className="pay-checkout-wallet-fallback-heading">
+                      <strong>{checkoutLabel(uiLocale, 'walletHandoffTitle')}</strong>
+                      <span>{checkoutLabel(uiLocale, 'walletHandoffDescription')}</span>
+                    </div>
+                    <label className="pay-checkout-wallet-address-field">
+                      <span>{checkoutLabel(uiLocale, 'walletAddressLabel')}</span>
+                      <input
+                        value={walletAddressInput}
+                        onChange={(event) => { setWalletAddressInput(event.target.value); setWalletAddressInputError(false); }}
+                        placeholder={checkoutLabel(uiLocale, 'walletAddressPlaceholder')}
+                        spellCheck={false}
+                        autoComplete="off"
+                        inputMode="text"
+                        aria-invalid={walletAddressInputError}
+                      />
+                      <small>{checkoutLabel(uiLocale, 'walletAddressHint')}</small>
+                    </label>
+                    {walletAddressInputError ? <div className="pay-checkout-verification-message is-failed" role="alert"><XCircle size={18} /><span>{checkoutLabel(uiLocale, 'walletAddressInvalid')}</span></div> : null}
+                    {mobileWalletContext ? (
+                      <div className="pay-checkout-wallet-options">
+                        <button type="button" className="pay-wallet-option" onClick={() => openWalletBrowse('phantom')} disabled={walletPaymentState !== 'idle'}><span className="pay-wallet-option-badge">P</span><span>{checkoutLabel(uiLocale, 'openInPhantom')}</span></button>
+                        <button type="button" className="pay-wallet-option" onClick={() => openWalletBrowse('solflare')} disabled={walletPaymentState !== 'idle'}><span className="pay-wallet-option-badge">S</span><span>{checkoutLabel(uiLocale, 'openInSolflare')}</span></button>
+                        <button type="button" className="pay-wallet-option" onClick={() => openWalletBrowse('backpack')} disabled={walletPaymentState !== 'idle'}><span className="pay-wallet-option-badge">B</span><span>{checkoutLabel(uiLocale, 'openInBackpack')}</span></button>
+                      </div>
+                    ) : null}
+                    <button type="button" className="pay-primary-action" onClick={openGenericWallet} disabled={!intent || walletPaymentState !== 'idle'}>
+                      <WalletCards size={17} /> {walletPaymentState === 'opening' ? checkoutLabel(uiLocale, 'openingWallet') : checkoutLabel(uiLocale, 'openCompatibleWallet')}
+                    </button>
+                    <button type="button" className="pay-secondary-action" onClick={() => void copyWalletRequest()} disabled={!intent}>
+                      <Copy size={15} /> {walletRequestCopied ? checkoutLabel(uiLocale, 'walletRequestCopied') : checkoutLabel(uiLocale, 'copyWalletRequest')}
+                    </button>
+                    <span className="pay-checkout-wallet-return-hint">{checkoutLabel(uiLocale, 'walletReturnHint')}</span>
+                  </div>
+                ) : null}
+
                 <button type="button" className="pay-primary-action pay-checkout-wallet-pay" onClick={() => void payWithConnectedWallet()} disabled={walletPayDisabled}>
                   <WalletCards size={17} /> {walletPaymentState === 'preparing' ? checkoutLabel(uiLocale, 'preparingPayment') : walletPaymentState === 'opening' ? checkoutLabel(uiLocale, 'openingWallet') : checkoutLabel(uiLocale, 'payWithWallet')}
                 </button>
-
-                <details className="pay-checkout-manual-details">
-                  <summary>
-                    <span>{checkoutLabel(uiLocale, 'manualVerification')}</span>
-                    <span aria-hidden="true">+</span>
-                  </summary>
-                  <div className="pay-checkout-manual-details-body">
-                    <p>{checkoutLabel(uiLocale, 'manualVerificationHint')}</p>
-                    <label className="pay-checkout-signature-field">
-                      <span>{checkoutLabel(uiLocale, 'signatureLabel')}</span>
-                      <input value={signature} onChange={(event) => { setSignature(event.target.value); setVerificationState('idle'); setVerificationMessage(''); }} placeholder={checkoutLabel(uiLocale, 'signaturePlaceholder')} spellCheck={false} autoComplete="off" inputMode="text" disabled={verificationDisabled} />
-                    </label>
-                    <button type="button" className="pay-primary-action" onClick={() => void verify()} disabled={verificationDisabled}>{verificationState === 'submitting' ? <RefreshCcw size={17} className="animate-spin" /> : <ShieldCheck size={17} />} {verificationState === 'submitting' ? checkoutLabel(uiLocale, 'verifying') : checkoutLabel(uiLocale, 'verifyPayment')}</button>
-                  </div>
-                </details>
 
                 {verificationMessage ? <div className={`pay-checkout-verification-message is-${verificationState}`} role="status" aria-live="polite">
                   {verificationState === 'idle' ? <CheckCircle2 size={18} /> : verificationState === 'not_detected' ? <Clock3 size={18} /> : verificationState === 'underpaid' || verificationState === 'overpaid' || verificationState === 'ambiguous' || verificationState === 'failed' ? <XCircle size={18} /> : <RefreshCcw size={18} />}

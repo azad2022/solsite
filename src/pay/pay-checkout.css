@@ -211,3 +211,30 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.pay-checkout-wallet-fallback {
+  display: grid;
+  gap: 11px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--pay-border);
+  border-radius: 14px;
+  background: #fff;
+}
+.pay-checkout-wallet-fallback-heading { display: grid; gap: 4px; }
+.pay-checkout-wallet-fallback-heading strong { font-size: 12px; }
+.pay-checkout-wallet-fallback-heading span { color: var(--pay-text-soft); font-size: 10px; line-height: 1.8; }
+.pay-checkout-wallet-address-field { display: grid; gap: 6px; }
+.pay-checkout-wallet-address-field > span { color: var(--pay-text-faint); font-size: 9px; font-weight: 800; }
+.pay-checkout-wallet-address-field input {
+  width: 100%; box-sizing: border-box; min-height: 42px; padding: 10px 12px;
+  border: 1px solid var(--pay-border); border-radius: 11px; background: #fff;
+  color: var(--pay-text); font: inherit; font-size: 11px; outline: none;
+}
+.pay-checkout-wallet-address-field input:focus { border-color: rgba(243,77,157,.55); box-shadow: 0 0 0 3px rgba(243,77,157,.09); }
+.pay-checkout-wallet-address-field input[aria-invalid="true"] { border-color: rgba(207,70,98,.55); }
+.pay-checkout-wallet-address-field small { color: var(--pay-text-faint); font-size: 9px; line-height: 1.7; }
+.pay-checkout-wallet-fallback > .pay-secondary-action { justify-content: center; }
+.pay-checkout-wallet-return-hint { display: block; color: var(--pay-text-faint); font-size: 9px; line-height: 1.75; }
+@media (max-width: 700px) { .pay-checkout-wallet-fallback { padding: 12px; } }

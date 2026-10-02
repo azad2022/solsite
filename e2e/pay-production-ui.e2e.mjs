@@ -1172,6 +1172,9 @@ try {
      'Public payment link must open the authoritative Checkout snapshot.');
    assert.ok(publicCheckoutUiText.includes('Merchant receives'), 'Checkout must expose the authoritative merchant settlement.');
    assert.ok(publicCheckoutUiText.includes('Pay with wallet'), 'Checkout must expose the wallet payment action.');
+   assert.ok(!publicCheckoutUiText.includes('Verify with signature'), 'Hosted checkout must not expose manual signature verification.');
+   assert.ok(!publicCheckoutUiText.includes('Enter the transaction signature'), 'Hosted checkout must not expose transaction signature input.');
+   assert.ok(publicCheckoutUiText.includes('Customer wallet address'), 'Hosted checkout must expose the wallet-address fallback.');
    assert.ok(publicCheckoutUiText.includes('Reusable fixed payment link for production E2E.'), 'Checkout must preserve the merchant-authored description.');
    assert.equal(/[\u0600-\u06FF]|[\u0400-\u04FF]/.test(publicCheckoutUiText), false, 'English Checkout UI must not leak Persian, Arabic, or Cyrillic UI text.');
   const publicIntentFromDb = rows(await db(
