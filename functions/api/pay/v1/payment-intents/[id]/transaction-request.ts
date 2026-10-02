@@ -1,4 +1,4 @@
-import { PublicKey, Connection, SystemProgram, Transaction } from '@solana/web3.js';
+import { PublicKey, Connection, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
@@ -30,8 +30,10 @@ interface PaymentRow {
   merchant_id: string;
   amount_atomic: string;
   customer_total_atomic: string;
+  merchant_net_atomic: string;
   merchant_settlement_atomic: string;
   fee_atomic: string;
+  fee_payer: 'merchant' | 'customer';
   asset: PaymentAsset;
   token_mint: string | null;
   token_program: TokenProgram | null;
@@ -80,7 +82,7 @@ async function sha256Hex(value: string): Promise<string> {
 async function loadPayment(env: PayEnv, paymentId: string): Promise<PaymentRow | null> {
   const response = await supabaseRequest(
     env,
-    `/rest/v1/pay_payment_intents?select=id,merchant_id,amount_atomic,customer_total_atomic,merchant_settlement_atomic,fee_atomic,asset,token_mint,token_program,token_decimals,recipient,fee_recipient,reference,status,expires_at,merchant:pay_merchants!inner(business_name)&id=eq.${encodeURIComponent(paymentId)}&limit=1`,
+    `/rest/v1/pay_payment_intents?select=id,merchant_id,amount_atomic,customer_total_atomic,merchant_net_atomic,merchant_settlement_atomic,fee_atomic,fee_payer,asset,token_mint,token_program,token_decimals,recipient,fee_recipient,reference,status,expires_at,merchant:pay_merchants!inner(business_name)&id=eq.${encodeURIComponent(paymentId)}&limit=1`,
     { headers: { Accept: 'application/json' } },
   );
   const rows = await response.json() as Array<Omit<PaymentRow, 'merchant_business_name'> & { merchant?: { business_name?: string } }>;
@@ -97,13 +99,29 @@ function validatePayment(row: PaymentRow): void {
   } else if (!row.token_mint || !row.token_program || row.token_decimals === null) {
     throw new Error('PAYMENT_TOKEN_FIELDS_INVALID');
   }
+  const amount = asBigInt(row.amount_atomic);
   const merchant = asBigInt(row.merchant_settlement_atomic);
+  const merchantNet = asBigInt(row.merchant_net_atomic);
   const fee = asBigInt(row.fee_atomic);
   const total = asBigInt(row.customer_total_atomic);
-  if (merchant + fee !== total) throw new Error('PAYMENT_TOTAL_MISMATCH');
+  if (merchant + fee !== total || merchantNet !== merchant) throw new Error('PAYMENT_TOTAL_MISMATCH');
+  if ((row.fee_payer === 'merchant' && amount !== total) || (row.fee_payer === 'customer' && amount !== merchant)) throw new Error('PAYMENT_TOTAL_MISMATCH');
   if (merchant <= 0n) throw new Error('PAYMENT_AMOUNT_INVALID');
+  if (!['merchant', 'customer'].includes(row.fee_payer)) throw new Error('PAYMENT_FEE_PAYER_INVALID');
   if (!isBase58PublicKey(row.recipient) || !isBase58PublicKey(row.fee_recipient)) throw new Error('PAYMENT_RECIPIENT_INVALID');
+  if (!isBase58PublicKey(row.reference)) throw new Error('PAYMENT_REFERENCE_INVALID');
   if (row.recipient === row.fee_recipient) throw new Error('PAYMENT_DESTINATION_COLLISION');
+}
+
+const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
+function createReferenceInstruction(reference: string): TransactionInstruction {
+  const referenceKey = new PublicKey(reference);
+  return new TransactionInstruction({
+    programId: MEMO_PROGRAM_ID,
+    keys: [{ pubkey: referenceKey, isSigner: false, isWritable: false }],
+    data: new TextEncoder().encode(`solmint-pay:${reference}`),
+  });
 }
 
 async function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: Connection): Promise<string> {
@@ -142,9 +160,12 @@ async function buildTransaction(row: PaymentRow, buyer: PublicKey, connection: C
     }
     transaction.add(createTransferCheckedInstruction(source, mint, merchantDestination, buyer, merchantAmount, row.token_decimals!, [], programId));
     if (feeAmount > 0n) {
-      transaction.add(createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId));
+        transaction.add(createTransferCheckedInstruction(source, mint, feeDestination, buyer, feeAmount, row.token_decimals!, [], programId));
     }
   }
+
+  // Reference is embedded as an account key so the existing authoritative discovery path can locate this payment.
+  transaction.add(createReferenceInstruction(row.reference));
 
   const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
   return bytesToBase64(serialized);
@@ -198,7 +219,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     }, 200, requestId);
   } catch (cause) {
     const code = cause instanceof Error ? cause.message : 'TRANSACTION_BUILD_FAILED';
-    const known = new Set(['PAYMENT_EXPIRED', 'PAYMENT_NOT_PAYABLE', 'PAYMENT_TOTAL_MISMATCH', 'PAYMENT_AMOUNT_INVALID', 'PAYMENT_RECIPIENT_INVALID', 'PAYMENT_DESTINATION_COLLISION', 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND', 'SOL_AMOUNT_TOO_LARGE']);
+    const known = new Set(['PAYMENT_EXPIRED', 'PAYMENT_NOT_PAYABLE', 'PAYMENT_TOTAL_MISMATCH', 'PAYMENT_AMOUNT_INVALID', 'PAYMENT_FEE_PAYER_INVALID', 'PAYMENT_REFERENCE_INVALID', 'PAYMENT_RECIPIENT_INVALID', 'PAYMENT_DESTINATION_COLLISION', 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND', 'SOL_AMOUNT_TOO_LARGE']);
     const status = code === 'PAYMENT_EXPIRED' ? 410 : code === 'PAYMENT_NOT_PAYABLE' ? 409 : known.has(code) ? 422 : 502;
     console.error('Pay transaction request failed:', JSON.stringify({ requestId, paymentId, code }));
     return payJson({ code, message: code === 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND' ? 'Your wallet does not have the required token account.' : 'Payment transaction could not be prepared.' }, status, requestId);
