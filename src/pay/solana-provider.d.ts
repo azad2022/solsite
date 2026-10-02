@@ -10,6 +10,10 @@ interface SolanaWalletProvider {
   signAndSendTransaction?: (transaction: Transaction) => Promise<string | { signature?: string | Uint8Array } | { signature?: { toString(): string } }>;
 }
 
+interface SolanaProvider {
+  signAndSendTransaction?: (transaction: Transaction) => Promise<string | { signature?: string | Uint8Array } | { signature?: { toString(): string } }>;
+}
+
 declare global {
   interface Window {
     solana?: SolanaWalletProvider;
