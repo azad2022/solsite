@@ -26,7 +26,7 @@ export function buildTransactionRequestUrl(origin: string, intentId: string): st
 
 export function buildSolanaTransactionRequestUri(origin: string, intentId: string): string {
   const url = buildTransactionRequestUrl(origin, intentId);
-  return `solana:${encodeURIComponent(url)}`;
+  return `solana:${url}`;
 }
 
 export function isMobileWalletContext(userAgent: string = typeof navigator !== 'undefined' ? navigator.userAgent : ''): boolean {
