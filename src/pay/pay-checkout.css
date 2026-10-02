@@ -95,3 +95,9 @@
   .pay-checkout-details{margin-inline:12px}
   .pay-checkout-details .pay-checkout-status-grid{grid-template-columns:1fr}
 }
+
+
+.pay-checkout-wallet-pay { width: 100%; justify-content: center; margin-top: 12px; }
+.pay-checkout-manual-fallback { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--pay-border, rgba(15,23,42,.08)); font-size: 12px; line-height: 1.55; }
+.pay-checkout-manual-fallback strong { font-size: 12px; }
+.pay-checkout-manual-fallback span { color: var(--pay-muted, #64748b); }

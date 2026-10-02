@@ -3,9 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": {"node": ">=20"},
   "scripts": {
     "dev": "tsx server.ts",
     "build": "node scripts/ensure-solana-logo-export.mjs && node scripts/fix-live-solana-price-card.mjs && node scripts/ensure-article-ui-mount.mjs && node scripts/fix-article-no-cover-placeholder.mjs && node scripts/harden-article-ssr-content-v2.mjs && node scripts/apply-html-aware-ssr-linking.mjs && node scripts/harden-category-seo.mjs && node scripts/harden-new-meme-coin-tag-seo.mjs && node scripts/category-default-media-auth-patch.mjs && node scripts/fix-admin-media-category-picker.mjs && node scripts/patch-media-picker-clicked-asset.mjs && node scripts/patch-media-picker-natural-preview.mjs && node scripts/patch-bloghub-category-media.mjs && node scripts/apply-article-internal-linking.mjs && node scripts/fix-image-alt-attributes.mjs && node scripts/enforce-canonical-host.mjs && node scripts/generate-sitemap.js && vite build && node scripts/ensure-pages-routes.mjs && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
@@ -20,12 +18,15 @@
     "test": "find tests -type f -name '*.test.ts' -print0 | xargs -0 tsx --test",
     "test:pay:devnet": "tsx e2e/pay-devnet-native.e2e.ts",
     "test:e2e:pay-devnet-payment-intent": "tsx e2e/pay-payment-intent-devnet-lifecycle.e2e.ts",
+    "test:e2e:pay-transaction-request-devnet": "tsx e2e/pay-transaction-request-devnet.e2e.ts",
     "test:e2e:pay-production-contract": "tsx e2e/pay-production-api-contract.e2e.ts",
     "test:e2e:pay-authenticated": "tsx e2e/pay-authenticated-api-key-lifecycle.e2e.ts",
     "test:e2e:pay-payment-intent": "tsx e2e/pay-payment-intent-lifecycle.e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@solana/spl-token": "0.4.15",
+    "@solana/web3.js": "1.99.0",
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.1.14",
     "better-auth": "1.7.2",
