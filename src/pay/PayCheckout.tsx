@@ -11,10 +11,9 @@ import { payTransactionRequestService } from './payment-transaction-request-serv
 import PayDataStateView from './DataStateView';
 import type { PayLocale } from './types';
 import './pay-checkout.css';
+import { encodeBase58 } from './services/base58';
 
 interface PayCheckoutProps { locale: PayLocale; intentId?: string; onBack: () => void; }
-import { encodeBase58 as base58Encoder_unused } from './services/base58';
-const base58Encoder = { encodeBase58: base58Encoder_unused };
 
 type WalletSignatureResult = string | { signature?: unknown };
 
@@ -33,20 +32,12 @@ function extractWalletSignature(value: unknown): string {
   if (!value || typeof value !== 'object') return '';
   const signature = (value as { signature?: unknown }).signature;
   if (typeof signature === 'string') return signature;
-  if (signature instanceof Uint8Array) {
-    const { encodeBase58 } = requireBase58Encoder();
-    return encodeBase58(signature);
-  }
+  if (signature instanceof Uint8Array) return encodeBase58(signature);
   if (signature && typeof signature === 'object' && typeof (signature as { toString?: unknown }).toString === 'function') {
     const serialized = (signature as { toString(): string }).toString();
     return serialized === '[object Object]' ? '' : serialized;
   }
   return '';
-}
-
-function requireBase58Encoder(): typeof import('./services/base58') {
-  // Static module loading keeps this helper browser-safe and avoids a second Solana SDK dependency.
-  return base58Encoder;
 }
 
 
@@ -103,6 +94,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const currentIntentId = intent?.id;
   const currentStatus = intent?.status;
   const [intentLookupId, setIntentLookupId] = useState('');
+  const walletPaymentInFlightRef = useRef(false);
 
   const loadIntent = useCallback(async (showLoading = true) => {
     if (!intentId) {
@@ -241,7 +233,8 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
   const verify = async () => verifySignature(signature);
 
   const payWithConnectedWallet = async () => {
-    if (!intent || actionDisabled) return;
+    if (!intent || walletPayDisabled || walletPaymentInFlightRef.current) return;
+    walletPaymentInFlightRef.current = true;
     setWalletPaymentState('preparing');
     setVerificationState('idle');
     setVerificationMessage('');
@@ -275,13 +268,15 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
       setVerificationMessage(code === 'CUSTOMER_TOKEN_ACCOUNT_NOT_FOUND'
         ? checkoutLabel(locale, 'walletTokenAccountMissing')
         : checkoutLabel(locale, 'walletPaymentFailed'));
+    } finally {
+      walletPaymentInFlightRef.current = false;
+      if (mountedRef.current && walletPaymentState !== 'opening') setWalletPaymentState('idle');
     }
   };
 
   const decimals = intent ? presentationDecimals(intent.asset, intent.tokenDecimals) : 0;
-  const isCompleted = intent?.status === 'completed';
-  const isConfirmed = intent?.status === 'confirmed';
-  const actionDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
+  const walletPayDisabled = !intent || !['created', 'pending'].includes(intent.status) || verificationState === 'submitting' || walletPaymentState !== 'idle';
+  const verificationDisabled = !intent || ['expired', 'completed', 'refunded', 'confirmed'].includes(intent.status) || verificationState === 'submitting';
 
   return (
     <div className="solmint-pay pay-checkout" dir={direction} lang={locale}>
@@ -363,7 +358,7 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
                   <button type="button" className="pay-secondary-action" onClick={() => void connectWallet()} disabled={verificationState === 'submitting'}><WalletCards size={16} /> {walletAddress ? checkoutLabel(locale, 'walletConnected') : checkoutLabel(locale, 'connect')}</button>
                 </div>
 
-                <button type="button" className="pay-primary-action pay-checkout-wallet-pay" onClick={() => void payWithConnectedWallet()} disabled={actionDisabled || walletPaymentState !== 'idle'}>
+                <button type="button" className="pay-primary-action pay-checkout-wallet-pay" onClick={() => void payWithConnectedWallet()} disabled={walletPayDisabled}>
                   <WalletCards size={17} /> {walletPaymentState === 'preparing' ? checkoutLabel(locale, 'preparingPayment') : walletPaymentState === 'opening' ? checkoutLabel(locale, 'openingWallet') : checkoutLabel(locale, 'payWithWallet')}
                 </button>
 
@@ -374,9 +369,9 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
 
                 <label className="pay-checkout-signature-field">
                   <span>{checkoutLabel(locale, 'signatureLabel')}</span>
-                  <input value={signature} onChange={(event) => { setSignature(event.target.value); setVerificationState('idle'); setVerificationMessage(''); }} placeholder={checkoutLabel(locale, 'signaturePlaceholder')} spellCheck={false} autoComplete="off" inputMode="text" disabled={actionDisabled} />
+                  <input value={signature} onChange={(event) => { setSignature(event.target.value); setVerificationState('idle'); setVerificationMessage(''); }} placeholder={checkoutLabel(locale, 'signaturePlaceholder')} spellCheck={false} autoComplete="off" inputMode="text" disabled={verificationDisabled} />
                 </label>
-                <button type="button" className="pay-primary-action" onClick={() => void verify()} disabled={actionDisabled}>{verificationState === 'submitting' ? <RefreshCcw size={17} className="animate-spin" /> : <ShieldCheck size={17} />} {verificationState === 'submitting' ? checkoutLabel(locale, 'verifying') : checkoutLabel(locale, 'verifyPayment')}</button>
+                <button type="button" className="pay-primary-action" onClick={() => void verify()} disabled={verificationDisabled}>{verificationState === 'submitting' ? <RefreshCcw size={17} className="animate-spin" /> : <ShieldCheck size={17} />} {verificationState === 'submitting' ? checkoutLabel(locale, 'verifying') : checkoutLabel(locale, 'verifyPayment')}</button>
 
                 {verificationMessage ? <div className={`pay-checkout-verification-message is-${verificationState}`} role="status" aria-live="polite">
                   {verificationState === 'idle' ? <CheckCircle2 size={18} /> : verificationState === 'not_detected' ? <Clock3 size={18} /> : verificationState === 'underpaid' || verificationState === 'overpaid' || verificationState === 'ambiguous' || verificationState === 'failed' ? <XCircle size={18} /> : <RefreshCcw size={18} />}
