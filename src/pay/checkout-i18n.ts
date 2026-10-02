@@ -3,6 +3,8 @@ import type { PayLocale } from './types';
 const labels = {
   'fa-IR': {
     merchant: 'مرچنت', amount: 'مبلغ', customerTotal: 'مبلغ نهایی مشتری', merchantSettlement: 'دریافتی مرچنت', fee: 'کارمزد درگاه', feePayer: 'پرداخت‌کننده کارمزد', customer: 'مشتری', asset: 'دارایی', network: 'شبکه', destination: 'مقصد', reference: 'مرجع', intentStatus: 'وضعیت پرداخت', commitment: 'تعهد تأیید',
+    verificationSubmitted: 'درخواست بررسی ثبت شد. پرداخت تا اعلام وضعیت معتبر از سرویس پرداخت، موفق محسوب نمی‌شود.',
+    notDetected: 'تراکنش مرتبط هنوز در بررسی خودکار پیدا نشده است.',
     loadFailed: 'دریافت درخواست پرداخت از سرویس پرداخت ناموفق بود.', expired: 'این درخواست پرداخت منقضی شده است.',
     payInstructions: 'کیف پول را متصل و پرداخت را تأیید کنید. پس از امضای تراکنش، سرویس پرداخت SolMint آن را به‌صورت خودکار بررسی می‌کند.',
     walletConnect: 'وضعیت کیف پول', walletGeneric: 'کیف پول', walletConnected: 'کیف پول متصل است', walletRequired: 'برای پرداخت با کیف پول آماده شوید.', walletDetected: 'کیف پول شناسایی شد', walletNotDetected: 'کیف پول داخل مرورگر شناسایی نشد', walletConnectionFailed: 'اتصال کیف پول انجام نشد. دوباره تلاش کنید.', walletSignatureMissing: 'کیف پول امضای تراکنش را برنگرداند. دوباره تلاش کنید.',
@@ -15,6 +17,8 @@ const labels = {
 
   'en-US': {
     merchant: 'Merchant', amount: 'Amount', customerTotal: 'Customer total', merchantSettlement: 'Merchant receives', fee: 'Gateway fee', feePayer: 'Fee payer', customer: 'Customer', asset: 'Asset', network: 'Network', destination: 'Destination', reference: 'Reference', intentStatus: 'Intent status', commitment: 'Verification commitment',
+    verificationSubmitted: 'Verification was requested. The payment is not considered successful until the payment service reports an authoritative state.',
+    notDetected: 'The related transaction has not been detected yet.',
     loadFailed: 'The Payment Intent could not be retrieved from the payment service.', expired: 'This Payment Intent has expired.',
     payInstructions: 'Connect your wallet and approve the payment. After the transaction is signed, SolMint Pay verifies the transaction automatically.',
     walletConnect: 'Wallet status', walletGeneric: 'Wallet', walletConnected: 'Wallet connected', walletRequired: 'Get your wallet ready to pay.', walletDetected: 'Wallet detected', walletNotDetected: 'No wallet was detected in this browser', walletConnectionFailed: 'Wallet connection failed. Try again.', walletSignatureMissing: 'The wallet did not return a transaction signature. Try again.',
@@ -27,6 +31,8 @@ const labels = {
 
   ar: {
     merchant: 'التاجر', amount: 'المبلغ', customerTotal: 'إجمالي العميل', merchantSettlement: 'ما يستلمه التاجر', fee: 'رسوم البوابة', feePayer: 'دافع الرسوم', customer: 'العميل', asset: 'الأصل', network: 'الشبكة', destination: 'الوجهة', reference: 'المرجع', intentStatus: 'حالة الدفع', commitment: 'التزام التحقق',
+    verificationSubmitted: 'تم طلب التحقق. لن يعتبر الدفع ناجحاً حتى تعلن خدمة الدفع حالة موثوقة.',
+    notDetected: 'لم يتم اكتشاف المعاملة المرتبطة بعد.',
     loadFailed: 'تعذر جلب طلب الدفع من خدمة الدفع.', expired: 'انتهت صلاحية طلب الدفع هذا.',
     payInstructions: 'صِل محفظتك وأكّد الدفع. بعد توقيع المعاملة، تتحقق خدمة الدفع من المعاملة تلقائياً.',
     walletConnect: 'حالة المحفظة', walletGeneric: 'المحفظة', walletConnected: 'المحفظة متصلة', walletRequired: 'جهّز محفظتك للدفع.', walletDetected: 'تم اكتشاف المحفظة', walletNotDetected: 'لم يتم اكتشاف محفظة في هذا المتصفح', walletConnectionFailed: 'تعذر اتصال المحفظة. حاول مرة أخرى.', walletSignatureMissing: 'لم تُعد المحفظة توقيع المعاملة. حاول مرة أخرى.',
@@ -39,6 +45,8 @@ const labels = {
 
   ru: {
     merchant: 'Мерчант', amount: 'Сумма', customerTotal: 'Итого клиента', merchantSettlement: 'Получит мерчант', fee: 'Комиссия шлюза', feePayer: 'Плательщик комиссии', customer: 'Клиент', asset: 'Актив', network: 'Сеть', destination: 'Получатель', reference: 'Reference', intentStatus: 'Статус платежа', commitment: 'Требование проверки',
+    verificationSubmitted: 'Запущена проверка. Платёж не считается успешным, пока платёжный сервис не сообщит достоверный статус.',
+    notDetected: 'Связанная транзакция пока не обнаружена.',
     loadFailed: 'Не удалось получить запрос на оплату из платёжного сервиса.', expired: 'Срок действия этого запроса на оплату истёк.',
     payInstructions: 'Подключите кошелёк и подтвердите оплату. После подписи транзакции платёжный сервис автоматически проверит транзакцию.',
     walletConnect: 'Состояние кошелька', walletGeneric: 'Кошелёк', walletConnected: 'Кошелёк подключён', walletRequired: 'Подготовьте кошелёк к оплате.', walletDetected: 'Кошелёк обнаружен', walletNotDetected: 'В этом браузере кошелёк не обнаружен', walletConnectionFailed: 'Не удалось подключить кошелёк. Повторите попытку.', walletSignatureMissing: 'Кошелёк не вернул подпись транзакции. Повторите попытку.',
