@@ -61,8 +61,8 @@ test('transaction request preserves authoritative financial invariants and embed
 
   const merchantTransfer = SystemInstruction.decodeTransfer(transaction.instructions[0]);
   const feeTransfer = SystemInstruction.decodeTransfer(transaction.instructions[1]);
-  assert.equal(merchantTransfer.lamports, 990000);
-  assert.equal(feeTransfer.lamports, 10000);
+  assert.equal(merchantTransfer.lamports, 990000n);
+  assert.equal(feeTransfer.lamports, 10000n);
   assert.equal(merchantTransfer.fromPubkey.toBase58(), BUYER.toBase58());
   assert.equal(merchantTransfer.toPubkey.toBase58(), MERCHANT.toBase58());
   assert.equal(feeTransfer.fromPubkey.toBase58(), BUYER.toBase58());
