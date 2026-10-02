@@ -270,7 +270,6 @@ export function PayCheckout({ locale, intentId, onBack }: PayCheckoutProps): Rea
         : checkoutLabel(locale, 'walletPaymentFailed'));
     } finally {
       walletPaymentInFlightRef.current = false;
-      if (mountedRef.current && walletPaymentState !== 'opening') setWalletPaymentState('idle');
     }
   };
 
