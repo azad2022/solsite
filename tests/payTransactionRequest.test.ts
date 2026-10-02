@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Connection, PublicKey, SystemInstruction, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, SystemInstruction, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 import test from 'node:test';
 import { buildTransaction, validatePayment, type PaymentRow } from '../functions/api/pay/v1/payment-intents/[id]/transaction-request';
 
