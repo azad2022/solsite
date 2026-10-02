@@ -121,7 +121,7 @@ function createReferenceInstruction(reference: string): TransactionInstruction {
   return new TransactionInstruction({
     programId: MEMO_PROGRAM_ID,
     keys: [{ pubkey: referenceKey, isSigner: false, isWritable: false }],
-    data: new TextEncoder().encode(`solmint-pay:${reference}`),
+    data: Buffer.from(`solmint-pay:${reference}`, 'utf8'),
   });
 }
 
