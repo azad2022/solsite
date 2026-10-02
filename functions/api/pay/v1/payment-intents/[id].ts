@@ -28,6 +28,7 @@ type PaymentIntentRow = {
   merchant_settlement_atomic: string | number;
   network: string;
   verification_commitment: string;
+  payment_link_id: string | null;
   metadata: Record<string, unknown> | null;
 };
 
