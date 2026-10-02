@@ -45,6 +45,21 @@ function publicUrl(slug: string): string {
   return window.location.origin + '/pay/link/' + encodeURIComponent(slug);
 }
 
+function formatAtomic(value: string, decimals: number | null): string {
+  const normalized = value.trim();
+  if (decimals === null || !/^\d+$/.test(normalized)) return value;
+  if (decimals === 0) return normalized;
+  const padded = normalized.padStart(decimals + 1, '0');
+  const whole = padded.slice(0, -decimals) || '0';
+  const fraction = padded.slice(-decimals).replace(/0+$/, '');
+  return fraction ? whole + '.' + fraction : whole;
+}
+
+function formatLinkAmount(row: PayPaymentLink): string {
+  const amount = row.fixed_amount_atomic || '—';
+  return row.asset ? formatAtomic(amount, row.amount_decimals) + ' ' + row.asset : amount;
+}
+
 export default function PayPaymentLinks({ locale, merchantId }: Props): React.ReactElement {
   const [rows, setRows] = useState<PayPaymentLink[]>([]);
   const [selected, setSelected] = useState<PayPaymentLink | null>(null);
@@ -199,7 +214,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
       <div className="pay-payment-link-create-grid">
         <label><span>{paymentLinkT(locale,'slug')}</span><input value={draft.slug} onChange={e=>update('slug',e.target.value.toLowerCase())} maxLength={120} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="solmint-store" required/></label>
         <label><span>{paymentLinkT(locale,'linkTitle')}</span><input value={draft.title} onChange={e=>update('title',e.target.value)} maxLength={200} required/></label>
-        <label><span>{paymentLinkT(locale,'amount')}</span><input value={draft.fixedAmountAtomic} onChange={e=>update('fixedAmountAtomic',e.target.value.replace(/\D/g,''))} inputMode="numeric" maxLength={78} required/></label>
+        <label><span>{paymentLinkT(locale,'amount')}</span><input value={draft.fixedAmountAtomic} onChange={e=>update('fixedAmountAtomic',e.target.value.replace(/\D/g,''))} inputMode="numeric" maxLength={78} required/><small>{paymentLinkT(locale,'atomicAmountHint')}</small></label>
         <label><span>{paymentLinkT(locale,'asset')}</span><select value={draft.asset} onChange={e=>update('asset',e.target.value as CreatePayPaymentLinkInput['asset'])}>{ASSETS.map(asset=><option key={asset} value={asset}>{asset}</option>)}</select></label>
         <label><span>{paymentLinkT(locale,'feePayer')}</span><select value={draft.feePayer} onChange={e=>update('feePayer',e.target.value as CreatePayPaymentLinkInput['feePayer'])}>{PAYERS.map(item=><option key={item} value={item}>{paymentLinkT(locale,item==='merchant'?'merchantPayer':'customerPayer')}</option>)}</select></label>
         <label><span>{paymentLinkT(locale,'locale')}</span><select value={draft.checkoutLocale} onChange={e=>update('checkoutLocale',e.target.value as CreatePayPaymentLinkInput['checkoutLocale'])}>{LOCALES.map(item=><option key={item} value={item}>{item === 'auto' ? paymentLinkT(locale,'autoLocale') : item}</option>)}</select></label>
@@ -214,7 +229,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     {loading && <div className="pay-payment-links-state"><Loader2 className="animate-spin" size={22}/>{paymentLinkT(locale,'title')}</div>}
     {error && !loading && <div className="pay-payment-links-state is-error" role="alert"><XCircle size={21}/><span>{error==='unauthorized'?paymentLinkT(locale,'unauthorized'):error==='forbidden'?paymentLinkT(locale,'forbidden'):paymentLinkT(locale,'loadFailed')}</span><button type="button" className="pay-secondary-action" onClick={() => void load()}>{paymentLinkT(locale,'retry')}</button></div>}
     {!loading && !error && rows.length===0 && <div className="pay-payment-links-state"><Clock3 size={22}/><span>{paymentLinkT(locale,'noData')}</span></div>}
-    {!loading && !error && rows.length>0 && <div className="pay-payment-links-table-wrap"><table className="pay-payment-links-table"><thead><tr><th>{paymentLinkT(locale,'slug')}</th><th>{paymentLinkT(locale,'linkTitle')}</th><th>{paymentLinkT(locale,'amount')}</th><th>{paymentLinkT(locale,'active')}</th><th>{paymentLinkT(locale,'expires')}</th><th/></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td data-label={paymentLinkT(locale,'slug')}><code>{row.slug}</code></td><td data-label={paymentLinkT(locale,'linkTitle')}><strong>{row.title}</strong>{row.description?<small>{row.description}</small>:null}</td><td data-label={paymentLinkT(locale,'amount')}>{row.fixed_amount_atomic || '—'} {row.asset || ''}</td><td data-label={paymentLinkT(locale,'active')}><span className={'pay-payment-link-status '+(row.is_active?'active':'inactive')}>{row.is_active?<Check size={13}/>:<X size={13}/>} {row.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}</span></td><td data-label={paymentLinkT(locale,'expires')}>{formatDate(row.expires_at,locale)}</td><td className="pay-payment-links-actions"><a className="pay-icon-button" href={publicUrl(row.slug)} target="_blank" rel="noreferrer" aria-label={paymentLinkT(locale,'open')} title={paymentLinkT(locale,'open')}><ExternalLink size={16}/></a><button type="button" className="pay-icon-button" onClick={()=>setSelected(row)} aria-label={paymentLinkT(locale,'details')} title={paymentLinkT(locale,'details')}><Link2 size={16}/></button></td></tr>)}</tbody></table></div>}
+    {!loading && !error && rows.length>0 && <div className="pay-payment-links-table-wrap"><table className="pay-payment-links-table"><thead><tr><th>{paymentLinkT(locale,'slug')}</th><th>{paymentLinkT(locale,'linkTitle')}</th><th>{paymentLinkT(locale,'amount')}</th><th>{paymentLinkT(locale,'active')}</th><th>{paymentLinkT(locale,'expires')}</th><th/></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td data-label={paymentLinkT(locale,'slug')}><code>{row.slug}</code></td><td data-label={paymentLinkT(locale,'linkTitle')}><strong>{row.title}</strong>{row.description?<small>{row.description}</small>:null}</td><td data-label={paymentLinkT(locale,'amount')}><strong>{formatLinkAmount(row)}</strong>{row.amount_decimals === null ? <small>{paymentLinkT(locale,'atomicAmount')}</small> : null}</td><td data-label={paymentLinkT(locale,'active')}><span className={'pay-payment-link-status '+(row.is_active?'active':'inactive')}>{row.is_active?<Check size={13}/>:<X size={13}/>} {row.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}</span></td><td data-label={paymentLinkT(locale,'expires')}>{formatDate(row.expires_at,locale)}</td><td className="pay-payment-links-actions"><a className="pay-icon-button" href={publicUrl(row.slug)} target="_blank" rel="noreferrer" aria-label={paymentLinkT(locale,'open')} title={paymentLinkT(locale,'open')}><ExternalLink size={16}/></a><button type="button" className="pay-icon-button" onClick={()=>setSelected(row)} aria-label={paymentLinkT(locale,'details')} title={paymentLinkT(locale,'details')}><Link2 size={16}/></button></td></tr>)}</tbody></table></div>}
 
     {selected && <section className="pay-payment-link-detail" aria-label={editMode ? paymentLinkT(locale,'edit') : paymentLinkT(locale,'details')}>
       <div className="pay-payment-link-detail-header"><div><span className="pay-panel-kicker">{editMode ? paymentLinkT(locale,'edit') : paymentLinkT(locale,'details')}</span><h3>{selected.title}</h3></div><button type="button" className="pay-icon-button" onClick={()=>{setSelected(null);setEditMode(false);setDeleteConfirm(false);}} aria-label={paymentLinkT(locale,'close')} title={paymentLinkT(locale,'close')}><X size={17}/></button></div>
@@ -239,7 +254,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
           <Detail label={paymentLinkT(locale,'slug')} value={selected.slug}/>
           <Detail label={paymentLinkT(locale,'linkTitle')} value={selected.title}/>
           <Detail label={paymentLinkT(locale,'description')} value={selected.description || '—'}/>
-          <Detail label={paymentLinkT(locale,'amount')} value={(selected.fixed_amount_atomic || '—')+(selected.asset?' '+selected.asset:'')}/>
+          <Detail label={paymentLinkT(locale,'amount')} value={formatLinkAmount(selected)}/>
           <Detail label={paymentLinkT(locale,'feePayer')} value={selected.fee_payer ? paymentLinkT(locale,selected.fee_payer==='merchant'?'merchantPayer':'customerPayer') : '—'}/>
           <Detail label={paymentLinkT(locale,'locale')} value={selected.checkout_locale}/>
           <Detail label={paymentLinkT(locale,'active')} value={selected.is_active?paymentLinkT(locale,'active'):paymentLinkT(locale,'inactive')}/>
