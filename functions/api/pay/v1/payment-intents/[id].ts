@@ -51,7 +51,7 @@ const PAYMENT_INTENT_SELECT = [
   'id', 'merchant_id', 'amount_atomic', 'asset', 'token_mint', 'token_program',
   'token_decimals', 'recipient', 'reference', 'fee_bps', 'fee_payer', 'fee_atomic',
   'fee_recipient', 'gas_sponsored', 'status', 'expires_at', 'customer_total_atomic',
-  'merchant_net_atomic', 'merchant_settlement_atomic', 'network', 'verification_commitment', 'metadata'
+  'merchant_net_atomic', 'merchant_settlement_atomic', 'network', 'verification_commitment', 'payment_link_id', 'metadata'
 ].join(',');
 
 async function supabaseGet<T>(base: string, headers: Record<string, string>, query: string): Promise<T[]> {
