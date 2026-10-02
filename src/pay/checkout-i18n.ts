@@ -51,8 +51,9 @@ const labels = {
   },
 } as const;
 
-type CheckoutLabelKey = keyof typeof labels['fa-IR'];
+export type CheckoutLabelKey = keyof typeof labels['fa-IR'];
+export const checkoutLabelKeys = Object.keys(labels['fa-IR']) as CheckoutLabelKey[];
 
 export function checkoutLabel(locale: PayLocale, key: CheckoutLabelKey): string {
-  return labels[locale][key] ?? labels['fa-IR'][key];
+  return (labels[locale] as Record<CheckoutLabelKey, string>)[key] ?? '';
 }
