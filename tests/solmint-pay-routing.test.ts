@@ -12,6 +12,8 @@ test('Pay routing keeps /pay and valid Pay sections inside the Pay boundary', ()
   assert.equal(normalizePayPath('/pay/'), '/pay');
   assert.equal(sectionFromPayPath('/pay'), 'overview');
   assert.equal(sectionFromPayPath('/pay/transactions'), 'transactions');
+  assert.equal(sectionFromPayPath('/pay/wallet'), 'wallet');
+  assert.equal(sectionFromPayPath('/pay/api-keys'), 'api-keys');
   assert.equal(sectionFromPayPath('/pay/security/'), 'security');
 });
 
@@ -24,6 +26,8 @@ test('Pay routing never treats arbitrary nested paths as valid sections', () => 
 test('Pay navigation produces canonical section paths', () => {
   assert.equal(pathForPaySection('overview'), '/pay');
   assert.equal(pathForPaySection('transactions'), '/pay/transactions');
+  assert.equal(pathForPaySection('wallet'), '/pay/wallet');
+  assert.equal(pathForPaySection('api-keys'), '/pay/api-keys');
   assert.equal(pathForPaySection('security'), '/pay/security');
 });
 
