@@ -313,7 +313,6 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', view = 'mercha
         <button type="button" className="pay-secondary-action" onClick={() => void loadExisting()} disabled={busy}>{stage === 'loading' ? <Loader2 className="animate-spin" size={17} /> : null} {t(locale, 'checkExistingMerchant')}</button>
       </div> : <div className="pay-onboarding-state">
         <div className="pay-onboarding-success"><CheckCircle2 size={22} /><div><strong>{merchant.businessName}</strong><span>{t(locale, 'merchantId')}: {merchant.id}</span><small>{t(locale, 'status')}: {translateMerchantStatus(locale, merchant.status)}</small></div></div>
-{walletPanel}
       </div>
       ) : (
         merchant ? <div className="pay-onboarding-state">{walletPanel}</div> : null
