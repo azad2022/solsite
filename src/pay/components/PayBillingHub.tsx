@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, ReceiptText, Users, Activity, Link2 } from 'lucide-react';
+import { BarChart3, Users, Activity } from 'lucide-react';
 import type { PayLocale } from '../types';
 import type { PaySection } from '../types';
 import { translate } from '../i18n';
@@ -18,7 +18,6 @@ interface Props {
   merchantId: string;
   primaryView: BillingPrimaryView;
   relatedView: BillingRelatedView;
-  onPrimaryViewChange: (view: BillingPrimaryView) => void;
   onRelatedViewChange: (view: Exclude<BillingRelatedView, null>) => void;
 }
 
@@ -37,44 +36,21 @@ export default function PayBillingHub({
   merchantId,
   primaryView,
   relatedView,
-  onPrimaryViewChange,
   onRelatedViewChange,
 }: Props): React.ReactElement {
-  const title = translate(locale, 'billingTitle');
-  const description = translate(locale, 'billingDescription');
+  const isPaymentLinks = primaryView === 'payment-links';
+  const title = translate(locale, isPaymentLinks ? 'paymentLinksTitle' : 'invoicesTitle');
+  const description = translate(locale, isPaymentLinks ? 'paymentLinksDescription' : 'invoicesDescription');
 
   return (
     <section className="pay-billing" aria-labelledby="pay-billing-title">
       <header className="pay-billing-heading">
         <div>
-          <span className="pay-panel-kicker">{translate(locale, 'billingNavLabel')}</span>
+          <span className="pay-panel-kicker">{translate(locale, isPaymentLinks ? 'paymentLinksNavLabel' : 'invoicesNavLabel')}</span>
           <h1 id="pay-billing-title">{title}</h1>
           <p>{description}</p>
         </div>
       </header>
-
-      <nav className="pay-billing-tabs" role="tablist" aria-label={title}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'invoices'}
-          className={primaryView === 'invoices' ? 'is-active' : ''}
-          onClick={() => onPrimaryViewChange('invoices')}
-        >
-          <ReceiptText size={16} aria-hidden="true" />
-          {translate(locale, 'invoices')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'payment-links'}
-          className={primaryView === 'payment-links' ? 'is-active' : ''}
-          onClick={() => onPrimaryViewChange('payment-links')}
-        >
-          <Link2 size={16} aria-hidden="true" />
-          {translate(locale, 'paymentLinks')}
-        </button>
-      </nav>
 
       <div className="pay-billing-primary-content">
         {primaryView === 'invoices'
