@@ -64,9 +64,9 @@ test('Bulk Pay transaction request sends merchant and wallet account through the
 
 
 test('Bulk Pay create and submit bind mutations to explicit stable idempotency keys', async () => {
-  const calls: Array<{path:string;headers:Headers}> = [];
+  const calls: Array<{path:string;headers:Headers;method:string}> = [];
   const client = mockClient(async (path, init) => {
-    calls.push({path, headers:new Headers(init?.headers)});
+    calls.push({path, headers:new Headers(init?.headers), method:init?.method ?? 'GET'});
     if(path.includes('/payout-batches?merchantId=')) {
       return { data: row };
     }
@@ -75,8 +75,9 @@ test('Bulk Pay create and submit bind mutations to explicit stable idempotency k
   const service = createBulkPayoutService(client);
   await service.create('merchant-1', { asset:'SOL', items:[{recipient:'wallet-1',amount:'1'}] }, 'create-key-1');
   await service.submit('merchant-1', 'batch-1', 'signature-1');
-  assert.equal(calls[0].headers.get('Idempotency-Key'), 'create-key-1');
-  assert.equal(calls[1].headers.get('Idempotency-Key'), 'batch-1');
+  const mutationCalls=calls.filter(call=>call.method==='POST');
+  assert.equal(mutationCalls[0].headers.get('Idempotency-Key'), 'create-key-1');
+  assert.equal(mutationCalls[1].headers.get('Idempotency-Key'), 'batch-1');
 });
 
 
