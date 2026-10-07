@@ -1625,3 +1625,36 @@ Recovery:
 Release conclusion:
 - **SolMint Pay Hosted Checkout and the surrounding Pay production runtime are release-ready with positive production evidence.**
 - No unresolved Pay issue is currently open in the repository.
+
+## 2026-10-07 — Merchant/Receiving Wallet view separation correction
+
+Status: **COMPLETED / MERGED**
+
+Main commit:
+- `7a819728a5766986b4b39bb77a278bc78a83c76b`
+
+Scope:
+- PR `#327` removed the receiving-wallet panel from the Merchant view so it is rendered only on the dedicated receiving-wallet surface.
+- This was a presentation-boundary correction discovered by Production Browser UI evidence.
+- No API, database schema, migration, RLS, authorization rule, financial calculation, payment verification rule, or blockchain behavior changed.
+
+Validation evidence before merge:
+- PR `#327` Cloudflare Pages preview deployment: **PASS** on head `3b918212...`.
+- `CI`: **PASS** (run `37634878193`, job `quality`).
+- `Production Build`: **PASS** (run `37634878241`, job `build`).
+- `SolMint Pay Database Security`: **PASS** (run `37634878194`, job `database-security`).
+- `SolMint Pay Mainnet Read-only`: **PASS** (run `37634878226`, job `mainnet-readonly`).
+
+Merge:
+- PR `#327` was squash-merged with the expected head SHA `3b918212...`.
+- The resulting `main` commit is `7a819728...`.
+
+Post-merge evidence:
+- The available GitHub workflow-run endpoint does not expose the push-triggered post-merge runs for this commit; therefore post-merge CI/Pages completion is **not inferred** here.
+- The separate `Workers Builds: solsite` Cloudflare integration remains an external legacy Worker check and is not part of the Cloudflare Pages Pay deployment path.
+
+Current state:
+- No open Pay pull request remains.
+- No open issue matching the Pay scope was found in the repository.
+- The previous Hosted Checkout release evidence remains valid because PR `#327` changes only the Merchant/Receiving Wallet presentation boundary and does not alter Pay runtime or financial behavior.
+
