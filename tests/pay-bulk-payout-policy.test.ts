@@ -90,6 +90,10 @@ test('Bulk Pay verification rejects unexpected destination and amount', () => {
 });
 
 
+test('Bulk Pay rejects numeric display amounts so floating-point values cannot enter financial math', () => {
+  assert.throws(() => parseDisplayAmountAtomic(1.25, 2), /INVALID_AMOUNT/);
+});
+
 test('Bulk Pay transaction builder fails closed on snapshot item-count and total mismatches', async () => {
   const source = Keypair.generate();
   const recipient = Keypair.generate().publicKey.toBase58();
