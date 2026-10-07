@@ -82,3 +82,25 @@ test('rejects missing or unsafe production configuration', () => {
     /SUPABASE_INTERNAL_JWT_PRIVATE_KEY|SUPABASE_INTERNAL_JWT_ALGORITHM/,
   );
 });
+
+test('mints a distinct verifier capability claim only for the server-side verifier token', async () => {
+  const keys = pemForKeyPair('ES256');
+  const env: PayInternalJwtEnv = {
+    SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_INTERNAL_JWT_PRIVATE_KEY: keys.privateKey,
+    SUPABASE_INTERNAL_JWT_ALGORITHM: 'ES256',
+    SUPABASE_INTERNAL_JWT_KEY_ID: 'test-kid',
+    SUPABASE_INTERNAL_JWT_ISSUER: 'https://example.supabase.co/auth/v1',
+    SUPABASE_INTERNAL_JWT_AUDIENCE: 'authenticated',
+    SUPABASE_INTERNAL_JWT_TTL_SECONDS: '60',
+  };
+
+  const normal = base64UrlJson((await mintPayInternalJwt(env, 'application-user-123', 1_800_000_000)).split('.')[1]);
+  const verifierModule = await import('../functions/api/pay/_shared/internal-jwt');
+  const verifier = base64UrlJson((await verifierModule.mintPayVerifierJwt(env, 'application-user-123', 1_800_000_000)).split('.')[1]);
+
+  assert.equal(normal.solmint_pay_verifier, undefined);
+  assert.equal(verifier.solmint_pay_verifier, 'true');
+  assert.equal(verifier.solmint_user_id, 'application-user-123');
+  assert.equal(verifier.role, 'authenticated');
+});
