@@ -306,7 +306,7 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', view = 'mercha
       {stageLabel && <div className={`pay-onboarding-progress is-${stage}`} role="status" aria-live="polite"><span className="pay-onboarding-progress-dot" aria-hidden="true" />{stageLabel}</div>}
 
       {view === 'merchant' ? (
-             {!merchant ? <div className="pay-onboarding-form">
+        !merchant ? <div className="pay-onboarding-form">
         <label><span>{t(locale, 'businessName')}</span><input value={businessName} onChange={e => handleBusinessNameChange(e.target.value)} placeholder={t(locale, 'businessNamePlaceholder')} autoComplete="organization" disabled={busy} /></label>
         <label><span>{t(locale, 'businessSlug')}</span><input value={slug} onChange={e => { setSlug(e.target.value.toLowerCase()); setSlugTouched(true); }} placeholder={t(locale, 'businessSlugPlaceholder')} spellCheck={false} disabled={busy} aria-describedby="pay-merchant-slug-hint" /><small id="pay-merchant-slug-hint" className="pay-onboarding-field-hint">{t(locale, 'slugHint')}</small></label>
         <button type="button" className="pay-primary-action" onClick={() => void ensureMerchant()} disabled={busy}>{stage === 'creating' ? <Loader2 className="animate-spin" size={17} /> : <Store size={17} />} {t(locale, 'createMerchant')}</button>
