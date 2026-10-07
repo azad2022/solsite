@@ -120,9 +120,10 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const createLink = async (event: React.FormEvent) => {
     event.preventDefault();
     setFormError(null); setCreated(null); setCopied(false);
-    const amount = decimalToAtomic(amountInput, assetDecimals[draft.asset]);
+    const decimals = assetDecimals[draft.asset];
+    const amount = decimalToAtomic(amountInput, decimals);
     const slug = draft.slug.trim().toLowerCase();
-    if (!merchantId || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120
+    if (!merchantId || decimals === null || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120
       || !draft.title.trim() || draft.title.trim().length > 200
       || (draft.description?.length || 0) > 5000
       || !amount) {
@@ -246,7 +247,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
       </div>
       {formError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{formError==='invalid'?paymentLinkT(locale,'createInvalid'):formError==='forbidden'?paymentLinkT(locale,'createForbidden'):formError==='conflict'?paymentLinkT(locale,'createConflict'):paymentLinkT(locale,'createFailed')}</span></div> : null}
       {created ? <div className="pay-payment-link-created" role="status"><CheckCircle2 size={17}/><div><strong>{paymentLinkT(locale,'created')}</strong><code>{publicUrl(created.slug)}</code></div><button type="button" className="pay-secondary-action" onClick={() => void copyCreated()}><Clipboard size={15}/>{copied?paymentLinkT(locale,'copied'):paymentLinkT(locale,'copy')}</button><a className="pay-secondary-action" href={publicUrl(created.slug)} target="_blank" rel="noreferrer"><ExternalLink size={15}/>{paymentLinkT(locale,'open')}</a></div> : null}
-      <div className="pay-payment-link-create-actions"><button type="submit" className="pay-primary-action" disabled={creating || !merchantId}>{creating?<Loader2 className="animate-spin" size={17}/>:<FilePlus2 size={17}/>} {creating?paymentLinkT(locale,'creating'):paymentLinkT(locale,'createAction')}</button><span>{paymentLinkT(locale,'fixedHint')}</span></div>
+      <div className="pay-payment-link-create-actions"><button type="submit" className="pay-primary-action" disabled={creating || !merchantId || loading || assetDecimals[draft.asset] === null}>{creating?<Loader2 className="animate-spin" size={17}/>:<FilePlus2 size={17}/>} {creating?paymentLinkT(locale,'creating'):paymentLinkT(locale,'createAction')}</button><span>{paymentLinkT(locale,'fixedHint')}</span></div>
     </form>
 
     {loading && <div className="pay-payment-links-state"><Loader2 className="animate-spin" size={22}/>{paymentLinkT(locale,'title')}</div>}

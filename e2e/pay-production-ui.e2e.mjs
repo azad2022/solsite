@@ -907,6 +907,12 @@ try {
   await page.locator('.pay-payment-link-create').waitFor({ state: 'visible', timeout: 10000 });
   const paymentLinkSlug = 'e2e-' + crypto.randomUUID().replaceAll('-', '').slice(0, 18).toLowerCase();
   const paymentLinkForm = page.locator('.pay-payment-link-create');
+  const paymentLinkSubmit = paymentLinkForm.locator('button[type="submit"]');
+  await paymentLinkSubmit.waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => {
+    const button = document.querySelector('.pay-payment-link-create button[type="submit"]');
+    return button instanceof HTMLButtonElement && !button.disabled;
+  }, null, { timeout: 10000 });
   await paymentLinkForm.locator('input').nth(0).fill(paymentLinkSlug);
   await paymentLinkForm.locator('input').nth(1).fill('Browser E2E Payment Link');
   await paymentLinkForm.locator('input').nth(2).fill('2');
