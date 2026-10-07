@@ -2,20 +2,6 @@
 -- This applies the exact Bulk Pay migration chain and exercises RLS,
 -- merchant isolation, idempotency, and the server-only verification capability.
 
-DO $
-begin
-  create role anon;
-exception when duplicate_object then
-  null;
-end $;
-
-DO $
-begin
-  create role authenticated;
-exception when duplicate_object then
-  null;
-end $;
-
 create table public.users (
   id text primary key,
   is_active boolean not null
