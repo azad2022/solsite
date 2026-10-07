@@ -93,7 +93,7 @@ export const onRequestPost=async({request,env}:{request:Request;env:BulkPayEnv})
       if(!item||typeof item!=='object')throw new Error('INVALID_ITEM');
       const row=item as Record<string,unknown>;
       const recipient=typeof row.recipient==='string'?row.recipient.trim():'';
-      if(!recipient)new Error('INVALID_RECIPIENT');
+      if(!recipient)throw new Error('INVALID_RECIPIENT');
       let canonicalRecipient:string;
       try{canonicalRecipient=new PublicKey(recipient).toBase58();}catch{throw new Error('INVALID_RECIPIENT');}
       const amountAtomic=parseDisplayAmountAtomic(row.amount,decimals);
