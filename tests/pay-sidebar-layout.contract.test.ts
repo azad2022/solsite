@@ -26,6 +26,7 @@ test('Pay primary navigation contains the requested ten dedicated sections', () 
     'overview',
     'merchants',
     'wallet',
+    'bulk-pay',
     'payment-links',
     'invoices',
     'referrals',
