@@ -65,46 +65,92 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           node --input-type=module <<'NODE'
           const token = process.env.GITHUB_TOKEN;
           const repository = process.env.GITHUB_REPOSITORY;
           const sha = process.env.TARGET_SHA;
+          const prNumber = process.env.PR_NUMBER;
+          const headers = {
+            authorization: 'Bearer ' + token,
+            accept: 'application/vnd.github+json',
+            'x-github-api-version': '2022-11-28',
+          };
+
+          function extractPreviewUrl(body) {
+            const match = body.match(/Preview URL:[\\s\\S]*?href=['"](https:\\/\\/[^'"]+\\.pages\\.dev)['"]/i);
+            return match?.[1]?.replace(/\\/$/, '') || '';
+          }
+
           let previewUrl = '';
+          let deploymentEvidence = '';
+
           for (let attempt = 1; attempt <= 120; attempt += 1) {
-            const response = await fetch(
-              'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
-              { headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json' } },
+            const commentsResponse = await fetch(
+              'https://api.github.com/repos/' + repository + '/issues/' + prNumber + '/comments?per_page=100',
+              { headers },
             );
-            if (!response.ok) throw new Error('GitHub check-runs lookup failed: ' + response.status);
-            const data = await response.json();
+            if (!commentsResponse.ok) throw new Error('GitHub PR comments lookup failed: ' + commentsResponse.status);
+            const comments = await commentsResponse.json();
+
+            const shortSha = sha.slice(0, 7);
+            const pagesComment = [...comments].reverse().find((comment) => {
+              const body = comment.body || '';
+              return comment.user?.login === 'cloudflare-workers-and-pages[bot]'
+                && body.includes('Cloudflare Pages')
+                && body.includes('Deploy successful!')
+                && (body.includes(sha) || body.includes(shortSha));
+            });
+
+            if (pagesComment) {
+              previewUrl = extractPreviewUrl(pagesComment.body || '');
+              if (previewUrl) {
+                deploymentEvidence = 'cloudflare-pages-bot-comment';
+                console.log('PAGES_PREVIEW_EVIDENCE_FOUND attempt=' + attempt + ' sha=' + sha + ' preview=' + previewUrl + ' source=' + deploymentEvidence);
+                break;
+              }
+            }
+
+            const checksResponse = await fetch(
+              'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
+              { headers },
+            );
+            if (!checksResponse.ok) throw new Error('GitHub check-runs lookup failed: ' + checksResponse.status);
+            const data = await checksResponse.json();
             const check = (data.check_runs || []).find((item) => item.name === 'Cloudflare Pages');
             const summary = check?.output?.summary || '';
-            const marker = 'https://';
-            const start = summary.indexOf(marker);
-            if (start >= 0) {
-              const tail = summary.slice(start);
-              const stopChars = ['\x27', '\x22', '<', ' ', '\\n', '\\r'];
-              let end = tail.length;
-              for (const char of stopChars) {
-                const position = tail.indexOf(char);
-                if (position >= 0 && position < end) end = position;
-              }
-              previewUrl = tail.slice(0, end).replace(/\/$/, '');
+            const summaryMatch = summary.match(/https:\\/\\/[^\\s'"<>]+/);
+            if (check?.conclusion === 'success' && summaryMatch) {
+              previewUrl = summaryMatch[0].replace(/\\/$/, '');
+              deploymentEvidence = 'cloudflare-pages-check-run';
+              console.log('PAGES_PREVIEW_EVIDENCE_FOUND attempt=' + attempt + ' sha=' + sha + ' preview=' + previewUrl + ' source=' + deploymentEvidence);
+              break;
             }
-            console.log('PAGES_PREVIEW_ROUTE_WAIT attempt=' + attempt + ' status=' + (check?.status || 'missing') + ' conclusion=' + (check?.conclusion || 'pending') + ' preview=' + (previewUrl || 'missing'));
-            if (check?.status === 'completed' && check.conclusion === 'success' && previewUrl) break;
-            if (check?.status === 'completed' && check.conclusion !== 'success') throw new Error('Cloudflare Pages preview deployment failed: ' + check.conclusion);
-            if (attempt === 120) throw new Error('Timed out waiting for the Cloudflare Pages preview deployment.');
+
+            console.log(
+              'PAGES_PREVIEW_ROUTE_WAIT attempt=' + attempt
+              + ' sha=' + sha
+              + ' checkStatus=' + (check?.status || 'missing')
+              + ' checkConclusion=' + (check?.conclusion || 'pending')
+              + ' evidence=' + (deploymentEvidence || 'missing'),
+            );
+
+            if (attempt === 120) {
+              throw new Error('Timed out waiting for successful Cloudflare Pages deployment evidence for SHA ' + sha);
+            }
             await new Promise(resolve => setTimeout(resolve, 5000));
           }
+
           const response = await fetch(previewUrl + '/r/sm_000000000000', {
             redirect: 'manual',
             headers: { accept: 'text/plain' },
           });
           const body = (await response.text()).slice(0, 200);
-          console.log('PAGES_PREVIEW_REFERRAL_ROUTE ' + JSON.stringify({ previewUrl, status: response.status, location: response.headers.get('location') || '', body }));
-          if (response.status !== 404) throw new Error('Referral Function was not reached on the Cloudflare Pages preview. Expected 404 for an invalid short code, got HTTP ' + response.status);
+          console.log('PAGES_PREVIEW_REFERRAL_ROUTE ' + JSON.stringify({ previewUrl, status: response.status, location: response.headers.get('location') || '', body, evidence: deploymentEvidence }));
+          if (response.status !== 404) throw new Error(
+            'Referral Function was not reached on the Cloudflare Pages preview. Expected 404 for an invalid short code, got HTTP ' + response.status
+          );
           NODE
       - name: Assert source tree is unchanged
         run: |
