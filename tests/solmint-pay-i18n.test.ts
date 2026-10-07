@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, translate } from '../src/pay/i18n.ts';
+import { DEFAULT_PAY_LOCALE, directionFor, normalizePayLocale, sectionLabel, sectionNavLabel, translate } from '../src/pay/i18n.ts';
 
 test('Pay i18n normalizes supported locale aliases', () => {
   assert.equal(normalizePayLocale('fa'), 'fa-IR');
@@ -22,6 +22,11 @@ test('Pay section labels and checkout states come from the central catalogue', (
   assert.equal(sectionLabel('fa-IR', 'security'), 'امنیت');
   assert.equal(sectionLabel('ar', 'reports'), 'التقارير');
   assert.equal(sectionLabel('ru', 'developer'), 'Разработчик');
+  assert.equal(sectionNavLabel('fa-IR', 'payment-links'), 'لینک پرداخت');
+  assert.equal(sectionNavLabel('fa-IR', 'invoices'), 'فاکتور');
+  assert.equal(sectionNavLabel('fa-IR', 'referrals'), 'کسب درآمد');
+  assert.equal(sectionNavLabel('fa-IR', 'developer'), 'برنامه‌نویسان');
+  assert.equal(sectionNavLabel('en-US', 'payment-links'), 'Payment link');
   assert.equal(translate('en-US', 'emptyTitle'), 'Operational data is not available yet');
   assert.equal(translate('fa-IR', 'checkoutSecure'), 'اتصال امن');
   assert.equal(translate('ru', 'awaitingIntent'), 'Ожидание Intent');
