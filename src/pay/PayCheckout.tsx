@@ -76,7 +76,7 @@ function SnapshotValue({ value }: { value: string }): React.ReactElement { retur
 const PAYMENT_INTENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const NON_TERMINAL_STATUSES: ReadonlySet<PayPaymentStatus> = new Set([
-  'created', 'pending', 'detected', 'verifying', 'confirmed', 'underpaid', 'overpaid', 'ambiguous',
+  'created', 'pending', 'detected', 'verifying', 'confirmed',
 ]);
 
 export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckoutProps): React.ReactElement {
