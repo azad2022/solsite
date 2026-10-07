@@ -1125,8 +1125,8 @@ try {
   assert.ok(hostedCheckoutText.includes('2 USDC'));
   assert.ok(hostedCheckoutText.includes('Merchant receives'), 'Hosted checkout must expose the authoritative merchant settlement.');
   assert.ok(hostedCheckoutText.includes('Pay with wallet'), 'Hosted checkout must expose the wallet payment action.');
-  await page.locator('.pay-checkout-manual-details').waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await page.locator('.pay-checkout-manual-details').getAttribute('open'), null, 'Manual signature recovery must remain collapsed by default.');
+  assert.equal(await page.locator('.pay-checkout-manual-details').count(), 0,
+     'Wallet-native Hosted Checkout must not render the legacy manual signature recovery panel.');
   assert.ok((await page.locator('.pay-checkout-intent-id').innerText()).includes(publicIntentId));
   console.log('PAYMENT_INTENT_LOOKUP_PRODUCTION_E2E passed through /pay/checkout.');
 
