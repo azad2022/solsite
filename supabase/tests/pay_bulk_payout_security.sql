@@ -84,6 +84,7 @@ as $$
 $$;
 
 grant usage on schema public, auth to authenticated;
+grant select on public.users, public.pay_merchants, public.pay_merchant_members, public.pay_merchant_wallets, public.pay_idempotency_keys, public.pay_audit_logs to authenticated;
 grant execute on function auth.jwt() to authenticated;
 grant execute on function public.pay_request_user_id() to authenticated;
 grant execute on function public.pay_has_merchant_access(uuid,text[]) to authenticated;
