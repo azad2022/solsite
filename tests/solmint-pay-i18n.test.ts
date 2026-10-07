@@ -29,6 +29,11 @@ test('Pay section labels and checkout states come from the central catalogue', (
   assert.equal(sectionNavLabel('fa-IR', 'referrals'), 'کسب درآمد');
   assert.equal(sectionNavLabel('fa-IR', 'developer'), 'برنامه‌نویسان');
   assert.equal(sectionNavLabel('fa-IR', 'api-keys'), 'کلید API');
+  for (const locale of ['fa-IR', 'en-US', 'ar', 'ru'] as const) {
+    assert.ok(sectionNavLabel(locale, 'merchants'));
+    assert.ok(sectionNavLabel(locale, 'wallet'));
+    assert.ok(sectionNavLabel(locale, 'api-keys'));
+  }
   assert.equal(sectionNavLabel('en-US', 'payment-links'), 'Payment link');
   assert.equal(translate('en-US', 'emptyTitle'), 'Operational data is not available yet');
   assert.equal(translate('fa-IR', 'checkoutSecure'), 'اتصال امن');
