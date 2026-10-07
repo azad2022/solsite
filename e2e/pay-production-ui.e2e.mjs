@@ -149,12 +149,14 @@ async function directSignIn(context, fixture) {
 const routes = [
   ['/pay', 'overview'],
   ['/pay/merchants', 'merchants'],
+  ['/pay/wallet', 'wallet'],
   ['/pay/dashboard', 'dashboard'],
   ['/pay/transactions', 'transactions'],
   ['/pay/customers', 'customers'],
   ['/pay/invoices', 'invoices'],
   ['/pay/payment-links', 'payment-links'],
   ['/pay/referrals', 'referrals'],
+  ['/pay/api-keys', 'api-keys'],
   ['/pay/reports', 'reports'],
   ['/pay/tickets', 'tickets'],
   ['/pay/developer', 'developer'],
@@ -608,8 +610,9 @@ try {
   assert.match(referralAccountMenuText, /(^|\n)0(\n|$)/, 'Fresh E2E account should expose zero direct referrals.');
   await page.locator('.pay-account-menu-close').click();
 
-  await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
+  await page.goto(ORIGIN + '/pay/wallet', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-onboarding-form').count(), 0, 'Wallet surface must not expose Merchant creation.');
   const preVerificationWalletText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\s+/g, ' ').trim();
   const dedicatedWalletAction = page.getByRole('button', { name: /Create dedicated SolMint wallet|ایجاد کیف پول اختصاصی SolMint|إنشاء محفظة SolMint مخصصة|Создать выделенный кошелёк SolMint/i });
   const existingWalletAction = page.getByRole('button', { name: /Use existing wallet|استفاده از کیف پول موجود|استخدام محفظة موجودة|Использовать существующий кошелёк/i });
@@ -808,9 +811,8 @@ try {
     databaseWalletState,
   })}`);
 
-  await page.goto(`${ORIGIN}/pay/merchants`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${ORIGIN}/pay/wallet`, { waitUntil: 'domcontentloaded' });
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.pay-api-keys', { state: 'visible', timeout: 10000 });
   await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-onboarding-verified').waitFor({ state: 'visible', timeout: 10000 });
   const verifiedWalletUiText = (await page.locator('.pay-onboarding-wallet').innerText()).replace(/\s+/g, ' ').trim();
@@ -1343,9 +1345,21 @@ try {
   // Primary navigation regression: invoices and payment links are distinct entries; operations remain available inside the billing surface.
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 8, 'Pay sidebar should expose eight primary entries after splitting invoices and payment links.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 10, 'Pay sidebar should expose the ten dedicated primary entries.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="merchants"]').getAttribute('aria-label'), 'Merchant');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="wallet"]').getAttribute('aria-label'), 'Wallet');
   assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').getAttribute('aria-label'), 'Invoice');
   assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').getAttribute('aria-label'), 'Payment link');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="api-keys"]').getAttribute('aria-label'), 'API keys');
+  await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-onboarding-panel').waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-onboarding-wallet').count(), 0, 'Merchant surface must not embed the receiving-wallet panel.');
+  assert.equal(await page.locator('.pay-api-keys').count(), 0, 'Merchant surface must not embed API key management.');
+  await page.goto(ORIGIN + '/pay/wallet', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-onboarding-wallet').waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.locator('.pay-onboarding-form').count(), 0, 'Wallet surface must not expose Merchant creation.');
+  await page.goto(ORIGIN + '/pay/api-keys', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-api-keys').waitFor({ state: 'visible', timeout: 10000 });
   assert.ok(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').evaluate((element) => element.classList.contains('is-active')));
   await page.goto(ORIGIN + '/pay/payment-links', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
@@ -1360,9 +1374,9 @@ try {
   await page.goto(ORIGIN + '/pay/developer', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-developer').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-developer-webhooks-section .pay-webhooks-shell').waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 8, 'Developer consolidation must keep the eight primary entries.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 10, 'Developer consolidation must keep the ten primary entries.');
 
-  await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
+  await page.goto(ORIGIN + '/pay/api-keys', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-api-keys').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-api-create').waitFor({ state: 'visible', timeout: 10000 });
 
