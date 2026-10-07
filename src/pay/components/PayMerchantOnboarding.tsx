@@ -23,6 +23,7 @@ declare global {
 
 interface Props {
   locale?: PayLocale;
+  view?: 'merchant' | 'wallet';
   onClose?: () => void;
   onMerchantReady?: (merchant: PayMerchant) => void;
   initialMerchant?: PayMerchant | null;
@@ -35,7 +36,7 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
 
-export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMerchantReady, initialMerchant = null }: Props): React.ReactElement {
+export default function PayMerchantOnboarding({ locale = 'fa-IR', view = 'merchant', onClose, onMerchantReady, initialMerchant = null }: Props): React.ReactElement {
   const [merchant, setMerchant] = useState<PayMerchant | null>(initialMerchant);
   const [businessName, setBusinessName] = useState('');
   const [slug, setSlug] = useState('');
@@ -287,26 +288,36 @@ export default function PayMerchantOnboarding({ locale = 'fa-IR', onClose, onMer
   const verified = walletVerifiedAuthoritative || (stage === 'done' && !!walletAddress);
   const stageLabel = stage === 'generating-wallet' ? t(locale, 'walletGenerating') : stage === 'recovery' ? t(locale, 'walletRecoveryReady') : stage === 'challenge' ? t(locale, 'walletVerificationStarting') : stage === 'signing' ? t(locale, 'walletAwaitingSignature') : stage === 'verifying' ? t(locale, 'walletVerifying') : stage === 'loading' ? t(locale, 'loadingMerchant') : stage === 'creating' ? t(locale, 'creatingMerchant') : stage === 'done' && verified ? t(locale, 'verified') : '';
 
+  const walletPanel = merchant ? (
+    <>
+        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span title={walletAddress || undefined}>{walletAddress || t(locale, 'walletNotVerified')}</span>{verifiedAt ? <small>{t(locale, 'walletVerifiedAt')}: {new Date(verifiedAt).toLocaleString(locale)}</small> : null}</div><div className="pay-onboarding-wallet-actions">{verified ? <button type="button" className="pay-primary-action" disabled><ShieldCheck size={17} />{t(locale, 'verified')}</button> : <><button type="button" className="pay-primary-action" onClick={() => void createDedicatedWallet()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {t(locale, 'createDedicatedWallet')}</button><button type="button" className="pay-secondary-action" onClick={() => void startWalletVerification()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{t(locale, 'useExistingWallet')}</button></>}</div></div>
+        {verified && <div className="pay-onboarding-verified"><CheckCircle2 size={18} /><span>{t(locale, 'walletOwnershipVerified')}</span></div>}
+        {merchantRefreshStale && <div className="pay-onboarding-stale" role="status" aria-live="polite"><span>{t(locale, 'merchantRefreshStale')}</span><button type="button" className="pay-secondary-action" onClick={() => void refreshMerchant()} disabled={refreshingMerchant}>{refreshingMerchant ? <Loader2 className="animate-spin" size={15} /> : null}{t(locale, 'retryMerchantRefresh')}</button></div>}
+    </>
+  ) : null;
+
   return (
     <section className="pay-onboarding-panel" aria-labelledby="pay-onboarding-title">
       <div className="pay-panel-heading">
-        <div><span className="pay-panel-kicker">{t(locale, 'merchant')}</span><h2 id="pay-onboarding-title">{t(locale, 'onboardingTitle')}</h2></div>
+        <div><span className="pay-panel-kicker">{view === 'wallet' ? t(locale, 'receiveWallet') : t(locale, 'merchant')}</span><h2 id="pay-onboarding-title">{view === 'wallet' ? t(locale, 'walletManagementTitle') : t(locale, 'onboardingTitle')}</h2></div>
         {onClose && <button type="button" className="pay-icon-button" onClick={onClose} aria-label={t(locale, 'close')}><XCircle size={18} /></button>}
       </div>
 
       {stageLabel && <div className={`pay-onboarding-progress is-${stage}`} role="status" aria-live="polite"><span className="pay-onboarding-progress-dot" aria-hidden="true" />{stageLabel}</div>}
 
-      {!merchant ? <div className="pay-onboarding-form">
+      {view === 'merchant' ? (
+             {!merchant ? <div className="pay-onboarding-form">
         <label><span>{t(locale, 'businessName')}</span><input value={businessName} onChange={e => handleBusinessNameChange(e.target.value)} placeholder={t(locale, 'businessNamePlaceholder')} autoComplete="organization" disabled={busy} /></label>
         <label><span>{t(locale, 'businessSlug')}</span><input value={slug} onChange={e => { setSlug(e.target.value.toLowerCase()); setSlugTouched(true); }} placeholder={t(locale, 'businessSlugPlaceholder')} spellCheck={false} disabled={busy} aria-describedby="pay-merchant-slug-hint" /><small id="pay-merchant-slug-hint" className="pay-onboarding-field-hint">{t(locale, 'slugHint')}</small></label>
         <button type="button" className="pay-primary-action" onClick={() => void ensureMerchant()} disabled={busy}>{stage === 'creating' ? <Loader2 className="animate-spin" size={17} /> : <Store size={17} />} {t(locale, 'createMerchant')}</button>
         <button type="button" className="pay-secondary-action" onClick={() => void loadExisting()} disabled={busy}>{stage === 'loading' ? <Loader2 className="animate-spin" size={17} /> : null} {t(locale, 'checkExistingMerchant')}</button>
       </div> : <div className="pay-onboarding-state">
         <div className="pay-onboarding-success"><CheckCircle2 size={22} /><div><strong>{merchant.businessName}</strong><span>{t(locale, 'merchantId')}: {merchant.id}</span><small>{t(locale, 'status')}: {translateMerchantStatus(locale, merchant.status)}</small></div></div>
-        <div className="pay-onboarding-wallet"><div className="pay-onboarding-wallet-icon"><Wallet size={20} /></div><div><strong>{t(locale, 'receiveWallet')}</strong><span title={walletAddress || undefined}>{walletAddress || t(locale, 'walletNotVerified')}</span>{verifiedAt ? <small>{t(locale, 'walletVerifiedAt')}: {new Date(verifiedAt).toLocaleString(locale)}</small> : null}</div><div className="pay-onboarding-wallet-actions">{verified ? <button type="button" className="pay-primary-action" disabled><ShieldCheck size={17} />{t(locale, 'verified')}</button> : <><button type="button" className="pay-primary-action" onClick={() => void createDedicatedWallet()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{busy ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />} {t(locale, 'createDedicatedWallet')}</button><button type="button" className="pay-secondary-action" onClick={() => void startWalletVerification()} disabled={busy || merchant.status === 'closed' || merchant.status === 'suspended'}>{t(locale, 'useExistingWallet')}</button></>}</div></div>
-        {verified && <div className="pay-onboarding-verified"><CheckCircle2 size={18} /><span>{t(locale, 'walletOwnershipVerified')}</span></div>}
-        {merchantRefreshStale && <div className="pay-onboarding-stale" role="status" aria-live="polite"><span>{t(locale, 'merchantRefreshStale')}</span><button type="button" className="pay-secondary-action" onClick={() => void refreshMerchant()} disabled={refreshingMerchant}>{refreshingMerchant ? <Loader2 className="animate-spin" size={15} /> : null}{t(locale, 'retryMerchantRefresh')}</button></div>}
-      </div>}
+{walletPanel}
+      </div>
+      ) : (
+        merchant ? <div className="pay-onboarding-state">{walletPanel}</div> : null
+      )}
 
       {recoveryPhrase && (stage === 'recovery' || stage === 'generating-wallet' || (stage === 'error' && generatedWalletRef.current !== null)) && <div className="pay-onboarding-recovery" role="dialog" aria-modal="true" aria-labelledby="pay-recovery-title"><div className="pay-onboarding-recovery-head"><div><span className="pay-panel-kicker">{t(locale, 'dedicatedWallet')}</span><h3 id="pay-recovery-title">{t(locale, 'recoveryPhraseTitle')}</h3></div><button type="button" className="pay-icon-button" onClick={discardGeneratedWallet} disabled={busy} aria-label={t(locale, 'close')}><XCircle size={18} /></button></div><div className="pay-onboarding-recovery-warning"><ShieldCheck size={18} /><span>{t(locale, 'recoveryPhraseWarning')}</span></div><div className="pay-onboarding-generated-address"><span>{t(locale, 'generatedWalletAddress')}</span><code>{generatedWalletRef.current?.address || ''}</code></div><div className="pay-onboarding-word-count"><strong>{t(locale, 'recoveryPhraseLength')}</strong><label><input type="radio" name="pay-recovery-length" checked={wordCount === 12} onChange={() => { discardGeneratedWallet(); setWordCount(12); void createDedicatedWallet(12); }} disabled={busy || stage !== 'recovery'} />12 {t(locale, 'words')}</label><label><input type="radio" name="pay-recovery-length" checked={wordCount === 24} onChange={() => { discardGeneratedWallet(); setWordCount(24); void createDedicatedWallet(24); }} disabled={busy || stage !== 'recovery'} />24 {t(locale, 'words')}</label></div><div className="pay-recovery-masked" dir="ltr" aria-label={t(locale, 'recoveryPhraseMaskedLabel')}>{Array.from({ length: wordCount }, (_, index) => <span key={index}>****</span>)}</div><p className="pay-recovery-copy-note">{t(locale, 'recoveryPhraseCopyNote')}</p><div className="pay-onboarding-recovery-actions"><button type="button" className="pay-secondary-action" onClick={() => void copyRecoveryPhrase()} disabled={busy}>{recoveryCopied ? t(locale, 'copied') : t(locale, 'copyRecoveryPhrase')}</button><label className="pay-recovery-confirm"><input type="checkbox" checked={recoverySaved} onChange={e => setRecoverySaved(e.target.checked)} disabled={busy} /><span>{t(locale, 'recoveryPhraseSaved')}</span></label><button type="button" className="pay-primary-action" onClick={() => void confirmDedicatedWallet()} disabled={busy || !recoverySaved}>{t(locale, 'continueAndVerifyWallet')}</button></div><small className="pay-onboarding-recovery-footnote">{t(locale, 'recoveryPhraseNeverStored')}</small></div>}
       {challenge && stage === 'signing' && !recoveryPhrase && <div className="pay-onboarding-challenge"><div className="pay-onboarding-challenge-head"><KeyRound size={17} /><strong>{t(locale, 'walletSignatureRequest')}</strong><button type="button" onClick={() => void copyMessage()} aria-label={t(locale, 'copy')} title={t(locale, 'copy')}><Copy size={15} /></button></div><pre>{challenge.message}</pre><small>{t(locale, 'signatureNotTransaction')}</small>{copied && <em>{t(locale, 'copied')}</em>}</div>}
