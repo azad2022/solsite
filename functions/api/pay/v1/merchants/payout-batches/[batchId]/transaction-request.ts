@@ -59,6 +59,8 @@ export const onRequestPost=async({request,env}:{request:Request;env:BulkPayEnv})
     if(error instanceof Error){
       const mapped:Record<string,[string,string,number]>={
         PAYOUT_TRANSACTION_TOO_LARGE:['PAYOUT_TRANSACTION_TOO_LARGE','This payout batch exceeds the single-transaction size limit. Create a smaller batch.',422],
+        PAYOUT_SNAPSHOT_ITEM_COUNT_MISMATCH:['PAYOUT_SNAPSHOT_MISMATCH','The payout batch snapshot is inconsistent. Create a new payout batch.',409],
+        PAYOUT_SNAPSHOT_TOTAL_MISMATCH:['PAYOUT_SNAPSHOT_MISMATCH','The payout batch snapshot is inconsistent. Create a new payout batch.',409],
         SOURCE_TOKEN_ACCOUNT_NOT_FOUND:['SOURCE_TOKEN_ACCOUNT_NOT_FOUND','The merchant wallet does not have the required token account for this asset.',409],
         SOURCE_WALLET_MISMATCH:['SOURCE_WALLET_MISMATCH','The connected wallet does not match the batch source wallet.',403],
         TOKEN_POLICY_UNSUPPORTED:['ASSET_NOT_SUPPORTED','The selected token policy is not supported.',422],
