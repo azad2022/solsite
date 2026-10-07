@@ -99,6 +99,8 @@ export async function buildPayoutTransaction(
   connection: Connection,
 ): Promise<{ transaction: string; sizeBytes: number }> {
   if (sourceWallet.toBase58() !== batch.sourceWalletAddress) throw new Error('SOURCE_WALLET_MISMATCH');
+  if (batch.itemCount !== batch.items.length) throw new Error('PAYOUT_SNAPSHOT_ITEM_COUNT_MISMATCH');
+  if (totalAtomic(batch.items) !== batch.totalAmountAtomic) throw new Error('PAYOUT_SNAPSHOT_TOTAL_MISMATCH');
 
   const transaction = new Transaction();
   const latest = await connection.getLatestBlockhash('confirmed');
