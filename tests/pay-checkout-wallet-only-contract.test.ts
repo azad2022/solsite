@@ -15,7 +15,7 @@ test('hosted checkout is wallet-first and does not expose manual signature verif
 
 
 test('exceptional payment outcomes are not auto-polled or auto-reconciled', () => {
-  const match = checkout.match(/const NON_TERMINAL_STATUSES:[\\s\\S]*?= new Set\\(\\[(.*?)\\]\\);/);
+  const match = checkout.match(/const NON_TERMINAL_STATUSES:[\s\S]*?= new Set\(\[(.*?)\]\);/);
   assert.ok(match, 'Hosted Checkout must declare its automatic polling status allowlist.');
   const statuses = match[1];
   assert.match(statuses, /'created'/);
