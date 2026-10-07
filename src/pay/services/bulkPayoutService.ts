@@ -149,7 +149,7 @@ export function createBulkPayoutService(httpClient:PayHttpClient=defaultPayHttpC
     async submit(merchantId:string,batchId:string,signature:string):Promise<BulkPayoutBatch>{
       const payload=await httpClient.request<Envelope<unknown>>(
         '/api/pay/v1/merchants/payout-batches/'+encodeURIComponent(batchId)+'/submit?merchantId='+encodeURIComponent(merchantId),
-        {method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({signature})},
+        {method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':batchId},body:JSON.stringify({signature})},
       );
       return parseSingle(payload,parseBatch);
     },
