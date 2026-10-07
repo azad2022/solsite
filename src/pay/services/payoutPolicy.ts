@@ -201,14 +201,27 @@ export function verifyPayoutObservation(
   const candidateTransfers = observation.transfers.filter((transfer) => transfer.sourceAuthority === batch.sourceWalletAddress);
 
   for (const transfer of candidateTransfers) {
-    const matchingItems = batch.items.filter((item) => payoutTransferMatches(batch, transfer, item));
-    if (matchingItems.length === 0) {
-      if (batch.asset === 'SOL' && transfer.asset !== 'SOL') return { status: 'failed', reason: 'ASSET_MISMATCH' };
-      if (batch.asset !== 'SOL' && (transfer.asset !== batch.asset || transfer.tokenMint !== batch.tokenMint || transfer.tokenProgram !== batch.tokenProgram || transfer.tokenDecimals !== batch.tokenDecimals)) {
+    const destination = batch.asset === 'SOL' ? transfer.destination : transfer.destinationAuthority;
+    const recipientItems = batch.items.filter((item) => item.recipient === destination);
+    if (recipientItems.length === 0) return { status: 'failed', reason: 'DESTINATION_MISMATCH' };
+
+    if (batch.asset === 'SOL') {
+      if (transfer.asset !== 'SOL') return { status: 'failed', reason: 'ASSET_MISMATCH' };
+      if (transfer.tokenMint !== null || transfer.tokenProgram !== null || transfer.tokenDecimals !== null) {
         return { status: 'failed', reason: 'TOKEN_METADATA_MISMATCH' };
       }
-      return { status: 'failed', reason: 'EXTRA_TRANSFER' };
+    } else if (
+      transfer.asset !== batch.asset ||
+      transfer.tokenMint !== batch.tokenMint ||
+      transfer.tokenProgram !== batch.tokenProgram ||
+      transfer.tokenDecimals !== batch.tokenDecimals
+    ) {
+      return { status: 'failed', reason: 'TOKEN_METADATA_MISMATCH' };
     }
+
+    const matchingItems = recipientItems.filter((item) => payoutTransferMatches(batch, transfer, item));
+    if (matchingItems.length === 0) return { status: 'failed', reason: 'AMOUNT_MISMATCH' };
+
     const itemKey = `${matchingItems[0].recipient}|${matchingItems[0].amountAtomic}`;
     const expectedCount = expectedCounts.get(itemKey) ?? 0;
     const matchedCount = matchedCounts.get(itemKey) ?? 0;
