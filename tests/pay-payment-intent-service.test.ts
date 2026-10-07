@@ -25,6 +25,9 @@ const BASE_DATA = {
   merchantSettlementAtomic: '990000',
   network: 'solana',
   verificationCommitment: 'finalized',
+  checkoutLocale: 'en-US',
+  paymentLinkTitle: 'Test payment',
+  paymentLinkDescription: 'Pay for your order',
 } as const;
 
 function clientWith(payload: unknown): PayHttpClient {
@@ -49,6 +52,9 @@ test('Payment Intent service preserves authoritative atomic snapshot', async () 
   assert.equal(intent.reference, BASE_DATA.reference);
   assert.equal(intent.status, 'created');
   assert.equal(intent.verificationCommitment, 'finalized');
+  assert.equal(intent.checkoutLocale, 'en-US');
+  assert.equal(intent.paymentLinkTitle, 'Test payment');
+  assert.equal(intent.paymentLinkDescription, 'Pay for your order');
 });
 
 test('Payment Intent service rejects floating-point financial values', async () => {
@@ -65,6 +71,25 @@ test('Payment Intent service enforces SOL token-field invariants', async () => {
     success: true,
     apiVersion: 'v1',
     data: { ...BASE_DATA, tokenDecimals: 9 },
+  }));
+  await assert.rejects(() => service.get(BASE_DATA.id), TypeError);
+});
+
+test('Payment Intent service accepts automatic checkout locale', async () => {
+  const service = createPayPaymentIntentService(clientWith({
+    success: true,
+    apiVersion: 'v1',
+    data: { ...BASE_DATA, checkoutLocale: 'auto', paymentLinkTitle: null, paymentLinkDescription: null },
+  }));
+  const intent = await service.get(BASE_DATA.id);
+  assert.equal(intent.checkoutLocale, 'auto');
+});
+
+test('Payment Intent service rejects unsupported checkout locale', async () => {
+  const service = createPayPaymentIntentService(clientWith({
+    success: true,
+    apiVersion: 'v1',
+    data: { ...BASE_DATA, checkoutLocale: 'de-DE' },
   }));
   await assert.rejects(() => service.get(BASE_DATA.id), TypeError);
 });

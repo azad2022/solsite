@@ -24,6 +24,10 @@ export interface PublicPayPaymentLink {
   description: string | null;
   amountAtomic: string;
   amountDecimals: number;
+  feeBps: number;
+  feeAtomic: string;
+  customerTotalAtomic: string;
+  merchantSettlementAtomic: string;
   asset: 'SOL' | 'USDC' | 'USDT';
   feePayer: 'merchant' | 'customer';
   checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
@@ -65,6 +69,7 @@ export interface PayPaymentLink {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+  amount_decimals: number | null;
 }
 
 interface Envelope { success?: boolean; apiVersion?: string; data?: unknown; }
@@ -105,6 +110,10 @@ function parseLink(value: unknown): PayPaymentLink {
   const row = record(value);
   const id = requiredString(row, 'id');
   const merchantId = requiredString(row, 'merchant_id');
+  const rawDecimals = row.amount_decimals;
+  const amountDecimals = typeof rawDecimals === 'number' && Number.isInteger(rawDecimals) && rawDecimals >= 0 && rawDecimals <= 255
+    ? rawDecimals
+    : null;
   if (!UUID.test(id) || !UUID.test(merchantId)) throw new TypeError('Invalid Pay payment link UUID.');
   return {
     id,
@@ -120,7 +129,28 @@ function parseLink(value: unknown): PayPaymentLink {
     expires_at: nullableString(row, 'expires_at'),
     created_at: requiredString(row, 'created_at'),
     updated_at: requiredString(row, 'updated_at'),
+    amount_decimals: amountDecimals,
   };
+}
+
+type PayAsset = 'SOL' | 'USDC' | 'USDT';
+type PayAssetDecimals = Record<PayAsset, number | null>;
+
+function parseAssetDecimals(value: unknown): PayAssetDecimals {
+  const row = record(value);
+  const result: PayAssetDecimals = { SOL: null, USDC: null, USDT: null };
+  for (const asset of ['SOL', 'USDC', 'USDT'] as const) {
+    const decimal = row[asset];
+    if (decimal === null) {
+      result[asset] = null;
+      continue;
+    }
+    if (typeof decimal !== 'number' || !Number.isInteger(decimal) || decimal < 0 || decimal > 255) {
+      throw new TypeError('Invalid Pay payment-link asset decimals: ' + asset);
+    }
+    result[asset] = decimal;
+  }
+  return result;
 }
 
 export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHttpClient) {
@@ -163,6 +193,14 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
       const checkoutLocale = requiredString(row, 'checkoutLocale');
       const amountDecimals = row.amountDecimals;
       if (typeof amountDecimals !== 'number' || !Number.isInteger(amountDecimals) || amountDecimals < 0 || amountDecimals > 255) throw new TypeError('Invalid public Pay payment link amount decimals.');
+      const rawFeeBps = row.feeBps;
+      const feeBps = Number.isInteger(rawFeeBps) ? rawFeeBps as number : null;
+      const feeAtomic = requiredString(row, 'feeAtomic');
+      const customerTotalAtomic = requiredString(row, 'customerTotalAtomic');
+      const merchantSettlementAtomic = requiredString(row, 'merchantSettlementAtomic');
+      if (feeBps === null || feeBps < 0 || feeBps > 10000 || !/^\d{1,78}$/.test(feeAtomic) || !/^\d{1,78}$/.test(customerTotalAtomic) || !/^\d{1,78}$/.test(merchantSettlementAtomic)) {
+        throw new TypeError('Invalid public Pay payment link fee snapshot.');
+      }
       if (payload.success !== true || payload.apiVersion !== 'v1' || !/^\d{1,78}$/.test(amount) || !ASSETS.has(asset as PayPaymentLink['asset']) || !PAYERS.has(feePayer as PayPaymentLink['fee_payer']) || !LOCALES.has(checkoutLocale as PayPaymentLink['checkout_locale'])) throw new TypeError('Invalid public Pay payment link envelope.');
       const merchant = record(row.merchant);
       return {
@@ -171,6 +209,10 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
         description: nullableString(row, 'description'),
         amountAtomic: amount,
         amountDecimals,
+        feeBps,
+        feeAtomic,
+        customerTotalAtomic,
+        merchantSettlementAtomic,
         asset: asset as PublicPayPaymentLink['asset'],
         feePayer: feePayer as PublicPayPaymentLink['feePayer'],
         checkoutLocale: checkoutLocale as PublicPayPaymentLink['checkoutLocale'],
@@ -245,6 +287,17 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
         throw new TypeError('Invalid Pay payment link delete envelope.');
       }
       return { id, merchantId: resultMerchantId, deleted: true };
+    },
+    async listWithMeta(merchantId: string, limit = 50): Promise<{ rows: PayPaymentLink[]; assetDecimals: PayAssetDecimals }> {
+      if (!UUID.test(merchantId.trim())) throw new TypeError('Merchant ID is invalid.');
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new TypeError('Payment link limit is invalid.');
+      const payload = await client.request<Envelope & { meta?: unknown }>('/api/pay/v1/payment-links?merchantId=' + encodeURIComponent(merchantId.trim()) + '&limit=' + limit);
+      if (payload.success !== true || payload.apiVersion !== 'v1' || !Array.isArray(payload.data) || !record(payload.meta)) throw new TypeError('Invalid Pay payment link list envelope.');
+      const meta = record(payload.meta);
+      return {
+        rows: payload.data.map(parseLink),
+        assetDecimals: parseAssetDecimals(meta.assetDecimals),
+      };
     },
     async list(merchantId: string, limit = 50): Promise<PayPaymentLink[]> {
       if (!UUID.test(merchantId.trim())) throw new TypeError('Merchant ID is invalid.');

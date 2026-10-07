@@ -14,6 +14,12 @@ on:
     paths:
       - 'functions/api/pay/**'
       - 'src/pay/services/**'
+      - 'src/pay/PayCheckout.tsx'
+      - 'src/pay/PayApp.tsx'
+      - 'src/pay/components/PayPublicPaymentLink.tsx'
+      - 'src/pay/components/PayPaymentReceipt.tsx'
+      - 'src/pay/payment-receipt-service.ts'
+      - 'src/pay/solana-wallet-provider.ts'
       - 'src/pay/payment-verification-service.ts'
       - 'src/pay/payment-intent-service.ts'
       - 'src/pay/checkout-status.ts'

@@ -98,6 +98,10 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     if (!validSlug(slug)) return payJson({ code: 'PAYMENT_LINK_SLUG_INVALID', message: 'Payment link is invalid.' }, 400, requestId);
     const link = await readLink(env, slug);
     const assetConfig = resolveAssetFromEnvironment(link.asset as 'SOL' | 'USDC' | 'USDT', env as Record<string, string | undefined>);
+    const snapshot = calculateSnapshot(link.fixed_amount_atomic!, link.fee_payer as 'merchant' | 'customer', 100);
+    if (BigInt(snapshot.merchantNetAtomic) <= 0n) {
+      return payJson({ code: 'PAYMENT_LINK_AMOUNT_TOO_SMALL', message: 'Payment link amount is too small after the gateway fee.' }, 409, requestId);
+    }
     const merchantResponse = await publicSupabaseRequest(env, '/rest/v1/pay_merchants?select=id,business_name,status&id=eq.' + encodeURIComponent(link.merchant_id) + '&limit=1', { headers: { Accept: 'application/json' } });
     const merchants = await merchantResponse.json() as Array<{ id: string; business_name: string; status: string }>;
     const merchant = merchants[0];
@@ -107,6 +111,10 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
       data: {
         slug: link.slug, title: link.title, description: link.description, amountAtomic: link.fixed_amount_atomic,
         amountDecimals: assetConfig.decimals === null ? 9 : assetConfig.decimals,
+        feeBps: 100,
+        feeAtomic: snapshot.gatewayFeeAtomic,
+        customerTotalAtomic: snapshot.customerTotalAtomic,
+        merchantSettlementAtomic: snapshot.merchantNetAtomic,
         asset: link.asset, feePayer: link.fee_payer, checkoutLocale: link.checkout_locale, expiresAt: link.expires_at,
         merchant: { businessName: merchant.business_name },
       },
@@ -167,7 +175,14 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
         p_recipient: wallets[0].address, p_reference: reference, p_fee_bps: 100, p_fee_payer: feePayer,
         p_fee_atomic: calculated.gatewayFeeAtomic, p_customer_total_atomic: calculated.customerTotalAtomic,
         p_merchant_net_atomic: calculated.merchantNetAtomic, p_fee_recipient: env.PAY_FEE_RECIPIENT, p_network: 'solana',
-        p_expires_at: expiresAt, p_metadata: { paymentLinkId: link.id, paymentLinkSlug: link.slug },
+        p_expires_at: expiresAt,
+        p_metadata: {
+          paymentLinkId: link.id,
+          paymentLinkSlug: link.slug,
+          paymentLinkTitle: link.title,
+          paymentLinkDescription: link.description,
+          paymentLinkCheckoutLocale: link.checkout_locale,
+        },
         p_idempotency_key: idempotencyKey, p_request_hash: requestHash, p_scope: scope,
         p_customer_first_name: customerFirstName, p_customer_last_name: customerLastName, p_customer_purpose: customerPurpose,
       }),
