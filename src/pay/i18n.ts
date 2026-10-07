@@ -97,14 +97,14 @@ export function languageName(locale: PayLocale): string {
 
 export function sectionNavLabel(locale: PayLocale, section: PaySection): string {
   const mapping: Record<PaySection, MessageKey> = {
-    overview: 'overview', checkout: 'checkout', dashboard: 'dashboard', transactions: 'transactions', merchants: 'merchants', customers: 'customers', invoices: 'invoicesNavLabel', paymentLinks: 'paymentLinksNavLabel', referrals: 'referralsNavLabel', reports: 'reports', tickets: 'tickets', developer: 'developerNavLabel', security: 'security', webhooks: 'webhooks',
+    overview: 'overview', checkout: 'checkout', dashboard: 'dashboard', transactions: 'transactions', merchants: 'merchants', customers: 'customers', invoices: 'invoicesNavLabel', 'payment-links': 'paymentLinksNavLabel', referrals: 'referralsNavLabel', reports: 'reports', tickets: 'tickets', developer: 'developerNavLabel', security: 'security', webhooks: 'webhooks',
   };
   return translate(locale, mapping[section]);
 }
 
 export function sectionLabel(locale: PayLocale, section: PaySection): string {
   const mapping: Record<PaySection, MessageKey> = {
-    overview: 'overview', checkout: 'checkout', dashboard: 'dashboard', transactions: 'transactions', merchants: 'merchants', customers: 'customers', invoices: 'invoices', referrals: 'referrals', reports: 'reports', tickets: 'tickets', developer: 'developer', security: 'security', webhooks: 'webhooks',
+    overview: 'overview', checkout: 'checkout', dashboard: 'dashboard', transactions: 'transactions', merchants: 'merchants', customers: 'customers', invoices: 'invoices', 'payment-links': 'paymentLinks', referrals: 'referrals', reports: 'reports', tickets: 'tickets', developer: 'developer', security: 'security', webhooks: 'webhooks',
   };
   return translate(locale, mapping[section]);
 }
