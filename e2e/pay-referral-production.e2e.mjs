@@ -18,16 +18,28 @@ function rows(value) {
 }
 
 async function db(query, parameters = [], readOnly = false) {
-  const response = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${SUPABASE_ACCESS_TOKEN}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ query, parameters, read_only: readOnly }),
-  });
-  if (!response.ok) throw new Error(`Supabase Management API query failed: HTTP ${response.status}`);
-  return response.json();
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${SUPABASE_ACCESS_TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ query, parameters, read_only: readOnly }),
+    });
+
+    if (response.ok) return response.json();
+
+    const retryable = response.status === 429 || [500, 502, 503, 504].includes(response.status);
+    if (!retryable || attempt === maxAttempts) {
+      throw new Error(`Supabase Management API query failed: HTTP ${response.status}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
+  }
+
+  throw new Error('Supabase Management API query failed after retries.');
 }
 
 async function provisionReferrer() {
