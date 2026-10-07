@@ -8,11 +8,11 @@ import {
   payJson,
   readJsonBody,
   PayRuntimeError,
-} from '../../../_shared/runtime';
+} from '../../_shared/runtime';
 import { resolveAssetFromEnvironment } from '../../../../../src/pay/services/assetPolicy';
 import { canonicalizePayoutItems, parseDisplayAmountAtomic, PAYOUT_MAX_ITEMS } from '../../../../../src/pay/services/payoutPolicy';
-import { assertTrustedOrigin, loadPayoutDetail, serializePayoutDetail, type BulkPayEnv } from '../../../_shared/bulkPayout';
-import { resolvePayIdentity, supabaseRequestAsIdentity } from '../../../_shared/identity';
+import { assertTrustedOrigin, loadPayoutDetail, serializePayoutDetail, type BulkPayEnv } from '../../_shared/bulkPayout';
+import { resolvePayIdentity, supabaseRequestAsIdentity } from '../../_shared/identity';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
