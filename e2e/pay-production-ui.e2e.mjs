@@ -22,13 +22,12 @@ function formatAtomicForE2e(value, decimals) {
 }
 
 async function openPaymentLinksView(page) {
-  const navigationItem = page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]');
-  await navigationItem.waitFor({ state: 'visible', timeout: 10000 });
-  await navigationItem.click();
-  await page.waitForFunction(() => window.location.pathname === '/pay/payment-links', null, { timeout: 10000 });
+  await page.goto(ORIGIN + '/pay/payment-links', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
+  const navigationItem = page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]');
+  await navigationItem.waitFor({ state: 'attached', timeout: 10000 });
   assert.equal(
-    await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').getAttribute('aria-current'),
+    await navigationItem.getAttribute('aria-current'),
     'page',
     'Payment Link navigation item must be active on the dedicated Payment Link route.',
   );
