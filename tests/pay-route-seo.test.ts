@@ -6,6 +6,8 @@ test('Pay routes are real application routes, not SSR 404s', () => {
   for (const path of [
     '/pay',
     '/pay/merchants',
+    '/pay/wallet',
+    '/pay/api-keys',
     '/pay/dashboard',
     '/pay/transactions',
     '/pay/customers',
