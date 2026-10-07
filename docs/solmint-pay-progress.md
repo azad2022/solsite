@@ -1658,3 +1658,30 @@ Current state:
 - No open issue matching the Pay scope was found in the repository.
 - The previous Hosted Checkout release evidence remains valid because PR `#327` changes only the Merchant/Receiving Wallet presentation boundary and does not alter Pay runtime or financial behavior.
 
+
+
+## 2026-10-07 — Bulk Pay production hardening checkpoint
+
+Status: IMPLEMENTED / SECURITY HARDENED / CI VALIDATION PENDING
+
+Scope:
+- Merchant-scoped atomic Bulk Pay remains limited to one legacy Solana transaction with a maximum of 50 payout items.
+- TypeScript/import blockers found in the first PR validation were corrected.
+- Duplicate recipient+amount payout lines are verified as a multiset so legitimate duplicate lines do not fail as false duplicates.
+- Wallet signature byte responses are encoded with a dedicated Base58 implementation with regression coverage.
+- Bulk Pay create and submit mutations now send stable idempotency keys; create reuses its key across same-input retries and submit binds the key to the batch ID.
+- The authoritative payout verification mutation is now gated by a server-minted solmint_pay_verifier=true internal JWT capability. Ordinary authenticated merchant sessions cannot mark a payout completed/failed by calling the RPC directly.
+- The live Supabase Bulk Pay migration lineage is reconciled with the actual applied migration versions 20261007164348 and 20261007173028.
+- A dedicated Bulk Pay database-security fixture is part of the Database Security CI workflow.
+
+Live database evidence:
+- Supabase project nvopkbiedorfshwbmyhn is ACTIVE_HEALTHY.
+- pay_payout_batches and pay_payout_items have RLS enabled with merchant-scoped SELECT policies.
+- Live migration list contains 20261007164348_solmint_pay_bulk_payout and 20261007173028_solmint_pay_bulk_payout_verifier_hardening.
+
+Release gate:
+- CI / Production Build / Pages / Bulk Pay-specific funded Devnet E2E must be green before PR #331 is mergeable as a production release candidate.
+- Existing Pay production runtime gates remain the baseline and are not treated as evidence for Bulk Pay-specific execution.
+
+Conclusion:
+Bulk Pay implementation is security-hardened, but production release is not yet declared until the new CI and real Bulk Pay Devnet transaction evidence are green.
