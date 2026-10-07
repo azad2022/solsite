@@ -11,8 +11,8 @@ if (!DEVNET_RPC_URL.startsWith('https://')) throw new Error('SOLANA_RPC_URL must
 if (!DEVNET_FUNDER_SECRET) throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 is required for Bulk Pay Devnet E2E.');
 
 const EXPECTED_FUNDER = new PublicKey('EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV');
-const FUNDING_LAMPORTS = 10_000_000;
-const PAYOUT_LAMPORTS = 2_000_000;
+const FUNDING_LAMPORTS = 3_000_000;
+const PAYOUT_LAMPORTS = 500_000;
 const MIN_FUNDER_BALANCE = FUNDING_LAMPORTS + 1_000_000;
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
