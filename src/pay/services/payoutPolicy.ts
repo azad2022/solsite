@@ -164,18 +164,6 @@ export async function buildPayoutTransaction(
   return { transaction: bytesToBase64(transaction.serialize({ requireAllSignatures: false, verifySignatures: false })), sizeBytes };
 }
 
-function transferKey(transfer: ObservedTransfer): string {
-  return [
-    transfer.sourceAuthority ?? transfer.source ?? '',
-    transfer.destinationAuthority ?? transfer.destination,
-    transfer.asset,
-    transfer.tokenMint ?? '',
-    transfer.tokenProgram ?? '',
-    transfer.tokenDecimals === null ? '' : String(transfer.tokenDecimals),
-    transfer.amountAtomic,
-  ].join('|');
-}
-
 function payoutTransferMatches(batch: PayoutBatchSnapshot, transfer: ObservedTransfer, item: PayoutItemInput): boolean {
   if (transfer.sourceAuthority !== batch.sourceWalletAddress) return false;
   if (transfer.amountAtomic !== item.amountAtomic) return false;
@@ -211,7 +199,6 @@ export function verifyPayoutObservation(
   const candidateTransfers = observation.transfers.filter((transfer) => transfer.sourceAuthority === batch.sourceWalletAddress);
 
   for (const transfer of candidateTransfers) {
-    const key = transferKey(transfer);
     const matchingItems = batch.items.filter((item) => payoutTransferMatches(batch, transfer, item));
     if (matchingItems.length === 0) {
       if (batch.asset === 'SOL' && transfer.asset !== 'SOL') return { status: 'failed', reason: 'ASSET_MISMATCH' };
@@ -224,10 +211,7 @@ export function verifyPayoutObservation(
     const expectedCount = expectedCounts.get(itemKey) ?? 0;
     const matchedCount = matchedCounts.get(itemKey) ?? 0;
     if (expectedCount === 0) return { status: 'failed', reason: 'DESTINATION_MISMATCH' };
-    if (matchedCount >= expectedCount || (matchedCount > 0 && matchingItems.length === 0)) return { status: 'failed', reason: 'DUPLICATE_TRANSFER' };
-    if (matchedCount > 0 && key === transferKey(transfer)) {
-      // Exact duplicate payout lines are valid only up to their declared multiplicity.
-    }
+    if (matchedCount >= expectedCount) return { status: 'failed', reason: 'DUPLICATE_TRANSFER' };
     matchedCounts.set(itemKey, matchedCount + 1);
   }
 
