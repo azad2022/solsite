@@ -1,6 +1,7 @@
 {
   "version": 1,
   "include": [
+    "/assets/*",
     "/pay",
     "/pay/*",
     "/",
