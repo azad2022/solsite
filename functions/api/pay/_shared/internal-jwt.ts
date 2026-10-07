@@ -2,6 +2,7 @@ const encoder = new TextEncoder();
 
 export const PAY_INTERNAL_JWT_ROLE = 'authenticated' as const;
 export const PAY_INTERNAL_JWT_CLAIM = 'solmint_user_id' as const;
+export const PAY_INTERNAL_VERIFIER_CLAIM = 'solmint_pay_verifier' as const;
 export const PAY_INTERNAL_JWT_ALGORITHMS = ['ES256', 'RS256'] as const;
 export const PAY_INTERNAL_JWT_DEFAULT_TTL_SECONDS = 60;
 export const PAY_INTERNAL_JWT_MIN_TTL_SECONDS = 30;
@@ -32,6 +33,7 @@ interface JwtPayload {
   exp: number;
   role: typeof PAY_INTERNAL_JWT_ROLE;
   [PAY_INTERNAL_JWT_CLAIM]: string;
+  [PAY_INTERNAL_VERIFIER_CLAIM]?: 'true';
 }
 
 function base64UrlEncode(input: Uint8Array | string): string {
@@ -119,7 +121,12 @@ export function validatePayInternalJwtConfig(env: PayInternalJwtEnv): void {
   pemToDer(privateKey);
 }
 
-export async function mintPayInternalJwt(env: PayInternalJwtEnv, userId: string, nowSeconds = Math.floor(Date.now() / 1000)): Promise<string> {
+async function mintPayInternalJwtWithClaims(
+  env: PayInternalJwtEnv,
+  userId: string,
+  nowSeconds: number,
+  verifier: boolean,
+): Promise<string> {
   validatePayInternalJwtConfig(env);
   if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 1) throw new Error('JWT issuance time must be a positive safe integer.');
   const normalizedUserId = assertSafeUserId(userId);
@@ -129,10 +136,26 @@ export async function mintPayInternalJwt(env: PayInternalJwtEnv, userId: string,
   const ttl = parseTtl(env);
   const { algorithm, key } = await importPrivateKey(env);
   const header: JwtHeader = { alg: algorithm, typ: 'JWT', kid: keyId };
-  const payload: JwtPayload = { iss: issuer, aud: audience, iat: nowSeconds, exp: nowSeconds + ttl, role: PAY_INTERNAL_JWT_ROLE, [PAY_INTERNAL_JWT_CLAIM]: normalizedUserId };
+  const payload: JwtPayload = {
+    iss: issuer,
+    aud: audience,
+    iat: nowSeconds,
+    exp: nowSeconds + ttl,
+    role: PAY_INTERNAL_JWT_ROLE,
+    [PAY_INTERNAL_JWT_CLAIM]: normalizedUserId,
+    ...(verifier ? { [PAY_INTERNAL_VERIFIER_CLAIM]: 'true' as const } : {}),
+  };
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signingInput = `${encodedHeader}.${encodedPayload}`;
   const signature = await crypto.subtle.sign(getSignAlgorithm(algorithm), key, encoder.encode(signingInput));
   return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+export async function mintPayInternalJwt(env: PayInternalJwtEnv, userId: string, nowSeconds = Math.floor(Date.now() / 1000)): Promise<string> {
+  return mintPayInternalJwtWithClaims(env, userId, nowSeconds, false);
+}
+
+export async function mintPayVerifierJwt(env: PayInternalJwtEnv, userId: string, nowSeconds = Math.floor(Date.now() / 1000)): Promise<string> {
+  return mintPayInternalJwtWithClaims(env, userId, nowSeconds, true);
 }
