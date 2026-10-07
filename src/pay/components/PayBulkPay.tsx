@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Transaction } from '@solana/web3.js';
-import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Copy, FileCheck2, Loader2, Plus, RefreshCw, Send, ShieldAlert, Trash2, WalletCards, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Copy, FileCheck2, Loader2, Plus, RefreshCw, Send, ShieldAlert, Trash2, WalletCards, XCircle } from 'lucide-react';
 import { PayHttpError } from '../http';
 import { directionFor, translate, type PayLocale } from '../i18n';
 import type { PayMerchant } from '../services/merchantOnboardingService';
@@ -94,7 +94,6 @@ export default function PayBulkPay({ locale, merchant, onNavigate }: Props):Reac
   const wallet=merchant.receivingWallet;
   const walletReady=Boolean(wallet?.isActive&&wallet.verificationStatus==='verified');
   const selectedProvider=selectedWalletId?availableWallets.find(item=>item.id===selectedWalletId):undefined;
-  const decimals=batch?.tokenDecimals??(asset==='SOL'?9:0);
 
   const loadRows=useCallback(async()=>{
     setState('loading');setError('');
@@ -173,26 +172,6 @@ export default function PayBulkPay({ locale, merchant, onNavigate }: Props):Reac
       setError(errorMessage(cause,locale));
     }finally{
       if(mounted.current)setActionBusy(false);
-    }
-  };
-
-  const chooseWallet=async()=>{
-    const providers=detectSolanaWalletProviders();
-    setAvailableWallets(providers);
-    if(!providers.length){
-      setError(translate(locale,'bulkPayWalletBrowser'));
-      return;
-    }
-    const provider=providers.find(item=>item.publicKey)||providers[0];
-    try{
-      if(typeof provider.provider.connect!=='function')throw new Error('WALLET_CONNECT_UNAVAILABLE');
-      const result=await provider.provider.connect();
-      const address=publicKeyString(result&&typeof result==='object'?result.publicKey:undefined)||publicKeyString(provider.provider.publicKey)||publicKeyString(provider.publicKey);
-      if(!address)throw new Error('WALLET_NOT_CONNECTED');
-      setSelectedWalletId(provider.id);
-      setError('');
-    }catch{
-      setError(translate(locale,'bulkPayWalletConnectionFailed'));
     }
   };
 
