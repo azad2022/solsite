@@ -371,7 +371,7 @@ try {
       const style = getComputedStyle(icon);
       return { width: rect.width, height: rect.height, visibility: style.visibility, opacity: style.opacity };
     }));
-    assert.equal(iconDiagnostics.length, 8, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
+    assert.equal(iconDiagnostics.length, 10, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
     assert.ok(iconDiagnostics.every((icon) => icon.width > 0 && icon.height > 0 && icon.visibility !== 'hidden' && Number(icon.opacity) > 0),
       `Sidebar icons must remain visible: ${JSON.stringify(iconDiagnostics)}`);
     const lastNav = page.locator('.pay-nav-item').last();
