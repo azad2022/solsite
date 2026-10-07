@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createBulkPayoutService } from '../src/pay/services/bulkPayoutService';
+import { encodeBase58 } from '../src/pay/components/base58';
 import type { PayHttpClient } from '../src/pay/http';
 
 function mockClient(handler:(path:string,init?:RequestInit)=>unknown):PayHttpClient{
@@ -76,4 +77,12 @@ test('Bulk Pay create and submit bind mutations to explicit stable idempotency k
   await service.submit('merchant-1', 'batch-1', 'signature-1');
   assert.equal(calls[0].headers.get('Idempotency-Key'), 'create-key-1');
   assert.equal(calls[1].headers.get('Idempotency-Key'), 'batch-1');
+});
+
+
+test('Bulk Pay Base58 encoder preserves leading zero bytes without duplication', () => {
+  assert.equal(encodeBase58(new Uint8Array()), '');
+  assert.equal(encodeBase58(new Uint8Array([0])), '1');
+  assert.equal(encodeBase58(new Uint8Array([0, 0, 1])), '112');
+  assert.equal(encodeBase58(new Uint8Array([1, 2, 3])), 'Ldp');
 });
