@@ -202,14 +202,17 @@ export function verifyPayoutObservation(
   if (!observation.success) return { status: 'failed', reason: 'TRANSACTION_FAILED' };
   if (observation.feePayer !== batch.sourceWalletAddress) return { status: 'failed', reason: 'FEE_PAYER_MISMATCH' };
 
-  const expectedKeys = new Set(batch.items.map((item) => `${item.recipient}|${item.amountAtomic}`));
-  const matchedKeys = new Set<string>();
+  const expectedCounts = new Map<string, number>();
+  for (const item of batch.items) {
+    const key = `${item.recipient}|${item.amountAtomic}`;
+    expectedCounts.set(key, (expectedCounts.get(key) ?? 0) + 1);
+  }
+  const matchedCounts = new Map<string, number>();
   const candidateTransfers = observation.transfers.filter((transfer) => transfer.sourceAuthority === batch.sourceWalletAddress);
 
   for (const transfer of candidateTransfers) {
     const key = transferKey(transfer);
     const matchingItems = batch.items.filter((item) => payoutTransferMatches(batch, transfer, item));
-    if (matchingItems.length > 1) return { status: 'failed', reason: 'AMBIGUOUS_TRANSFER' };
     if (matchingItems.length === 0) {
       if (batch.asset === 'SOL' && transfer.asset !== 'SOL') return { status: 'failed', reason: 'ASSET_MISMATCH' };
       if (batch.asset !== 'SOL' && (transfer.asset !== batch.asset || transfer.tokenMint !== batch.tokenMint || transfer.tokenProgram !== batch.tokenProgram || transfer.tokenDecimals !== batch.tokenDecimals)) {
@@ -218,19 +221,29 @@ export function verifyPayoutObservation(
       return { status: 'failed', reason: 'EXTRA_TRANSFER' };
     }
     const itemKey = `${matchingItems[0].recipient}|${matchingItems[0].amountAtomic}`;
-    if (!expectedKeys.has(itemKey)) return { status: 'failed', reason: 'DESTINATION_MISMATCH' };
-    if (matchedKeys.has(itemKey) || matchedKeys.has(key)) return { status: 'failed', reason: 'DUPLICATE_TRANSFER' };
-    matchedKeys.add(itemKey);
+    const expectedCount = expectedCounts.get(itemKey) ?? 0;
+    const matchedCount = matchedCounts.get(itemKey) ?? 0;
+    if (expectedCount === 0) return { status: 'failed', reason: 'DESTINATION_MISMATCH' };
+    if (matchedCount >= expectedCount || (matchedCount > 0 && matchingItems.length === 0)) return { status: 'failed', reason: 'DUPLICATE_TRANSFER' };
+    if (matchedCount > 0 && key === transferKey(transfer)) {
+      // Exact duplicate payout lines are valid only up to their declared multiplicity.
+    }
+    matchedCounts.set(itemKey, matchedCount + 1);
   }
 
-  if (matchedKeys.size !== expectedKeys.size) {
+  let matchedCountTotal = 0;
+  let expectedCountTotal = 0;
+  for (const [key, expectedCount] of expectedCounts) {
+    expectedCountTotal += expectedCount;
+    matchedCountTotal += matchedCounts.get(key) ?? 0;
+  }
+
+  if (matchedCountTotal !== expectedCountTotal) {
     const destinations = new Set(candidateTransfers.map((transfer) => batch.asset === 'SOL' ? transfer.destination : transfer.destinationAuthority));
     const expectedRecipients = new Set(batch.items.map((item) => item.recipient));
     if (candidateTransfers.length > batch.items.length) return { status: 'failed', reason: 'EXTRA_TRANSFER' };
     if ([...destinations].some((value) => value && !expectedRecipients.has(value))) return { status: 'failed', reason: 'DESTINATION_MISMATCH' };
-    if ([...matchedKeys].some((value) => value)) {
-      return { status: 'failed', reason: 'AMOUNT_MISMATCH' };
-    }
+    if (matchedCountTotal > 0) return { status: 'failed', reason: 'AMOUNT_MISMATCH' };
     return { status: 'failed', reason: 'MISSING_TRANSFER' };
   }
 
