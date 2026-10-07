@@ -27,6 +27,9 @@ test('Payment Link UI uses the service boundary and provides create/edit/deactiv
 
 
 test('Payment Link create stays disabled until merchant and authoritative asset metadata are ready', () => {
+  assert.match(ui, /const EMPTY_ASSET_DECIMALS = \{ SOL: null, USDC: null, USDT: null \};/);
+  assert.match(ui, /useState<\{ SOL: number \| null; USDC: number \| null; USDT: number \| null \}>\(\{ \.\.\.EMPTY_ASSET_DECIMALS \}\)/);
+  assert.match(ui, /setAssetDecimals\(\{ \.\.\.EMPTY_ASSET_DECIMALS \}\)/);
   assert.match(ui, /disabled=\{creating \|\| !merchantId \|\| loading \|\| assetDecimals\[draft\.asset\] === null\}/);
   assert.match(ui, /decimals === null/);
 });

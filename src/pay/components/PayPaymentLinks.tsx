@@ -15,6 +15,7 @@ const EMPTY_DRAFT: CreatePayPaymentLinkInput = {
   merchantId: '', slug: '', title: '', description: '', fixedAmountAtomic: '',
   asset: 'USDC', feePayer: 'merchant', checkoutLocale: 'auto', expiresAt: null,
 };
+const EMPTY_ASSET_DECIMALS = { SOL: null, USDC: null, USDT: null };
 type EditDraft = Omit<UpdatePayPaymentLinkInput, 'merchantId' | 'linkId'>;
 function editDraftFromRow(row: PayPaymentLink): EditDraft {
   return {
@@ -80,7 +81,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const [error, setError] = useState<'unauthorized'|'forbidden'|'error'|null>(null);
   const [draft, setDraft] = useState<CreatePayPaymentLinkInput>({ ...EMPTY_DRAFT, merchantId: merchantId || '' });
   const [amountInput, setAmountInput] = useState('');
-  const [assetDecimals, setAssetDecimals] = useState<{ SOL: number | null; USDC: number | null; USDT: number | null }>({ SOL: 9, USDC: null, USDT: null });
+  const [assetDecimals, setAssetDecimals] = useState<{ SOL: number | null; USDC: number | null; USDT: number | null }>({ ...EMPTY_ASSET_DECIMALS });
   const [expiresInput, setExpiresInput] = useState('');
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<'invalid'|'forbidden'|'conflict'|'error'|null>(null);
@@ -96,14 +97,24 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const [deleteError, setDeleteError] = useState<'hasPayments'|'forbidden'|'error'|null>(null);
 
   const load = useCallback(async () => {
-    if (!merchantId) { setRows([]); setLoading(false); return; }
-    setLoading(true); setError(null);
+    if (!merchantId) {
+      setRows([]);
+      setAssetDecimals({ ...EMPTY_ASSET_DECIMALS });
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setAssetDecimals({ ...EMPTY_ASSET_DECIMALS });
     try {
       const result = await payPaymentLinkService.listWithMeta(merchantId, 100);
       setRows(result.rows);
       setAssetDecimals(result.assetDecimals);
     }
-    catch (cause) { setError(accessError(cause)); }
+    catch (cause) {
+      setAssetDecimals({ ...EMPTY_ASSET_DECIMALS });
+      setError(accessError(cause));
+    }
     finally { setLoading(false); }
   }, [merchantId]);
 

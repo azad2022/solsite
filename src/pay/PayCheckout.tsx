@@ -67,6 +67,15 @@ function formatAtomic(value: string, decimals: number): string {
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
+function formatCheckoutDateTime(value: string, locale: PayLocale): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
+}
+
 function truncateAddress(value: string): string {
   return value.length > 16 ? `${value.slice(0, 8)}…${value.slice(-8)}` : value;
 }
@@ -297,7 +306,10 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
       setSelectedWalletId(selectedProvider.id);
       setWalletAddress(address);
       setWalletChooserOpen(false);
-      return { ...selectedProvider, publicKey: selectedProvider.provider.publicKey };
+      return {
+        ...selectedProvider,
+        publicKey: selectedProvider.provider.publicKey ?? { toBase58: () => address },
+      };
     } catch {
       setWalletChooserOpen(false);
       setVerificationState('failed');
@@ -410,7 +422,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
 
     try {
       let activeProvider = providerOverride ?? (selectedWalletId ? getSolanaWalletProvider(selectedWalletId) : undefined);
-      if (!activeProvider?.publicKey) {
+      if (!activeProvider) {
         activeProvider = await connectWallet(selectedWalletId ?? undefined);
       }
       if (!activeProvider) {
@@ -418,7 +430,9 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
         return;
       }
 
-      const account = publicKeyString(activeProvider.provider.publicKey) || walletAddress;
+      const account = publicKeyString(activeProvider.provider.publicKey)
+        || publicKeyString(activeProvider.publicKey)
+        || walletAddress;
       if (!account) throw new Error('WALLET_NOT_CONNECTED');
       if (expectedWalletAddress && account !== expectedWalletAddress) throw new Error('WALLET_ACCOUNT_MISMATCH');
 
@@ -522,7 +536,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'merchantSettlement')}</span><strong>{formatAtomic(intent.merchantSettlementAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(uiLocale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong><small>{checkoutLabel(uiLocale, 'feePayer')}: {intent.feePayer === 'merchant' ? checkoutLabel(uiLocale, 'merchant') : checkoutLabel(uiLocale, 'customer')}</small></div></div>
                 <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(uiLocale, 'intentStatus')}</span><strong>{translateTransactionStatus(uiLocale, intent.status)}</strong></div></div>
-                <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(uiLocale, 'expiration')}</span><strong>{intent.expiresAt}</strong></div></div>
+                <div className="pay-checkout-status-card"><Clock3 size={18} /><div><span>{translate(uiLocale, 'expiration')}</span><strong>{formatCheckoutDateTime(intent.expiresAt, uiLocale)}</strong></div></div>
               </div>
 
               <div className="pay-checkout-notice">

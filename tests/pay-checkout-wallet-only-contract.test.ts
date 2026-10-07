@@ -26,3 +26,16 @@ test('exceptional payment outcomes are not auto-polled or auto-reconciled', () =
   assert.match(statuses, /'confirmed'/);
   assert.doesNotMatch(statuses, /'underpaid'|'overpaid'|'ambiguous'/);
 });
+
+test('connected wallet state uses the address returned by wallet.connect without a second connect attempt', () => {
+  assert.match(checkout, /if \(!activeProvider\)/);
+  assert.doesNotMatch(checkout, /if \(!activeProvider\?\.publicKey\)/);
+  assert.match(checkout, /publicKey: selectedProvider\.provider\.publicKey \?\? \{ toBase58: \(\) => address \}/);
+  assert.match(checkout, /publicKeyString\(activeProvider\.publicKey\)/);
+});
+
+test('checkout renders expiration using the active locale instead of a raw ISO timestamp', () => {
+  assert.match(checkout, /function formatCheckoutDateTime\(value: string, locale: PayLocale\)/);
+  assert.match(checkout, /formatCheckoutDateTime\(intent\.expiresAt, uiLocale\)/);
+  assert.doesNotMatch(checkout, /<strong>\{intent\.expiresAt\}<\/strong>/);
+});
