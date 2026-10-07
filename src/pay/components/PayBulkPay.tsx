@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Transaction } from '@solana/web3.js';
 import { CheckCircle2, ChevronLeft, ChevronRight, Copy, FileCheck2, Loader2, Plus, RefreshCw, Send, ShieldAlert, Trash2, WalletCards, XCircle } from 'lucide-react';
 import { PayHttpError } from '../http';
-import { directionFor, translate, type PayLocale } from '../i18n';
+import { directionFor, translate } from '../i18n';
+import type { PayLocale } from '../types';
 import type { PayMerchant } from '../services/merchantOnboardingService';
 import { bulkPayoutService, type BulkPayoutAsset, type BulkPayoutBatch, type BulkPayoutBatchSummary } from '../services/bulkPayoutService';
 import { detectSolanaWalletProviders, publicKeyString, type SolanaInjectedWalletId, type SolanaInjectedWalletProvider } from '../solana-wallet-provider';
