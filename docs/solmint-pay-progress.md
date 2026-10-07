@@ -1585,3 +1585,43 @@ No private key, seed phrase, webhook secret, API secret, or internal signing mat
 
 A formal customer invoice contract was not invented. The existing authoritative customer artifact remains the Payment Receipt path, including browser View/Save PDF.
 
+## 2026-10-07 — Hosted Checkout wallet-native release checkpoint
+
+Status: **PRODUCTION RUNTIME VERIFIED / RELEASE GATES GREEN**
+
+Current main release commit:
+- `5d8b6498f888640940cf9966b88282493e7c9758`
+
+Scope closed in this release sequence:
+- Hosted Payment Link is wallet-first and no longer exposes manual transaction-signature entry.
+- Browser Wallet connection handling was hardened so providers that return the public key only from `connect()` do not trigger a second connection attempt.
+- Payment Link asset decimals now fail closed until authoritative backend metadata is loaded; stale metadata is cleared on merchant/context changes and failed loads.
+- Checkout expiration is rendered through the active locale instead of a raw ISO timestamp.
+- Production browser E2E was corrected to assert `created` immediately after Payment Intent creation and to accept the authoritative `created → pending` transition after Checkout reconciliation.
+- No new API, field, RPC, database schema, financial rule, or client-side financial truth was introduced by these corrections.
+
+Authoritative production evidence:
+- PR #311, #312, #313, #314, #315, and #316 are merged into `main`.
+- Cloudflare Pages deployment for current main commit `5d8b6498...`: **PASS**.
+- Production Build: **PASS**.
+- Quality/CI: **PASS**.
+- SolMint Pay Production Browser UI E2E: **PASS** (run `37591409702`).
+- SolMint Pay Live Browser Audit: **PASS** (run `37591409480`).
+- SolMint Pay Live Smoke on the unchanged Pay runtime commit `2f418903...`: **PASS** (run `37590519237`).
+- Database Security on the unchanged Pay runtime commit `2f418903...`: **PASS**.
+- Production API Contract on the unchanged Pay runtime commit `2f418903...`: **PASS**.
+- SolMint Pay Devnet E2E on the unchanged Pay runtime commit `2f418903...`: **PASS**.
+- SolMint Pay Mainnet Read-only on the unchanged Pay runtime commit `2f418903...`: **PASS**.
+- The only difference between runtime commit `2f418903...` and current `5d8b6498...` is the production E2E lifecycle assertion fix; no application/runtime source was changed by PR #316.
+
+Non-blocking provider/integration checks:
+- `Workers Builds: solsite` remains a separate legacy Cloudflare Worker integration and is outside the Pages production deployment path.
+- `Supabase Preview` may fail for the repository's production-only migration model and is explicitly outside the committed Pay delivery path.
+
+Recovery:
+- The source-controlled Cloudflare Pages recovery/redeploy runbook is present at `docs/solmint-pay-release-rollback.md`.
+- Recovery uses the existing known-good commit → source revert/redeploy → production smoke path; no Cloudflare management API rollback gate is required by the current Release Audit policy.
+
+Release conclusion:
+- **SolMint Pay Hosted Checkout and the surrounding Pay production runtime are release-ready with positive production evidence.**
+- No unresolved Pay issue is currently open in the repository.
