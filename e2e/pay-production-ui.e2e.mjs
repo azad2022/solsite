@@ -1344,8 +1344,8 @@ try {
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 8, 'Pay sidebar should expose eight primary entries after splitting invoices and payment links.');
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').innerText(), 'Invoice');
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').innerText(), 'Payment link');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').getAttribute('aria-label'), 'Invoice');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').getAttribute('aria-label'), 'Payment link');
   assert.ok(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').evaluate((element) => element.classList.contains('is-active')));
   await page.goto(ORIGIN + '/pay/payment-links', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
