@@ -1,8 +1,8 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { makePayRequestId, payFeatureEnabled, payJson, readJsonBody, PayRuntimeError } from '../../../../../../_shared/runtime';
-import { assertTrustedOrigin, isUuid, loadCurrentReceivingWallet, loadPayoutDetail, type BulkPayEnv } from '../../../../../../_shared/bulkPayout';
-import { resolvePayIdentity } from '../../../../../../_shared/identity';
-import { buildPayoutTransaction } from '../../../../../../../../../../src/pay/services/payoutPolicy';
+import { makePayRequestId, payFeatureEnabled, payJson, readJsonBody, PayRuntimeError } from '../../../../_shared/runtime';
+import { assertTrustedOrigin, isUuid, loadCurrentReceivingWallet, loadPayoutDetail, type BulkPayEnv } from '../../../../_shared/bulkPayout';
+import { resolvePayIdentity } from '../../../../_shared/identity';
+import { buildPayoutTransaction } from '../../../../../../../src/pay/services/payoutPolicy';
 
 export const onRequestPost=async({request,env}:{request:Request;env:BulkPayEnv})=>{
   const requestId=makePayRequestId();
