@@ -107,14 +107,12 @@ export async function buildPayoutTransaction(
 
   if (batch.asset === 'SOL') {
     for (const item of batch.items) {
+      const lamports = BigInt(item.amountAtomic);
+      if (lamports > 9007199254740991n) throw new Error('PAYOUT_AMOUNT_TOO_LARGE');
       transaction.add(SystemProgram.transfer({
         fromPubkey: sourceWallet,
         toPubkey: new PublicKey(item.recipient),
-        (() => {
-        const lamports = BigInt(item.amountAtomic);
-        if (lamports > 9007199254740991n) throw new Error('PAYOUT_AMOUNT_TOO_LARGE');
-        return { fromPubkey: sourceWallet, toPubkey: new PublicKey(item.recipient), lamports: Number(lamports) };
-      })(),
+        lamports: Number(lamports),
       }));
     }
   } else {
