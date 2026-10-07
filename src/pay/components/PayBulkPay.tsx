@@ -91,6 +91,7 @@ export default function PayBulkPay({ locale, merchant, onNavigate }: Props):Reac
   const [transactionSize,setTransactionSize]=useState<number|null>(null);
   const [copied,setCopied]=useState(false);
   const mounted=useRef(true);
+  const createIdempotency=useRef<{fingerprint:string;key:string}|null>(null);
   const direction=directionFor(locale);
   const wallet=merchant.receivingWallet;
   const walletReady=Boolean(wallet?.isActive&&wallet.verificationStatus==='verified');
@@ -160,14 +161,19 @@ export default function PayBulkPay({ locale, merchant, onNavigate }: Props):Reac
   };
 
   const createBatch=async()=>{
+    const fingerprint=JSON.stringify({asset,items:draftItems.map(item=>({recipient:item.recipient.trim(),amount:item.amount.trim()}))});
+    if(createIdempotency.current?.fingerprint!==fingerprint){
+      createIdempotency.current={fingerprint,key:crypto.randomUUID()};
+    }
+    const idempotencyKey=createIdempotency.current.key;
     setActionBusy(true);setError('');
     try{
       const created=await bulkPayoutService.create(merchant.id,{
         asset,
         items:draftItems.map(item=>({recipient:normalizeAddress(item.recipient),amount:item.amount.trim()})),
-      });
+      },idempotencyKey);
       if(!mounted.current)return;
-      setBatch(created);setSelectedId(created.id);setStage('review');await loadRows();
+      setBatch(created);setSelectedId(created.id);setStage('review');createIdempotency.current=null;await loadRows();
     }catch(cause){
       if(!mounted.current)return;
       setError(errorMessage(cause,locale));
