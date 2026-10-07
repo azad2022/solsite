@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -85,7 +84,9 @@ export function totalAtomic(items: readonly PayoutItemInput[]): string {
 }
 
 function bytesToBase64(value: Uint8Array): string {
-  return Buffer.from(value).toString('base64');
+  let binary = '';
+  for (const byte of value) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 function serializedTransactionSize(transaction: Transaction): number {
@@ -109,7 +110,11 @@ export async function buildPayoutTransaction(
       transaction.add(SystemProgram.transfer({
         fromPubkey: sourceWallet,
         toPubkey: new PublicKey(item.recipient),
-        lamports: Number(BigInt(item.amountAtomic)),
+        (() => {
+        const lamports = BigInt(item.amountAtomic);
+        if (lamports > 9007199254740991n) throw new Error('PAYOUT_AMOUNT_TOO_LARGE');
+        return { fromPubkey: sourceWallet, toPubkey: new PublicKey(item.recipient), lamports: Number(lamports) };
+      })(),
       }));
     }
   } else {
