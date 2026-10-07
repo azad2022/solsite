@@ -7,9 +7,9 @@ import {
   payJson,
   readJsonBody,
   PayRuntimeError,
-} from '../../../../../../_shared/runtime';
-import { assertTrustedOrigin, isSignature, isUuid, loadPayoutDetail, serializePayoutDetail, type BulkPayEnv } from '../../../../../../_shared/bulkPayout';
-import { resolvePayIdentity, supabaseRequestAsIdentity } from '../../../../../../_shared/identity';
+} from '../../../../_shared/runtime';
+import { assertTrustedOrigin, isSignature, isUuid, loadPayoutDetail, type BulkPayEnv } from '../../../../_shared/bulkPayout';
+import { resolvePayIdentity, supabaseRequestAsIdentity } from '../../../../_shared/identity';
 
 export const onRequestPost=async({request,env}:{request:Request;env:BulkPayEnv})=>{
   const requestId=makePayRequestId();
