@@ -128,7 +128,7 @@ export function createBulkPayoutService(httpClient:PayHttpClient=defaultPayHttpC
       const payload=await httpClient.request<Envelope<unknown>>(base(merchantId)+'&batchId='+encodeURIComponent(batchId));
       return parseSingle(payload,parseBatch);
     },
-    async create(merchantId:string,input:{asset:BulkPayoutAsset;items:Array<{recipient:string;amount:string}>},idempotencyKey=crypto.randomUUID()):Promise<BulkPayoutBatch>{
+    async create(merchantId:string,input:{asset:BulkPayoutAsset;items:Array<{recipient:string;amount:string}>},idempotencyKey:string=crypto.randomUUID()):Promise<BulkPayoutBatch>{
       const payload=await httpClient.request<Envelope<unknown>>(base(merchantId),{
         method:'POST',
         headers:{'Content-Type':'application/json','Idempotency-Key':idempotencyKey},
