@@ -1376,7 +1376,7 @@ try {
   assert.equal(await page.locator('.pay-onboarding-form').count(), 0, 'Wallet surface must not expose Merchant creation.');
   await page.goto(ORIGIN + '/pay/api-keys', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-api-keys').waitFor({ state: 'visible', timeout: 10000 });
-  assert.ok(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').evaluate((element) => element.classList.contains('is-active')));
+  assert.ok(await page.locator('.pay-sidebar .pay-nav-item[data-section="api-keys"]').evaluate((element) => element.classList.contains('is-active')));
   await page.goto(ORIGIN + '/pay/payment-links', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
   assert.ok(await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').evaluate((element) => element.classList.contains('is-active')));
