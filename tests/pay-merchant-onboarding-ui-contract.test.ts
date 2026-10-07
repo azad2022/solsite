@@ -58,10 +58,14 @@ test('merchant onboarding generates an editable technical identifier for localiz
 });
 
 
-test('Merchant route keeps the receiving-wallet verification surface visible after Merchant creation', () => {
+test('Merchant and receiving wallet are separate Pay surfaces', () => {
   const app = readFileSync(resolve(process.cwd(), 'src/pay/PayApp.tsx'), 'utf8');
-  assert.match(app, /const showMerchantOnboarding = sessionState === 'authenticated' && currentSection === 'merchants' && merchantLoadState === 'ready';/);
-  assert.match(app, /<PayMerchantOnboarding locale=\{locale\} initialMerchant=\{currentSection === 'merchants' \? merchant : null\}/);
+  assert.match(app, /const showMerchantOnboarding = sessionState === 'authenticated' && currentSection === 'merchants'/);
+  assert.match(app, /const showWalletManagement = sessionState === 'authenticated' && currentSection === 'wallet'/);
+  assert.match(app, /view="wallet"/);
+  assert.match(component, /view\?: 'merchant' \| 'wallet'/);
+  assert.match(component, /view === 'merchant'/);
+  assert.match(component, /view === 'wallet'/);
   assert.match(component, /receiveWallet/);
   assert.match(component, /useExistingWallet/);
   assert.match(component, /walletNotVerified/);
