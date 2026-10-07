@@ -1,6 +1,7 @@
 import { makePayRequestId, enforcePayRateLimit, hashCanonicalRequest, payFeatureEnabled, payJson, PayRuntimeError } from '../../../../_shared/runtime';
 import { assertTrustedOrigin, isSignature, isUuid, loadPayoutDetail, serializePayoutDetail, type BulkPayEnv } from '../../../../_shared/bulkPayout';
 import { resolvePayIdentity, supabaseRequestAsIdentity } from '../../../../_shared/identity';
+import { mintPayVerifierJwt } from '../../../../_shared/internal-jwt';
 import { createSolanaRpcProvider } from '../../../../../../../src/pay/services/solanaRpcProvider';
 import { verifyPayoutObservation } from '../../../../../../../src/pay/services/payoutPolicy';
 
@@ -45,8 +46,9 @@ export const onRequestPost=async({request,env}:{request:Request;env:BulkPayEnv})
       verificationCommitment:'finalized' as const,
     };
     const verification=verifyPayoutObservation(snapshot,observation);
+    const verifierToken=await mintPayVerifierJwt(env,identity.user.applicationUserId);
     const apply=await supabaseRequestAsIdentity(
-      env,identity.accessToken,'/rest/v1/rpc/pay_apply_payout_verification',
+      env,verifierToken,'/rest/v1/rpc/pay_apply_payout_verification',
       {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({
         p_merchant_id:merchantId,p_batch_id:batchId,p_signature:signature,p_status:verification.status,
         p_failure_code:verification.status==='failed'?verification.reason:null,
