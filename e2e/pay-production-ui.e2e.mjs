@@ -1094,7 +1094,7 @@ try {
   assert.equal(typeof publicCheckoutBody.data?.id, 'string');
   const publicIntentId = publicCheckoutBody.data.id;
   const publicIntentPayerFromDb = rows(await db(
-    `select id, merchant_id, customer_first_name, customer_last_name, customer_purpose
+    `select id, merchant_id, customer_first_name, customer_last_name, customer_purpose, status
        from public.pay_payment_intents
       where id = $1`,
     [publicIntentId],
@@ -1105,6 +1105,8 @@ try {
   assert.equal(publicIntentPayerFromDb[0].customer_first_name, 'Ali');
   assert.equal(publicIntentPayerFromDb[0].customer_last_name, 'Ahmadi');
   assert.equal(publicIntentPayerFromDb[0].customer_purpose, 'Production browser checkout verification');
+  assert.equal(publicIntentPayerFromDb[0].status, 'created',
+    'A newly-created Payment Intent must begin in the authoritative created state before Checkout reconciliation runs.');
   const publicIntentGetBodyText = await (await page.request.get(`${ORIGIN}/api/pay/v1/payment-intents/${encodeURIComponent(publicIntentId)}`)).text();
   assert.doesNotMatch(publicIntentGetBodyText, /customer_first_name|customer_last_name|customer_purpose/i,
     'Public Payment Intent GET must not expose payer PII.');
@@ -1195,7 +1197,8 @@ try {
   assert.equal(publicIntentFromDb[0].payment_link_id, linkFromDb[0].id);
   assert.equal(publicIntentFromDb[0].amount_atomic, '2000000');
   assert.equal(publicIntentFromDb[0].asset, 'USDC');
-  assert.equal(publicIntentFromDb[0].status, 'created');
+  assert.ok(['created', 'pending'].includes(publicIntentFromDb[0].status),
+    `Checkout may legitimately advance a newly-created intent to pending when its automatic reconciliation path runs (actual status: ${publicIntentFromDb[0].status}).`);
   await publicContext.close();
 
   // Production Ticket lifecycle: create -> reload -> merchant reply -> admin reply -> resolve -> close -> reopen.
