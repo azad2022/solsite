@@ -82,7 +82,7 @@ test('Bulk Pay verification rejects unexpected destination and amount', () => {
   assert.equal(verifyPayoutObservation(batch, {
     ...base,
     transfers: [{ role: 'other', source, sourceAuthority: source, destination: wrongRecipient, destinationAuthority: wrongRecipient, asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: null, amountAtomic: '5', instructionIndex: 1 }],
-  }).reason, 'EXTRA_TRANSFER');
+  }).reason, 'DESTINATION_MISMATCH');
   assert.equal(verifyPayoutObservation(batch, {
     ...base,
     transfers: [{ role: 'other', source, sourceAuthority: source, destination: expectedRecipient, destinationAuthority: expectedRecipient, asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: null, amountAtomic: '6', instructionIndex: 1 }],
