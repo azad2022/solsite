@@ -22,7 +22,8 @@ if (
   parsed.version !== 1 ||
   !Array.isArray(parsed.include) ||
   !Array.isArray(parsed.exclude) ||
-  !parsed.include.includes('/r/*')
+  !parsed.include.includes('/r/*') ||
+  !parsed.include.includes('/assets/*')
 ) {
   throw new Error('[pages-routes] _routes.json must use schema v1 and explicitly include /r/*.');
 }
@@ -31,8 +32,8 @@ fs.mkdirSync(distDir, { recursive: true });
 fs.writeFileSync(outputPath, JSON.stringify(parsed, null, 2) + '\n', 'utf8');
 
 const emitted = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
-if (!emitted.include.includes('/r/*')) {
-  throw new Error('[pages-routes] dist/_routes.json does not contain /r/*.');
+if (!emitted.include.includes('/r/*') || !emitted.include.includes('/assets/*')) {
+  throw new Error('[pages-routes] dist/_routes.json must contain /r/* and /assets/*.');
 }
 
 console.log('✓ Pages routing manifest emitted to dist/_routes.json with /r/* included.');
