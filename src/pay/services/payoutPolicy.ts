@@ -60,7 +60,7 @@ export function parseAtomicAmount(value: unknown): string {
 }
 
 export function parseDisplayAmountAtomic(value: unknown, decimals: number): string {
-  const raw = typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+  const raw = typeof value === 'string' ? value.trim() : '';
   if (!/^\d+(?:\.\d+)?$/.test(raw) || decimals < 0 || decimals > 255) throw new Error('INVALID_AMOUNT');
   const [whole, fraction = ''] = raw.split('.');
   if (fraction.length > decimals) throw new Error('TOO_MANY_DECIMALS');
