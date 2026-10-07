@@ -652,14 +652,16 @@ Merchant باید بتواند:
 
 ### Sidebar
 
-- Dashboard
-- Transactions
-- Customers
-- Merchants
-- Referrals
-- Tickets
-- Reports
-- Settings
+- Overview
+- Merchant
+- Wallet
+- Payment Link
+- Invoice
+- Earn
+- API keys
+- Developers
+- Security
+- Support
 
 ### Main
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Link2, Loader2, LockKeyhole, Menu, Network, ReceiptText, RefreshCw, ShieldCheck, Store, WalletCards,
+  ArrowUpRight, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Code2, FileText, LayoutDashboard, Link2, Loader2, LockKeyhole, Menu, Network, ReceiptText, RefreshCw, ShieldCheck, Store, WalletCards, KeyRound,
   TicketCheck, Users, Webhook, X,
 } from 'lucide-react';
 import { DEFAULT_PAY_LOCALE, PAY_LOCALE_FLAGS, PAY_LOCALE_SHORT_CODES, directionFor, languageName, normalizePayLocale, persistPayLocale, readStoredPayLocale, sectionLabel, sectionNavLabel, translate } from './i18n';
@@ -27,23 +27,25 @@ import { getPaySessionUser, type PaySessionUser } from './services/sessionServic
 import './pay.css';
 
 const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
-  overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, customers: Users, invoices: FileText, 'payment-links': Link2,
-  referrals: Network, reports: BarChart3, tickets: TicketCheck, developer: Code2, security: ShieldCheck, webhooks: Webhook,
+  overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, wallet: WalletCards, customers: Users, invoices: FileText, 'payment-links': Link2,
+  referrals: Network, reports: BarChart3, tickets: TicketCheck, 'api-keys': KeyRound, developer: Code2, security: ShieldCheck, webhooks: Webhook,
 };
 
 const PAY_NAV_SECTIONS: readonly PaySection[] = [
   'overview',
   'merchants',
+  'wallet',
   'payment-links',
   'invoices',
   'referrals',
+  'api-keys',
   'developer',
   'security',
   'tickets',
 ];
 
 const PAGE_HEADER_OWNERS: ReadonlySet<PaySection> = new Set([
-  'referrals', 'customers', 'tickets', 'developer', 'security', 'webhooks',
+  'referrals', 'customers', 'tickets', 'wallet', 'api-keys', 'developer', 'security', 'webhooks',
 ]);
 
 type SessionState = 'loading' | 'authenticated' | 'anonymous' | 'error';
@@ -242,6 +244,8 @@ export function PayApp(): React.ReactElement {
   const showGettingStartedGuide = sessionState === 'authenticated' && (currentSection === 'overview' || currentSection === 'merchants') && onboardingIncomplete;
   const canRenderMerchantSetup = sessionState === 'authenticated' && (merchantLoadState === 'ready' || merchantLoadState === 'error');
   const showMerchantOnboarding = sessionState === 'authenticated' && currentSection === 'merchants' && merchantLoadState === 'ready';
+  const showWalletManagement = sessionState === 'authenticated' && currentSection === 'wallet' && merchantLoadState === 'ready' && merchant !== null;
+  const showApiKeyManagement = sessionState === 'authenticated' && currentSection === 'api-keys' && merchantLoadState === 'ready' && merchant !== null;
   const isSiteAdminSession = sessionUser?.role === 'admin';
   const showTicketMerchantStatePanel = currentSection === 'tickets'
     && sessionState === 'authenticated'
@@ -265,7 +269,7 @@ export function PayApp(): React.ReactElement {
       ? translate(locale, 'merchantsDescription')
       : '';
   const pageTitle = title;
-  const merchantBoundSection = ['transactions', 'customers', 'invoices', 'payment-links', 'reports', 'security', 'webhooks'].includes(currentSection);
+  const merchantBoundSection = ['transactions', 'customers', 'invoices', 'payment-links', 'reports', 'wallet', 'api-keys', 'security', 'webhooks'].includes(currentSection);
   const showDeveloperWebhooks = showDeveloperHub && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showMerchantStatePanel = sessionState === 'authenticated' && merchantBoundSection && (merchantLoadState !== 'ready' || merchant === null);
   const showSessionErrorPanel = sessionState === 'error';
@@ -373,11 +377,13 @@ export function PayApp(): React.ReactElement {
 
             {showMerchantOnboarding ? <PayMerchantOnboarding locale={locale} initialMerchant={currentSection === 'merchants' ? merchant : null} onMerchantReady={(ready) => { setMerchant(ready); setMerchantLoadState('ready'); }} /> : null}
 
+            {showWalletManagement ? <PayMerchantOnboarding locale={locale} view="wallet" initialMerchant={merchant} onMerchantReady={(ready) => { setMerchant(ready); setMerchantLoadState('ready'); }} /> : null}
+
             {showSessionErrorPanel ? <PayRuntimeStatePanel locale={locale} kind="session-error" onPrimary={() => window.location.reload()} /> : null}
 
             {showMerchantStatePanel || showTicketMerchantStatePanel ? <PayRuntimeStatePanel locale={locale} kind={merchantLoadState === 'loading' ? 'merchant-loading' : merchant === null && merchantLoadState === 'ready' ? 'merchant-required' : 'merchant-error'} onPrimary={merchantLoadState === 'error' ? retryMerchantLookup : () => navigate('merchants')} onSecondary={merchantLoadState === 'error' ? () => navigate('merchants') : undefined} /> : null}
 
-            {currentSection === 'merchants' && sessionState === 'authenticated' && merchant ? <PayApiKeyManagement locale={locale} merchantId={merchant.id} merchantStatus={merchant.status} /> : null}
+            {showApiKeyManagement ? <PayApiKeyManagement locale={locale} merchantId={merchant.id} merchantStatus={merchant.status} /> : null}
 
             {showDashboard ? <PayDashboard locale={locale} merchant={merchant} onViewTransactions={() => navigate('transactions')} /> : null}
 
@@ -402,7 +408,7 @@ export function PayApp(): React.ReactElement {
 
             {showTickets ? <PayTicketCenter locale={locale} sessionUser={sessionUser!} merchantId={merchant?.id || null} /> : null}
 
-            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && !showWalletManagement && !showApiKeyManagement && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
@@ -411,7 +417,7 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && !showWalletManagement && !showApiKeyManagement && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />

@@ -16,6 +16,26 @@ test('Pay desktop sidebar remains anchored and vertically scrollable', () => {
   assert.match(sidebarBlock, /overscroll-behavior:\s*contain/);
 });
 
+test('Pay primary navigation contains the requested ten dedicated sections', () => {
+  const start = app.indexOf('const PAY_NAV_SECTIONS');
+  const end = app.indexOf('const PAGE_HEADER_OWNERS');
+  assert.ok(start >= 0 && end > start);
+  const block = app.slice(start, end);
+  const sections = [...block.matchAll(/'([^']+)'/g)].map(match => match[1]);
+  assert.deepEqual(sections, [
+    'overview',
+    'merchants',
+    'wallet',
+    'payment-links',
+    'invoices',
+    'referrals',
+    'api-keys',
+    'developer',
+    'security',
+    'tickets',
+  ]);
+});
+
 test('Pay shell keeps logical left/right placement under both writing directions', () => {
   assert.ok(css.includes(".solmint-pay[dir='ltr'] .pay-app-shell,\n.solmint-pay[dir='rtl'] .pay-app-shell { flex-direction: row; }"));
   assert.doesNotMatch(css, /\.solmint-pay\[dir='rtl'\] \.pay-app-shell \{ flex-direction: row-reverse; \}/);

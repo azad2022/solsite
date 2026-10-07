@@ -7,6 +7,7 @@ on:
       - '.github/workflows/solmint-pay-live-audit.yml'
       - '.github/solmint-pay-live-audit.trigger'
       - 'e2e/pay-production-ui.e2e.mjs'
+      - 'src/pay/**'
       - 'e2e/pay-referral-production.e2e.mjs'
       - 'functions/r/**'
       - 'public/_routes.json'
