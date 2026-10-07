@@ -80,8 +80,13 @@ function parseSummary(value:unknown):BulkPayoutBatchSummary{
   if(!['SOL','USDC','USDT'].includes(asset))throw new TypeError('Invalid Bulk Pay asset.');
   const status=string(row.status,'status');
   if(!['ready','submitted','verifying','completed','failed'].includes(status))throw new TypeError('Invalid Bulk Pay batch status.');
-  const program=row.tokenProgram===null?null:string(row.tokenProgram,'tokenProgram');
-  if(program!==null&&program!=='spl-token')throw new TypeError('Invalid Bulk Pay token program.');
+  const rawProgram=row.tokenProgram;
+  let program:'spl-token'|null=null;
+  if(rawProgram!==null){
+    const parsed=string(rawProgram,'tokenProgram');
+    if(parsed!=='spl-token')throw new TypeError('Invalid Bulk Pay token program.');
+    program='spl-token';
+  }
   return {
     id:string(row.id,'id'),merchantId:string(row.merchantId,'merchantId'),asset:asset as BulkPayoutAsset,
     tokenMint:nullableString(row.tokenMint,'tokenMint'),tokenProgram:program,
