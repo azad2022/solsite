@@ -22,14 +22,16 @@ function formatAtomicForE2e(value, decimals) {
 }
 
 async function openPaymentLinksView(page) {
-  const switchButton = page.locator('.pay-billing-tabs button').filter({ hasText: /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные ссылки/i });
-  await switchButton.waitFor({ state: 'visible', timeout: 10000 });
-  await switchButton.click();
-  await page.waitForFunction(() => {
-    const button = Array.from(document.querySelectorAll('.pay-billing-tabs button'))
-      .find((candidate) => /Payment links|لینک‌های پرداخت|روابط الدفع|Платёжные ссылки/i.test(candidate.textContent || ''));
-    return button?.getAttribute('aria-selected') === 'true';
-  }, null, { timeout: 10000 });
+  const navigationItem = page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]');
+  await navigationItem.waitFor({ state: 'visible', timeout: 10000 });
+  await navigationItem.click();
+  await page.waitForFunction(() => window.location.pathname === '/pay/payment-links', null, { timeout: 10000 });
+  await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(
+    await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').getAttribute('aria-current'),
+    'page',
+    'Payment Link navigation item must be active on the dedicated Payment Link route.',
+  );
 }
 
 function rows(value) {
