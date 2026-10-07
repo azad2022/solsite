@@ -7,6 +7,7 @@ import {
   parseDisplayAmountAtomic,
   totalAtomic,
   verifyPayoutObservation,
+  buildPayoutTransaction,
   type PayoutBatchSnapshot,
 } from '../src/pay/services/payoutPolicy';
 
@@ -86,4 +87,22 @@ test('Bulk Pay verification rejects unexpected destination and amount', () => {
     ...base,
     transfers: [{ role: 'other', source, sourceAuthority: source, destination: expectedRecipient, destinationAuthority: expectedRecipient, asset: 'SOL', tokenMint: null, tokenProgram: null, tokenDecimals: null, amountAtomic: '6', instructionIndex: 1 }],
   }).reason, 'AMOUNT_MISMATCH');
+});
+
+
+test('Bulk Pay transaction builder fails closed on snapshot item-count and total mismatches', async () => {
+  const source = Keypair.generate();
+  const recipient = Keypair.generate().publicKey.toBase58();
+  const base = {
+    ...makeBatch([{ recipient, amountAtomic:'5' }]),
+    sourceWalletAddress: source.publicKey.toBase58(),
+  };
+  await assert.rejects(
+    () => buildPayoutTransaction({ ...base, itemCount:2 }, source.publicKey, null as never),
+    /PAYOUT_SNAPSHOT_ITEM_COUNT_MISMATCH/,
+  );
+  await assert.rejects(
+    () => buildPayoutTransaction({ ...base, totalAmountAtomic:'6' }, source.publicKey, null as never),
+    /PAYOUT_SNAPSHOT_TOTAL_MISMATCH/,
+  );
 });
