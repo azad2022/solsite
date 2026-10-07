@@ -152,6 +152,7 @@ const routes = [
   ['/pay/transactions', 'transactions'],
   ['/pay/customers', 'customers'],
   ['/pay/invoices', 'invoices'],
+  ['/pay/payment-links', 'payment-links'],
   ['/pay/referrals', 'referrals'],
   ['/pay/reports', 'reports'],
   ['/pay/tickets', 'tickets'],
@@ -347,7 +348,7 @@ try {
     assert.equal(diagnostics.direction, expectedDirection);
     assert.ok(diagnostics.scrollHeight >= diagnostics.clientHeight);
     assert.equal(await sidebar.locator('.pay-nav-group-label').count(), 0, 'Sidebar must not show redundant navigation group headings.');
-    assert.equal(await sidebar.locator('.pay-nav-item').count(), 7, 'Sidebar must expose seven primary entries without duplicate category labels.');
+    assert.equal(await sidebar.locator('.pay-nav-item').count(), 8, 'Sidebar must expose the eight requested primary entries without duplicate category labels.');
 
     const mainColumn = await page.locator('.pay-main-column').boundingBox();
     assert.ok(mainColumn);
@@ -367,7 +368,7 @@ try {
       const style = getComputedStyle(icon);
       return { width: rect.width, height: rect.height, visibility: style.visibility, opacity: style.opacity };
     }));
-    assert.ok(iconDiagnostics.length >= 7, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
+    assert.equal(iconDiagnostics.length, 8, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
     assert.ok(iconDiagnostics.every((icon) => icon.width > 0 && icon.height > 0 && icon.visibility !== 'hidden' && Number(icon.opacity) > 0),
       `Sidebar icons must remain visible: ${JSON.stringify(iconDiagnostics)}`);
     const lastNav = page.locator('.pay-nav-item').last();
@@ -1338,20 +1339,27 @@ try {
   }
   console.log(`POSTWALLET_ROUTE_AUDIT ${JSON.stringify({ routeCount: postWalletRouteResults.length, results: postWalletRouteResults.map(result => ({ path: result.path, apiEvents: result.apiEvents, excerpt: result.excerpt.slice(0, 300) })) })}`);
 
-  // Grouped navigation regression: billing owns transactions/customers/reports, developer owns webhooks.
+  // Primary navigation regression: invoices and payment links are distinct entries; operations remain available inside the billing surface.
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 7, 'Pay sidebar should expose seven primary entries after navigation consolidation.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 8, 'Pay sidebar should expose eight primary entries after splitting invoices and payment links.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').innerText(), 'Invoice');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').innerText(), 'Payment link');
+  assert.ok(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').evaluate((element) => element.classList.contains('is-active')));
+  await page.goto(ORIGIN + '/pay/payment-links', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
+  assert.ok(await page.locator('.pay-sidebar .pay-nav-item[data-section="payment-links"]').evaluate((element) => element.classList.contains('is-active')));
+  assert.equal(await page.locator('.pay-billing-heading h1').innerText(), 'Payment links');
   assert.equal(await page.locator('.pay-billing-related-nav button').count(), 3, 'Billing hub must expose transactions, customers, and reports below the primary billing surface.');
 
   await page.locator('.pay-billing-related-nav button').filter({ hasText: /Customers|مشتریان|العملاء|Клиенты/i }).click();
   await page.locator('.pay-customers').waitFor({ state: 'visible', timeout: 10000 });
-  assert.match((await page.locator('.pay-topbar-breadcrumb strong').innerText()).trim(), /Invoices & payment links|صورتحساب و لینک‌ها|الفواتير وروابط الدفع|Счета и платёжные ссылки/i);
+  assert.match((await page.locator('.pay-topbar-breadcrumb strong').innerText()).trim(), /Customers|مشتریان|العملاء|Клиенты/i);
 
   await page.goto(ORIGIN + '/pay/developer', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-developer').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-developer-webhooks-section .pay-webhooks-shell').waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 7, 'Developer consolidation must keep the same seven primary entries.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 8, 'Developer consolidation must keep the eight primary entries.');
 
   await page.goto(ORIGIN + '/pay/merchants', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-api-keys').waitFor({ state: 'visible', timeout: 10000 });

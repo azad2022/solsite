@@ -10,6 +10,7 @@ test('Pay routes are real application routes, not SSR 404s', () => {
     '/pay/transactions',
     '/pay/customers',
     '/pay/invoices',
+    '/pay/payment-links',
     '/pay/referrals',
     '/pay/reports',
     '/pay/tickets',
