@@ -94,7 +94,8 @@ export const onRequestPost=async({request,env}:{request:Request;env:BulkPayEnv})
       const row=item as Record<string,unknown>;
       const recipient=typeof row.recipient==='string'?row.recipient.trim():'';
       if(!recipient)new Error('INVALID_RECIPIENT');
-      const canonicalRecipient=new PublicKey(recipient).toBase58();
+      let canonicalRecipient:string;
+      try{canonicalRecipient=new PublicKey(recipient).toBase58();}catch{throw new Error('INVALID_RECIPIENT');}
       const amountAtomic=parseDisplayAmountAtomic(row.amount,decimals);
       return {recipient:canonicalRecipient,amountAtomic};
     }));
