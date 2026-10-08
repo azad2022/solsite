@@ -99,16 +99,16 @@ rollback;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
-DO $$
-declare r jsonb; batch_id uuid;
+DO $
+declare r jsonb; v_batch_id uuid;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
     '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"},{"recipient":"33333333333333333333333333333333","amountAtomic":"2000"}]'::jsonb,'create-1',repeat('c',64)
   );
   if r->>'state' <> 'created' then raise exception 'owner create failed: %',r; end if;
-  batch_id := (r->>'resource_id')::uuid;
-  if (select item_count from public.pay_payout_batches where id=batch_id) <> 2 then raise exception 'item count was not persisted'; end if;
+  v_batch_id := (r->>'resource_id')::uuid;
+  if (select item_count from public.pay_payout_batches b where b.id=v_batch_id) <> 2 then raise exception 'item count was not persisted'; end if;
 
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
@@ -123,23 +123,23 @@ begin
   if r->>'state' <> 'conflict' then raise exception 'create idempotency conflict missing: %',r; end if;
 
   r := public.pay_submit_payout_batch(
-    '00000000-0000-0000-0000-000000000001',batch_id,repeat('A',88),'submit-1',repeat('e',64)
+    '00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'submit-1',repeat('e',64)
   );
   if r->>'state' <> 'submitted' then raise exception 'owner submit failed: %',r; end if;
 
   perform set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
   r := public.pay_apply_payout_verification(
-    '00000000-0000-0000-0000-000000000001',batch_id,repeat('A',88),'completed',null,null,123,null,'{"valid":true}'::jsonb,'req-1'
+    '00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'completed',null,null,123,null,'{"valid":true}'::jsonb,'req-1'
   );
   if r->>'state' <> 'unauthorized' then raise exception 'verifier claim bypassed: %',r; end if;
 
   perform set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_verifier":"true"}',true);
   r := public.pay_apply_payout_verification(
-    '00000000-0000-0000-0000-000000000001',batch_id,repeat('A',88),'completed',null,null,123,null,'{"valid":true}'::jsonb,'req-1'
+    '00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'completed',null,null,123,null,'{"valid":true}'::jsonb,'req-1'
   );
   if r->>'state' <> 'updated' then raise exception 'verifier update failed: %',r; end if;
   if (select status from public.pay_payout_batches where id=batch_id) <> 'completed' then raise exception 'batch not completed'; end if;
-  if (select count(*) from public.pay_payout_items i where i.batch_id=batch_id and i.status='completed') <> 2 then raise exception 'items not completed'; end if;
+  if (select count(*) from public.pay_payout_items i where i.batch_id=v_batch_id and i.status='completed') <> 2 then raise exception 'items not completed'; end if;
 end $$;
 rollback;
 
