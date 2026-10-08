@@ -1,10 +1,10 @@
 import { PublicKey } from '@solana/web3.js';
 import {
   assertIdempotencyKey, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, PayRuntimeError,
-} from '../../../_shared/runtime';
-import { resolveAssetFromEnvironment, type SupportedAssetConfig } from '../../../../../src/pay/services/assetPolicy';
-import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
-import type { PaymentAsset } from '../../../../../src/pay/types/domain';
+} from '../_shared/runtime';
+import { resolveAssetFromEnvironment, type SupportedAssetConfig } from '../../../../src/pay/services/assetPolicy';
+import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
+import type { PaymentAsset } from '../../../../src/pay/types/domain';
 
 interface PayoutEnv extends PayIdentityEnv {
   PAY_USDC_MINT?: string;
