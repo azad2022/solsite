@@ -28,7 +28,7 @@ import { getPaySessionUser, type PaySessionUser } from './services/sessionServic
 import './pay.css';
 
 const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
-  overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, wallet: WalletCards, customers: Users, invoices: FileText, 'payment-links': Link2,
+  overview: LayoutDashboard, checkout: CircleDollarSign, dashboard: BarChart3, transactions: ReceiptText, merchants: Store, wallet: WalletCards, customers: Users, invoices: FileText, 'payment-links': Link2, 'bulk-pay': Send,
   referrals: Network, reports: BarChart3, tickets: TicketCheck, 'api-keys': KeyRound, developer: Code2, security: ShieldCheck, webhooks: Webhook,
 };
 
