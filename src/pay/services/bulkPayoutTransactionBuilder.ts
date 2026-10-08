@@ -63,6 +63,12 @@ export function validateBulkPayoutSnapshot(batch: BulkPayoutTransactionBatch, it
   for (const item of items) ensureAddress(item.recipient);
 }
 
+export interface BuiltBulkPayoutTransaction {
+  transaction: string;
+  blockhash: string;
+  lastValidBlockHeight: number;
+}
+
 export async function buildBulkPayoutTransaction(
   batch: BulkPayoutTransactionBatch,
   items: readonly BulkPayoutTransactionItem[],
@@ -70,8 +76,8 @@ export async function buildBulkPayoutTransaction(
 ): Promise<string> {
   validateBulkPayoutSnapshot(batch, items);
   const source = ensureAddress(batch.sourceWalletAddress);
-  const blockhash = await connection.getLatestBlockhash('finalized');
-  const transaction = new Transaction({ feePayer: source, recentBlockhash: blockhash.blockhash });
+  const latestBlockhash = await connection.getLatestBlockhash('finalized');
+  const transaction = new Transaction({ feePayer: source, recentBlockhash: latestBlockhash.blockhash });
 
   if (batch.asset === 'SOL') {
     for (const item of items) {
@@ -118,7 +124,11 @@ export async function buildBulkPayoutTransaction(
     throw new Error(error instanceof Error && /too large|Transaction too large|encoding/i.test(error.message) ? 'BATCH_TRANSACTION_TOO_LARGE' : 'TRANSACTION_SERIALIZATION_FAILED');
   }
   if (serialized.length > 1232) throw new Error('BATCH_TRANSACTION_TOO_LARGE');
-  return bytesToBase64(serialized);
+  return {
+    transaction: bytesToBase64(serialized),
+    blockhash: latestBlockhash.blockhash,
+    lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+  };
 }
 
 export function bulkPayoutTransactionMeta(connection: Connection, batch: BulkPayoutTransactionBatch) {
