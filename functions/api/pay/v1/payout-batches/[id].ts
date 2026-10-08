@@ -1,5 +1,5 @@
-import { makePayRequestId, payFeatureEnabled, payJson, PayRuntimeError } from '../../../_shared/runtime';
-import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
+import { makePayRequestId, payFeatureEnabled, payJson, PayRuntimeError } from '../../_shared/runtime';
+import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../_shared/identity';
 
 interface Env extends PayIdentityEnv { PAY_API_ENABLED?: string; }
 function validUuid(value: string): boolean {
