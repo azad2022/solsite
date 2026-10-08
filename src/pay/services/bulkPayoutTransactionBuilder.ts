@@ -73,7 +73,7 @@ export async function buildBulkPayoutTransaction(
   batch: BulkPayoutTransactionBatch,
   items: readonly BulkPayoutTransactionItem[],
   connection: Connection,
-): Promise<string> {
+): Promise<BuiltBulkPayoutTransaction> {
   validateBulkPayoutSnapshot(batch, items);
   const source = ensureAddress(batch.sourceWalletAddress);
   const latestBlockhash = await connection.getLatestBlockhash('finalized');
