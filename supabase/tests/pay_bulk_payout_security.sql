@@ -127,13 +127,13 @@ begin
   );
   if r->>'state' <> 'submitted' then raise exception 'owner submit failed: %',r; end if;
 
-  select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
+  perform set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
   r := public.pay_apply_payout_verification(
     '00000000-0000-0000-0000-000000000001',batch_id,repeat('A',88),'completed',null,null,123,null,'{"valid":true}'::jsonb,'req-1'
   );
   if r->>'state' <> 'unauthorized' then raise exception 'verifier claim bypassed: %',r; end if;
 
-  select set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_verifier":"true"}',true);
+  perform set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_verifier":"true"}',true);
   r := public.pay_apply_payout_verification(
     '00000000-0000-0000-0000-000000000001',batch_id,repeat('A',88),'completed',null,null,123,null,'{"valid":true}'::jsonb,'req-1'
   );
