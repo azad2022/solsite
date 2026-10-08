@@ -363,7 +363,7 @@ try {
     assert.equal(diagnostics.direction, expectedDirection);
     assert.ok(diagnostics.scrollHeight >= diagnostics.clientHeight);
     assert.equal(await sidebar.locator('.pay-nav-group-label').count(), 0, 'Sidebar must not show redundant navigation group headings.');
-    assert.equal(await sidebar.locator('.pay-nav-item').count(), 10, 'Sidebar must expose the ten requested primary entries.');
+    assert.equal(await sidebar.locator('.pay-nav-item').count(), 11, 'Sidebar must expose all requested primary entries.');
 
     const mainColumn = await page.locator('.pay-main-column').boundingBox();
     assert.ok(mainColumn);
