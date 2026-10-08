@@ -45,6 +45,8 @@ export const onRequestPost=async({request,env,params}:{request:Request;env:Env;p
     });
     if((await access.json())!==true) return payJson({code:'FORBIDDEN',message:'You do not have permission to verify this Bulk Pay batch.'},403,requestId);
     if(!env.SOLANA_RPC_URL || !/^https:\/\//i.test(env.SOLANA_RPC_URL)) return payJson({code:'SOLANA_RPC_MISCONFIGURED',message:'Solana RPC is not configured.'},503,requestId);
+    if(batch.asset==='USDC' && !env.PAY_USDC_MINT) return payJson({code:'ASSET_POLICY_MISCONFIGURED',message:'USDC verification policy is not configured.'},503,requestId);
+    if(batch.asset==='USDT' && !env.PAY_USDT_MINT) return payJson({code:'ASSET_POLICY_MISCONFIGURED',message:'USDT verification policy is not configured.'},503,requestId);
     if(!batch.transaction_signature) return payJson({apiVersion:'v1',data:{batch,outcome:'not_detected'}},200,requestId);
     if(batch.status==='completed'||batch.status==='failed') return payJson({apiVersion:'v1',data:{batch,outcome:batch.status}},200,requestId);
 
