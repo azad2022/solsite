@@ -58,7 +58,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
     const identity = await resolvePayIdentity(request, env);
     const url = new URL(request.url);
     if (url.searchParams.get('assets') === '1') {
-      const configs = (['SOL','USDC','USDT'] as const).flatMap(a => { try { return [resolveAssetFromEnvironment(a, env)]; } catch { return []; } });
+      const configs = (['SOL','USDC','USDT'] as const).flatMap(a => { try { return [resolveAssetFromEnvironment(a, env as Record<string, string | undefined>)]; } catch { return []; } });
       return payJson({ apiVersion:'v1', data:{ assets:configs.map(publicAsset) } },200,requestId);
     }
     const merchantId = url.searchParams.get('merchantId')?.trim() || '';
@@ -94,7 +94,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const requestHash = await hashCanonicalRequest(canonical);
     const subjectHash = await hashCanonicalRequest({ userId:identity.user.applicationUserId,merchantId });
     await enforcePayRateLimit(env,'payout-batches:create',subjectHash,60,10);
-    const config = resolveAssetFromEnvironment(body.asset, env);
+    const config = resolveAssetFromEnvironment(body.asset, env as Record<string, string | undefined>);
     const result = await rpc<any>(env, identity.accessToken,'pay_create_payout_batch',{
       p_merchant_id:merchantId,p_asset:config.asset,p_token_mint:config.tokenMint,p_token_program:config.tokenProgram,p_token_decimals:config.decimals,
       p_items:items,p_idempotency_key:idempotencyKey,p_request_hash:requestHash,
