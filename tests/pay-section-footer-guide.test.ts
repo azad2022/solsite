@@ -21,7 +21,7 @@ test('all Pay routes have guide coverage, including dedicated workflow guides',(
     assert.ok(guide.includes(id + ':'), 'Missing guide mapping for ' + id);
   }
   for(const key of ['invoices','payment-links','bulk-pay','api-keys']) {
-    assert.match(i18n, new RegExp("['\\\"]" + key.replace('-', '\\\\-') + "['\\\"]\\s*:\\s*\\{"));
+    assert.match(i18n, new RegExp("(?:(?:['\\\"])?"+key.replace('-', '\\\\-')+"(?:['\\\"])?)(?:\\s*):(\\s*)\\{"));
   }
 });
 
