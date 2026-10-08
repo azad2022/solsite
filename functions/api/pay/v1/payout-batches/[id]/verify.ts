@@ -1,8 +1,8 @@
 import { createSolanaRpcProvider } from '../../../../../../src/pay/services/solanaRpcProvider';
 import { verifyBulkPayoutTransaction, type BulkPayoutVerificationBatch } from '../../../../../../src/pay/services/bulkPayoutPolicy';
 import { makePayRequestId, enforcePayRateLimit, hashCanonicalRequest, payFeatureEnabled, payJson, PayRuntimeError } from '../../../_shared/runtime';
-import { mintPayInternalVerifierJwt, type PayInternalJwtEnv } from '../../../../_shared/internal-jwt';
-import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../../_shared/identity';
+import { mintPayInternalVerifierJwt, type PayInternalJwtEnv } from '../../../_shared/internal-jwt';
+import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
 import type { PaymentAsset, TokenProgram } from '../../../../../../src/pay/types/domain';
 
 interface Env extends PayIdentityEnv, PayInternalJwtEnv {
