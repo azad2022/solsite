@@ -45,7 +45,7 @@ function assetFieldsMatch(batch: BulkPayoutVerificationBatch, transfer: Observed
 }
 
 function itemMatches(batch: BulkPayoutVerificationBatch, item: BulkPayoutVerificationItem, transfer: ObservedTransfer): boolean {
-  if (!assetFieldsMatch(batch, transfer) || transfer.sourceAuthority !== batch.sourceWalletAddress) return false;
+  if (!assetFieldsMatch(batch, transfer) || transfer.sourceAuthority !== batch.sourceWalletAddress || transfer.amountAtomic !== item.amountAtomic) return false;
   if (batch.asset === 'SOL') return transfer.destination === item.recipient;
   return transfer.destinationAuthority === item.recipient;
 }
