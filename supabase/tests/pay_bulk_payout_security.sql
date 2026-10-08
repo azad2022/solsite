@@ -64,7 +64,7 @@ begin
   if has_function_privilege('anon','public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text)','EXECUTE') then raise exception 'anon can execute Bulk Pay create'; end if;
   if has_function_privilege('anon','public.pay_submit_payout_batch(uuid,uuid,text,text,text)','EXECUTE') then raise exception 'anon can execute Bulk Pay submit'; end if;
   if has_function_privilege('anon','public.pay_apply_payout_verification(uuid,uuid,text,text,text,text,bigint,timestamptz,jsonb,text)','EXECUTE') then raise exception 'anon can execute Bulk Pay verifier'; end if;
-  if has_function_privilege('authenticated','public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text)') is not true then raise exception 'authenticated create grant missing'; end if;
+  if has_function_privilege('authenticated','public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text)','EXECUTE') is not true then raise exception 'authenticated create grant missing'; end if;
 end $$;
 
 begin;
