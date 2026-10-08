@@ -5,9 +5,9 @@ import { buildBulkPayoutTransaction } from '../src/pay/services/bulkPayoutTransa
 import { verifyBulkPayoutTransaction } from '../src/pay/services/bulkPayoutPolicy';
 import type { ObservedPaymentTransaction } from '../src/pay/services/verificationPolicy';
 
-const SOURCE='11111111111111111111111111111111';
-const A='22222222222222222222222222222222';
-const B='33333333333333333333333333333333';
+const SOURCE=Keypair.generate().publicKey.toBase58();
+const A=Keypair.generate().publicKey.toBase58();
+const B=Keypair.generate().publicKey.toBase58();
 
 function observed(transfers:ObservedPaymentTransaction['transfers'], overrides:Partial<ObservedPaymentTransaction>={}):ObservedPaymentTransaction {
   return {
