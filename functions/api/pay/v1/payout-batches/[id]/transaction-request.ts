@@ -1,5 +1,5 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { makePayRequestId, enforcePayRateLimit, payFeatureEnabled, payJson, readJsonBody, PayRuntimeError } from '../../../_shared/runtime';
+import { makePayRequestId, enforcePayRateLimit, hashCanonicalRequest, payFeatureEnabled, payJson, readJsonBody, PayRuntimeError } from '../../../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
 import { buildBulkPayoutTransaction, type BulkPayoutTransactionBatch, type BulkPayoutTransactionItem } from '../../../../../../src/pay/services/bulkPayoutTransactionBuilder';
 import type { PaymentAsset, TokenProgram } from '../../../../../../src/pay/types/domain';
@@ -19,7 +19,7 @@ export const onRequestPost = async ({ request, env, params }: { request:Request;
     if(!isAddress(body.account)) return payJson({code:'INVALID_ACCOUNT',message:'A valid wallet account is required.'},400,requestId);
     const account=new PublicKey(body.account);
     const source=request.headers.get('CF-Connecting-IP')||request.headers.get('x-forwarded-for')||'anonymous';
-    await enforcePayRateLimit(env,'payout-batches:transaction-request',batchId + ':' + source,60,6);
+    await enforcePayRateLimit(env,'payout-batches:transaction-request',await hashCanonicalRequest({batchId,source}),60,6);
 
     const batchResponse=await supabaseRequestAsIdentity(env,identity.accessToken,
       '/rest/v1/pay_payout_batches?select=id,merchant_id,asset,token_mint,token_program,token_decimals,source_wallet_address,total_amount_atomic,item_count,status,verification_commitment&id=eq.'+encodeURIComponent(batchId)+'&limit=1');
