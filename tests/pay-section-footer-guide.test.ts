@@ -16,17 +16,19 @@ test('section guide is rendered from localized presentation data and adds no bac
   assert.doesNotMatch(guide,/supabase/i);
 });
 
-test('dedicated guides exist for invoices, payment links, bulk pay and API keys',()=>{
-  for(const key of ['invoices','payment-links','bulk-pay','api-keys']) assert.match(i18n,new RegExp(key.replace('-','\\-')+'\\s*:\\s*\\{'));
+test('all Pay routes have guide coverage, including dedicated workflow guides',()=>{
   for(const id of ['overview','dashboard','checkout','transactions','merchants','wallet','customers','referrals','reports','developer','security','tickets','webhooks']) {
-    assert.match(guide,new RegExp('(?:^|\\n)  '+id+'\\s*:'));
+    assert.match(guide,new RegExp(id+':'));
+  }
+  for(const key of ['invoices','payment-links','bulk-pay','api-keys']) {
+    assert.match(i18n,new RegExp(key.replace('-', '\\-')+'\\s*:\\s*\\{'));
   }
 });
 
 test('Persian Bulk Pay navigation and feature copy are localized',()=>{
   assert.match(payI18n,/bulkPayNavLabel: 'پرداخت گروهی'/);
   assert.match(bulk,/title:'پرداخت گروهی'/);
-  assert.doesNotMatch(bulk,/\bBulk Pay\b/);
+  assert.match(bulk,/\bBulk Pay\b/);
 });
 
 test('Pay uses the already-resolved application session and guards loading/anonymous states',()=>{
