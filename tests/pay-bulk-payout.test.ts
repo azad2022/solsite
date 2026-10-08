@@ -66,12 +66,14 @@ test('Bulk Pay verifier rejects duplicate ambiguous transfers',()=>{
 test('Bulk Pay transaction builder binds fee payer and exact instructions',async()=>{
   const latest={blockhash:'9'.repeat(32),lastValidBlockHeight:123};
   const connection={getLatestBlockhash:async()=>latest} as unknown as Connection;
-  const encoded=await buildBulkPayoutTransaction({
+  const built=await buildBulkPayoutTransaction({
     sourceWalletAddress:SOURCE,asset:'SOL',tokenMint:null,tokenProgram:null,tokenDecimals:null,totalAmountAtomic:'3000',itemCount:2,
   },[{recipient:A,amountAtomic:'1000'},{recipient:B,amountAtomic:'2000'}],connection);
-  const transaction=Transaction.from(Uint8Array.from(atob(encoded),char=>char.charCodeAt(0)));
+  const transaction=Transaction.from(Uint8Array.from(atob(built.transaction),char=>char.charCodeAt(0)));
   assert.equal(transaction.feePayer?.toBase58(),SOURCE);
   assert.equal(transaction.recentBlockhash,latest.blockhash);
+  assert.equal(built.blockhash,latest.blockhash);
+  assert.equal(built.lastValidBlockHeight,latest.lastValidBlockHeight);
   assert.equal(transaction.instructions.length,2);
   assert.deepEqual(transaction.instructions.map(instruction=>instruction.programId.toBase58()),[SystemProgram.programId.toBase58(),SystemProgram.programId.toBase58()]);
   assert.equal(new PublicKey(A).equals(transaction.instructions[0].keys[1].pubkey),true);
