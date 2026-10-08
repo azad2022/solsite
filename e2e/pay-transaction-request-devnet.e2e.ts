@@ -19,6 +19,8 @@ const FEE = 10_000n;
 const SETTLEMENT = PAYMENT_AMOUNT - FEE;
 const TOP_UP = Number(PAYMENT_AMOUNT + 1_000_000n);
 const MIN_FUNDER_BALANCE = TOP_UP + 100_000;
+const DISCOVERY_POLL_ATTEMPTS = 15;
+const DISCOVERY_POLL_DELAY_MS = 2_000;
 
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58].map((char, index) => [char, index]));
@@ -123,11 +125,19 @@ test('hosted transaction builder produces a real discoverable Devnet payment', {
   assert.equal(confirmation.value.err, null);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
-  const discovered = await provider.findTransactionsByReference(
+  let discovered = await provider.findTransactionsByReference(
     reference.publicKey.toBase58(),
     'finalized',
     { createdAt, expiresAt },
   );
+  for (let attempt = 1; attempt <= DISCOVERY_POLL_ATTEMPTS && !discovered.some((candidate) => candidate.signature === signature); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, DISCOVERY_POLL_DELAY_MS));
+    discovered = await provider.findTransactionsByReference(
+      reference.publicKey.toBase58(),
+      'finalized',
+      { createdAt, expiresAt },
+    );
+  }
   assert.ok(discovered.some((candidate) => candidate.signature === signature), 'server-built payment must be discoverable by its Pay reference');
 
   const expected: ExpectedPayment = {
