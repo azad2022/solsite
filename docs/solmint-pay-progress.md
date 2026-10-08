@@ -1659,21 +1659,51 @@ Current state:
 - The previous Hosted Checkout release evidence remains valid because PR `#327` changes only the Merchant/Receiving Wallet presentation boundary and does not alter Pay runtime or financial behavior.
 
 
-## 2026-10-08 — Bulk Pay implementation checkpoint
+## 2026-10-08 — Bulk Pay production release checkpoint
 
-Status: **IMPLEMENTED ON ISOLATED BRANCH / RELEASE NOT YET CLAIMED**
+Status: **PRODUCTION VERIFIED / RELEASE READY**
 
-Baseline verified:
-- Current main baseline: `6330ff8bc232d5f217b30caa38e3026e9f20557a`.
-- Production database already contains the Bulk Pay tables and applied migrations `20261007164348_solmint_pay_bulk_payout` and `20261007173028_solmint_pay_bulk_payout_verifier_hardening`; those migration sources were missing from main and have now been restored on this branch.
+Final main runtime commit:
+- `a1acab905c3d46a848d2cc8e09ccf465b41bc8eb`
 
-Implemented on `feat/solmint-pay-bulk-pay`:
-- Merchant Bulk Pay UI with four-locale RTL/LTR support.
-- Server-mediated create/list/detail/transaction-request/submit/verify API boundary.
-- Backend-built Solana legacy batch transaction with SOL and server-configured SPL Token assets.
-- Server-only verifier JWT claim required by the existing live verifier RPC.
-- Deterministic finalized transaction verification for all payout items and exact aggregate amount.
-- Server-side idempotency, merchant role authorization, source-wallet match, RLS-scoped reads, and direct table-write denial.
-- Unit coverage for builder and verifier policy, plus real Devnet transaction E2E and isolated database security fixture.
+Release sequence:
+- PR `#332` — Bulk Pay implementation — merged as `bf4647e92695a4a22b39f89c74f3c8c012118916`.
+- PR `#333` — production sidebar assertion alignment — merged as `32292b216966f583b437e32eb177a6b749d2ed86`.
+- PR `#334` — all remaining production sidebar count assertions — merged as `a1acab905c3d46a848d2cc8e09ccf465b41bc8eb`.
 
-Release gate remains **OPEN** until the branch passes Quality, Production Build, Database Security, Devnet E2E, Pages deployment/production evidence and the applicable release audit.
+Authoritative validation evidence:
+- CI / Quality: **PASS** (run `37757996975`).
+- Production Build: **PASS** (run `37757996972`).
+- Cloudflare Pages production deployment: **PASS** on `a1acab905c3d46a848d2cc8e09ccf465b41bc8eb`.
+- Supabase Preview: **PASS**.
+- SolMint Pay Production Browser UI E2E: **PASS** (run `37757997051`).
+- SolMint Pay Live Browser Audit: **PASS** (run `37757997048`).
+- SolMint Pay Live Smoke: **PASS** (run `37756937581`) on the Bulk Pay runtime commit; subsequent merges changed E2E assertions only.
+- SolMint Pay Production API Contract: **PASS** (run `37756937228`) on the Bulk Pay runtime commit.
+- SolMint Pay Database Security: **PASS** (run `37756937333`) on the Bulk Pay runtime commit; subsequent merges changed E2E assertions only.
+- SolMint Pay Devnet E2E: **PASS** (run `37756937398`) including real Bulk Pay transaction and verification.
+- SolMint Pay Mainnet Read-only: **PASS** (run `37756937078`).
+- SolMint Pay Webhook Egress Security: **PASS** (run `37756937304`).
+- Authentication build verification: **PASS** (run `37756937340`).
+- Sync Bun lockfile: **PASS** (run `37756937208`).
+
+Production database contract revalidated:
+- Bulk Pay RPCs exist with the exact production signatures.
+- `anon` has no EXECUTE privilege; `authenticated` has EXECUTE.
+- All three payout RPCs remain SECURITY DEFINER.
+- Merchant-scoped SELECT RLS remains enabled for payout batches/items.
+- Verifier RPC continues to require its privileged server-side verifier capability.
+
+Security conclusion:
+- No private key, seed phrase, webhook secret, API secret, or internal signing material enters the client path.
+- Bulk Pay completion remains server-side and finalized-blockchain-verification authoritative.
+- Browser submission/reference state is not treated as payment proof.
+- No new financial business rule or frontend-authoritative accounting logic was introduced.
+
+Known non-gating provider integration:
+- `Workers Builds: solsite` remains **FAILURE** as a separate legacy Cloudflare Worker integration.
+- Repository deployment configuration identifies Cloudflare Pages as the production deployment path (`pages_build_output_dir = "./dist"`); Pages production deployment and all Pay runtime gates are green.
+- This Worker integration failure is outside the documented SolMint Pay Pages release path and does not gate this release.
+
+Release conclusion:
+**SolMint Pay Bulk Pay is production-verified and release-ready on main. No unresolved Bulk Pay implementation or production-runtime blocker remains.**
