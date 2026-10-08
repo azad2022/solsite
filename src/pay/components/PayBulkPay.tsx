@@ -73,6 +73,7 @@ function errorMessage(error:unknown,locale:PayLocale):string {
   if(error instanceof PayHttpError){
     if(error.code==='BATCH_TRANSACTION_TOO_LARGE')return bulkT(locale,'sizeFailed');
     if(error.code==='SOURCE_TOKEN_ACCOUNT_NOT_FOUND')return bulkT(locale,'sourceTokenMissing');
+    if(error.code==='MERCHANT_WALLET_NOT_READY')return bulkT(locale,'walletRequired');
     if(error.status===401)return bulkT(locale,'unauthorized');
     if(error.status===403)return bulkT(locale,'forbidden');
     if(error.status>=500||error.status===429)return bulkT(locale,'retryable');
@@ -184,7 +185,7 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
     setFlowState('signing');
     try{
       const connectionResult=await entry.provider.connect?.();
-      const connected=publicKeyString(connectionResult&&typeof connectionResult==='object'?'publicKey':undefined) || publicKeyString(entry.provider.publicKey);
+      const connected=publicKeyString(connectionResult&&typeof connectionResult==='object'?(connectionResult as { publicKey?: unknown }).publicKey:undefined) || publicKeyString(entry.provider.publicKey);
       if(!connected || connected!==selected.batch.source_wallet_address){setFlowState('wallet');setFlowError(bulkT(locale,'walletMismatch'));return;}
       const request=await bulkPayoutService.transactionRequest(selected.batch.id,connected);
       const tx=Transaction.from(toBytes(request.transaction));
