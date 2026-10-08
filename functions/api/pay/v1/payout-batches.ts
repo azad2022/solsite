@@ -58,7 +58,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
     const identity = await resolvePayIdentity(request, env);
     const url = new URL(request.url);
     if (url.searchParams.get('assets') === '1') {
-      const configs = (['SOL','USDC','USDT'] as const).map(a => resolveAssetFromEnvironment(a, env));
+      const configs = (['SOL','USDC','USDT'] as const).flatMap(a => { try { return [resolveAssetFromEnvironment(a, env)]; } catch { return []; } });
       return payJson({ apiVersion:'v1', data:{ assets:configs.map(publicAsset) } },200,requestId);
     }
     const merchantId = url.searchParams.get('merchantId')?.trim() || '';
