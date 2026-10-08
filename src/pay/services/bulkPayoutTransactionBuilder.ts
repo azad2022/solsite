@@ -131,10 +131,3 @@ export async function buildBulkPayoutTransaction(
   };
 }
 
-export function bulkPayoutTransactionMeta(connection: Connection, batch: BulkPayoutTransactionBatch) {
-  return connection.getLatestBlockhash('finalized').then(value => ({
-    blockhash: value.blockhash,
-    lastValidBlockHeight: value.lastValidBlockHeight,
-    feePayer: batch.sourceWalletAddress,
-  }));
-}
