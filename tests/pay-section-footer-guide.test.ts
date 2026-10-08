@@ -43,3 +43,12 @@ test('Pay uses the already-resolved application session and guards loading/anony
   assert.match(app,/kind="session-loading"/);
   assert.match(app,/kind="session-required"/);
 });
+test('Dedicated billing and Bulk Pay guides describe user-facing purpose without exposing internal atomic-input details for Bulk Pay',()=>{
+  const bulkBlock = i18n.slice(i18n.indexOf("'bulk-pay':{"), i18n.indexOf("'api-keys':{"));
+  const invoiceBlock = i18n.slice(i18n.indexOf("invoices:{"), i18n.indexOf("'payment-links':{"));
+  const linkBlock = i18n.slice(i18n.indexOf("'payment-links':{"), i18n.indexOf("'bulk-pay':{"));
+  assert.match(bulkBlock,/با واحد همان دارایی|normal unit|وحدة الأصل نفسها|обычных единицах/);
+  assert.doesNotMatch(bulkBlock,/مبلغ اتمیک|atomic amount|المبلغ الذري|atomic units/);
+  assert.match(invoiceBlock,/مناسب برای ثبت جزئیات یک درخواست پرداخت|one traceable record/);
+  assert.match(linkBlock,/مناسب برای انتشار لینک|sharing payment access/);
+});
