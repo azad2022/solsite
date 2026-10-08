@@ -126,6 +126,24 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_referral_security.sql
 
 
+      - name: Create isolated Bulk Pay security database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: createdb pay_bulk_payout_security
+
+      - name: Run Bulk Pay security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_bulk_payout_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_bulk_payout_security.sql
+
       - name: Create isolated report security database
         env:
           PGHOST: 127.0.0.1
