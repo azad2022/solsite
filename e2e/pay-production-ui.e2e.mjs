@@ -383,7 +383,7 @@ try {
       const style = getComputedStyle(icon);
       return { width: rect.width, height: rect.height, visibility: style.visibility, opacity: style.opacity };
     }));
-    assert.equal(iconDiagnostics.length, 10, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
+    assert.equal(iconDiagnostics.length, 11, `Every primary navigation entry must retain a visible icon: ${JSON.stringify(iconDiagnostics)}`);
     assert.ok(iconDiagnostics.every((icon) => icon.width > 0 && icon.height > 0 && icon.visibility !== 'hidden' && Number(icon.opacity) > 0),
       `Sidebar icons must remain visible: ${JSON.stringify(iconDiagnostics)}`);
     const lastNav = page.locator('.pay-nav-item').last();
@@ -1373,7 +1373,7 @@ try {
   // Primary navigation regression: invoices and payment links are distinct entries; operations remain available inside the billing surface.
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-billing').waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 10, 'Pay sidebar should expose the ten dedicated primary entries.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 11, 'Pay sidebar should expose all dedicated primary entries.');
   assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="merchants"]').getAttribute('aria-label'), 'Merchant');
   assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="wallet"]').getAttribute('aria-label'), 'Wallet');
   assert.equal(await page.locator('.pay-sidebar .pay-nav-item[data-section="invoices"]').getAttribute('aria-label'), 'Invoice');
@@ -1402,7 +1402,7 @@ try {
   await page.goto(ORIGIN + '/pay/developer', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-developer').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.pay-developer-webhooks-section .pay-webhooks-shell').waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 10, 'Developer consolidation must keep the ten primary entries.');
+  assert.equal(await page.locator('.pay-sidebar .pay-nav-item').count(), 11, 'Developer consolidation must keep all primary entries.');
 
   await page.goto(ORIGIN + '/pay/api-keys', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-api-keys').waitFor({ state: 'visible', timeout: 10000 });
