@@ -22,7 +22,6 @@ import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
 import PayAccountMenu from './components/PayAccountMenu';
 import PayBulkPay from './components/PayBulkPay';
-import PaySectionGuide from './components/PaySectionGuide';
 import { webhookCopy } from './components/pay-webhooks-i18n';
 import { getMyMerchant, type PayMerchant } from './services/merchantOnboardingService';
 import type { PaySessionUser } from './services/sessionService';
@@ -439,7 +438,6 @@ export function PayApp({ applicationUser }: PayAppProps): React.ReactElement {
             </>}
           </main>
           <footer className="pay-footer">
-            <PaySectionGuide locale={locale} section={currentSection} />
             <div className="pay-footer-legal"><span>{translate(locale, 'footer')}</span></div>
           </footer>
         </section>
