@@ -138,7 +138,7 @@ begin
     '00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'completed',null,null,123,null,'{"valid":true}'::jsonb,'req-1'
   );
   if r->>'state' <> 'updated' then raise exception 'verifier update failed: %',r; end if;
-  if (select status from public.pay_payout_batches where id=batch_id) <> 'completed' then raise exception 'batch not completed'; end if;
+  if (select status from public.pay_payout_batches b where b.id=v_batch_id) <> 'completed' then raise exception 'batch not completed'; end if;
   if (select count(*) from public.pay_payout_items i where i.batch_id=v_batch_id and i.status='completed') <> 2 then raise exception 'items not completed'; end if;
 end $$;
 rollback;
