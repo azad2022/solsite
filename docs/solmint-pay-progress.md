@@ -1658,3 +1658,22 @@ Current state:
 - No open issue matching the Pay scope was found in the repository.
 - The previous Hosted Checkout release evidence remains valid because PR `#327` changes only the Merchant/Receiving Wallet presentation boundary and does not alter Pay runtime or financial behavior.
 
+
+## 2026-10-08 — Bulk Pay implementation checkpoint
+
+Status: **IMPLEMENTED ON ISOLATED BRANCH / RELEASE NOT YET CLAIMED**
+
+Baseline verified:
+- Current main baseline: `6330ff8bc232d5f217b30caa38e3026e9f20557a`.
+- Production database already contains the Bulk Pay tables and applied migrations `20261007164348_solmint_pay_bulk_payout` and `20261007173028_solmint_pay_bulk_payout_verifier_hardening`; those migration sources were missing from main and have now been restored on this branch.
+
+Implemented on `feat/solmint-pay-bulk-pay`:
+- Merchant Bulk Pay UI with four-locale RTL/LTR support.
+- Server-mediated create/list/detail/transaction-request/submit/verify API boundary.
+- Backend-built Solana legacy batch transaction with SOL and server-configured SPL Token assets.
+- Server-only verifier JWT claim required by the existing live verifier RPC.
+- Deterministic finalized transaction verification for all payout items and exact aggregate amount.
+- Server-side idempotency, merchant role authorization, source-wallet match, RLS-scoped reads, and direct table-write denial.
+- Unit coverage for builder and verifier policy, plus real Devnet transaction E2E and isolated database security fixture.
+
+Release gate remains **OPEN** until the branch passes Quality, Production Build, Database Security, Devnet E2E, Pages deployment/production evidence and the applicable release audit.
