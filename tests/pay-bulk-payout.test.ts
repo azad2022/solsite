@@ -64,7 +64,7 @@ test('Bulk Pay verifier rejects duplicate ambiguous transfers',()=>{
 });
 
 test('Bulk Pay transaction builder binds fee payer and exact instructions',async()=>{
-  const latest={blockhash:'9'.repeat(32),lastValidBlockHeight:123};
+  const latest={blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:123};
   const connection={getLatestBlockhash:async()=>latest} as unknown as Connection;
   const built=await buildBulkPayoutTransaction({
     sourceWalletAddress:SOURCE,asset:'SOL',tokenMint:null,tokenProgram:null,tokenDecimals:null,totalAmountAtomic:'3000',itemCount:2,
