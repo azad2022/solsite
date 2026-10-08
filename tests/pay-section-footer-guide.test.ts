@@ -21,7 +21,7 @@ test('all Pay routes have guide coverage, including dedicated workflow guides',(
     assert.ok(guide.includes(id + ':'), 'Missing guide mapping for ' + id);
   }
   for(const key of ['invoices','payment-links','bulk-pay','api-keys']) {
-    assert.match(i18n,new RegExp(key.replace('-', '\\-')+'\\s*:\\s*\\{'));
+    assert.ok(i18n.includes(key + ':{'), 'Missing dedicated guide for ' + key);
   }
 });
 
@@ -32,7 +32,7 @@ test('Persian Bulk Pay navigation and feature copy are localized',()=>{
 });
 
 test('Pay uses the already-resolved application session and guards loading/anonymous states',()=>{
-  assert.match(app,/applicationUser: PaySessionUser \| null/);
+  assert.match(app,/PayAppProps \{ applicationUser: PayApplicationUser \| null; \}/);
   assert.match(app,/applicationUser\?\.id/);
   assert.doesNotMatch(app,/getPaySessionUser/);
   assert.match(app,/showSessionLoadingPanel/);
