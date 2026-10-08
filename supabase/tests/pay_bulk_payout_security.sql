@@ -57,7 +57,7 @@ insert into public.pay_merchant_wallets(merchant_id,address,wallet_role,is_activ
  ('00000000-0000-0000-0000-000000000001','11111111111111111111111111111111','receiving',true,'verified'),
  ('00000000-0000-0000-0000-000000000002','11111111111111111111111111111111','receiving',true,'verified');
 
-revoke all on table public.pay_payout_batches, public.pay_payout_items from anon, authenticated;
+revoke insert, update, delete, truncate, references, trigger on table public.pay_payout_batches, public.pay_payout_items from anon, authenticated;
 
 DO $$
 begin
