@@ -26,6 +26,11 @@ on:
       - 'e2e/pay-devnet-native.e2e.ts'
       - 'e2e/pay-payment-intent-devnet-lifecycle.e2e.ts'
       - 'e2e/pay-transaction-request-devnet.e2e.ts'
+      - 'e2e/pay-bulk-payout-devnet.e2e.ts'
+      - 'supabase/migrations/**'
+      - 'src/pay/components/PayBulkPay.tsx'
+      - 'src/pay/components/pay-bulk-i18n.ts'
+      - 'src/pay/components/pay-bulk.css'
       - 'package.json'
       - 'bun.lock'
   push:
@@ -35,6 +40,9 @@ on:
       - 'functions/api/pay/**'
       - 'e2e/pay-devnet-native.e2e.ts'
       - 'e2e/pay-payment-intent-devnet-lifecycle.e2e.ts'
+      - 'e2e/pay-bulk-payout-devnet.e2e.ts'
+      - 'functions/api/pay/**'
+      - 'supabase/migrations/**'
       - 'package.json'
       - '.github/workflows/solmint-pay-devnet-e2e.yml'
 
@@ -107,6 +115,12 @@ jobs:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
           DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
         run: bun run test:e2e:pay-transaction-request-devnet
+
+      - name: Run real Devnet Bulk Pay transaction E2E
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
+          DEVNET_E2E_FUNDER_SECRET_KEY_B64: ${{ secrets.DEVNET_E2E_FUNDER_SECRET_KEY_B64 }}
+        run: bun run test:e2e:pay-bulk-payout-devnet
 
       - name: Run real Devnet Payment Intent reconciliation E2E
         env:

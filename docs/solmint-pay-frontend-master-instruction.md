@@ -1783,6 +1783,25 @@ Payment lifecycle باید به صورت یک state machine واحد تعریف 
 
 Idempotency باید server-side enforce شود؛ client فقط آن را درست مصرف کند.
 
+## 113.1 Bulk Pay Contract — Implemented Boundary
+
+**Bulk Pay** در SolMint Pay یک قابلیت merchant-side برای ساخت یک Batch از پرداخت‌های خروجی Solana است. این قابلیت custodial نیست: کیف پول مبدأِ تأییدشده Merchant تراکنش Batch را امضا می‌کند و Backend/Blockchain outcome را به‌صورت authoritative ثبت می‌کند.
+
+قرارداد فعلی repository و database:
+
+- دارایی‌های قابل استفاده فقط assetهای server-configured از خانواده فعلی Pay هستند (`SOL`، `USDC` و `USDT`).
+- هر Batch بین ۱ تا ۵۰ payout item دارد و `recipient` و `amountAtomic` توسط Backend اعتبارسنجی می‌شوند.
+- یک Batch دقیقاً به یک source wallet متصل است؛ در وضعیت فعلی ساخت Batch فقط وقتی مجاز است که Merchant دقیقاً یک receiving wallet فعال و verified داشته باشد.
+- mutationهای Bulk Pay فقط برای نقش‌های `owner`، `admin` و `finance` مجازند؛ خواندن Batch برای نقش‌های `owner`، `admin`، `finance`، `developer` و `viewer` انجام می‌شود.
+- ساخت Batch و submit با idempotency و request hash در Backend/Database کنترل می‌شوند.
+- transaction توسط Backend ساخته می‌شود؛ Frontend مبلغ، مقصد، token policy یا settlement را authoritative محاسبه نمی‌کند.
+- verification فقط بر مبنای transaction مشاهده‌شده و finalized انجام می‌شود. verifier privileged از مسیر server-only داخلی استفاده می‌کند و claim verifier به session عادی Pay اضافه نمی‌شود.
+- وضعیت‌های persistent فعلی Batch عبارت‌اند از `ready`، `submitted`، `verifying`، `completed` و `failed`؛ Frontend نباید `submitted` را موفقیت نهایی تلقی کند.
+- هر Batch یک transaction signature دارد. اگر یک Batch در یک legacy Solana transaction قابل serialise نباشد، سیستم آن را خودکار به چند تراکنش تبدیل نمی‌کند؛ کاربر باید Batchهای کوچک‌تر ایجاد کند تا یک signature واحد و قابل reconciliation حفظ شود.
+- RLS برای Batch و Item فقط خواندن merchant-scoped را برای authenticated فراهم می‌کند و mutation مستقیم جدول از Client مجاز نیست.
+
+Bulk Pay باید از همان wallet provider، transaction construction، verification، audit و security boundary موجود Pay استفاده کند و نباید مسیر مالی موازی یا mock ایجاد کند.
+
 ## 114. Pagination / Query Scalability
 
 Merchant Platform نباید با فرض صدها یا هزاران رکورد طراحی شود.
