@@ -46,6 +46,7 @@ export const onRequestPost=async({request,env,params}:{request:Request;env:Env;p
     if((await access.json())!==true) return payJson({code:'FORBIDDEN',message:'You do not have permission to verify this Bulk Pay batch.'},403,requestId);
     if(!env.SOLANA_RPC_URL || !/^https:\/\//i.test(env.SOLANA_RPC_URL)) return payJson({code:'SOLANA_RPC_MISCONFIGURED',message:'Solana RPC is not configured.'},503,requestId);
     if(!batch.transaction_signature) return payJson({apiVersion:'v1',data:{batch,outcome:'not_detected'}},200,requestId);
+    if(batch.status==='completed'||batch.status==='failed') return payJson({apiVersion:'v1',data:{batch,outcome:batch.status}},200,requestId);
 
     const subjectHash=await hashCanonicalRequest({userId:identity.user.applicationUserId,merchantId,batchId});
     await enforcePayRateLimit(env,'payout-batches:verify',subjectHash,60,12);
@@ -107,7 +108,7 @@ export const onRequestPost=async({request,env,params}:{request:Request;env:Env;p
     if(applied.state==='forbidden') return payJson({code:'FORBIDDEN',message:'Bulk Pay verification is not authorized for this merchant.'},403,requestId);
 
     const finalBatch=await loadBatch(env,identity.accessToken,batchId);
-    return payJson({apiVersion:'v1',data:{batch:finalBatch||batch,outcome:decision.valid?'completed':'failed',verification:summary}},decision.valid?200:422,requestId);
+    return payJson({apiVersion:'v1',data:{batch:finalBatch||batch,outcome:decision.valid?'completed':'failed',verification:summary}},200,requestId);
   } catch(error) {
     if(error instanceof PayRuntimeError) return payJson({code:error.code,message:error.message},error.status,requestId);
     console.error(JSON.stringify({scope:'pay:payout-batch:verify',requestId,batchId,error:error instanceof Error?error.message:'unknown'}));
