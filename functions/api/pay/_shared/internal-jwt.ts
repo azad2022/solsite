@@ -32,6 +32,7 @@ interface JwtPayload {
   exp: number;
   role: typeof PAY_INTERNAL_JWT_ROLE;
   [PAY_INTERNAL_JWT_CLAIM]: string;
+  solmint_pay_verifier?: 'true';
 }
 
 function base64UrlEncode(input: Uint8Array | string): string {
@@ -119,7 +120,12 @@ export function validatePayInternalJwtConfig(env: PayInternalJwtEnv): void {
   pemToDer(privateKey);
 }
 
-export async function mintPayInternalJwt(env: PayInternalJwtEnv, userId: string, nowSeconds = Math.floor(Date.now() / 1000)): Promise<string> {
+async function mintInternalJwt(
+  env: PayInternalJwtEnv,
+  userId: string,
+  nowSeconds: number,
+  verifier: boolean,
+): Promise<string> {
   validatePayInternalJwtConfig(env);
   if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 1) throw new Error('JWT issuance time must be a positive safe integer.');
   const normalizedUserId = assertSafeUserId(userId);
@@ -129,10 +135,34 @@ export async function mintPayInternalJwt(env: PayInternalJwtEnv, userId: string,
   const ttl = parseTtl(env);
   const { algorithm, key } = await importPrivateKey(env);
   const header: JwtHeader = { alg: algorithm, typ: 'JWT', kid: keyId };
-  const payload: JwtPayload = { iss: issuer, aud: audience, iat: nowSeconds, exp: nowSeconds + ttl, role: PAY_INTERNAL_JWT_ROLE, [PAY_INTERNAL_JWT_CLAIM]: normalizedUserId };
+  const payload: JwtPayload = {
+    iss: issuer,
+    aud: audience,
+    iat: nowSeconds,
+    exp: nowSeconds + ttl,
+    role: PAY_INTERNAL_JWT_ROLE,
+    [PAY_INTERNAL_JWT_CLAIM]: normalizedUserId,
+    ...(verifier ? { solmint_pay_verifier: 'true' as const } : {}),
+  };
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signingInput = `${encodedHeader}.${encodedPayload}`;
   const signature = await crypto.subtle.sign(getSignAlgorithm(algorithm), key, encoder.encode(signingInput));
   return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+export async function mintPayInternalJwt(
+  env: PayInternalJwtEnv,
+  userId: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  return mintInternalJwt(env, userId, nowSeconds, false);
+}
+
+export async function mintPayInternalVerifierJwt(
+  env: PayInternalJwtEnv,
+  userId: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  return mintInternalJwt(env, userId, nowSeconds, true);
 }
