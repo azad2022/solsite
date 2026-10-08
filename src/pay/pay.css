@@ -389,7 +389,8 @@
 .pay-spin { animation:pay-spin 1s linear infinite; }
 @keyframes pay-spin { to { transform:rotate(360deg); } }
 
-.pay-footer { min-height: 68px; margin-top: auto; padding: 16px clamp(18px, 3vw, 34px); display: flex; justify-content: space-between; align-items: center; gap: 16px; border-top: 1px solid var(--pay-border); color: var(--pay-text-faint); font-size: 10px; }
+.pay-footer { min-height: 68px; margin-top: auto; padding: 16px clamp(18px, 3vw, 34px); display: flex; flex-direction: column; align-items: stretch; gap: 14px; border-top: 1px solid var(--pay-border); color: var(--pay-text-faint); font-size: 10px; }
+.pay-footer-legal { display: flex; justify-content: flex-end; align-items: center; width: 100%; }
 
 @media (max-width: 1200px) and (min-width: 821px) {
   .pay-operational-grid { grid-template-columns: 1fr; }
@@ -468,7 +469,7 @@
   .pay-hero-icon { width: 44px; height: 44px; grid-column: 1 / -1; }
   .pay-hero-mark { width: 94px; height: 94px; border-radius: 22px; }
   .pay-hero-mark img { width: 82px; height: 82px; }
-  .pay-footer { align-items: flex-start; flex-direction: column; }
+  .pay-footer-legal { justify-content: flex-start; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,8 +2,8 @@ import type { PayLocale } from '../types';
 
 const messages = {
   'fa-IR': {
-    title:'Bulk Pay', subtitle:'پرداخت چندگانه از کیف پول تأییدشده مرچنت',
-    create:'پرداخت گروهی جدید', review:'بازبینی پرداخت گروهی', history:'تاریخچه Bulk Pay',
+    title:'پرداخت گروهی', subtitle:'پرداخت چندگانه از کیف پول تأییدشده مرچنت',
+    create:'پرداخت گروهی جدید', review:'بازبینی پرداخت گروهی', history:'تاریخچه پرداخت گروهی',
     asset:'دارایی', recipients:'دریافت‌کنندگان', recipient:'آدرس سولانا', amount:'مبلغ',
     addRecipient:'افزودن دریافت‌کننده', remove:'حذف', createBatch:'ساخت Batch',
     sign:'امضا و ارسال', selectWallet:'انتخاب کیف پول', connect:'اتصال کیف پول',
@@ -14,13 +14,13 @@ const messages = {
     submittedTitle:'تراکنش ارسال شد', submittedDescription:'ارسال تراکنش به‌تنهایی به معنی تکمیل پرداخت نیست؛ در حال بررسی شبکه هستیم.',
     retry:'تلاش دوباره', close:'بستن', noHistory:'هنوز Batch پرداختی ثبت نشده است.',
     noWallet:'کیف پول سازگار در این مرورگر پیدا نشد.', walletMismatch:'کیف پول متصل با کیف پول مبدأ مرچنت یکسان نیست.',
-    walletRequired:'برای امضای Bulk Pay باید کیف پول مرچنت متصل و مالکیت آن تأیید شده باشد.',
+    walletRequired:'برای امضای پرداخت گروهی باید کیف پول مرچنت متصل و مالکیت آن تأیید شده باشد.',
     invalidRecipient:'آدرس گیرنده معتبر نیست.', invalidAmount:'مبلغ معتبر نیست.',
     minItems:'حداقل یک پرداخت لازم است.', maxItems:'هر Batch حداکثر ۵۰ پرداخت دارد.',
-    loadFailed:'اطلاعات Bulk Pay دریافت نشد.', createFailed:'ساخت Batch انجام نشد.', txFailed:'تراکنش برای امضا آماده نشد.',
+    loadFailed:'اطلاعات پرداخت گروهی دریافت نشد.', createFailed:'ساخت Batch انجام نشد.', txFailed:'تراکنش برای امضا آماده نشد.',
     sizeFailed:'این Batch برای یک تراکنش Solana بیش از حد بزرگ است. آن را به Batchهای کوچک‌تر تقسیم کنید.',
     sourceTokenMissing:'کیف پول مبدأ حساب توکن لازم را ندارد.', verifyFailed:'تأیید نهایی انجام نشد؛ وضعیت قابل‌اعتماد قبلی حفظ شده است.',
-    unauthorized:'نشست کاربری معتبر لازم است.', forbidden:'دسترسی لازم برای Bulk Pay وجود ندارد.',
+    unauthorized:'نشست کاربری معتبر لازم است.', forbidden:'دسترسی لازم برای پرداخت گروهی وجود ندارد.',
     retryable:'سرویس موقتاً در دسترس نیست. دوباره تلاش کنید.', stale:'این فهرست ممکن است قدیمی باشد؛ آخرین داده معتبر نگه داشته شده است.',
     assetLoading:'در حال دریافت دارایی‌های مجاز…', noAsset:'دارایی قابل استفاده دریافت نشد.',
     walletDetected:'کیف پول‌های موجود', choose:'انتخاب', signing:'در حال ارسال به کیف پول…', waitingVerification:'در انتظار تأیید نهایی…',

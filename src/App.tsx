@@ -298,7 +298,7 @@ export default function App() {
     return <Suspense fallback={<SuspenseFallback />}><SuspenseFallback /></Suspense>;
   }
   if (payRouteActive) {
-    return <Suspense fallback={<SuspenseFallback />}><PayApp /></Suspense>;
+    return <Suspense fallback={<SuspenseFallback />}><PayApp applicationUser={applicationSessionUser} /></Suspense>;
   }
 
   return <div className="min-h-screen bg-[#08080f] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif] antialiased relative selection:bg-[#9945FF] selection:text-white">

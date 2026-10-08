@@ -64,8 +64,10 @@ test('Referral UI uses animated colored SVG icon wrappers for stats and page act
   assert.match(referralCss,/pay-referrals-icon-green/);
 });
 
-test('Pay shell uses a single concise footer and keeps mobile navigation labels inline', () => {
-  assert.match(app,/<footer className="pay-footer"><span>\{translate\(locale, 'footer'\)\}<\/span><\/footer>/);
+test('Pay shell keeps the legal footer and now exposes the contextual section guide', () => {
+  assert.match(app,/<footer className="pay-footer">/);
+  assert.match(app,/PaySectionGuide/);
+  assert.match(app,/pay-footer-legal/);
   assert.doesNotMatch(app,/pay-sidebar-security/);
   assert.match(payCss,/\.pay-sidebar\.is-mobile-open \.pay-nav-item \{ display: flex !important; \}/);
   assert.match(payCss,/\.pay-topbar-breadcrumb \{ display:none; \}/);
