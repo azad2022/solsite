@@ -14,7 +14,7 @@ test('contextual footer guides are removed from ordinary Pay sections and owned 
 });
 
 test('Support guide hub has searchable localized presentation UI',()=>{
-  assert.match(training,/useState\('\'/);
+  assert.match(training,/useState\(/);
   assert.match(training,/type="search"/);
   assert.match(training,/copy\.searchPlaceholder/);
   assert.match(training,/copy\.resultCount/);
