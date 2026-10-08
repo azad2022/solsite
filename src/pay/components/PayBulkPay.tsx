@@ -14,7 +14,7 @@ type DraftItem = { id:string; recipient:string; amount:string };
 const TERMINAL = new Set(['completed','failed']);
 const INITIAL_ROWS = 3;
 
-function nextDraft(id:number): DraftItem { return { id:'row-'+id+'-'+Math.random().toString(36).slice(2,8), recipient:'', amount:'' }; }
+function nextDraft(id:number): DraftItem { return { id:'row-'+id+'-'+crypto.randomUUID(), recipient:'', amount:'' }; }
 function decimalsFor(asset:string, configs:readonly BulkPayoutAssetConfig[]):number|null {
   if(asset==='SOL') return 9;
   return configs.find(item=>item.asset===asset)?.decimals ?? null;
