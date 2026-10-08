@@ -99,7 +99,7 @@ rollback;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
-DO $
+DO $$
 declare r jsonb; v_batch_id uuid;
 begin
   r := public.pay_create_payout_batch(
