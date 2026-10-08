@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { buildBulkPayoutTransaction } from '../src/pay/services/bulkPayoutTransactionBuilder';
 import { verifyBulkPayoutTransaction } from '../src/pay/services/bulkPayoutPolicy';
 import type { ObservedPaymentTransaction } from '../src/pay/services/verificationPolicy';
