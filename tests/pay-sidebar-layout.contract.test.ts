@@ -16,7 +16,7 @@ test('Pay desktop sidebar remains anchored and vertically scrollable', () => {
   assert.match(sidebarBlock, /overscroll-behavior:\s*contain/);
 });
 
-test('Pay primary navigation contains the requested ten dedicated sections', () => {
+test('Pay primary navigation contains the requested dedicated sections', () => {
   const start = app.indexOf('const PAY_NAV_SECTIONS');
   const end = app.indexOf('const PAGE_HEADER_OWNERS');
   assert.ok(start >= 0 && end > start);
@@ -27,6 +27,7 @@ test('Pay primary navigation contains the requested ten dedicated sections', () 
     'merchants',
     'wallet',
     'payment-links',
+    'bulk-pay',
     'invoices',
     'referrals',
     'api-keys',
