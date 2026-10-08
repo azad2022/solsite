@@ -22,9 +22,10 @@ import PayDashboard from './components/PayDashboard';
 import PayWebhooks from './components/PayWebhooks';
 import PayAccountMenu from './components/PayAccountMenu';
 import PayBulkPay from './components/PayBulkPay';
+import PaySectionGuide from './components/PaySectionGuide';
 import { webhookCopy } from './components/pay-webhooks-i18n';
 import { getMyMerchant, type PayMerchant } from './services/merchantOnboardingService';
-import { getPaySessionUser, type PaySessionUser } from './services/sessionService';
+import type { PaySessionUser } from './services/sessionService';
 import './pay.css';
 
 const SECTION_ICONS: Record<PaySection, React.ComponentType<{ size?: number; strokeWidth?: number }>> = {
@@ -73,17 +74,19 @@ function paySectionLabel(locale: PayLocale, section: PaySection): string {
   return section === 'webhooks' ? webhookCopy(locale).title : sectionLabel(locale, section);
 }
 
-export function PayApp(): React.ReactElement {
+interface PayAppProps { applicationUser: PaySessionUser | null; }
+
+export function PayApp({ applicationUser }: PayAppProps): React.ReactElement {
   const [locale, setLocale] = useState<PayLocale>(initialPayLocale);
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [billingRelatedView, setBillingRelatedView] = useState<BillingRelatedView>(null);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const languageControlRef = useRef<HTMLDivElement>(null);
-  const [sessionState, setSessionState] = useState<SessionState>('loading');
-  const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(null);
+  const [sessionState, setSessionState] = useState<SessionState>(applicationUser ? 'authenticated' : 'anonymous');
+  const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(applicationUser);
   const [merchant, setMerchant] = useState<PayMerchant | null>(null);
-  const [merchantLoadState, setMerchantLoadState] = useState<MerchantLoadState>('loading');
+  const [merchantLoadState, setMerchantLoadState] = useState<MerchantLoadState>(applicationUser ? 'loading' : 'ready');
   const direction = directionFor(locale);
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
@@ -157,29 +160,22 @@ export function PayApp(): React.ReactElement {
 
   useEffect(() => {
     let cancelled = false;
-    setSessionState('loading');
-    setSessionUser(null);
+    const user = applicationUser;
+    setSessionState(user ? 'authenticated' : 'anonymous');
+    setSessionUser(user);
     setMerchant(null);
-    setMerchantLoadState('loading');
+    setMerchantLoadState(user ? 'loading' : 'ready');
 
-    void getPaySessionUser().then(async user => {
-      if (cancelled) return;
-      setSessionUser(user);
-      setSessionState(user ? 'authenticated' : 'anonymous');
-      if (!user) { setMerchantLoadState('ready'); return; }
-      try {
-        const existingMerchant = await getMyMerchant();
-        if (!cancelled) { setMerchant(existingMerchant); setMerchantLoadState('ready'); }
-      } catch {
-        if (!cancelled) setMerchantLoadState('error');
-      }
+    if (!user) return () => { cancelled = true; };
+
+    void getMyMerchant().then(existingMerchant => {
+      if (!cancelled) { setMerchant(existingMerchant); setMerchantLoadState('ready'); }
     }).catch(() => {
-      if (cancelled) return;
-      setSessionState('error');
+      if (!cancelled) setMerchantLoadState('error');
     });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [applicationUser?.id]);
 
   const retryMerchantLookup = () => {
     if (sessionState !== 'authenticated') return;
@@ -275,6 +271,8 @@ export function PayApp(): React.ReactElement {
   const showDeveloperWebhooks = showDeveloperHub && sessionState === 'authenticated' && sessionUser !== null && merchant !== null;
   const showMerchantStatePanel = sessionState === 'authenticated' && merchantBoundSection && (merchantLoadState !== 'ready' || merchant === null);
   const showSessionErrorPanel = sessionState === 'error';
+  const showSessionLoadingPanel = sessionState === 'loading';
+  const showSessionRequiredPanel = sessionState === 'anonymous';
 
   return (
     <div className="solmint-pay" dir={direction} lang={locale} data-pay-runtime="transport-v2">
@@ -381,7 +379,9 @@ export function PayApp(): React.ReactElement {
 
             {showWalletManagement ? <PayMerchantOnboarding locale={locale} view="wallet" initialMerchant={merchant} onMerchantReady={(ready) => { setMerchant(ready); setMerchantLoadState('ready'); }} /> : null}
 
+            {showSessionLoadingPanel ? <PayRuntimeStatePanel locale={locale} kind="session-loading" onPrimary={() => window.location.reload()} /> : null}
             {showSessionErrorPanel ? <PayRuntimeStatePanel locale={locale} kind="session-error" onPrimary={() => window.location.reload()} /> : null}
+            {showSessionRequiredPanel ? <PayRuntimeStatePanel locale={locale} kind="session-required" onPrimary={() => window.location.reload()} /> : null}
 
             {showMerchantStatePanel || showTicketMerchantStatePanel ? <PayRuntimeStatePanel locale={locale} kind={merchantLoadState === 'loading' ? 'merchant-loading' : merchant === null && merchantLoadState === 'ready' ? 'merchant-required' : 'merchant-error'} onPrimary={merchantLoadState === 'error' ? retryMerchantLookup : () => navigate('merchants')} onSecondary={merchantLoadState === 'error' ? () => navigate('merchants') : undefined} /> : null}
 
@@ -412,7 +412,7 @@ export function PayApp(): React.ReactElement {
 
             {showTickets ? <PayTicketCenter locale={locale} sessionUser={sessionUser!} merchantId={merchant?.id || null} /> : null}
 
-            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showBulkPay && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && !showWalletManagement && !showApiKeyManagement && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
+            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showSessionLoadingPanel && !showSessionRequiredPanel && !showBillingHub && !showBulkPay && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && !showWalletManagement && !showApiKeyManagement && <section className="pay-hero-card" aria-labelledby="pay-empty-title">
               <div className="pay-hero-grid" />
               <div className="pay-hero-content">
                 <div className="pay-hero-icon" aria-hidden="true"><BookOpen size={24} /></div>
@@ -421,7 +421,7 @@ export function PayApp(): React.ReactElement {
               </div>
             </section>}
 
-            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && !showWalletManagement && !showApiKeyManagement && <>{currentSection === 'overview' ? <>
+            {!showMerchantOnboarding && !showMerchantStatePanel && !showSessionErrorPanel && !showSessionLoadingPanel && !showSessionRequiredPanel && !showBillingHub && !showReferrals && !showDashboard && !showSecurity && !showDeveloperHub && currentSection !== 'merchants' && !showTickets && !showWalletManagement && !showApiKeyManagement && <>{currentSection === 'overview' ? <>
               <section className="pay-truth-grid" aria-label={translate(locale, 'serverTruth')}>
                 <TruthCard icon={<ShieldCheck size={18} />} title={translate(locale, 'serverTruth')} value={translate(locale, 'serverTruthValue')} />
                 <TruthCard icon={<Store size={18} />} title={translate(locale, 'tenantIsolation')} value={translate(locale, 'tenantIsolationValue')} />
@@ -434,17 +434,24 @@ export function PayApp(): React.ReactElement {
             </> : <PayUnavailableFeature locale={locale} section={currentSection} />}
             </>}
           </main>
-          <footer className="pay-footer"><span>{translate(locale, 'footer')}</span></footer>
+          <footer className="pay-footer">
+            <PaySectionGuide locale={locale} section={currentSection} />
+            <div className="pay-footer-legal"><span>{translate(locale, 'footer')}</span></div>
+          </footer>
         </section>
       </div>
     </div>
   );
 }
 
-function PayRuntimeStatePanel({ locale, kind, onPrimary, onSecondary }: { locale: PayLocale; kind: 'session-error' | 'merchant-loading' | 'merchant-required' | 'merchant-error'; onPrimary: () => void; onSecondary?: () => void }): React.ReactElement {
-  const config: { icon: React.ReactNode; title: string; description: string; primary?: string; secondary?: string } = kind === 'session-error'
-    ? { icon: <ShieldCheck size={21} />, title: translate(locale, 'sessionUnavailable'), description: translate(locale, 'sessionUnavailable'), primary: translate(locale, 'reload') }
-    : kind === 'merchant-loading'
+function PayRuntimeStatePanel({ locale, kind, onPrimary, onSecondary }: { locale: PayLocale; kind: 'session-loading' | 'session-error' | 'session-required' | 'merchant-loading' | 'merchant-required' | 'merchant-error'; onPrimary: () => void; onSecondary?: () => void }): React.ReactElement {
+  const config: { icon: React.ReactNode; title: string; description: string; primary?: string; secondary?: string } = kind === 'session-loading'
+    ? { icon: <Loader2 size={21} className="pay-spin" />, title: translate(locale, 'loadingWorkspace'), description: translate(locale, 'loadingWorkspace') }
+    : kind === 'session-error'
+      ? { icon: <ShieldCheck size={21} />, title: translate(locale, 'sessionUnavailable'), description: translate(locale, 'sessionUnavailable'), primary: translate(locale, 'reload') }
+      : kind === 'session-required'
+        ? { icon: <LockKeyhole size={21} />, title: translate(locale, 'sessionRequiredTitle'), description: translate(locale, 'sessionRequiredDescription'), primary: translate(locale, 'reload') }
+        : kind === 'merchant-loading'
       ? { icon: <Loader2 size={21} className="pay-spin" />, title: translate(locale, 'merchantLoadingTitle'), description: translate(locale, 'merchantLoadingDescription') }
       : kind === 'merchant-required'
         ? { icon: <Store size={21} />, title: translate(locale, 'merchantRequiredTitle'), description: translate(locale, 'merchantRequiredDescription'), primary: translate(locale, 'merchantRequiredAction') }
