@@ -139,7 +139,7 @@ begin
   );
   if r->>'state' <> 'updated' then raise exception 'verifier update failed: %',r; end if;
   if (select status from public.pay_payout_batches where id=batch_id) <> 'completed' then raise exception 'batch not completed'; end if;
-  if (select count(*) from public.pay_payout_items where batch_id=batch_id and status='completed') <> 2 then raise exception 'items not completed'; end if;
+  if (select count(*) from public.pay_payout_items i where i.batch_id=batch_id and i.status='completed') <> 2 then raise exception 'items not completed'; end if;
 end $$;
 rollback;
 
