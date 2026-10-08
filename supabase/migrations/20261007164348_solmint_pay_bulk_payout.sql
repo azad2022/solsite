@@ -263,4 +263,14 @@ begin
 end;
 $function$;
 
+revoke all on function public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text) from PUBLIC;
+revoke all on function public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text) from anon;
+revoke all on function public.pay_submit_payout_batch(uuid,uuid,text,text,text) from PUBLIC;
+revoke all on function public.pay_submit_payout_batch(uuid,uuid,text,text,text) from anon;
+revoke all on function public.pay_apply_payout_verification(uuid,uuid,text,text,text,text,bigint,timestamptz,jsonb,text) from PUBLIC;
+revoke all on function public.pay_apply_payout_verification(uuid,uuid,text,text,text,text,bigint,timestamptz,jsonb,text) from anon;
+grant execute on function public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text) to authenticated;
+grant execute on function public.pay_submit_payout_batch(uuid,uuid,text,text,text) to authenticated;
+grant execute on function public.pay_apply_payout_verification(uuid,uuid,text,text,text,text,bigint,timestamptz,jsonb,text) to authenticated;
+
 commit;
