@@ -70,12 +70,6 @@ revoke all on table public.pay_payout_items from anon, public;
 grant select on table public.pay_payout_batches to authenticated;
 grant select on table public.pay_payout_items to authenticated;
 
-revoke all on function public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text) from public,anon;
-revoke all on function public.pay_submit_payout_batch(uuid,uuid,text,text,text) from public,anon;
-revoke all on function public.pay_apply_payout_verification(uuid,uuid,text,text,text,text,bigint,timestamptz,jsonb,text) from public,anon;
-grant execute on function public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text) to authenticated;
-grant execute on function public.pay_submit_payout_batch(uuid,uuid,text,text,text) to authenticated;
-grant execute on function public.pay_apply_payout_verification(uuid,uuid,text,text,text,text,bigint,timestamptz,jsonb,text) to authenticated;
 
 create or replace function public.pay_create_payout_batch(
   p_merchant_id uuid,p_asset text,p_token_mint text,p_token_program text,p_token_decimals integer,
