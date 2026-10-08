@@ -364,6 +364,17 @@ try {
     assert.ok(diagnostics.scrollHeight >= diagnostics.clientHeight);
     assert.equal(await sidebar.locator('.pay-nav-group-label').count(), 0, 'Sidebar must not show redundant navigation group headings.');
     assert.equal(await sidebar.locator('.pay-nav-item').count(), 11, 'Sidebar must expose all requested primary entries.');
+    const sectionGuide = page.locator('.pay-section-guide');
+    await sectionGuide.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await sectionGuide.count(), 1, 'Every authenticated Pay section must expose exactly one contextual footer guide.');
+    assert.doesNotMatch((await page.locator('body').innerText()), /این بخش هنوز فعال نشده است|This section is not active yet/, 'Authenticated Pay must not render the generic unavailable-contract placeholder for the active workspace.');
+    if (targetLocale === 'fa-IR') {
+      assert.equal(
+        await page.locator('.pay-sidebar .pay-nav-item[data-section="bulk-pay"]').innerText(),
+        'پرداخت گروهی',
+        'Persian Bulk Pay navigation label must be localized.',
+      );
+    }
 
     const mainColumn = await page.locator('.pay-main-column').boundingBox();
     assert.ok(mainColumn);
@@ -853,6 +864,14 @@ try {
     `Verified wallet must survive reload: ${walletAfterReload.text}`);
   assert.equal(walletAfterReload.addressMatches, true,
     `Authoritative wallet address changed after reload: ${walletAfterReload.text}`);
+
+  await page.goto(ORIGIN + '/pay/bulk-pay', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-bulk').waitFor({ state: 'visible', timeout: 10000 });
+  const bulkGuide = page.locator('.pay-section-guide');
+  await bulkGuide.waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await bulkGuide.count(), 1, 'Bulk Pay must expose exactly one contextual footer guide.');
+  assert.match(await bulkGuide.innerText(), /پرداخت گروهی|Bulk Pay/, 'Bulk Pay footer guide must identify the Bulk Pay workflow.');
+  assert.doesNotMatch((await page.locator('body').innerText()), /این بخش هنوز فعال نشده است|This section is not active yet/, 'Bulk Pay must not render the generic unavailable-contract placeholder.');
 
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-invoice-create').waitFor({ state: 'visible', timeout: 10000 });
