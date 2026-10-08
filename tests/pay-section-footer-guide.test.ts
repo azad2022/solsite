@@ -18,7 +18,7 @@ test('section guide is rendered from localized presentation data and adds no bac
 
 test('all Pay routes have guide coverage, including dedicated workflow guides',()=>{
   for(const id of ['overview','dashboard','checkout','transactions','merchants','wallet','customers','referrals','reports','developer','security','tickets','webhooks']) {
-    assert.match(guide,new RegExp(id+':'));
+    assert.ok(guide.includes(id + ':'), 'Missing guide mapping for ' + id);
   }
   for(const key of ['invoices','payment-links','bulk-pay','api-keys']) {
     assert.match(i18n,new RegExp(key.replace('-', '\\-')+'\\s*:\\s*\\{'));
