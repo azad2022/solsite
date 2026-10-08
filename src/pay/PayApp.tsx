@@ -74,19 +74,23 @@ function paySectionLabel(locale: PayLocale, section: PaySection): string {
   return section === 'webhooks' ? webhookCopy(locale).title : sectionLabel(locale, section);
 }
 
-interface PayAppProps { applicationUser: PaySessionUser | null; }
+type PayApplicationUser = Omit<PaySessionUser, 'isActive'> & { isActive?: boolean };
+interface PayAppProps { applicationUser: PayApplicationUser | null; }
 
 export function PayApp({ applicationUser }: PayAppProps): React.ReactElement {
+  const resolvedApplicationUser: PaySessionUser | null = applicationUser
+    ? { ...applicationUser, isActive: applicationUser.isActive !== false }
+    : null;
   const [locale, setLocale] = useState<PayLocale>(initialPayLocale);
   const [currentPath, setCurrentPath] = useState<string>(() => normalizePayPath(window.location.pathname || '/pay'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [billingRelatedView, setBillingRelatedView] = useState<BillingRelatedView>(null);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const languageControlRef = useRef<HTMLDivElement>(null);
-  const [sessionState, setSessionState] = useState<SessionState>(applicationUser ? 'authenticated' : 'anonymous');
-  const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(applicationUser);
+  const [sessionState, setSessionState] = useState<SessionState>(resolvedApplicationUser ? 'authenticated' : 'anonymous');
+  const [sessionUser, setSessionUser] = useState<PaySessionUser | null>(resolvedApplicationUser);
   const [merchant, setMerchant] = useState<PayMerchant | null>(null);
-  const [merchantLoadState, setMerchantLoadState] = useState<MerchantLoadState>(applicationUser ? 'loading' : 'ready');
+  const [merchantLoadState, setMerchantLoadState] = useState<MerchantLoadState>(resolvedApplicationUser ? 'loading' : 'ready');
   const direction = directionFor(locale);
   const route = matchPayRoute(currentPath);
   const isCheckout = route.kind === 'checkout';
@@ -160,7 +164,7 @@ export function PayApp({ applicationUser }: PayAppProps): React.ReactElement {
 
   useEffect(() => {
     let cancelled = false;
-    const user = applicationUser;
+    const user = resolvedApplicationUser;
     setSessionState(user ? 'authenticated' : 'anonymous');
     setSessionUser(user);
     setMerchant(null);
@@ -175,7 +179,7 @@ export function PayApp({ applicationUser }: PayAppProps): React.ReactElement {
     });
 
     return () => { cancelled = true; };
-  }, [applicationUser?.id]);
+  }, [applicationUser?.id, applicationUser?.isActive]);
 
   const retryMerchantLookup = () => {
     if (sessionState !== 'authenticated') return;
