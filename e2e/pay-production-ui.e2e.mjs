@@ -364,9 +364,11 @@ try {
     assert.ok(diagnostics.scrollHeight >= diagnostics.clientHeight);
     assert.equal(await sidebar.locator('.pay-nav-group-label').count(), 0, 'Sidebar must not show redundant navigation group headings.');
     assert.equal(await sidebar.locator('.pay-nav-item').count(), 11, 'Sidebar must expose all requested primary entries.');
-    const sectionGuide = page.locator('.pay-section-guide');
-    await sectionGuide.waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(await sectionGuide.count(), 1, 'Every authenticated Pay section must expose exactly one contextual footer guide.');
+    assert.equal(
+      await page.locator('.pay-section-guide').count(),
+      0,
+      'Contextual guides must be centralized in Support, not repeated in each section footer.',
+    );
     assert.doesNotMatch((await page.locator('body').innerText()), /این بخش هنوز فعال نشده است|This section is not active yet/, 'Authenticated Pay must not render the generic unavailable-contract placeholder for the active workspace.');
     if (targetLocale === 'fa-IR') {
       assert.equal(
@@ -867,11 +869,26 @@ try {
 
   await page.goto(ORIGIN + '/pay/bulk-pay', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-bulk').waitFor({ state: 'visible', timeout: 10000 });
-  const bulkGuide = page.locator('.pay-section-guide');
-  await bulkGuide.waitFor({ state: 'visible', timeout: 10000 });
-  assert.equal(await bulkGuide.count(), 1, 'Bulk Pay must expose exactly one contextual footer guide.');
-  assert.match(await bulkGuide.innerText(), /پرداخت گروهی|Bulk Pay/, 'Bulk Pay footer guide must identify the Bulk Pay workflow.');
+  assert.equal(
+    await page.locator('.pay-section-guide').count(),
+    0,
+    'Bulk Pay guides must not be duplicated in the section footer.',
+  );
   assert.doesNotMatch((await page.locator('body').innerText()), /این بخش هنوز فعال نشده است|This section is not active yet/, 'Bulk Pay must not render the generic unavailable-contract placeholder.');
+
+  await page.goto(ORIGIN + '/pay/tickets', { waitUntil: 'domcontentloaded' });
+  await page.locator('.pay-training').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.pay-language-trigger').click();
+  await page.locator('.pay-language-option').filter({ hasText: 'English' }).click();
+  await page.getByRole('heading', { name: 'SolMint Pay Guide Center', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  const guideSearch = page.locator('.pay-training-search input');
+  await guideSearch.fill('50 payouts');
+  const bulkGuide = page.locator('.pay-training-topic').filter({ hasText: 'Bulk Pay' });
+  await bulkGuide.waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await bulkGuide.count(), 1, 'Support guide search must find one Bulk Pay guide.');
+  await bulkGuide.locator('summary').click();
+  assert.match(await bulkGuide.innerText(), /up to 50 payouts/i, 'Support Bulk Pay guide must document the Batch limit.');
+  assert.match(await bulkGuide.innerText(), /not.*completed/i, 'Support Bulk Pay guide must preserve the submitted-versus-completed distinction.');
 
   await page.goto(ORIGIN + '/pay/invoices', { waitUntil: 'domcontentloaded' });
   await page.locator('.pay-invoice-create').waitFor({ state: 'visible', timeout: 10000 });
