@@ -25,6 +25,28 @@ const FUNDER_TOP_UP_LAMPORTS = PAYMENT_AMOUNT_LAMPORTS + PAYER_RENT_RESERVE_LAMP
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000;
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
+const DEVNET_RPC_REQUEST_TIMEOUT_MS = 12_000;
+
+// Node's test timeout does not abort a pending fetch. Bound each web3.js HTTP
+// request so a stalled RPC cannot leave the funded E2E process alive until the
+// entire GitHub Actions job is cancelled.
+const devnetTimedFetch: typeof fetch = async (input, init = {}) => {
+  const controller = new AbortController();
+  const parentSignal = init.signal;
+  const forwardAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) forwardAbort();
+  else parentSignal?.addEventListener('abort', forwardAbort, { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(new Error(`Devnet RPC request exceeded ${DEVNET_RPC_REQUEST_TIMEOUT_MS}ms.`)),
+    DEVNET_RPC_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener('abort', forwardAbort);
+  }
+};
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58_ALPHABET].map((char, index) => [char, index]));
 
@@ -75,9 +97,28 @@ function createMemoInstruction(reference: PublicKey): TransactionInstruction {
   });
 }
 
-async function confirmFinalized(connection: Connection, signature: string, blockhash: string, lastValidBlockHeight: number): Promise<void> {
-  const confirmation = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'finalized');
-  if (confirmation.value.err) throw new Error(`Devnet transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+const FINALIZED_CONFIRMATION_TIMEOUT_MS = 120_000;
+const FINALIZED_CONFIRMATION_POLL_DELAY_MS = 2_000;
+
+async function confirmFinalized(connection: Connection, signature: string, lastValidBlockHeight: number): Promise<void> {
+  const deadline = Date.now() + FINALIZED_CONFIRMATION_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const response = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+    const status = response.value[0];
+    if (status?.err != null) throw new Error(`Devnet transaction failed: ${JSON.stringify(status.err)}`);
+    if (status?.confirmationStatus === 'finalized') return;
+
+    const blockHeight = await connection.getBlockHeight('confirmed');
+    if (blockHeight > lastValidBlockHeight) {
+      throw new Error(`Devnet transaction expired before finalization: ${signature}`);
+    }
+
+    const remaining = deadline - Date.now();
+    if (remaining > 0) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(FINALIZED_CONFIRMATION_POLL_DELAY_MS, remaining)));
+    }
+  }
+  throw new Error(`DEVNET_FINALIZED_CONFIRMATION_TIMEOUT after ${FINALIZED_CONFIRMATION_TIMEOUT_MS}ms for signature ${signature}`);
 }
 
 async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair): Promise<void> {
@@ -89,7 +130,7 @@ async function fundPayer(connection: Connection, funder: Keypair, payer: Keypair
   );
   transaction.sign(funder);
   const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
-  await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
+  await confirmFinalized(connection, signature, latest.lastValidBlockHeight);
 }
 
 async function waitForFinalizedObservation(
@@ -105,7 +146,11 @@ async function waitForFinalizedObservation(
 }
 
 test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: 270_000 }, async () => {
-  const connection = new Connection(DEVNET_RPC_URL, { commitment: 'confirmed' });
+  const connection = new Connection(DEVNET_RPC_URL, {
+    commitment: 'confirmed',
+    fetch: devnetTimedFetch,
+    disableRetryOnRateLimit: true,
+  });
   const payer = Keypair.generate();
   const merchant = Keypair.generate();
   const fee = Keypair.generate();
@@ -123,7 +168,7 @@ test('SolMint Pay verification discovers and verifies a real Devnet SOL payment'
   payment.sign(payer, reference);
 
   const signature = await connection.sendRawTransaction(payment.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 2 });
-  await confirmFinalized(connection, signature, latest.blockhash, latest.lastValidBlockHeight);
+  await confirmFinalized(connection, signature, latest.lastValidBlockHeight);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
   const directObservation = await waitForFinalizedObservation(provider, signature);
