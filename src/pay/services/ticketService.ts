@@ -2,12 +2,15 @@ import { defaultPayHttpClient, type PayHttpClient } from '../http';
 
 export type PayTicketStatus = 'open' | 'pending_customer' | 'pending_admin' | 'resolved' | 'closed';
 export type PayTicketPriority = 'normal' | 'high' | 'urgent';
+export type PayTicketCategory = 'payments' | 'wallet' | 'invoices' | 'payment_links' | 'bulk_pay' | 'api_webhooks' | 'merchant_account' | 'referrals' | 'security' | 'other';
 
 export interface PayTicket {
   id: string;
   merchantId: string;
   createdByUserId: string;
   subject: string;
+  category: PayTicketCategory;
+  paymentIntentId: string | null;
   status: PayTicketStatus;
   priority: PayTicketPriority;
   createdAt: string;
@@ -48,10 +51,11 @@ function parseTicket(value: unknown): PayTicket {
   const row = record(value, 'Invalid ticket response.');
   const status = stringValue(row, 'status');
   const priority = stringValue(row, 'priority');
-  if (!['open','pending_customer','pending_admin','resolved','closed'].includes(status) || !['normal','high','urgent'].includes(priority)) throw new TypeError('Invalid ticket state.');
+  const category = stringValue(row, 'category');
+  if (!['open','pending_customer','pending_admin','resolved','closed'].includes(status) || !['normal','high','urgent'].includes(priority) || !['payments','wallet','invoices','payment_links','bulk_pay','api_webhooks','merchant_account','referrals','security','other'].includes(category)) throw new TypeError('Invalid ticket state.');
   return {
     id: stringValue(row, 'id'), merchantId: stringValue(row, 'merchantId'), createdByUserId: stringValue(row, 'createdByUserId'),
-    subject: stringValue(row, 'subject'), status: status as PayTicketStatus, priority: priority as PayTicketPriority,
+    subject: stringValue(row, 'subject'), category: category as PayTicketCategory, paymentIntentId: nullableString(row, 'paymentIntentId'), status: status as PayTicketStatus, priority: priority as PayTicketPriority,
     createdAt: stringValue(row, 'createdAt'), updatedAt: stringValue(row, 'updatedAt'), closedAt: nullableString(row, 'closedAt'),
   };
 }
@@ -79,8 +83,9 @@ export async function getPayTicket(ticketId: string, client: PayHttpClient = def
   return { ticket: parseTicket(payload.ticket), messages: payload.messages.map(parseMessage) };
 }
 
-export async function createPayTicket(input: { merchantId: string; subject: string; message: string; priority?: PayTicketPriority }, client: PayHttpClient = defaultPayHttpClient): Promise<PayTicket> {
-  const payload = await client.request<TicketMutationEnvelope>('/api/pay/v1/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchantId: input.merchantId, subject: input.subject.trim(), message: input.message.trim(), priority: input.priority || 'normal' }) });
+export async function createPayTicket(input: { merchantId: string; subject: string; message: string; priority?: PayTicketPriority; category: PayTicketCategory; paymentIntentId?: string | null }, client: PayHttpClient = defaultPayHttpClient): Promise<PayTicket> {
+  const paymentIntentId = input.paymentIntentId?.trim() || null;
+  const payload = await client.request<TicketMutationEnvelope>('/api/pay/v1/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchantId: input.merchantId, subject: input.subject.trim(), message: input.message.trim(), priority: input.priority || 'normal', category: input.category, paymentIntentId }) });
   if (!payload.ticket) throw new TypeError('Invalid ticket creation response.');
   return parseTicket(payload.ticket);
 }
