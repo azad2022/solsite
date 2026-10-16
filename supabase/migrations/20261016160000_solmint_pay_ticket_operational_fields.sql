@@ -42,8 +42,15 @@ begin
 end;
 $ticket_migration_guard$;
 
-create index if not exists pay_tickets_payment_intent_idx
-  on public.pay_tickets(payment_intent_id)
+-- Cover ticket foreign-key lookups and the optional Payment Intent association.
+create index if not exists pay_tickets_created_by_user_id_idx
+  on public.pay_tickets(created_by_user_id);
+
+create index if not exists pay_ticket_messages_author_user_id_idx
+  on public.pay_ticket_messages(author_user_id);
+
+create index if not exists pay_tickets_payment_intent_merchant_idx
+  on public.pay_tickets(payment_intent_id, merchant_id)
   where payment_intent_id is not null;
 
 create or replace function public.pay_create_ticket(
