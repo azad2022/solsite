@@ -34,7 +34,7 @@ const devnetTimedFetch: typeof fetch = async (input, init = {}) => {
   if (parentSignal?.aborted) forwardAbort();
   else parentSignal?.addEventListener('abort', forwardAbort, { once: true });
   const timeout = setTimeout(
-    () => controller.abort(new Error(\`Devnet RPC request exceeded \${DEVNET_RPC_REQUEST_TIMEOUT_MS}ms.\`)),
+    () => controller.abort(new Error(`Devnet RPC request exceeded ${DEVNET_RPC_REQUEST_TIMEOUT_MS}ms.`)),
     DEVNET_RPC_REQUEST_TIMEOUT_MS,
   );
   try {
@@ -50,13 +50,13 @@ async function confirmFinalized(connection: Connection, signature: string, lastV
   while (Date.now() < deadline) {
     const response = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
     const status = response.value[0];
-    if (status?.err != null) throw new Error(\`Devnet transaction failed: \${JSON.stringify(status.err)}\`);
+    if (status?.err != null) throw new Error(`Devnet transaction failed: ${JSON.stringify(status.err)}`);
     if (status?.confirmationStatus === 'finalized') return;
 
     if (lastValidBlockHeight !== undefined) {
       const blockHeight = await connection.getBlockHeight('confirmed');
       if (blockHeight > lastValidBlockHeight) {
-        throw new Error(\`Devnet transaction expired before finalization: \${signature}\`);
+        throw new Error(`Devnet transaction expired before finalization: ${signature}`);
       }
     }
 
@@ -65,7 +65,7 @@ async function confirmFinalized(connection: Connection, signature: string, lastV
       await new Promise((resolve) => setTimeout(resolve, Math.min(FINALIZED_CONFIRMATION_POLL_DELAY_MS, remaining)));
     }
   }
-  throw new Error(\`DEVNET_FINALIZED_CONFIRMATION_TIMEOUT after \${FINALIZED_CONFIRMATION_TIMEOUT_MS}ms for signature \${signature}\`);
+  throw new Error(`DEVNET_FINALIZED_CONFIRMATION_TIMEOUT after ${FINALIZED_CONFIRMATION_TIMEOUT_MS}ms for signature ${signature}`);
 }
 
 
