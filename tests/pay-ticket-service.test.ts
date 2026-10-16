@@ -3,8 +3,13 @@ import test from 'node:test';
 import { createPayTicket, getPayTicket, listPayTickets, replyToPayTicket, updatePayTicketStatus } from '../src/pay/services/ticketService';
 import type { PayHttpClient } from '../src/pay/http';
 
-function clientFor(payload: unknown): PayHttpClient {
-  return { request: async <T>() => payload as T } as unknown as PayHttpClient;
+function clientFor(payload: unknown, capture?: (path: string, init?: RequestInit) => void): PayHttpClient {
+  return {
+    request: async <T>(path: string, init?: RequestInit) => {
+      capture?.(path, init);
+      return payload as T;
+    },
+  } as unknown as PayHttpClient;
 }
 
 test('ticket service rejects malformed list envelopes', async () => {
@@ -12,13 +17,13 @@ test('ticket service rejects malformed list envelopes', async () => {
 });
 
 test('ticket service accepts the released ticket status values', async () => {
-  const ticket = { id:'11111111-1111-4111-8111-111111111111', merchantId:'22222222-2222-4222-8222-222222222222', createdByUserId:'u1', subject:'Payment issue', status:'pending_admin', priority:'normal', createdAt:'2026-09-11T00:00:00.000Z', updatedAt:'2026-09-11T00:00:00.000Z', closedAt:null };
+  const ticket = { id:'11111111-1111-4111-8111-111111111111', merchantId:'22222222-2222-4222-8222-222222222222', createdByUserId:'u1', subject:'Payment issue', category:'other', paymentIntentId:null, status:'pending_admin', priority:'normal', createdAt:'2026-09-11T00:00:00.000Z', updatedAt:'2026-09-11T00:00:00.000Z', closedAt:null };
   const parsed = await updatePayTicketStatus(ticket.id,'pending_admin',clientFor({ ticket }));
   assert.equal(parsed.status,'pending_admin');
 });
 
 test('ticket service parses detail messages without transforming body content', async () => {
-  const ticket = { id:'11111111-1111-4111-8111-111111111111', merchantId:'22222222-2222-4222-8222-222222222222', createdByUserId:'u1', subject:'Payment issue', status:'open', priority:'high', createdAt:'2026-09-11T00:00:00.000Z', updatedAt:'2026-09-11T00:00:00.000Z', closedAt:null };
+  const ticket = { id:'11111111-1111-4111-8111-111111111111', merchantId:'22222222-2222-4222-8222-222222222222', createdByUserId:'u1', subject:'Payment issue', category:'other', paymentIntentId:null, status:'open', priority:'high', createdAt:'2026-09-11T00:00:00.000Z', updatedAt:'2026-09-11T00:00:00.000Z', closedAt:null };
   const message = { id:'33333333-3333-4333-8333-333333333333', ticketId:ticket.id, authorUserId:'u1', body:'Line 1\nLine 2', createdAt:'2026-09-11T00:01:00.000Z' };
   const detail = await getPayTicket(ticket.id,clientFor({ ticket, messages:[message] }));
   assert.equal(detail.ticket.id,ticket.id);
@@ -26,8 +31,23 @@ test('ticket service parses detail messages without transforming body content', 
 });
 
 test('ticket service sends the real ticket mutation envelopes', async () => {
-  const ticket = { id:'11111111-1111-4111-8111-111111111111', merchantId:'22222222-2222-4222-8222-222222222222', createdByUserId:'u1', subject:'Payment issue', status:'open', priority:'normal', createdAt:'2026-09-11T00:00:00.000Z', updatedAt:'2026-09-11T00:00:00.000Z', closedAt:null };
+  const ticket = { id:'11111111-1111-4111-8111-111111111111', merchantId:'22222222-2222-4222-8222-222222222222', createdByUserId:'u1', subject:'Payment issue', category:'other', paymentIntentId:null, status:'open', priority:'normal', createdAt:'2026-09-11T00:00:00.000Z', updatedAt:'2026-09-11T00:00:00.000Z', closedAt:null };
   const message = { id:'33333333-3333-4333-8333-333333333333', ticketId:ticket.id, authorUserId:'u1', body:'Hello', createdAt:'2026-09-11T00:01:00.000Z' };
-  assert.equal((await createPayTicket({ merchantId:ticket.merchantId, subject:'Payment issue', message:'Hello' }, clientFor({ ticket }))).id,ticket.id);
+  assert.equal((await createPayTicket({ merchantId:ticket.merchantId, subject:'Payment issue', message:'Hello', category:'other' }, clientFor({ ticket }))).id,ticket.id);
   assert.equal((await replyToPayTicket(ticket.id,'Hello',clientFor({ message }))).id,message.id);
+});
+
+
+test('ticket creation submits the selected category and optional Payment Intent ID to the existing API contract', async () => {
+  const ticket = { id:'11111111-1111-4111-8111-111111111111', merchantId:'22222222-2222-4222-8222-222222222222', createdByUserId:'u1', subject:'Payment issue', category:'payments', paymentIntentId:'33333333-3333-4333-8333-333333333333', status:'open', priority:'normal', createdAt:'2026-09-11T00:00:00.000Z', updatedAt:'2026-09-11T00:00:00.000Z', closedAt:null };
+  let capturedPath = '';
+  let capturedBody: Record<string, unknown> | null = null;
+  const created = await createPayTicket(
+    { merchantId:ticket.merchantId, subject:'Payment issue', message:'Hello', category:'payments', paymentIntentId:ticket.paymentIntentId },
+    clientFor({ ticket }, (path, init) => { capturedPath = path; capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>; }),
+  );
+  assert.equal(capturedPath, '/api/pay/v1/tickets');
+  assert.equal(capturedBody?.category, 'payments');
+  assert.equal(capturedBody?.paymentIntentId, ticket.paymentIntentId);
+  assert.equal(created.paymentIntentId, ticket.paymentIntentId);
 });
