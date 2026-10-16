@@ -127,6 +127,7 @@ async function provision() {
 
 async function cleanup(fixture, merchantId) {
   if (merchantId) await db('delete from public.pay_payment_transactions where payment_id in (select id from public.pay_payment_intents where merchant_id = $1)', [merchantId]).catch(() => {});
+  if (merchantId) await db('delete from public.pay_tickets where merchant_id = $1', [merchantId]).catch(() => {});
   if (merchantId) await db('delete from public.pay_payment_intents where merchant_id = $1', [merchantId]).catch(() => {});
   if (merchantId) await db('delete from public.pay_payment_links where merchant_id = $1', [merchantId]).catch(() => {});
   if (merchantId) await db('delete from public.pay_invoices where merchant_id = $1', [merchantId]).catch(() => {});
@@ -1268,6 +1269,7 @@ try {
   const ticketAdminReply = 'Support response from production E2E.';
   const ticketForm = page.locator('.pay-ticket-new');
   await ticketForm.locator('input').nth(0).fill(ticketSubject);
+  await ticketForm.locator('input').nth(1).fill(publicIntentFromDb[0].id);
   await ticketForm.locator('select').nth(0).selectOption('payments');
   await ticketForm.locator('select').nth(1).selectOption('high');
   await ticketForm.locator('textarea').fill(ticketInitialMessage);
@@ -1284,10 +1286,11 @@ try {
   assert.equal(ticketCreateBody.ticket?.status, 'open');
   assert.equal(ticketCreateBody.ticket?.priority, 'high');
   assert.equal(ticketCreateBody.ticket?.category, 'payments');
-  assert.equal(ticketCreateBody.ticket?.paymentIntentId, null);
+  assert.equal(ticketCreateBody.ticket?.paymentIntentId, publicIntentFromDb[0].id);
   const ticketId = ticketCreateBody.ticket?.id;
   assert.equal(typeof ticketId, 'string');
   await page.locator('.pay-ticket-id').filter({ hasText: ticketId }).waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('.pay-ticket-meta-id').filter({ hasText: publicIntentFromDb[0].id }).waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
   assert.match(await page.locator('.pay-ticket-success').innerText(), /Ticket created successfully/);
   const createdTicketRow = page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first();
