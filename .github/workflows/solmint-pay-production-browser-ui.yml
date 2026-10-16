@@ -64,6 +64,9 @@ jobs:
           mkdir -p "$install_dir"
           npm install --prefix "$install_dir" --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
           mkdir -p node_modules
+          if [[ -e node_modules/playwright || -L node_modules/playwright ]]; then
+            rm -rf node_modules/playwright
+          fi
           ln -s "$install_dir/node_modules/playwright" node_modules/playwright
 
       - name: Install Chromium
