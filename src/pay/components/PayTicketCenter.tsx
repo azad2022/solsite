@@ -3,7 +3,7 @@ import { AlertCircle, CircleCheck, Loader2, MessageSquare, Plus, RefreshCw, Send
 import { PayHttpError } from '../http';
 import type { PayLocale } from '../types';
 import type { PaySessionUser } from '../services/sessionService';
-import { createPayTicket, getPayTicket, listPayTickets, replyToPayTicket, updatePayTicketStatus, type PayTicket, type PayTicketDetail, type PayTicketPriority, type PayTicketStatus } from '../services/ticketService';
+import { createPayTicket, getPayTicket, listPayTickets, replyToPayTicket, updatePayTicketStatus, type PayTicket, type PayTicketCategory, type PayTicketDetail, type PayTicketPriority, type PayTicketStatus } from '../services/ticketService';
 import { ticketT, type TicketTranslationKey } from './pay-tickets-i18n';
 import PayTrainingCenter from './PayTrainingCenter';
 import './pay-tickets.css';
@@ -11,16 +11,19 @@ import './pay-tickets.css';
 interface Props { locale: PayLocale; sessionUser: PaySessionUser; merchantId: string | null; }
 const STATUSES: PayTicketStatus[] = ['open','pending_customer','pending_admin','resolved','closed'];
 const PRIORITIES: PayTicketPriority[] = ['normal','high','urgent'];
+const CATEGORIES: PayTicketCategory[] = ['payments','wallet','invoices','payment_links','bulk_pay','api_webhooks','merchant_account','referrals','security','other'];
+const CATEGORY_KEYS: Record<PayTicketCategory, TicketTranslationKey> = { payments:'catPayments', wallet:'catWallet', invoices:'catInvoices', payment_links:'catPaymentLinks', bulk_pay:'catBulkPay', api_webhooks:'catApiWebhooks', merchant_account:'catMerchantAccount', referrals:'catReferrals', security:'catSecurity', other:'catOther' };
 function translateStatus(locale: PayLocale, status: PayTicketStatus): string { const key: Record<PayTicketStatus, TicketTranslationKey> = { open:'open', pending_customer:'pendingCustomer', pending_admin:'pendingAdmin', resolved:'resolved', closed:'closed' }; return ticketT(locale,key[status]); }
 function priorityLabel(locale: PayLocale, priority: PayTicketPriority): string { return ticketT(locale, priority); }
+function categoryLabel(locale: PayLocale, category: PayTicketCategory): string { return ticketT(locale, CATEGORY_KEYS[category]); }
 function dateValue(value: string, locale: PayLocale): string { const intlLocale = locale === 'fa-IR' ? 'fa-IR' : locale === 'ar' ? 'ar' : locale === 'ru' ? 'ru-RU' : 'en-US'; return new Intl.DateTimeFormat(intlLocale,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)); }
 function accessError(error: unknown): 'forbidden'|'unauthorized'|'error' { if (error instanceof PayHttpError) { if (error.status === 401) return 'unauthorized'; if (error.status === 403) return 'forbidden'; } return 'error'; }
 
 export default function PayTicketCenter({ locale, sessionUser, merchantId }: Props): React.ReactElement {
   const isAdmin = sessionUser.role === 'admin';
   const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null); const detailRequestSeq=useRef(0);
-  const [loading,setLoading]=useState(true); const [detailLoading,setDetailLoading]=useState(false); const [error,setError]=useState<'error'|'forbidden'|'unauthorized'|null>(null); const [detailError,setDetailError]=useState<'error'|'forbidden'|'unauthorized'|null>(null);
-  const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null); const [notice,setNotice]=useState<'created'|'replied'|'status'|null>(null);
+  const [loading,setLoading]=useState(true); const [detailLoading,setDetailLoading]=useState(false); const [error,setError]=useState<'error'|'forbidden'|'unauthorized'|'create-error'|null>(null); const [detailError,setDetailError]=useState<'error'|'forbidden'|'unauthorized'|'send-error'|'status-error'|null>(null);
+  const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [category,setCategory]=useState<PayTicketCategory>('other'); const [paymentIntentId,setPaymentIntentId]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null); const [notice,setNotice]=useState<'created'|'replied'|'status'|null>(null);
 
   async function loadTickets(selectFirst=true) {
     if (!isAdmin && !merchantId) {
@@ -49,9 +52,9 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
   useEffect(()=>{ void loadTickets(); },[merchantId,isAdmin]);
   useEffect(()=>{ ++detailRequestSeq.current; if(selectedId) { setDetail(null); setDetailError(null); void loadDetail(selectedId); } else { setDetail(null); setDetailError(null); } },[selectedId]);
   const selected = useMemo(()=>tickets.find(item=>item.id===selectedId)||detail?.ticket||null,[tickets,selectedId,detail]);
-  async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); setNotice(null); try { const created=await createPayTicket({merchantId,subject,message,priority}); setSubject(''); setMessage(''); setPriority('normal'); setNotice('created'); await loadTickets(false); setSelectedId(created.id); } catch(e) { setError(accessError(e)); } finally { setBusy(null); } }
-  async function handleReply(event:React.FormEvent) { event.preventDefault(); if(!selectedId || !reply.trim() || busy) return; setBusy('reply'); setDetailError(null); setNotice(null); try { await replyToPayTicket(selectedId,reply); setReply(''); setNotice('replied'); await Promise.all([loadTickets(false),loadDetail(selectedId)]); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }
-  async function handleStatus(status:PayTicketStatus) { if(!selectedId || busy || !isAdmin) return; setBusy('status'); setNotice(null); try { const updated=await updatePayTicketStatus(selectedId,status); setTickets(current=>current.map(item=>item.id===updated.id?updated:item)); setDetail(current=>current?{...current,ticket:updated}:current); setNotice('status'); } catch(e) { setDetailError(accessError(e)); } finally { setBusy(null); } }
+  async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); setNotice(null); try { const created=await createPayTicket({merchantId,subject,message,priority,category,paymentIntentId:paymentIntentId.trim()||null}); setSubject(''); setMessage(''); setCategory('other'); setPaymentIntentId(''); setPriority('normal'); setNotice('created'); await loadTickets(false); setSelectedId(created.id); } catch(e) { setError(e instanceof PayHttpError && (e.status===401||e.status===403) ? accessError(e) : 'create-error'); } finally { setBusy(null); } }
+  async function handleReply(event:React.FormEvent) { event.preventDefault(); if(!selectedId || !reply.trim() || busy) return; setBusy('reply'); setDetailError(null); setNotice(null); try { await replyToPayTicket(selectedId,reply); setReply(''); setNotice('replied'); await Promise.all([loadTickets(false),loadDetail(selectedId)]); } catch(e) { setDetailError(e instanceof PayHttpError && (e.status===401||e.status===403) ? accessError(e) : 'send-error'); } finally { setBusy(null); } }
+  async function handleStatus(status:PayTicketStatus) { if(!selectedId || busy || !isAdmin) return; setBusy('status'); setDetailError(null); setNotice(null); try { const updated=await updatePayTicketStatus(selectedId,status); setTickets(current=>current.map(item=>item.id===updated.id?updated:item)); setDetail(current=>current?{...current,ticket:updated}:current); setNotice('status'); } catch(e) { setDetailError(e instanceof PayHttpError && (e.status===401||e.status===403) ? accessError(e) : 'status-error'); } finally { setBusy(null); } }
 
   return <section className="pay-ticket-center" aria-label={ticketT(locale,'tickets')}>
     <PayTrainingCenter locale={locale} />
