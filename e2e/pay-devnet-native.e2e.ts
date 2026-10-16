@@ -25,6 +25,28 @@ const FUNDER_TOP_UP_LAMPORTS = PAYMENT_AMOUNT_LAMPORTS + PAYER_RENT_RESERVE_LAMP
 const MIN_FUNDER_BALANCE_LAMPORTS = FUNDER_TOP_UP_LAMPORTS + 100_000;
 const OBSERVATION_POLL_ATTEMPTS = 20;
 const OBSERVATION_POLL_DELAY_MS = 2_000;
+const DEVNET_RPC_REQUEST_TIMEOUT_MS = 12_000;
+
+// Node's test timeout does not abort a pending fetch. Bound each web3.js HTTP
+// request so a stalled RPC cannot leave the funded E2E process alive until the
+// entire GitHub Actions job is cancelled.
+const devnetTimedFetch: typeof fetch = async (input, init = {}) => {
+  const controller = new AbortController();
+  const parentSignal = init.signal;
+  const forwardAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) forwardAbort();
+  else parentSignal?.addEventListener('abort', forwardAbort, { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(new Error(`Devnet RPC request exceeded ${DEVNET_RPC_REQUEST_TIMEOUT_MS}ms.`)),
+    DEVNET_RPC_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener('abort', forwardAbort);
+  }
+};
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58_ALPHABET].map((char, index) => [char, index]));
 
@@ -105,7 +127,12 @@ async function waitForFinalizedObservation(
 }
 
 test('SolMint Pay verification discovers and verifies a real Devnet SOL payment', { timeout: 270_000 }, async () => {
-  const connection = new Connection(DEVNET_RPC_URL, { commitment: 'confirmed' });
+  const connection = new Connection(DEVNET_RPC_URL, {
+    commitment: 'confirmed',
+    fetch: devnetTimedFetch,
+    disableRetryOnRateLimit: true,
+    confirmTransactionInitialTimeout: DEVNET_RPC_REQUEST_TIMEOUT_MS,
+  });
   const payer = Keypair.generate();
   const merchant = Keypair.generate();
   const fee = Keypair.generate();
