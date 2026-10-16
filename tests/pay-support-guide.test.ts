@@ -18,6 +18,10 @@ test('contextual footer guides are removed from ordinary Pay sections and owned 
   assert.match(tickets,/createError/);
   assert.match(tickets,/statusError/);
   assert.match(tickets,/otherParticipant/);
+  assert.match(tickets,/listRequestSeq/);
+  assert.match(tickets,/failure === 'forbidden' \|\| failure === 'unauthorized'/);
+  assert.match(tickets,/setTickets\(\[\]\)/);
+  assert.match(tickets,/\['error','forbidden','unauthorized'\]\.includes\(error\)/);
 });
 
 test('Support guide hub has searchable localized presentation UI',()=>{
