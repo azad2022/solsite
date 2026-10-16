@@ -62,6 +62,24 @@ jobs:
           PGDATABASE: solmint_pay_security
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_identity_rls_security.sql
 
+      - name: Create isolated Pay ticket security database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: createdb pay_ticket_security
+
+      - name: Run Pay ticket tenant and lifecycle security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_ticket_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_ticket_security.sql
+
       - name: Create isolated Payment Link security database
         env:
           PGHOST: 127.0.0.1
