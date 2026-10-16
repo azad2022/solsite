@@ -21,11 +21,12 @@ function accessError(error: unknown): 'forbidden'|'unauthorized'|'error' { if (e
 
 export default function PayTicketCenter({ locale, sessionUser, merchantId }: Props): React.ReactElement {
   const isAdmin = sessionUser.role === 'admin';
-  const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null); const detailRequestSeq=useRef(0);
+  const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null); const detailRequestSeq=useRef(0); const listRequestSeq=useRef(0);
   const [loading,setLoading]=useState(true); const [detailLoading,setDetailLoading]=useState(false); const [error,setError]=useState<'error'|'forbidden'|'unauthorized'|'create-error'|'payment-intent-not-found'|null>(null); const [detailError,setDetailError]=useState<'error'|'forbidden'|'unauthorized'|'send-error'|'status-error'|null>(null);
   const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [category,setCategory]=useState<PayTicketCategory>('other'); const [paymentIntentId,setPaymentIntentId]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null); const [notice,setNotice]=useState<'created'|'replied'|'status'|null>(null);
 
   async function loadTickets(selectFirst=true) {
+    const requestSeq=++listRequestSeq.current;
     if (!isAdmin && !merchantId) {
       setTickets([]);
       setSelectedId(null);
@@ -38,10 +39,12 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
     setError(null);
     try {
       const rows=await listPayTickets({merchantId:isAdmin?undefined:merchantId});
+      if (requestSeq !== listRequestSeq.current) return;
       setTickets(rows);
       if (selectFirst && rows[0]) setSelectedId(current=>current && rows.some(item=>item.id===current)?current:rows[0].id);
       else if (!rows.length) { setSelectedId(null); setDetail(null); }
     } catch (e) {
+      if (requestSeq !== listRequestSeq.current) return;
       const failure = accessError(e);
       setError(failure);
       if (failure === 'forbidden' || failure === 'unauthorized') {
@@ -50,7 +53,7 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
         setDetail(null);
       }
     } finally {
-      setLoading(false);
+      if (requestSeq === listRequestSeq.current) setLoading(false);
     }
   }
   async function loadDetail(id:string) { const requestSeq=++detailRequestSeq.current; setDetailLoading(true); setDetailError(null); try { const next=await getPayTicket(id); if (requestSeq !== detailRequestSeq.current) return; setDetail(next); } catch(e) { if (requestSeq === detailRequestSeq.current) { const failure=accessError(e); setDetailError(failure); if (failure === 'forbidden' || failure === 'unauthorized') setDetail(null); } } finally { if (requestSeq === detailRequestSeq.current) setDetailLoading(false); } }
@@ -58,9 +61,9 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
   useEffect(()=>{ setTickets([]); setSelectedId(null); setDetail(null); setError(null); setDetailError(null); void loadTickets(); },[merchantId,isAdmin]);
   useEffect(()=>{ ++detailRequestSeq.current; if(selectedId) { setDetail(null); setDetailError(null); void loadDetail(selectedId); } else { setDetail(null); setDetailError(null); } },[selectedId]);
   const selected = useMemo(()=>tickets.find(item=>item.id===selectedId)||detail?.ticket||null,[tickets,selectedId,detail]);
-  async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); setNotice(null); try { const created=await createPayTicket({merchantId,subject,message,priority,category,paymentIntentId:paymentIntentId.trim()||null}); setSubject(''); setMessage(''); setCategory('other'); setPaymentIntentId(''); setPriority('normal'); setNotice('created'); await loadTickets(false); setSelectedId(created.id); } catch(e) { setError(e instanceof PayHttpError && (e.status===401||e.status===403) ? accessError(e) : e instanceof PayHttpError && e.code==='PAYMENT_INTENT_NOT_FOUND' ? 'payment-intent-not-found' : 'create-error'); } finally { setBusy(null); } }
-  async function handleReply(event:React.FormEvent) { event.preventDefault(); if(!selectedId || !reply.trim() || busy) return; setBusy('reply'); setDetailError(null); setNotice(null); try { await replyToPayTicket(selectedId,reply); setReply(''); setNotice('replied'); await Promise.all([loadTickets(false),loadDetail(selectedId)]); } catch(e) { setDetailError(e instanceof PayHttpError && (e.status===401||e.status===403) ? accessError(e) : 'send-error'); } finally { setBusy(null); } }
-  async function handleStatus(status:PayTicketStatus) { if(!selectedId || busy || !isAdmin) return; setBusy('status'); setDetailError(null); setNotice(null); try { const updated=await updatePayTicketStatus(selectedId,status); setTickets(current=>current.map(item=>item.id===updated.id?updated:item)); setDetail(current=>current?{...current,ticket:updated}:current); setNotice('status'); } catch(e) { setDetailError(e instanceof PayHttpError && (e.status===401||e.status===403) ? accessError(e) : 'status-error'); } finally { setBusy(null); } }
+  async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); setNotice(null); try { const created=await createPayTicket({merchantId,subject,message,priority,category,paymentIntentId:paymentIntentId.trim()||null}); setSubject(''); setMessage(''); setCategory('other'); setPaymentIntentId(''); setPriority('normal'); setNotice('created'); await loadTickets(false); setSelectedId(created.id); } catch(e) { if (e instanceof PayHttpError && (e.status===401||e.status===403)) { setError(accessError(e)); setTickets([]); setSelectedId(null); setDetail(null); } else setError(e instanceof PayHttpError && e.code==='PAYMENT_INTENT_NOT_FOUND' ? 'payment-intent-not-found' : 'create-error'); } finally { setBusy(null); } }
+  async function handleReply(event:React.FormEvent) { event.preventDefault(); if(!selectedId || !reply.trim() || busy) return; setBusy('reply'); setDetailError(null); setNotice(null); try { await replyToPayTicket(selectedId,reply); setReply(''); setNotice('replied'); await Promise.all([loadTickets(false),loadDetail(selectedId)]); } catch(e) { if (e instanceof PayHttpError && (e.status===401||e.status===403)) { setDetailError(accessError(e)); setDetail(null); setTickets([]); setSelectedId(null); } else setDetailError('send-error'); } finally { setBusy(null); } }
+  async function handleStatus(status:PayTicketStatus) { if(!selectedId || busy || !isAdmin) return; setBusy('status'); setDetailError(null); setNotice(null); try { const updated=await updatePayTicketStatus(selectedId,status); setTickets(current=>current.map(item=>item.id===updated.id?updated:item)); setDetail(current=>current?{...current,ticket:updated}:current); setNotice('status'); } catch(e) { if (e instanceof PayHttpError && (e.status===401||e.status===403)) { setDetailError(accessError(e)); setDetail(null); setTickets([]); setSelectedId(null); } else setDetailError('status-error'); } finally { setBusy(null); } }
 
   return <section className="pay-ticket-center" aria-label={ticketT(locale,'tickets')}>
     <PayTrainingCenter locale={locale} />
