@@ -12,6 +12,12 @@ test('contextual footer guides are removed from ordinary Pay sections and owned 
   assert.match(app,/<footer className="pay-footer">\s*<div className="pay-footer-legal">/);
   assert.match(tickets,/PayTrainingCenter locale=\{locale\}/);
   assert.match(tickets,/pay-ticket-id/);
+  assert.match(tickets,/PayTicketCategory/);
+  assert.match(tickets,/paymentIntentId/);
+  assert.match(tickets,/minLength=\{3\}/);
+  assert.match(tickets,/createError/);
+  assert.match(tickets,/statusError/);
+  assert.match(tickets,/otherParticipant/);
 });
 
 test('Support guide hub has searchable localized presentation UI',()=>{
