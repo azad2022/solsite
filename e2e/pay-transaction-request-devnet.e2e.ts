@@ -21,6 +21,54 @@ const TOP_UP = Number(PAYMENT_AMOUNT + 1_000_000n);
 const MIN_FUNDER_BALANCE = TOP_UP + 100_000;
 const DISCOVERY_POLL_ATTEMPTS = 15;
 const DISCOVERY_POLL_DELAY_MS = 2_000;
+const DEVNET_RPC_REQUEST_TIMEOUT_MS = 12_000;
+const FINALIZED_CONFIRMATION_TIMEOUT_MS = 120_000;
+const FINALIZED_CONFIRMATION_POLL_DELAY_MS = 2_000;
+
+// Bound HTTP calls explicitly: web3.js block-height confirmation retries RPC
+// errors and can otherwise wait indefinitely for a WebSocket notification.
+const devnetTimedFetch: typeof fetch = async (input, init = {}) => {
+  const controller = new AbortController();
+  const parentSignal = init.signal;
+  const forwardAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) forwardAbort();
+  else parentSignal?.addEventListener('abort', forwardAbort, { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(new Error(`Devnet RPC request exceeded ${DEVNET_RPC_REQUEST_TIMEOUT_MS}ms.`)),
+    DEVNET_RPC_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener('abort', forwardAbort);
+  }
+};
+
+async function confirmFinalized(connection: Connection, signature: string, lastValidBlockHeight?: number): Promise<void> {
+  const deadline = Date.now() + FINALIZED_CONFIRMATION_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const response = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+    const status = response.value[0];
+    if (status?.err != null) throw new Error(`Devnet transaction failed: ${JSON.stringify(status.err)}`);
+    if (status?.confirmationStatus === 'finalized') return;
+
+    if (lastValidBlockHeight !== undefined) {
+      const blockHeight = await connection.getBlockHeight('confirmed');
+      if (blockHeight > lastValidBlockHeight) {
+        throw new Error(`Devnet transaction expired before finalization: ${signature}`);
+      }
+    }
+
+    const remaining = deadline - Date.now();
+    if (remaining > 0) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(FINALIZED_CONFIRMATION_POLL_DELAY_MS, remaining)));
+    }
+  }
+  throw new Error(`DEVNET_FINALIZED_CONFIRMATION_TIMEOUT after ${FINALIZED_CONFIRMATION_TIMEOUT_MS}ms for signature ${signature}`);
+}
+
+
 
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58].map((char, index) => [char, index]));
@@ -60,13 +108,10 @@ function loadFunder(value: string): Keypair {
   throw new Error('DEVNET_E2E_FUNDER_SECRET_KEY_B64 must contain a valid 64-byte Solana keypair.');
 }
 
-async function confirm(connection: Connection, signature: string, blockhash: string, lastValidBlockHeight: number): Promise<void> {
-  const result = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'finalized');
-  assert.equal(result.value.err, null);
-}
+
 
 test('hosted transaction builder produces a real discoverable Devnet payment', { timeout: 300_000 }, async () => {
-  const connection = new Connection(DEVNET_RPC_URL, 'confirmed');
+  const connection = new Connection(DEVNET_RPC_URL, { commitment: 'confirmed', fetch: devnetTimedFetch, disableRetryOnRateLimit: true });
   const funder = loadFunder(DEVNET_FUNDER_SECRET);
   assert.equal(funder.publicKey.toBase58(), EXPECTED_FUNDER.toBase58());
 
@@ -87,7 +132,7 @@ test('hosted transaction builder produces a real discoverable Devnet payment', {
   );
   fundingTx.sign(funder);
   const fundingSignature = await connection.sendRawTransaction(fundingTx.serialize(), { skipPreflight: false, maxRetries: 2 });
-  await confirm(connection, fundingSignature, fundingBlockhash.blockhash, fundingBlockhash.lastValidBlockHeight);
+  await confirmFinalized(connection, fundingSignature, fundingBlockhash.lastValidBlockHeight);
 
   const createdAt = new Date(Date.now() - 30_000).toISOString();
   const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
@@ -121,8 +166,7 @@ test('hosted transaction builder produces a real discoverable Devnet payment', {
     preflightCommitment: 'confirmed',
     maxRetries: 2,
   });
-  const confirmation = await connection.confirmTransaction(signature, 'finalized');
-  assert.equal(confirmation.value.err, null);
+  await confirmFinalized(connection, signature);
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: DEVNET_RPC_URL });
   let discovered = await provider.findTransactionsByReference(
