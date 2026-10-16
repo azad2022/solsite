@@ -21,6 +21,9 @@ test('ticket operational migration keeps categories constrained and Payment Inte
     new URL('../supabase/migrations/20261016160000_solmint_pay_ticket_operational_fields.sql', import.meta.url),
     'utf8',
   );
+  assert.match(migration, /create index if not exists pay_tickets_created_by_user_id_idx/i);
+  assert.match(migration, /create index if not exists pay_ticket_messages_author_user_id_idx/i);
+  assert.match(migration, /create index if not exists pay_tickets_payment_intent_merchant_idx/i);
   assert.match(migration, /category text not null default 'other'/i);
   assert.match(migration, /foreign key \(payment_intent_id, merchant_id\)[\s\S]*references public\.pay_payment_intents\(id, merchant_id\)[\s\S]*on delete restrict/i);
   assert.match(migration, /i\.merchant_id = p_merchant_id/i);
