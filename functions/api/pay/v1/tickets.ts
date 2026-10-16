@@ -3,14 +3,15 @@ import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequ
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
 
 interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; PAY_APP_ORIGIN?: string; SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; }
-interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; }
-const ticketSelect = 'id,merchant_id,created_by_user_id,subject,status,priority,created_at,updated_at,closed_at';
+interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; category: string; payment_intent_id: string | null; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; }
+const ticketSelect = 'id,merchant_id,created_by_user_id,subject,category,payment_intent_id,status,priority,created_at,updated_at,closed_at';
 
 function originAllowed(request: Request, env: PayEnv): boolean { const expected = env.PAY_APP_ORIGIN?.trim(); return !!expected && request.headers.get('Origin') === expected; }
-function mapTicket(row: TicketRow) { return { id: row.id, merchantId: row.merchant_id, createdByUserId: row.created_by_user_id, subject: row.subject, status: row.status, priority: row.priority, createdAt: row.created_at, updatedAt: row.updated_at, closedAt: row.closed_at }; }
+function mapTicket(row: TicketRow) { return { id: row.id, merchantId: row.merchant_id, createdByUserId: row.created_by_user_id, subject: row.subject, category: row.category, paymentIntentId: row.payment_intent_id, status: row.status, priority: row.priority, createdAt: row.created_at, updatedAt: row.updated_at, closedAt: row.closed_at }; }
 function isAdmin(user: AuthUser | null): boolean { return !!user && user.is_active !== false && user.role === 'admin'; }
 function validUuid(value: string): boolean { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
 function validPriority(value: unknown): value is 'normal'|'high'|'urgent' { return value === 'normal' || value === 'high' || value === 'urgent'; }
+function validCategory(value: unknown): value is 'payments'|'wallet'|'invoices'|'payment_links'|'bulk_pay'|'api_webhooks'|'merchant_account'|'referrals'|'security'|'other' { return value === 'payments' || value === 'wallet' || value === 'invoices' || value === 'payment_links' || value === 'bulk_pay' || value === 'api_webhooks' || value === 'merchant_account' || value === 'referrals' || value === 'security' || value === 'other'; }
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: PayEnv }) => {
   const requestId = makePayRequestId();
@@ -52,12 +53,30 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     const priority = body.priority === undefined ? 'normal' : body.priority;
+    const category = body.category === undefined ? 'other' : body.category;
+    const rawPaymentIntentId = body.paymentIntentId;
+    const paymentIntentId = rawPaymentIntentId === undefined || rawPaymentIntentId === null || rawPaymentIntentId === ''
+      ? null
+      : typeof rawPaymentIntentId === 'string' ? rawPaymentIntentId.trim() : undefined;
     if (!validUuid(merchantId)) return payJson({ code: 'INVALID_MERCHANT_ID', message: 'merchantId is invalid.' }, 400, requestId);
     if (subject.length < 3 || subject.length > 160) return payJson({ code: 'INVALID_SUBJECT', message: 'subject must be between 3 and 160 characters.' }, 400, requestId);
     if (message.length < 1 || message.length > 10000) return payJson({ code: 'INVALID_MESSAGE', message: 'message must be between 1 and 10000 characters.' }, 400, requestId);
     if (!validPriority(priority)) return payJson({ code: 'INVALID_PRIORITY', message: 'priority is invalid.' }, 400, requestId);
+    if (!validCategory(category)) return payJson({ code: 'INVALID_CATEGORY', message: 'Ticket category is invalid.' }, 400, requestId);
+    if (paymentIntentId !== null && (typeof paymentIntentId !== 'string' || !validUuid(paymentIntentId))) return payJson({ code: 'INVALID_PAYMENT_INTENT_ID', message: 'paymentIntentId must be a valid UUID when supplied.' }, 400, requestId);
 
-    const response = await supabaseRequest(env, '/rest/v1/rpc/pay_create_ticket', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ p_user_id: user.id, p_merchant_id: merchantId, p_subject: subject, p_body: message, p_priority: priority }) });
+    if (paymentIntentId) {
+      const identity = await resolvePayIdentity(request, env);
+      const intentResponse = await supabaseRequestAsIdentity(
+        env,
+        identity.accessToken,
+        `/rest/v1/pay_payment_intents?select=id&id=eq.${encodeURIComponent(paymentIntentId)}&merchant_id=eq.${encodeURIComponent(merchantId)}&limit=1`,
+      );
+      const intents = await intentResponse.json() as Array<{ id: string }>;
+      if (!intents.length) return payJson({ code: 'PAYMENT_INTENT_NOT_FOUND', message: 'Payment Intent was not found for this Merchant.' }, 404, requestId);
+    }
+
+    const response = await supabaseRequest(env, '/rest/v1/rpc/pay_create_ticket', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ p_user_id: user.id, p_merchant_id: merchantId, p_subject: subject, p_body: message, p_priority: priority, p_category: category, p_payment_intent_id: paymentIntentId }) });
     const ticket = await response.json() as TicketRow;
     return payJson({ ticket: mapTicket(ticket) }, 201, requestId);
   } catch (error) {
