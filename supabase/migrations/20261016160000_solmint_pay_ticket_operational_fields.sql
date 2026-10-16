@@ -2,8 +2,7 @@ begin;
 
 alter table public.pay_tickets
   add column if not exists category text not null default 'other',
-  add column if not exists payment_intent_id uuid
-    references public.pay_payment_intents(id) on delete set null;
+  add column if not exists payment_intent_id uuid;
 
 do $$
 begin
@@ -19,8 +18,29 @@ begin
         'api_webhooks','merchant_account','referrals','security','other'
       ));
   end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.pay_payment_intents'::regclass
+      and conname = 'pay_payment_intents_id_merchant_unique'
+  ) then
+    alter table public.pay_payment_intents
+      add constraint pay_payment_intents_id_merchant_unique unique (id, merchant_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.pay_tickets'::regclass
+      and conname = 'pay_tickets_payment_intent_merchant_fk'
+  ) then
+    alter table public.pay_tickets
+      add constraint pay_tickets_payment_intent_merchant_fk
+      foreign key (payment_intent_id, merchant_id)
+      references public.pay_payment_intents(id, merchant_id)
+      on delete restrict;
+  end if;
 end;
-$$;
+$;
 
 create index if not exists pay_tickets_payment_intent_idx
   on public.pay_tickets(payment_intent_id)
