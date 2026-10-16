@@ -16,7 +16,7 @@ const FINALIZED_CONFIRMATION_POLL_DELAY_MS = 2_000;
 
 // Bound HTTP calls explicitly: web3.js block-height confirmation retries RPC
 // errors and can otherwise wait indefinitely for a WebSocket notification.
-const devnetTimedFetch: typeof fetch = async (input, init = {}) => {
+const devnetTimedFetch: typeof fetch = async (input, init: RequestInit = {}) => {
   const controller = new AbortController();
   const parentSignal = init.signal;
   const forwardAbort = () => controller.abort(parentSignal?.reason);
