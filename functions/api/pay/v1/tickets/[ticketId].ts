@@ -3,14 +3,14 @@ import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequ
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../_shared/identity';
 
 interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; PAY_APP_ORIGIN?: string; SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; }
-interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; }
+interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; category: string; payment_intent_id: string | null; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; }
 interface MessageRow { id: string; ticket_id: string; author_user_id: string; body: string; created_at: string; }
-const ticketSelect = 'id,merchant_id,created_by_user_id,subject,status,priority,created_at,updated_at,closed_at';
+const ticketSelect = 'id,merchant_id,created_by_user_id,subject,category,payment_intent_id,status,priority,created_at,updated_at,closed_at';
 const messageSelect = 'id,ticket_id,author_user_id,body,created_at';
 
 function originAllowed(request: Request, env: PayEnv): boolean { const expected = env.PAY_APP_ORIGIN?.trim(); return !!expected && request.headers.get('Origin') === expected; }
 function validUuid(value: string): boolean { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
-function mapTicket(row: TicketRow) { return { id: row.id, merchantId: row.merchant_id, createdByUserId: row.created_by_user_id, subject: row.subject, status: row.status, priority: row.priority, createdAt: row.created_at, updatedAt: row.updated_at, closedAt: row.closed_at }; }
+function mapTicket(row: TicketRow) { return { id: row.id, merchantId: row.merchant_id, createdByUserId: row.created_by_user_id, subject: row.subject, category: row.category, paymentIntentId: row.payment_intent_id, status: row.status, priority: row.priority, createdAt: row.created_at, updatedAt: row.updated_at, closedAt: row.closed_at }; }
 function mapMessage(row: MessageRow) { return { id: row.id, ticketId: row.ticket_id, authorUserId: row.author_user_id, body: row.body, createdAt: row.created_at }; }
 
 export const onRequestGet = async ({ request, env, params }: { request: Request; env: PayEnv; params: Record<string, string | undefined> }) => {
