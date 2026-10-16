@@ -4,7 +4,7 @@ alter table public.pay_tickets
   add column if not exists category text not null default 'other',
   add column if not exists payment_intent_id uuid;
 
-do $$
+do $ticket_migration_guard$
 begin
   if not exists (
     select 1 from pg_constraint
@@ -40,7 +40,7 @@ begin
       on delete restrict;
   end if;
 end;
-$;
+$ticket_migration_guard$;
 
 create index if not exists pay_tickets_payment_intent_idx
   on public.pay_tickets(payment_intent_id)
