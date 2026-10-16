@@ -1267,8 +1267,9 @@ try {
   const ticketReplyMessage = 'Merchant follow-up from production E2E.';
   const ticketAdminReply = 'Support response from production E2E.';
   const ticketForm = page.locator('.pay-ticket-new');
-  await ticketForm.locator('input').fill(ticketSubject);
-  await ticketForm.locator('select').selectOption('high');
+  await ticketForm.locator('input').nth(0).fill(ticketSubject);
+  await ticketForm.locator('select').nth(0).selectOption('payments');
+  await ticketForm.locator('select').nth(1).selectOption('high');
   await ticketForm.locator('textarea').fill(ticketInitialMessage);
   const ticketCreateResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith('/api/pay/v1/tickets') && response.request().method() === 'POST',
@@ -1282,8 +1283,11 @@ try {
   assert.equal(ticketCreateBody.ticket?.subject, ticketSubject);
   assert.equal(ticketCreateBody.ticket?.status, 'open');
   assert.equal(ticketCreateBody.ticket?.priority, 'high');
+  assert.equal(ticketCreateBody.ticket?.category, 'payments');
+  assert.equal(ticketCreateBody.ticket?.paymentIntentId, null);
   const ticketId = ticketCreateBody.ticket?.id;
   assert.equal(typeof ticketId, 'string');
+  await page.locator('.pay-ticket-id').filter({ hasText: ticketId }).waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
   assert.match(await page.locator('.pay-ticket-success').innerText(), /Ticket created successfully/);
   const createdTicketRow = page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first();
@@ -1347,6 +1351,8 @@ try {
   assert.equal(await page.locator('.pay-ticket-new').count(), 0, 'Site administrators must not receive the merchant ticket creation form.');
 
   await page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first().click();
+  await page.locator('.pay-ticket-meta-id').filter({ hasText: merchantId }).waitFor({ state: 'visible', timeout: 5000 });
+  assert.match(await page.locator('.pay-ticket-thread-header').innerText(), /Payments/);
   const adminReplyForm = page.locator('.pay-ticket-reply');
   await adminReplyForm.locator('textarea').fill(ticketAdminReply);
   const adminReplyResponsePromise = page.waitForResponse((response) =>
