@@ -3,13 +3,9 @@
 \set ON_ERROR_STOP on
 
 create extension if not exists pgcrypto;
-do $
-begin
-  if not exists (select 1 from pg_roles where rolname='anon') then execute 'create role anon'; end if;
-  if not exists (select 1 from pg_roles where rolname='authenticated') then execute 'create role authenticated'; end if;
-  if not exists (select 1 from pg_roles where rolname='service_role') then execute 'create role service_role'; end if;
-end;
-$;
+select 'create role anon' where not exists (select 1 from pg_roles where rolname='anon') \gexec
+select 'create role authenticated' where not exists (select 1 from pg_roles where rolname='authenticated') \gexec
+select 'create role service_role' where not exists (select 1 from pg_roles where rolname='service_role') \gexec
 grant usage on schema public to authenticated, service_role;
 
 create table public.users (
