@@ -18,15 +18,17 @@ function accessError(error: unknown): 'forbidden'|'unauthorized'|'error' { if (e
 
 export default function PayTicketCenter({ locale, sessionUser, merchantId }: Props): React.ReactElement {
   const isAdmin = sessionUser.role === 'admin';
-  const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null); const detailRequestSeq=useRef(0);
+  const [tickets,setTickets]=useState<PayTicket[]>([]); const [selectedId,setSelectedId]=useState<string|null>(null); const [detail,setDetail]=useState<PayTicketDetail|null>(null); const ticketListRequestSeq=useRef(0); const detailRequestSeq=useRef(0);
   const [loading,setLoading]=useState(true); const [detailLoading,setDetailLoading]=useState(false); const [error,setError]=useState<'error'|'forbidden'|'unauthorized'|null>(null); const [detailError,setDetailError]=useState<'error'|'forbidden'|'unauthorized'|null>(null);
   const [subject,setSubject]=useState(''); const [message,setMessage]=useState(''); const [priority,setPriority]=useState<PayTicketPriority>('normal'); const [reply,setReply]=useState(''); const [busy,setBusy]=useState<'create'|'reply'|'status'|null>(null); const [notice,setNotice]=useState<'created'|'replied'|'status'|null>(null);
 
   async function loadTickets(selectFirst=true) {
+    const requestSeq=++ticketListRequestSeq.current;
     if (!isAdmin && !merchantId) {
       setTickets([]);
       setSelectedId(null);
       setDetail(null);
+      setDetailError(null);
       setLoading(false);
       setError(null);
       return;
@@ -35,18 +37,41 @@ export default function PayTicketCenter({ locale, sessionUser, merchantId }: Pro
     setError(null);
     try {
       const rows=await listPayTickets({merchantId:isAdmin?undefined:merchantId});
+      if (requestSeq !== ticketListRequestSeq.current) return;
       setTickets(rows);
       if (selectFirst && rows[0]) setSelectedId(current=>current && rows.some(item=>item.id===current)?current:rows[0].id);
-      else if (!rows.length) { setSelectedId(null); setDetail(null); }
+      else if (!rows.length || (selectedId && !rows.some(item=>item.id===selectedId))) {
+        setSelectedId(null);
+        setDetail(null);
+        setDetailError(null);
+      }
     } catch (e) {
+      if (requestSeq !== ticketListRequestSeq.current) return;
+      // Fail closed: do not leave another merchant's or stale ticket data visible.
+      setTickets([]);
+      setSelectedId(null);
+      setDetail(null);
+      setDetailError(null);
       setError(accessError(e));
     } finally {
-      setLoading(false);
+      if (requestSeq === ticketListRequestSeq.current) setLoading(false);
     }
   }
   async function loadDetail(id:string) { const requestSeq=++detailRequestSeq.current; setDetailLoading(true); setDetailError(null); try { const next=await getPayTicket(id); if (requestSeq !== detailRequestSeq.current) return; setDetail(next); } catch(e) { if (requestSeq === detailRequestSeq.current) setDetailError(accessError(e)); } finally { if (requestSeq === detailRequestSeq.current) setDetailLoading(false); } }
   async function refreshSelectedTicket() { setNotice(null); await loadTickets(false); const id = selectedId; if (id) await loadDetail(id); }
-  useEffect(()=>{ void loadTickets(); },[merchantId,isAdmin]);
+  useEffect(()=>{
+    // A tenant/role switch invalidates pending responses before they can repaint old ticket data.
+    setTickets([]);
+    setSelectedId(null);
+    setDetail(null);
+    setDetailError(null);
+    setError(null);
+    setNotice(null);
+    ++ticketListRequestSeq.current;
+    ++detailRequestSeq.current;
+    void loadTickets();
+    return ()=>{ ++ticketListRequestSeq.current; ++detailRequestSeq.current; };
+  },[merchantId,isAdmin]);
   useEffect(()=>{ ++detailRequestSeq.current; if(selectedId) { setDetail(null); setDetailError(null); void loadDetail(selectedId); } else { setDetail(null); setDetailError(null); } },[selectedId]);
   const selected = useMemo(()=>tickets.find(item=>item.id===selectedId)||detail?.ticket||null,[tickets,selectedId,detail]);
   async function handleCreate(event:React.FormEvent) { event.preventDefault(); if(!merchantId || !subject.trim() || !message.trim() || busy) return; setBusy('create'); setError(null); setNotice(null); try { const created=await createPayTicket({merchantId,subject,message,priority}); setSubject(''); setMessage(''); setPriority('normal'); setNotice('created'); await loadTickets(false); setSelectedId(created.id); } catch(e) { setError(accessError(e)); } finally { setBusy(null); } }
