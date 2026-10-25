@@ -1334,6 +1334,7 @@ try {
   await page.locator('.pay-ticket-messages article').first().waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await page.locator('.pay-ticket-messages article').count(), 1);
   assert.ok((await page.locator('.pay-ticket-messages article').first().innerText()).includes(ticketInitialMessage));
+  await page.getByRole('region', { name: 'Conversation', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
   const visibleTicketId = page.locator('.pay-ticket-id');
   await visibleTicketId.waitFor({ state: 'visible', timeout: 10000 });
   assert.ok((await visibleTicketId.innerText()).includes(ticketId),
