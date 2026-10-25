@@ -63,6 +63,9 @@ test('Production browser E2E covers ticket lifecycle, access denial and mobile o
 test('Ticket status and access handling remain contract-backed and messages stay readable on mobile',()=>{
   for(const status of ['open','pending_customer','pending_admin','resolved','closed']) assert.ok(tickets.includes(status));
   assert.match(tickets,/error==='forbidden'\?ticketT\(locale,'forbidden'\):error==='unauthorized'\?ticketT\(locale,'unauthorized'\)/);
+  assert.match(tickets,/detail && detail\.ticket\.id===selectedId && !detailError \?/);
+  assert.match(tickets,/detailError!==null/);
+  assert.match(tickets,/!detail \|\| detail\.ticket\.id!==selectedId \|\| detailError/);
   const ticketCss=readFileSync('src/pay/components/pay-tickets.css','utf8');
   assert.match(ticketCss,/@media\(max-width:900px\)\{\.pay-ticket-layout\{grid-template-columns:1fr\}/);
   assert.match(ticketCss,/max-width:560px/);
