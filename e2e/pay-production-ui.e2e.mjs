@@ -1251,6 +1251,17 @@ try {
   assert.equal(publicIntentFromDb[0].asset, 'USDC');
   assert.ok(['created', 'pending'].includes(publicIntentFromDb[0].status),
     `Checkout may legitimately advance a newly-created intent to pending when its automatic reconciliation path runs (actual status: ${publicIntentFromDb[0].status}).`);
+  // Anonymous requests must not be able to enumerate or mutate support tickets.
+  const anonymousTicketList = await publicContext.request.get(
+    ORIGIN + '/api/pay/v1/tickets?merchantId=' + encodeURIComponent(merchantId),
+    { headers: { Origin: ORIGIN, Accept: 'application/json' } },
+  );
+  assert.equal(anonymousTicketList.status(), 401, await anonymousTicketList.text());
+  const anonymousTicketCreate = await publicContext.request.post(ORIGIN + '/api/pay/v1/tickets', {
+    headers: { Origin: ORIGIN, 'Content-Type': 'application/json', Accept: 'application/json' },
+    data: { merchantId, subject: 'Anonymous ticket access probe', message: 'This request must be rejected.' },
+  });
+  assert.equal(anonymousTicketCreate.status(), 401, await anonymousTicketCreate.text());
   await publicContext.close();
 
   // Production Ticket lifecycle: create -> reload -> merchant reply -> admin reply -> resolve -> close -> reopen.
@@ -1284,6 +1295,37 @@ try {
   assert.equal(ticketCreateBody.ticket?.priority, 'high');
   const ticketId = ticketCreateBody.ticket?.id;
   assert.equal(typeof ticketId, 'string');
+
+  // A merchant may create/reply to its own ticket but cannot change authoritative status.
+  const merchantStatusAttempt = await context.request.patch(
+    ORIGIN + '/api/pay/v1/tickets/' + encodeURIComponent(ticketId),
+    {
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json', Accept: 'application/json' },
+      data: { status: 'resolved' },
+    },
+  );
+  const merchantStatusAttemptText = await merchantStatusAttempt.text();
+  assert.equal(merchantStatusAttempt.status(), 403, merchantStatusAttemptText);
+  const merchantStatusAttemptBody = merchantStatusAttemptText ? JSON.parse(merchantStatusAttemptText) : {};
+  assert.equal(merchantStatusAttemptBody.code, 'FORBIDDEN');
+
+  // Test tenant isolation without logging or rendering another merchant's ticket contents.
+  const foreignTicketRows = rows(await db(
+    'select id from public.pay_tickets where merchant_id <> $1 order by updated_at desc limit 1',
+    [merchantId],
+    true,
+  ));
+  assert.ok(foreignTicketRows.length, 'Tenant-isolation E2E needs a ticket owned by a different merchant.');
+  const foreignTicketId = String(foreignTicketRows[0].id);
+  const foreignTicketResponse = await context.request.get(
+    ORIGIN + '/api/pay/v1/tickets/' + encodeURIComponent(foreignTicketId),
+    { headers: { Origin: ORIGIN, Accept: 'application/json' } },
+  );
+  const foreignTicketText = await foreignTicketResponse.text();
+  assert.equal(foreignTicketResponse.status(), 404, foreignTicketText);
+  const foreignTicketBody = foreignTicketText ? JSON.parse(foreignTicketText) : {};
+  assert.equal(foreignTicketBody.code, 'TICKET_NOT_FOUND');
+
   await page.locator('.pay-ticket-success').waitFor({ state: 'visible', timeout: 5000 });
   assert.match(await page.locator('.pay-ticket-success').innerText(), /Ticket created successfully/);
   const createdTicketRow = page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first();
@@ -1292,6 +1334,31 @@ try {
   await page.locator('.pay-ticket-messages article').first().waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await page.locator('.pay-ticket-messages article').count(), 1);
   assert.ok((await page.locator('.pay-ticket-messages article').first().innerText()).includes(ticketInitialMessage));
+
+  // Ticket workflow must fit the existing 390px mobile viewport without horizontal overflow.
+  const mobileTicketLayout = await page.locator('.pay-ticket-layout').evaluate((node) => {
+    const detail = node.querySelector('.pay-ticket-detail-pane');
+    const thread = node.querySelector('.pay-ticket-thread-header');
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      layoutWidth: node.getBoundingClientRect().width,
+      layoutClientWidth: node.clientWidth,
+      layoutScrollWidth: node.scrollWidth,
+      detailWidth: detail?.getBoundingClientRect().width ?? 0,
+      threadWidth: thread?.getBoundingClientRect().width ?? 0,
+      threadScrollWidth: thread?.scrollWidth ?? 0,
+    };
+  });
+  assert.ok(mobileTicketLayout.layoutWidth <= mobileTicketLayout.viewportWidth + 1,
+    'Ticket layout must not exceed the mobile viewport: ' + JSON.stringify(mobileTicketLayout));
+  assert.ok(mobileTicketLayout.layoutScrollWidth <= mobileTicketLayout.layoutClientWidth + 1,
+    'Ticket layout must not scroll horizontally on mobile: ' + JSON.stringify(mobileTicketLayout));
+  assert.ok(mobileTicketLayout.detailWidth <= mobileTicketLayout.viewportWidth + 1,
+    'Ticket detail pane must fit on mobile: ' + JSON.stringify(mobileTicketLayout));
+  assert.ok(mobileTicketLayout.threadWidth <= mobileTicketLayout.viewportWidth + 1,
+    'Ticket thread header must fit on mobile: ' + JSON.stringify(mobileTicketLayout));
+  assert.ok(mobileTicketLayout.threadScrollWidth <= mobileTicketLayout.threadWidth + 1,
+    'Ticket thread header content must not overflow on mobile: ' + JSON.stringify(mobileTicketLayout));
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   const reloadedTicketRow = page.locator('.pay-ticket-list-item').filter({ hasText: ticketSubject }).first();
