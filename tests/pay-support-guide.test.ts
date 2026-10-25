@@ -65,6 +65,7 @@ test('Production browser E2E covers ticket lifecycle, access denial and mobile o
   assert.match(browserE2E,/merchantStatusAttempt\.status\(\), 403/);
   assert.match(browserE2E,/foreignTicketResponse\.status\(\), 404/);
   assert.match(browserE2E,/closedReplyResponse\.status\(\), 409/);
+  assert.match(browserE2E,/visibleTicketId\.innerText\(\)\)\.includes\(ticketId\)/);
   assert.match(browserE2E,/mobileTicketLayout\.layoutScrollWidth <= mobileTicketLayout\.layoutClientWidth \+ 1/);
 });
 
