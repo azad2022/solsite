@@ -760,7 +760,7 @@ try {
     await page.goto(ORIGIN + '/pay/tickets', { waitUntil: 'domcontentloaded' });
     const training = page.locator('.pay-training');
     await training.waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(await training.locator('details.pay-training-topic').count(), 12, 'Training Center must expose all 12 documented topics.');
+    assert.equal(await training.locator('details.pay-training-topic').count(), 16, 'Support Guide Center must expose all 16 documented topics.');
     const firstTopic = training.locator('details.pay-training-topic').first();
     const firstSummary = firstTopic.locator('summary');
     await firstSummary.click();
