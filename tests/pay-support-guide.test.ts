@@ -6,6 +6,7 @@ const app=readFileSync('src/pay/PayApp.tsx','utf8');
 const tickets=readFileSync('src/pay/components/PayTicketCenter.tsx','utf8');
 const training=readFileSync('src/pay/components/PayTrainingCenter.tsx','utf8');
 const i18n=readFileSync('src/pay/components/pay-training-i18n.ts','utf8');
+const ticketCssPath='../src/pay/components/pay-tickets.css';
 
 test('contextual footer guides are removed from ordinary Pay sections and owned by Support',()=>{
   assert.doesNotMatch(app,/PaySectionGuide/);
@@ -40,4 +41,21 @@ test('Bulk Pay support guidance matches the real form and keeps financial truth 
   assert.match(bulk,/حداکثر ۵۰ پرداخت|up to 50 payouts|حتى 50 دفعة|50 выплат/);
   assert.match(bulk,/خودکار خرد نمی‌شود|not automatically split|لن يتم تقسيمه تلقائيًا|не разбивается автоматически/);
   assert.match(bulk,/تکمیل‌شده نیست|not.*completed|لا يعني الاكتمال|не означает завершено/);
+});
+
+test('Ticket list fails closed on merchant switches, errors and out-of-order responses',()=>{
+  assert.match(tickets,/ticketListRequestSeq=useRef\(0\)/);
+  assert.match(tickets,/requestSeq !== ticketListRequestSeq\.current/);
+  assert.match(tickets,/setTickets\(\[\]\);\s*setSelectedId\(null\);\s*setDetail\(null\);\s*setDetailError\(null\);\s*setError\(accessError\(e\)\)/);
+  assert.match(tickets,/return \(\)=>\{ \+\+ticketListRequestSeq\.current; \+\+detailRequestSeq\.current; \};/);
+});
+
+test('Ticket status and access handling remain contract-backed and messages stay readable on mobile',()=>{
+  for(const status of ['open','pending_customer','pending_admin','resolved','closed']) assert.ok(tickets.includes(status));
+  assert.match(tickets,/error==='forbidden'\?ticketT\(locale,'forbidden'\):error==='unauthorized'\?ticketT\(locale,'unauthorized'\)/);
+  const ticketCss=readFileSync('src/pay/components/pay-tickets.css','utf8');
+  assert.match(ticketCss,/@media\(max-width:900px\)\{\.pay-ticket-layout\{grid-template-columns:1fr\}/);
+  assert.match(ticketCss,/max-width:560px/);
+  assert.match(ticketCss,/flex-wrap:wrap/);
+  assert.match(ticketCss,/overflow-wrap:anywhere/);
 });
