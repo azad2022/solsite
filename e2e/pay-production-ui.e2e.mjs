@@ -201,6 +201,7 @@ async function cleanup(fixture, merchantId) {
     await runCleanupStep('API keys', 'delete from public.pay_api_keys where merchant_id = $1', [merchantId]);
     await runCleanupStep('merchant members', 'delete from public.pay_merchant_members where merchant_id = $1', [merchantId]);
     await runCleanupStep('wallet challenges', 'delete from public.pay_wallet_challenges where merchant_id = $1', [merchantId]);
+    await runCleanupStep('Merchant receiving wallets', 'delete from public.pay_merchant_wallets where merchant_id = $1', [merchantId]);
 
     if (retainedForImmutableHistory || protectedEvidence.length > 0) {
       // Retain immutable history but revoke all operational access to this known test fixture.
