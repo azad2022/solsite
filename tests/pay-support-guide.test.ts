@@ -6,6 +6,7 @@ const app=readFileSync('src/pay/PayApp.tsx','utf8');
 const tickets=readFileSync('src/pay/components/PayTicketCenter.tsx','utf8');
 const training=readFileSync('src/pay/components/PayTrainingCenter.tsx','utf8');
 const i18n=readFileSync('src/pay/components/pay-training-i18n.ts','utf8');
+const browserE2E=readFileSync('e2e/pay-production-ui.e2e.mjs','utf8');
 
 test('contextual footer guides are removed from ordinary Pay sections and owned by Support',()=>{
   assert.doesNotMatch(app,/PaySectionGuide/);
@@ -47,6 +48,16 @@ test('Ticket list fails closed on merchant switches, errors and out-of-order res
   assert.match(tickets,/requestSeq !== ticketListRequestSeq\.current/);
   assert.match(tickets,/setTickets\(\[\]\);\s*setSelectedId\(null\);\s*setDetail\(null\);\s*setDetailError\(null\);\s*setError\(accessError\(e\)\)/);
   assert.match(tickets,/return \(\)=>\{ \+\+ticketListRequestSeq\.current; \+\+detailRequestSeq\.current; \};/);
+});
+
+test('Production browser E2E covers ticket lifecycle, access denial and mobile overflow',()=>{
+  assert.match(browserE2E,/Anonymous requests must not be able to enumerate or mutate support tickets/);
+  assert.match(browserE2E,/anonymousTicketList\.status\(\), 401/);
+  assert.match(browserE2E,/anonymousTicketCreate\.status\(\), 401/);
+  assert.match(browserE2E,/merchantStatusAttempt\.status\(\), 403/);
+  assert.match(browserE2E,/foreignTicketResponse\.status\(\), 404/);
+  assert.match(browserE2E,/closedReplyResponse\.status\(\), 409/);
+  assert.match(browserE2E,/mobileTicketLayout\.layoutScrollWidth <= mobileTicketLayout\.layoutClientWidth \+ 1/);
 });
 
 test('Ticket status and access handling remain contract-backed and messages stay readable on mobile',()=>{
