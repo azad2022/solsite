@@ -6,7 +6,6 @@ const app=readFileSync('src/pay/PayApp.tsx','utf8');
 const tickets=readFileSync('src/pay/components/PayTicketCenter.tsx','utf8');
 const training=readFileSync('src/pay/components/PayTrainingCenter.tsx','utf8');
 const i18n=readFileSync('src/pay/components/pay-training-i18n.ts','utf8');
-const ticketCssPath='../src/pay/components/pay-tickets.css';
 
 test('contextual footer guides are removed from ordinary Pay sections and owned by Support',()=>{
   assert.doesNotMatch(app,/PaySectionGuide/);
