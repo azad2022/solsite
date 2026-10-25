@@ -159,7 +159,8 @@ async function cleanup(fixture, merchantId) {
         (select count(*)::int from public.pay_commissions c
           join public.pay_payment_intents p on p.id = c.payment_id where p.merchant_id = $1) as commission_count,
         (select count(*)::int from public.pay_gas_ledger g
-          join public.pay_payment_intents p on p.id = g.related_payment_id where p.merchant_id = $1) as gas_ledger_count,
+          where g.gas_account_id in (select id from public.pay_gas_accounts where merchant_id = $1)
+             or g.related_payment_id in (select id from public.pay_payment_intents where merchant_id = $1)) as gas_ledger_count,
         (select count(*)::int from public.pay_payout_batches where merchant_id = $1) as payout_batch_count`,
       [merchantId],
       true,
