@@ -26,7 +26,7 @@ test('production browser E2E never deletes append-only audit or financial eviden
     'public.pay_payout_batches',
   ]) assert.ok(cleanup.includes(evidence), 'Cleanup must preflight ' + evidence);
   assert.match(cleanup, /append-only Payment Intent audit history must be preserved/);
-  assert.match(cleanup, /Refusing E2E cleanup because authoritative transaction\/ledger evidence exists/);
+  assert.match(cleanup, /Unexpected authoritative transaction\/ledger evidence in disposable browser fixture/);
   assert.doesNotMatch(cleanup, /delete from public\.pay_payment_events/i);
   assert.doesNotMatch(cleanup, /delete from public\.pay_payment_intents/i);
   assert.doesNotMatch(cleanup, /delete from public\.pay_payment_transactions/i);
