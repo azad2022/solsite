@@ -1334,6 +1334,10 @@ try {
   await page.locator('.pay-ticket-messages article').first().waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await page.locator('.pay-ticket-messages article').count(), 1);
   assert.ok((await page.locator('.pay-ticket-messages article').first().innerText()).includes(ticketInitialMessage));
+  const visibleTicketId = page.locator('.pay-ticket-id');
+  await visibleTicketId.waitFor({ state: 'visible', timeout: 10000 });
+  assert.ok((await visibleTicketId.innerText()).includes(ticketId),
+    'Support details must show the authoritative Ticket ID returned by the backend.');
 
   // Ticket workflow must fit the existing 390px mobile viewport without horizontal overflow.
   const mobileTicketLayout = await page.locator('.pay-ticket-layout').evaluate((node) => {
