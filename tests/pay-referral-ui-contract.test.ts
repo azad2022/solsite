@@ -7,6 +7,7 @@ const ui = readFileSync('src/pay/components/PayReferrals.tsx','utf8');
 const i18n = readFileSync('src/pay/components/pay-referrals-i18n.ts','utf8');
 const payCss = readFileSync('src/pay/pay.css','utf8');
 const referralCss = readFileSync('src/pay/components/pay-referrals.css','utf8');
+const tickets = readFileSync('src/pay/components/PayTicketCenter.tsx','utf8');
 
 test('PayApp wires the referral surface and uses a flat primary navigation', () => {
   assert.match(app,/import PayReferrals from '.\/components\/PayReferrals'/);
@@ -64,9 +65,10 @@ test('Referral UI uses animated colored SVG icon wrappers for stats and page act
   assert.match(referralCss,/pay-referrals-icon-green/);
 });
 
-test('Pay shell keeps the legal footer and now exposes the contextual section guide', () => {
+test('Pay shell keeps the legal footer while Support owns the contextual guide hub', () => {
   assert.match(app,/<footer className="pay-footer">/);
-  assert.match(app,/PaySectionGuide/);
+  assert.doesNotMatch(app,/PaySectionGuide/);
+  assert.match(tickets,/PayTrainingCenter locale=\{locale\}/);
   assert.match(app,/pay-footer-legal/);
   assert.doesNotMatch(app,/pay-sidebar-security/);
   assert.match(payCss,/\.pay-sidebar\.is-mobile-open \.pay-nav-item \{ display: flex !important; \}/);

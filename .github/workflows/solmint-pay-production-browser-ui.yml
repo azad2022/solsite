@@ -48,14 +48,29 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install project dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
 
-      - name: Install Playwright
-        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
+      - name: Install project dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install isolated Playwright runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/pay-playwright"
+          mkdir -p "$install_dir"
+          npm install --prefix "$install_dir" --no-save --ignore-scripts --no-audit --no-fund playwright@1.55.0
+          mkdir -p node_modules
+          if [[ -e node_modules/playwright || -L node_modules/playwright ]]; then
+            rm -rf node_modules/playwright
+          fi
+          ln -s "$install_dir/node_modules/playwright" node_modules/playwright
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: "$RUNNER_TEMP/pay-playwright/node_modules/.bin/playwright" install --with-deps chromium
 
       - name: Wait for Cloudflare Pages deployment of this commit
         run: |
