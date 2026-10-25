@@ -15,32 +15,43 @@ test('production browser E2E cleanup is constrained to its disposable Merchant f
   assert.match(cleanup, /Refusing E2E cleanup: the Merchant is not the disposable fixture/);
 });
 
-test('production browser E2E never deletes authoritative payment or ledger evidence', () => {
+test('production browser E2E never deletes append-only audit or financial evidence', () => {
   for (const evidence of [
+    'public.pay_payment_events',
     'public.pay_payment_transactions',
     'public.pay_merchant_ledger',
     'public.pay_revenue_ledger',
     'public.pay_commissions',
     'public.pay_gas_ledger',
     'public.pay_payout_batches',
-  ]) assert.ok(cleanup.includes(evidence), 'Cleanup must guard ' + evidence);
+  ]) assert.ok(cleanup.includes(evidence), 'Cleanup must preflight ' + evidence);
+  assert.match(cleanup, /append-only Payment Intent audit history must be preserved/);
   assert.match(cleanup, /Refusing E2E cleanup because authoritative transaction\/ledger evidence exists/);
+  assert.doesNotMatch(cleanup, /delete from public\.pay_payment_events/i);
+  assert.doesNotMatch(cleanup, /delete from public\.pay_payment_intents/i);
   assert.doesNotMatch(cleanup, /delete from public\.pay_payment_transactions/i);
   assert.doesNotMatch(cleanup, /delete from public\.pay_merchant_ledger/i);
   assert.doesNotMatch(cleanup, /delete from public\.pay_revenue_ledger/i);
 });
 
-test('production browser E2E removes blocking non-financial events before parent intents and reports residue', () => {
-  const events = cleanup.indexOf('payment events');
-  const intents = cleanup.indexOf("'payment intents'");
-  const links = cleanup.indexOf("'payment links'");
-  const invoices = cleanup.indexOf("'invoices'");
-  const merchant = cleanup.indexOf("'merchant'");
-  assert.ok(events >= 0 && events < intents, 'Payment event rows must be removed before their restricted parent intents.');
-  assert.ok(intents < links && intents < invoices, 'Payment intents must be removed before their linked invoice/payment-link rows.');
-  assert.ok(links < merchant && invoices < merchant, 'Linked billing data must be removed before the disposable Merchant.');
+test('production browser E2E always clears tickets and disables access to fixtures with immutable history', () => {
+  assert.match(cleanup, /delete from public\.pay_ticket_messages/);
+  assert.match(cleanup, /delete from public\.pay_tickets/);
+  assert.match(cleanup, /delete from public\.pay_api_keys/);
+  assert.match(cleanup, /update public\.pay_payment_links set is_active = false/);
+  assert.match(cleanup, /set status = 'suspended'/);
+  assert.match(cleanup, /set role = 'user', is_active = false/);
+  assert.match(cleanup, /PAY_E2E_IMMUTABLE_FIXTURE_RETAINED/);
+  assert.match(cleanup, /PAY_E2E_INERT_FIXTURE_VERIFIED/);
   assert.match(cleanup, /PAY_E2E_CLEANUP_FAILED/);
-  assert.match(cleanup, /Residual Merchant fixture rows/);
-  assert.match(cleanup, /Residual auth fixture rows/);
   assert.doesNotMatch(cleanup, /\.catch\(\(\) => \{\}\)/, 'Cleanup errors must not be silently swallowed.');
+});
+
+test('production browser E2E deletes a Merchant only when it has no Payment Intent or audit history', () => {
+  assert.match(cleanup, /retainedForImmutableHistory = Number\(preflight\.intent_count\) > 0 \|\| Number\(preflight\.event_count\) > 0/);
+  const retainBranch = cleanup.indexOf("if (retainedForImmutableHistory || protectedEvidence.length > 0)");
+  const deleteMerchant = cleanup.indexOf("'Merchant', 'delete from public.pay_merchants");
+  assert.ok(retainBranch >= 0 && deleteMerchant > retainBranch);
+  assert.match(cleanup, /Unexpected Payment Intent states for disposable fixture/);
+  assert.match(cleanup, /Residual E2E access\/support rows/);
 });
