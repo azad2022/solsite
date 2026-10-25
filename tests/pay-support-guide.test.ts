@@ -27,9 +27,12 @@ test('Support guide hub has searchable localized presentation UI',()=>{
 });
 
 test('Support guide catalog includes dedicated operational guides',()=>{
-  for(const id of ['onboarding','account-wallet','overview','checkout','transactions','customers','invoices','payment-links','bulk-pay','referrals','reports','api-keys','developer','security','tickets']) {
+  for(const id of ['onboarding','account-wallet','overview','checkout','transactions','customers','billing-links','invoices','payment-links','bulk-pay','referrals','reports','api-keys','developer','security','tickets']) {
     assert.ok(i18n.includes(`id:'${id}'`), 'Missing support guide: ' + id);
   }
+  const documentedIds=[...i18n.matchAll(/id:'([^']+)'/g)].map(match=>match[1]);
+  assert.equal(new Set(documentedIds).size,16,'Each of the four locales must expose the same 16 guide topics.');
+  assert.ok(documentedIds.includes('billing-links'),'Billing & Links guide must be covered by the catalogue test.');
   assert.match(i18n,/مرکز راهنمای SolMint Pay/);
   assert.match(i18n,/راهنماهای کاربردی|راهنمای کاربردی/);
 });
