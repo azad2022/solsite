@@ -126,21 +126,137 @@ async function provision() {
 }
 
 async function cleanup(fixture, merchantId) {
-  if (merchantId) await db('delete from public.pay_payment_transactions where payment_id in (select id from public.pay_payment_intents where merchant_id = $1)', [merchantId]).catch(() => {});
-  if (merchantId) await db('delete from public.pay_payment_intents where merchant_id = $1', [merchantId]).catch(() => {});
-  if (merchantId) await db('delete from public.pay_payment_links where merchant_id = $1', [merchantId]).catch(() => {});
-  if (merchantId) await db('delete from public.pay_invoices where merchant_id = $1', [merchantId]).catch(() => {});
-  await db('delete from public.pay_merchant_members where merchant_id = $1', [merchantId]).catch(() => {});
-  await db('delete from public.pay_merchants where id = $1', [merchantId]).catch(() => {});
-  // Referral fixtures are trigger-created and must be removed before deleting their affiliate owner.
-  await db('delete from public.pay_referral_signup_email_deliveries where referrer_application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
-  await db('delete from public.pay_referral_user_attributions where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [fixture.applicationUserId]).catch(() => {});
-  await db('delete from public.pay_referral_click_events where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [fixture.applicationUserId]).catch(() => {});
-  await db('delete from public.pay_referrals where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)', [fixture.applicationUserId]).catch(() => {});
-  await db('delete from public.pay_affiliates where owner_user_id = $1', [fixture.applicationUserId]).catch(() => {});
-  await db('delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]).catch(() => {});
-  await db('delete from public.users where id = $1', [fixture.applicationUserId]).catch(() => {});
-  await db('delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]).catch(() => {});
+  const failures = [];
+  const runCleanupStep = async (label, query, parameters = []) => {
+    try {
+      await db(query, parameters);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      failures.push(`${label}: ${reason.slice(0, 240)}`);
+    }
+  };
+
+  if (merchantId) {
+    // This workflow is permitted to remove only the disposable Merchant it created.
+    const fixtureMerchant = rows(await db(
+      "select id from public.pay_merchants where id = $1 and owner_user_id = $2 and business_name = 'SolMint Browser Test Merchant' and slug like 'solmint-browser-test-%'",
+      [merchantId, fixture.applicationUserId],
+      true,
+    ));
+    if (fixtureMerchant.length !== 1) {
+      throw new Error('Refusing E2E cleanup: the Merchant is not the disposable fixture owned by this browser test.');
+    }
+
+    // Financial/blockchain evidence and accounting ledgers are authoritative. Never delete them to make test cleanup pass.
+    const evidenceRows = rows(await db(
+      `select
+        (select count(*)::int from public.pay_payment_transactions tx
+          join public.pay_payment_intents p on p.id = tx.payment_id where p.merchant_id = $1) as transaction_count,
+        (select count(*)::int from public.pay_merchant_ledger
+          where merchant_id = $1 or payment_id in (select id from public.pay_payment_intents where merchant_id = $1)) as merchant_ledger_count,
+        (select count(*)::int from public.pay_revenue_ledger r
+          join public.pay_payment_intents p on p.id = r.payment_id where p.merchant_id = $1) as revenue_ledger_count,
+        (select count(*)::int from public.pay_commissions c
+          join public.pay_payment_intents p on p.id = c.payment_id where p.merchant_id = $1) as commission_count,
+        (select count(*)::int from public.pay_gas_ledger g
+          join public.pay_payment_intents p on p.id = g.related_payment_id where p.merchant_id = $1) as gas_ledger_count,
+        (select count(*)::int from public.pay_payout_batches where merchant_id = $1) as payout_batch_count`,
+      [merchantId],
+      true,
+    ));
+    const evidence = evidenceRows[0] || {};
+    const protectedEvidence = Object.entries(evidence)
+      .filter(([, count]) => Number(count) > 0)
+      .map(([kind, count]) => `${kind}=${count}`);
+    if (protectedEvidence.length) {
+      throw new Error(
+        'Refusing E2E cleanup because authoritative transaction/ledger evidence exists: ' + protectedEvidence.join(', '),
+      );
+    }
+
+    // Remove support artifacts and non-financial intent events before their parents.
+    await runCleanupStep(
+      'ticket messages',
+      'delete from public.pay_ticket_messages where ticket_id in (select id from public.pay_tickets where merchant_id = $1)',
+      [merchantId],
+    );
+    await runCleanupStep('tickets', 'delete from public.pay_tickets where merchant_id = $1', [merchantId]);
+    await runCleanupStep(
+      'payment events',
+      'delete from public.pay_payment_events where payment_id in (select id from public.pay_payment_intents where merchant_id = $1)',
+      [merchantId],
+    );
+    await runCleanupStep(
+      'payment email deliveries',
+      'delete from public.pay_payment_email_deliveries where payment_id in (select id from public.pay_payment_intents where merchant_id = $1)',
+      [merchantId],
+    );
+    await runCleanupStep('payment intents', 'delete from public.pay_payment_intents where merchant_id = $1', [merchantId]);
+    await runCleanupStep('payment links', 'delete from public.pay_payment_links where merchant_id = $1', [merchantId]);
+    await runCleanupStep('invoices', 'delete from public.pay_invoices where merchant_id = $1', [merchantId]);
+    await runCleanupStep('merchant members', 'delete from public.pay_merchant_members where merchant_id = $1', [merchantId]);
+    await runCleanupStep('merchant', 'delete from public.pay_merchants where id = $1', [merchantId]);
+
+    const remainingMerchantRows = rows(await db(
+      `select
+        (select count(*)::int from public.pay_merchants where id = $1) as merchants,
+        (select count(*)::int from public.pay_tickets where merchant_id = $1) as tickets,
+        (select count(*)::int from public.pay_payment_intents where merchant_id = $1) as payment_intents,
+        (select count(*)::int from public.pay_payment_events where payment_id in
+          (select id from public.pay_payment_intents where merchant_id = $1)) as payment_events,
+        (select count(*)::int from public.pay_payment_links where merchant_id = $1) as payment_links,
+        (select count(*)::int from public.pay_invoices where merchant_id = $1) as invoices,
+        (select count(*)::int from public.pay_merchant_members where merchant_id = $1) as members`,
+      [merchantId],
+      true,
+    ));
+    const remainingMerchant = remainingMerchantRows[0] || {};
+    const remainingRows = Object.entries(remainingMerchant)
+      .filter(([, count]) => Number(count) > 0)
+      .map(([kind, count]) => `${kind}=${count}`);
+    if (remainingRows.length) failures.push('Residual Merchant fixture rows: ' + remainingRows.join(', '));
+  }
+
+  // Referral fixtures are created by E2E sign-in/attribution triggers.
+  await runCleanupStep(
+    'referral signup email deliveries',
+    'delete from public.pay_referral_signup_email_deliveries where referrer_application_user_id = $1',
+    [fixture.applicationUserId],
+  );
+  await runCleanupStep(
+    'referral user attributions',
+    'delete from public.pay_referral_user_attributions where referred_user_id = $1 or affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)',
+    [fixture.applicationUserId],
+  );
+  await runCleanupStep(
+    'referral click events',
+    'delete from public.pay_referral_click_events where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)',
+    [fixture.applicationUserId],
+  );
+  await runCleanupStep(
+    'referrals',
+    'delete from public.pay_referrals where affiliate_id in (select id from public.pay_affiliates where owner_user_id = $1)',
+    [fixture.applicationUserId],
+  );
+  await runCleanupStep('affiliates', 'delete from public.pay_affiliates where owner_user_id = $1', [fixture.applicationUserId]);
+  await runCleanupStep('application identity link', 'delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]);
+  await runCleanupStep('application user', 'delete from public.users where id = $1', [fixture.applicationUserId]);
+  await runCleanupStep('Better Auth user', 'delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]);
+
+  const residualIdentity = rows(await db(
+    `select
+      (select count(*)::int from public.users where id = $1) as application_users,
+      (select count(*)::int from public.auth_identity_links where application_user_id = $1) as identity_links,
+      (select count(*)::int from better_auth."user" where id = $2) as better_auth_users`,
+    [fixture.applicationUserId, fixture.betterAuthUserId],
+    true,
+  ));
+  const residue = residualIdentity[0] || {};
+  const residualRows = Object.entries(residue).filter(([, count]) => Number(count) > 0).map(([kind, count]) => `${kind}=${count}`);
+  if (residualRows.length) failures.push('Residual auth fixture rows: ' + residualRows.join(', '));
+  if (failures.length) {
+    throw new Error('PAY_E2E_CLEANUP_FAILED: ' + failures.join(' | '));
+  }
 }
 
 async function readJson(response) {
