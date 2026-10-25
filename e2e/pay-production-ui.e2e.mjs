@@ -136,8 +136,10 @@ async function cleanup(fixture, merchantId) {
     }
   };
 
+  let retainedForImmutableHistory = false;
+  let preflight = null;
   if (merchantId) {
-    // This workflow is permitted to remove only the disposable Merchant it created.
+    // This workflow is permitted to clean only the disposable Merchant it created.
     const fixtureMerchant = rows(await db(
       "select id from public.pay_merchants where id = $1 and owner_user_id = $2 and business_name = 'SolMint Browser Test Merchant' and slug like 'solmint-browser-test-%'",
       [merchantId, fixture.applicationUserId],
@@ -147,9 +149,12 @@ async function cleanup(fixture, merchantId) {
       throw new Error('Refusing E2E cleanup: the Merchant is not the disposable fixture owned by this browser test.');
     }
 
-    // Financial/blockchain evidence and accounting ledgers are authoritative. Never delete them to make test cleanup pass.
-    const evidenceRows = rows(await db(
+    const preflightRows = rows(await db(
       `select
+        (select count(*)::int from public.pay_payment_intents where merchant_id = $1) as intent_count,
+        (select count(*)::int from public.pay_payment_events e
+          join public.pay_payment_intents p on p.id = e.payment_id where p.merchant_id = $1) as event_count,
+        (select coalesce(string_agg(distinct status, ',' order by status), '') from public.pay_payment_intents where merchant_id = $1) as intent_statuses,
         (select count(*)::int from public.pay_payment_transactions tx
           join public.pay_payment_intents p on p.id = tx.payment_id where p.merchant_id = $1) as transaction_count,
         (select count(*)::int from public.pay_merchant_ledger
@@ -165,57 +170,69 @@ async function cleanup(fixture, merchantId) {
       [merchantId],
       true,
     ));
-    const evidence = evidenceRows[0] || {};
-    const protectedEvidence = Object.entries(evidence)
-      .filter(([, count]) => Number(count) > 0)
-      .map(([kind, count]) => `${kind}=${count}`);
-    if (protectedEvidence.length) {
-      throw new Error(
-        'Refusing E2E cleanup because authoritative transaction/ledger evidence exists: ' + protectedEvidence.join(', '),
-      );
+    preflight = preflightRows[0] || {};
+    const protectedEvidence = [
+      'transaction_count',
+      'merchant_ledger_count',
+      'revenue_ledger_count',
+      'commission_count',
+      'gas_ledger_count',
+      'payout_batch_count',
+    ].filter((key) => Number(preflight[key]) > 0).map((key) => `${key}=${preflight[key]}`);
+
+    // Pay audit events are intentionally append-only. Any Payment Intent or event is retained;
+    // never delete the audit record or its parent simply to make an E2E cleanup pass.
+    retainedForImmutableHistory = Number(preflight.intent_count) > 0 || Number(preflight.event_count) > 0;
+    if (retainedForImmutableHistory) {
+      const statuses = String(preflight.intent_statuses || '').split(',').filter(Boolean);
+      const unsupportedStatuses = statuses.filter((status) => !['created', 'pending'].includes(status));
+      if (unsupportedStatuses.length) {
+        failures.push('Unexpected Payment Intent states for disposable fixture: ' + unsupportedStatuses.join(', '));
+      }
     }
 
-    // Remove support artifacts and non-financial intent events before their parents.
+    // Support data is disposable test data and must never accumulate between Production browser runs.
     await runCleanupStep(
       'ticket messages',
       'delete from public.pay_ticket_messages where ticket_id in (select id from public.pay_tickets where merchant_id = $1)',
       [merchantId],
     );
     await runCleanupStep('tickets', 'delete from public.pay_tickets where merchant_id = $1', [merchantId]);
-    await runCleanupStep(
-      'payment events',
-      'delete from public.pay_payment_events where payment_id in (select id from public.pay_payment_intents where merchant_id = $1)',
-      [merchantId],
-    );
-    await runCleanupStep(
-      'payment email deliveries',
-      'delete from public.pay_payment_email_deliveries where payment_id in (select id from public.pay_payment_intents where merchant_id = $1)',
-      [merchantId],
-    );
-    await runCleanupStep('payment intents', 'delete from public.pay_payment_intents where merchant_id = $1', [merchantId]);
-    await runCleanupStep('payment links', 'delete from public.pay_payment_links where merchant_id = $1', [merchantId]);
-    await runCleanupStep('invoices', 'delete from public.pay_invoices where merchant_id = $1', [merchantId]);
+    await runCleanupStep('API keys', 'delete from public.pay_api_keys where merchant_id = $1', [merchantId]);
     await runCleanupStep('merchant members', 'delete from public.pay_merchant_members where merchant_id = $1', [merchantId]);
-    await runCleanupStep('merchant', 'delete from public.pay_merchants where id = $1', [merchantId]);
+    await runCleanupStep('wallet challenges', 'delete from public.pay_wallet_challenges where merchant_id = $1', [merchantId]);
 
-    const remainingMerchantRows = rows(await db(
-      `select
-        (select count(*)::int from public.pay_merchants where id = $1) as merchants,
-        (select count(*)::int from public.pay_tickets where merchant_id = $1) as tickets,
-        (select count(*)::int from public.pay_payment_intents where merchant_id = $1) as payment_intents,
-        (select count(*)::int from public.pay_payment_events where payment_id in
-          (select id from public.pay_payment_intents where merchant_id = $1)) as payment_events,
-        (select count(*)::int from public.pay_payment_links where merchant_id = $1) as payment_links,
-        (select count(*)::int from public.pay_invoices where merchant_id = $1) as invoices,
-        (select count(*)::int from public.pay_merchant_members where merchant_id = $1) as members`,
-      [merchantId],
-      true,
-    ));
-    const remainingMerchant = remainingMerchantRows[0] || {};
-    const remainingRows = Object.entries(remainingMerchant)
-      .filter(([, count]) => Number(count) > 0)
-      .map(([kind, count]) => `${kind}=${count}`);
-    if (remainingRows.length) failures.push('Residual Merchant fixture rows: ' + remainingRows.join(', '));
+    if (retainedForImmutableHistory || protectedEvidence.length > 0) {
+      // Retain immutable history but revoke all operational access to this known test fixture.
+      await runCleanupStep('deactivate payment links', 'update public.pay_payment_links set is_active = false, updated_at = now() where merchant_id = $1 and is_active = true', [merchantId]);
+      await runCleanupStep(
+        'suspend test Merchant',
+        "update public.pay_merchants set status = 'suspended', updated_at = now() where id = $1 and owner_user_id = $2 and business_name = 'SolMint Browser Test Merchant' and slug like 'solmint-browser-test-%'",
+        [merchantId, fixture.applicationUserId],
+      );
+      await runCleanupStep(
+        'disable test user',
+        "update public.users set role = 'user', is_active = false where id = $1",
+        [fixture.applicationUserId],
+      );
+      retainedForImmutableHistory = true;
+      console.log('PAY_E2E_IMMUTABLE_FIXTURE_RETAINED ' + JSON.stringify({
+        merchantId,
+        paymentIntents: Number(preflight.intent_count || 0),
+        paymentEvents: Number(preflight.event_count || 0),
+        protectedEvidence,
+        reason: protectedEvidence.length ? 'authoritative transaction/ledger evidence must be preserved' : 'append-only Payment Intent audit history must be preserved',
+      }));
+      if (protectedEvidence.length) {
+        failures.push('Unexpected authoritative transaction/ledger evidence in disposable browser fixture: ' + protectedEvidence.join(', '));
+      }
+    } else {
+      // There are no intents/events to preserve. Only in this branch can the empty billing fixture be removed.
+      await runCleanupStep('payment links', 'delete from public.pay_payment_links where merchant_id = $1', [merchantId]);
+      await runCleanupStep('invoices', 'delete from public.pay_invoices where merchant_id = $1', [merchantId]);
+      await runCleanupStep('Merchant receiving wallets', 'delete from public.pay_merchant_wallets where merchant_id = $1', [merchantId]);
+      await runCleanupStep('Merchant', 'delete from public.pay_merchants where id = $1 and owner_user_id = $2 and business_name = \'SolMint Browser Test Merchant\' and slug like \'solmint-browser-test-%\'', [merchantId, fixture.applicationUserId]);
+    }
   }
 
   // Referral fixtures are created by E2E sign-in/attribution triggers.
@@ -241,20 +258,57 @@ async function cleanup(fixture, merchantId) {
   );
   await runCleanupStep('affiliates', 'delete from public.pay_affiliates where owner_user_id = $1', [fixture.applicationUserId]);
   await runCleanupStep('application identity link', 'delete from public.auth_identity_links where application_user_id = $1', [fixture.applicationUserId]);
-  await runCleanupStep('application user', 'delete from public.users where id = $1', [fixture.applicationUserId]);
-  await runCleanupStep('Better Auth user', 'delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]);
+  if (retainedForImmutableHistory) {
+    await runCleanupStep('revoke Better Auth accounts', 'delete from better_auth.account where user_id = $1', [fixture.betterAuthUserId]);
+    await runCleanupStep('revoke Better Auth sessions', 'delete from better_auth.session where user_id = $1', [fixture.betterAuthUserId]);
+    await runCleanupStep('delete Better Auth user', 'delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]);
+  } else {
+    await runCleanupStep('application user', 'delete from public.users where id = $1', [fixture.applicationUserId]);
+    await runCleanupStep('Better Auth user', 'delete from better_auth."user" where id = $1', [fixture.betterAuthUserId]);
+  }
 
-  const residualIdentity = rows(await db(
+  const residualRows = rows(await db(
     `select
-      (select count(*)::int from public.users where id = $1) as application_users,
-      (select count(*)::int from public.auth_identity_links where application_user_id = $1) as identity_links,
-      (select count(*)::int from better_auth."user" where id = $2) as better_auth_users`,
-    [fixture.applicationUserId, fixture.betterAuthUserId],
+      (select count(*)::int from public.pay_tickets where merchant_id = $1) as tickets,
+      (select count(*)::int from public.pay_api_keys where merchant_id = $1) as api_keys,
+      (select count(*)::int from public.pay_merchant_members where merchant_id = $1) as members,
+      (select count(*)::int from public.pay_payment_links where merchant_id = $1 and is_active = true) as active_links,
+      (select count(*)::int from public.users where id = $2 and is_active = true) as active_test_users,
+      (select count(*)::int from public.users where id = $2 and role <> 'user') as elevated_test_users,
+      (select count(*)::int from public.auth_identity_links where application_user_id = $2) as identity_links,
+      (select count(*)::int from better_auth."user" where id = $3) as better_auth_users`,
+    [merchantId || '00000000-0000-4000-8000-000000000000', fixture.applicationUserId, fixture.betterAuthUserId],
     true,
   ));
-  const residue = residualIdentity[0] || {};
-  const residualRows = Object.entries(residue).filter(([, count]) => Number(count) > 0).map(([kind, count]) => `${kind}=${count}`);
-  if (residualRows.length) failures.push('Residual auth fixture rows: ' + residualRows.join(', '));
+  const residue = residualRows[0] || {};
+  const remaining = Object.entries(residue)
+    .filter(([, count]) => Number(count) > 0)
+    .map(([kind, count]) => `${kind}=${count}`);
+  if (remaining.length) failures.push('Residual E2E access/support rows: ' + remaining.join(', '));
+
+  if (merchantId && retainedForImmutableHistory) {
+    const guardRows = rows(await db(
+      `select m.status as merchant_status, u.role as user_role, u.is_active,
+              (select count(*)::int from public.pay_payment_intents p where p.merchant_id = m.id) as intents,
+              (select count(*)::int from public.pay_payment_events e join public.pay_payment_intents p on p.id = e.payment_id where p.merchant_id = m.id) as events
+         from public.pay_merchants m join public.users u on u.id = m.owner_user_id
+        where m.id = $1 and m.owner_user_id = $2`,
+      [merchantId, fixture.applicationUserId],
+      true,
+    ));
+    const guard = guardRows[0] || {};
+    if (guard.merchant_status !== 'suspended' || guard.user_role !== 'user' || guard.is_active !== false) {
+      failures.push('Immutable test fixture is not inert: ' + JSON.stringify(guard));
+    }
+    console.log('PAY_E2E_INERT_FIXTURE_VERIFIED ' + JSON.stringify({
+      merchantId,
+      merchantStatus: guard.merchant_status,
+      userRole: guard.user_role,
+      userActive: guard.is_active,
+      paymentIntentsPreserved: Number(guard.intents || 0),
+      paymentEventsPreserved: Number(guard.events || 0),
+    }));
+  }
   if (failures.length) {
     throw new Error('PAY_E2E_CLEANUP_FAILED: ' + failures.join(' | '));
   }
