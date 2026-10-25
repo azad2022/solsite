@@ -45,6 +45,10 @@ test('Bulk Pay support guidance matches the real form and keeps financial truth 
 
 test('Ticket list fails closed on merchant switches, errors and out-of-order responses',()=>{
   assert.match(tickets,/ticketListRequestSeq=useRef\(0\)/);
+  assert.match(tickets,/activeTenantContext\.current=tenantContext/);
+  assert.match(tickets,/requestContext!==activeTenantContext\.current/);
+  assert.match(tickets,/const rows=await loadTickets\(false\); if\(requestContext!==activeTenantContext\.current \|\| !rows\) return/);
+  assert.match(tickets,/return rows;/);
   assert.match(tickets,/requestSeq !== ticketListRequestSeq\.current/);
   assert.match(tickets,/setTickets\(\[\]\);\s*setSelectedId\(null\);\s*setDetail\(null\);\s*setDetailError\(null\);\s*setError\(accessError\(e\)\)/);
   assert.match(tickets,/return \(\)=>\{ \+\+ticketListRequestSeq\.current; \+\+detailRequestSeq\.current; \};/);
