@@ -33,3 +33,14 @@ test('ticket moderation migration soft-deletes, audits, and blocks support inter
   assert.ok(migration.includes('revoke all on table public.pay_ticket_user_blocks from public, anon, authenticated'));
   assert.ok(migration.includes('grant execute on function public.pay_soft_delete_ticket(text, uuid) to service_role'));
 });
+
+
+test('ticket support can unblock a user after their only ticket was soft-deleted', () => {
+  const migration = fs.readFileSync(
+    new URL('../supabase/migrations/20261026140000_solmint_pay_ticket_moderation_security.sql', import.meta.url),
+    'utf8',
+  );
+  assert.ok(migration.includes('function public.pay_unblock_ticket_user_by_id'));
+  assert.ok(migration.includes("'source', 'blocked_users_list'"));
+  assert.ok(migration.includes('grant execute on function public.pay_unblock_ticket_user_by_id(text, text) to service_role'));
+});
