@@ -27,10 +27,13 @@ export interface PayTicketDetail { ticket: PayTicket; messages: PayTicketMessage
 
 export interface PayTicketModeration { isBlocked: boolean; reason: string | null; blockedAt: string | null; }
 
+export interface PayTicketBlockedUser { userId: string; blockedByUserId: string; reason: string; blockedAt: string; }
+
 interface TicketListEnvelope { tickets?: unknown; }
 interface TicketDetailEnvelope { ticket?: unknown; messages?: unknown; }
 interface TicketMutationEnvelope { ticket?: unknown; message?: unknown; deleted?: unknown; ticketId?: unknown; }
 interface TicketModerationEnvelope { isBlocked?: unknown; reason?: unknown; blockedAt?: unknown; changed?: unknown; }
+interface TicketBlockedUserListEnvelope { blockedUsers?: unknown; }
 
 function record(value: unknown, message: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(message);
@@ -131,4 +134,33 @@ export async function unblockPayTicketUser(ticketId: string, client: PayHttpClie
 export async function deletePayTicket(ticketId: string, client: PayHttpClient = defaultPayHttpClient): Promise<void> {
   const payload = await client.request<TicketMutationEnvelope>(`/api/pay/v1/tickets/${encode(ticketId)}`, { method: 'DELETE' });
   if (payload.deleted !== true || payload.ticketId !== ticketId) throw new TypeError('Invalid ticket deletion response.');
+}
+
+
+function parseBlockedUser(value: unknown): PayTicketBlockedUser {
+  const row = record(value, 'Invalid blocked-user response.');
+  return {
+    userId: stringValue(row, 'userId'),
+    blockedByUserId: stringValue(row, 'blockedByUserId'),
+    reason: stringValue(row, 'reason'),
+    blockedAt: stringValue(row, 'blockedAt'),
+  };
+}
+
+export async function listPayTicketUserBlocks(client: PayHttpClient = defaultPayHttpClient): Promise<PayTicketBlockedUser[]> {
+  const payload = await client.request<TicketBlockedUserListEnvelope>('/api/pay/v1/ticket-blocks');
+  if (!Array.isArray(payload.blockedUsers)) throw new TypeError('Invalid blocked-user list response.');
+  return payload.blockedUsers.map(parseBlockedUser);
+}
+
+export async function unblockPayTicketUserById(userId: string, client: PayHttpClient = defaultPayHttpClient): Promise<boolean> {
+  const payload = await client.request<{ userId?: unknown; isBlocked?: unknown; changed?: unknown }>('/api/pay/v1/ticket-blocks', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  });
+  if (payload.userId !== userId || payload.isBlocked !== false || typeof payload.changed !== 'boolean') {
+    throw new TypeError('Invalid blocked-user update response.');
+  }
+  return payload.changed;
 }
