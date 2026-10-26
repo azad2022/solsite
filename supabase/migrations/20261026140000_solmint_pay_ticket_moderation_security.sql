@@ -359,12 +359,64 @@ begin
 end;
 $$;
 
+create or replace function public.pay_unblock_ticket_user_by_id(
+  p_admin_user_id text,
+  p_target_user_id text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $
+declare
+  v_target_role text;
+  v_deleted_count integer;
+begin
+  if not public.pay_is_site_admin(p_admin_user_id) then
+    raise exception using errcode = '42501', message = 'FORBIDDEN';
+  end if;
+
+  if p_target_user_id is null or char_length(p_target_user_id) < 1 or char_length(p_target_user_id) > 256 then
+    raise exception using errcode = '22023', message = 'INVALID_USER_ID';
+  end if;
+
+  select u.role into v_target_role
+  from public.users u
+  where u.id = p_target_user_id;
+
+  if v_target_role is null then
+    raise exception using errcode = 'P0002', message = 'USER_NOT_FOUND';
+  end if;
+  if p_target_user_id = p_admin_user_id or v_target_role = 'admin' then
+    raise exception using errcode = '42501', message = 'ADMIN_USER_CANNOT_BE_UNBLOCKED';
+  end if;
+
+  delete from public.pay_ticket_user_blocks
+  where user_id = p_target_user_id;
+  get diagnostics v_deleted_count = row_count;
+
+  if v_deleted_count > 0 then
+    insert into public.pay_audit_logs (
+      merchant_id, actor_user_id, event_type, entity_type, entity_id, metadata
+    )
+    values (
+      null, p_admin_user_id, 'ticket.user_unblocked',
+      'pay_ticket_user', p_target_user_id,
+      jsonb_build_object('source', 'blocked_users_list')
+    );
+  end if;
+
+  return v_deleted_count > 0;
+end;
+$;
+
 revoke all on function public.pay_create_ticket(text, uuid, text, text, text) from public, anon, authenticated;
 revoke all on function public.pay_add_ticket_message(text, uuid, text) from public, anon, authenticated;
 revoke all on function public.pay_update_ticket_status(text, uuid, text) from public, anon, authenticated;
 revoke all on function public.pay_soft_delete_ticket(text, uuid) from public, anon, authenticated;
 revoke all on function public.pay_block_ticket_user(text, uuid, text) from public, anon, authenticated;
 revoke all on function public.pay_unblock_ticket_user(text, uuid) from public, anon, authenticated;
+revoke all on function public.pay_unblock_ticket_user_by_id(text, text) from public, anon, authenticated;
 
 grant execute on function public.pay_create_ticket(text, uuid, text, text, text) to service_role;
 grant execute on function public.pay_add_ticket_message(text, uuid, text) to service_role;
@@ -372,3 +424,4 @@ grant execute on function public.pay_update_ticket_status(text, uuid, text) to s
 grant execute on function public.pay_soft_delete_ticket(text, uuid) to service_role;
 grant execute on function public.pay_block_ticket_user(text, uuid, text) to service_role;
 grant execute on function public.pay_unblock_ticket_user(text, uuid) to service_role;
+grant execute on function public.pay_unblock_ticket_user_by_id(text, text) to service_role;
