@@ -9,6 +9,7 @@ test('all ticket read and mutation routes invoke centralized rate limiting', () 
   const detail = source('../functions/api/pay/v1/tickets/[ticketId].ts');
   const messages = source('../functions/api/pay/v1/tickets/[ticketId]/messages.ts');
   const moderation = source('../functions/api/pay/v1/tickets/[ticketId]/moderation.ts');
+  const blockedUsers = source('../functions/api/pay/v1/ticket-blocks.ts');
   assert.ok(collection.includes("'list', 60, 60, 120"));
   assert.ok(collection.includes("'create', 60, 5, 20"));
   assert.ok(detail.includes("'detail', 60, 120, 240"));
