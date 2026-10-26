@@ -1,4 +1,4 @@
--- Integration security checks for 20261026140000_solmint_pay_ticket_moderation_security.sql.
+-- Integration security checks for 20261026090718_solmint_pay_ticket_moderation_security.sql.
 -- Run after the migration has been applied to this isolated fixture database.
 INSERT INTO public.users (id, role, is_active) VALUES
   ('admin-1', 'admin', true),
