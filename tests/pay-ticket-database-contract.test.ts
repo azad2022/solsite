@@ -18,7 +18,7 @@ test('Ticket read contract grants authenticated SELECT while keeping mutations s
 
 test('ticket moderation migration soft-deletes, audits, and blocks support interactions server-side', () => {
   const migration = fs.readFileSync(
-    new URL('../supabase/migrations/20261026140000_solmint_pay_ticket_moderation_security.sql', import.meta.url),
+    new URL('../supabase/migrations/20261026090718_solmint_pay_ticket_moderation_security.sql', import.meta.url),
     'utf8',
   );
   assert.ok(migration.includes('add column if not exists deleted_at timestamptz'));
@@ -37,7 +37,7 @@ test('ticket moderation migration soft-deletes, audits, and blocks support inter
 
 test('ticket support can unblock a user after their only ticket was soft-deleted', () => {
   const migration = fs.readFileSync(
-    new URL('../supabase/migrations/20261026140000_solmint_pay_ticket_moderation_security.sql', import.meta.url),
+    new URL('../supabase/migrations/20261026090718_solmint_pay_ticket_moderation_security.sql', import.meta.url),
     'utf8',
   );
   assert.ok(migration.includes('function public.pay_unblock_ticket_user_by_id'));
