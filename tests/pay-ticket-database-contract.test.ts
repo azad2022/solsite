@@ -44,3 +44,26 @@ test('ticket support can unblock a user after their only ticket was soft-deleted
   assert.ok(migration.includes("'source', 'blocked_users_list'"));
   assert.ok(migration.includes('grant execute on function public.pay_unblock_ticket_user_by_id(text, text) to service_role'));
 });
+
+
+test('ticket SECURITY DEFINER RPCs use an empty search_path in the production hardening migration', () => {
+  const migration = fs.readFileSync(
+    new URL('../supabase/migrations/20261026091519_solmint_pay_ticket_moderation_search_path_hardening.sql', import.meta.url),
+    'utf8',
+  );
+  const functions = [
+    'pay_create_ticket(text, uuid, text, text, text)',
+    'pay_add_ticket_message(text, uuid, text)',
+    'pay_update_ticket_status(text, uuid, text)',
+    'pay_soft_delete_ticket(text, uuid)',
+    'pay_block_ticket_user(text, uuid, text)',
+    'pay_unblock_ticket_user(text, uuid)',
+    'pay_unblock_ticket_user_by_id(text, text)',
+  ];
+  for (const signature of functions) {
+    assert.ok(
+      migration.includes(`ALTER FUNCTION public.${signature} SET search_path TO '';`),
+      `Missing empty-search_path hardening for ${signature}`,
+    );
+  }
+});
