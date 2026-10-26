@@ -17,6 +17,8 @@ test('all ticket read and mutation routes invoke centralized rate limiting', () 
   assert.ok(detail.includes("'delete', 60, 10, 20"));
   assert.ok(messages.includes("'reply', 60, 10, 30"));
   assert.ok(moderation.includes('enforceTicketRateLimit'));
+  assert.ok(blockedUsers.includes('blocked-users-read'));
+  assert.ok(blockedUsers.includes('blocked-users-mutation'));
   const helper = source('../functions/api/pay/_shared/ticketSecurity.ts');
   assert.ok(helper.includes('CF-Connecting-IP'));
   assert.ok(helper.includes('hashCanonicalRequest({ clientIp })'));
