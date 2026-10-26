@@ -52,8 +52,10 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
   if (!payFeatureEnabled(env)) return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
   try {
     const auth = await requireAdmin(request, env);
-    if (auth.response || !auth.user) return auth.response!;
-    await enforceTicketRateLimit(env, request, auth.user.id, 'moderation-read', 60, 60, 120);
+    if (auth.response) return auth.response;
+    const admin = auth.user;
+    if (!admin) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
+    await enforceTicketRateLimit(env, request, admin.id, 'moderation-read', 60, 60, 120);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
     const ticket = await getTicketTarget(env, ticketId);
@@ -71,8 +73,10 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
   try {
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const auth = await requireAdmin(request, env);
-    if (auth.response || !auth.user) return auth.response!;
-    await enforceTicketRateLimit(env, request, auth.user.id, 'moderation-write', 60, 10, 20);
+    if (auth.response) return auth.response;
+    const admin = auth.user;
+    if (!admin) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
+    await enforceTicketRateLimit(env, request, admin.id, 'moderation-write', 60, 10, 20);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
     requireTicketJson(request);
@@ -83,13 +87,13 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     if (!ticket) return payJson({ code: 'TICKET_NOT_FOUND', message: 'Ticket not found.' }, 404, requestId);
     const targetResponse = await supabaseRequest(env, `/rest/v1/users?select=id,role&id=eq.${encodeURIComponent(ticket.created_by_user_id)}&limit=1`, { headers: { Accept: 'application/json' } });
     const targetRows = await targetResponse.json() as TargetUserRow[];
-    if (ticket.created_by_user_id === auth.user.id || targetRows[0]?.role === 'admin') {
+    if (ticket.created_by_user_id === admin.id || targetRows[0]?.role === 'admin') {
       return payJson({ code: 'ADMIN_USER_CANNOT_BE_BLOCKED', message: 'Administrator accounts cannot be blocked from Pay support.' }, 403, requestId);
     }
     const response = await supabaseRequest(env, '/rest/v1/rpc/pay_block_ticket_user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ p_admin_user_id: auth.user.id, p_ticket_id: ticketId, p_reason: reason }),
+      body: JSON.stringify({ p_admin_user_id: admin.id, p_ticket_id: ticketId, p_reason: reason }),
     });
     const block = await response.json() as BlockRow;
     return payJson({ isBlocked: true, reason: block.reason, blockedAt: block.blocked_at }, 200, requestId);
@@ -104,8 +108,10 @@ export const onRequestDelete = async ({ request, env, params }: { request: Reque
   try {
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const auth = await requireAdmin(request, env);
-    if (auth.response || !auth.user) return auth.response!;
-    await enforceTicketRateLimit(env, request, auth.user.id, 'moderation-write', 60, 10, 20);
+    if (auth.response) return auth.response;
+    const admin = auth.user;
+    if (!admin) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
+    await enforceTicketRateLimit(env, request, admin.id, 'moderation-write', 60, 10, 20);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
     const ticket = await getTicketTarget(env, ticketId);
@@ -113,7 +119,7 @@ export const onRequestDelete = async ({ request, env, params }: { request: Reque
     const response = await supabaseRequest(env, '/rest/v1/rpc/pay_unblock_ticket_user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ p_admin_user_id: auth.user.id, p_ticket_id: ticketId }),
+      body: JSON.stringify({ p_admin_user_id: admin.id, p_ticket_id: ticketId }),
     });
     const changed = await response.json() as boolean;
     return payJson({ isBlocked: false, reason: null, blockedAt: null, changed }, 200, requestId);
