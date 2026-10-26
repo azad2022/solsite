@@ -56,5 +56,5 @@ test('ticket block list service validates admin inbox rows and unblock responses
   assert.equal(rows[0].userId, 'user-1');
   assert.equal(rows[0].reason, 'Spam');
   assert.equal(await unblockPayTicketUserById('user-1', clientFor({ userId: 'user-1', isBlocked: false, changed: true })), true);
-  await assert.rejects(() => listPayTicketUserBlocks(clientFor({ blockedUsers: [{}] })), /Invalid blocked-user response/);
+  await assert.rejects(() => listPayTicketUserBlocks(clientFor({ blockedUsers: [{}] })), /Invalid ticket field: userId/);
 });
