@@ -2,14 +2,15 @@
 
 ## Status
 
-**IMPLEMENTED IN PR / PRE-RELEASE VALIDATION PASS / NOT DEPLOYED**
+**DATABASE MIGRATION APPLIED / APPLICATION RELEASE PENDING**
 
 - Base main at task start: `c7fd2c5bf6ed85432cdeafa58079e21b7ed20bc2`
 - Feature branch: `feat/pay-ticket-moderation-security`
 - Pull request: [#344](https://github.com/azad2022/solsite/pull/344)
-- Validated application/schema code head: `dd1394dc5d5deb4dd55fe24ac7de8b21bd0cd438`
+- Validated application/schema code head before migration version alignment: `dd1394dc5d5deb4dd55fe24ac7de8b21bd0cd438`
+- Migration is applied to the production Supabase database and recorded as version `20261026090718` (`solmint_pay_ticket_moderation_security`).
 
-No production migration or deployment was executed.
+The migration was applied to production after all PR gates were green and live RLS/function signatures were checked. The frontend/API code has not yet been deployed.
 
 ## Discovery findings
 
@@ -43,7 +44,7 @@ Existing ticket capabilities:
 
 The Database Security workflow:
 - validated the migration chain;
-- applied `20261026140000_solmint_pay_ticket_moderation_security.sql` to an isolated PostgreSQL fixture;
+- applied `20261026090718_solmint_pay_ticket_moderation_security.sql` to an isolated PostgreSQL fixture;
 - passed database tests for text payload storage, blocked ticket creation/replies, soft-delete and audit retention, unblocking after ticket deletion, non-admin denial, administrator-block prevention, and privilege/RLS boundaries;
 - then passed the repository's existing Pay identity/RLS security tests after the new fixture was ordered to avoid PostgreSQL cluster-role collisions.
 
@@ -52,8 +53,8 @@ These results validate the PR code and an isolated database fixture. They do **n
 ## Release gate / remaining work
 
 1. Review and merge PR #344 through the repository's normal release process.
-2. Apply migration `20261026140000_solmint_pay_ticket_moderation_security.sql` through the repository's `SolMint Pay Production Migration` workflow using its explicit `confirm=APPLY` input; do not deploy API code before the schema migration is applied.
+2. Apply migration `20261026090718_solmint_pay_ticket_moderation_security.sql` through the repository's `SolMint Pay Production Migration` workflow using its explicit `confirm=APPLY` input; do not deploy API code before the schema migration is applied.
 3. Verify production post-deployment flows with authenticated admin and merchant sessions: list/read/reply, soft-delete, block/unblock, 401/403/429, request body/content-type rejection, and RLS visibility of deleted records.
 4. Only mark this feature **production complete** after migration state and production smoke evidence are observed.
 
-No production database writes or deployment were performed during this checkpoint.
+The production database migration was applied; no application deployment was performed during this checkpoint.
