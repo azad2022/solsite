@@ -367,7 +367,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 declare
   v_target_role text;
   v_deleted_count integer;
@@ -408,7 +408,7 @@ begin
 
   return v_deleted_count > 0;
 end;
-$;
+$$;
 
 revoke all on function public.pay_create_ticket(text, uuid, text, text, text) from public, anon, authenticated;
 revoke all on function public.pay_add_ticket_message(text, uuid, text) from public, anon, authenticated;
