@@ -61,9 +61,9 @@ test('ticket SECURITY DEFINER RPCs use an empty search_path in the production ha
     'pay_unblock_ticket_user_by_id(text, text)',
   ];
   for (const signature of functions) {
-    assert.match(
-      migration,
-      new RegExp('ALTER\\s+FUNCTION\\s+public\\.' + signature.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&') + "\\s+SET\\s+search_path\\s+TO\\s+''", 'i'),
+    assert.ok(
+      migration.includes(`ALTER FUNCTION public.${signature} SET search_path TO '';`),
+      `Missing empty-search_path hardening for ${signature}`,
     );
   }
 });
