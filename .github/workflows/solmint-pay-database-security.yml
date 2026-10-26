@@ -87,7 +87,7 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
           PGDATABASE: pay_ticket_moderation_security
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261026140000_solmint_pay_ticket_moderation_security.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261026090718_solmint_pay_ticket_moderation_security.sql
 
       - name: Run ticket moderation database security checks
         env:
