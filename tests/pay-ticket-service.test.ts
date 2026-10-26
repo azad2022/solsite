@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { blockPayTicketUser, createPayTicket, deletePayTicket, getPayTicket, getPayTicketModeration, listPayTickets, replyToPayTicket, unblockPayTicketUser, updatePayTicketStatus } from '../src/pay/services/ticketService';
+import { blockPayTicketUser, createPayTicket, deletePayTicket, getPayTicket, getPayTicketModeration, listPayTicketUserBlocks, listPayTickets, replyToPayTicket, unblockPayTicketUser, unblockPayTicketUserById, updatePayTicketStatus } from '../src/pay/services/ticketService';
 import type { PayHttpClient } from '../src/pay/http';
 
 function clientFor(payload: unknown): PayHttpClient {
@@ -46,4 +46,15 @@ test('ticket moderation service validates block and unblock response envelopes',
 test('ticket deletion service requires the soft-delete confirmation envelope', async () => {
   await deletePayTicket('ticket-1', clientFor({ deleted: true, ticketId: 'ticket-1' }));
   await assert.rejects(() => deletePayTicket('ticket-1', clientFor({ deleted: false, ticketId: 'ticket-1' })), /Invalid ticket deletion response/);
+});
+
+
+test('ticket block list service validates admin inbox rows and unblock responses', async () => {
+  const rows = await listPayTicketUserBlocks(clientFor({
+    blockedUsers: [{ userId: 'user-1', blockedByUserId: 'admin-1', reason: 'Spam', blockedAt: '2026-10-26T00:00:00.000Z' }],
+  }));
+  assert.equal(rows[0].userId, 'user-1');
+  assert.equal(rows[0].reason, 'Spam');
+  assert.equal(await unblockPayTicketUserById('user-1', clientFor({ userId: 'user-1', isBlocked: false, changed: true })), true);
+  await assert.rejects(() => listPayTicketUserBlocks(clientFor({ blockedUsers: [{}] })), /Invalid blocked-user response/);
 });
