@@ -53,6 +53,15 @@ jobs:
       - name: Setup PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
+      - name: Run Pay identity/RLS security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: solmint_pay_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_identity_rls_security.sql
+
       - name: Create isolated ticket moderation security database
         env:
           PGHOST: 127.0.0.1
@@ -88,15 +97,6 @@ jobs:
           PGPASSWORD: postgres
           PGDATABASE: pay_ticket_moderation_security
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_ticket_moderation_security.sql
-
-      - name: Run Pay identity/RLS security checks
-        env:
-          PGHOST: 127.0.0.1
-          PGPORT: 5432
-          PGUSER: postgres
-          PGPASSWORD: postgres
-          PGDATABASE: solmint_pay_security
-        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_identity_rls_security.sql
 
       - name: Create isolated Payment Link security database
         env:
