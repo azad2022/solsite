@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPayTicket, getPayTicket, listPayTickets, replyToPayTicket, updatePayTicketStatus } from '../src/pay/services/ticketService';
+import { blockPayTicketUser, createPayTicket, deletePayTicket, getPayTicket, getPayTicketModeration, listPayTickets, replyToPayTicket, unblockPayTicketUser, updatePayTicketStatus } from '../src/pay/services/ticketService';
 import type { PayHttpClient } from '../src/pay/http';
 
 function clientFor(payload: unknown): PayHttpClient {
@@ -30,4 +30,20 @@ test('ticket service sends the real ticket mutation envelopes', async () => {
   const message = { id:'33333333-3333-4333-8333-333333333333', ticketId:ticket.id, authorUserId:'u1', body:'Hello', createdAt:'2026-09-11T00:01:00.000Z' };
   assert.equal((await createPayTicket({ merchantId:ticket.merchantId, subject:'Payment issue', message:'Hello' }, clientFor({ ticket }))).id,ticket.id);
   assert.equal((await replyToPayTicket(ticket.id,'Hello',clientFor({ message }))).id,message.id);
+});
+
+
+test('ticket moderation service validates block and unblock response envelopes', async () => {
+  const blocked = await getPayTicketModeration('ticket-1', clientFor({ isBlocked: true, reason: 'Abuse', blockedAt: '2026-10-26T00:00:00.000Z' }));
+  assert.equal(blocked.isBlocked, true);
+  assert.equal(blocked.reason, 'Abuse');
+  const created = await blockPayTicketUser('ticket-1', 'Abuse', clientFor({ isBlocked: true, reason: 'Abuse', blockedAt: '2026-10-26T00:00:00.000Z' }));
+  assert.equal(created.isBlocked, true);
+  const removed = await unblockPayTicketUser('ticket-1', clientFor({ isBlocked: false, reason: null, blockedAt: null, changed: true }));
+  assert.equal(removed.isBlocked, false);
+});
+
+test('ticket deletion service requires the soft-delete confirmation envelope', async () => {
+  await deletePayTicket('ticket-1', clientFor({ deleted: true, ticketId: 'ticket-1' }));
+  await assert.rejects(() => deletePayTicket('ticket-1', clientFor({ deleted: false, ticketId: 'ticket-1' })), /Invalid ticket deletion response/);
 });
