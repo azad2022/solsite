@@ -36,7 +36,7 @@ export function payFeatureEnabled(env: PayRuntimeEnv): boolean {
   return env.PAY_API_ENABLED === 'true';
 }
 
-export function payJson(body: unknown, status = 200, requestId?: string): Response {
+export function payJson(body: unknown, status = 200, requestId?: string, extraHeaders: Record<string, string> = {}): Response {
   return Response.json(
     { success: status < 400, ...(typeof body === 'object' && body !== null ? body : { data: body }), ...(requestId ? { requestId } : {}) },
     {
@@ -46,6 +46,7 @@ export function payJson(body: unknown, status = 200, requestId?: string): Respon
         'CDN-Cache-Control': 'no-store',
         'Content-Type': 'application/json; charset=utf-8',
         ...(requestId ? { 'X-Pay-Request-ID': requestId } : {}),
+        ...extraHeaders,
       },
     },
   );

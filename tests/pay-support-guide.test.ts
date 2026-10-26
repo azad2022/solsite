@@ -59,7 +59,7 @@ test('Ticket list fails closed on merchant switches, errors and out-of-order res
   assert.match(tickets,/return rows;/);
   assert.match(tickets,/requestSeq !== ticketListRequestSeq\.current/);
   assert.match(tickets,/setTickets\(\[\]\);\s*setSelectedId\(null\);\s*setDetail\(null\);\s*setDetailError\(null\);\s*setError\(accessError\(e\)\)/);
-  assert.match(tickets,/return \(\)=>\{ \+\+ticketListRequestSeq\.current; \+\+detailRequestSeq\.current; \};/);
+  assert.match(tickets,/return \(\)=>\{ \+\+ticketListRequestSeq\.current; \+\+detailRequestSeq\.current; \+\+moderationRequestSeq\.current; \};/);
 });
 
 test('Production browser E2E covers ticket lifecycle, access denial and mobile overflow',()=>{
