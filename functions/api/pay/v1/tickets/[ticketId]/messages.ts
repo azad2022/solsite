@@ -1,5 +1,6 @@
 import { getAuthenticatedUser } from '../../../../auth/_shared';
-import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../_shared/runtime';
+import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../../_shared/runtime';
+import { enforceTicketRateLimit, isTicketUserBlocked, requireTicketJson } from '../../../_shared/ticketSecurity';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
 
 type PayEnv = PayIdentityEnv & {
@@ -22,16 +23,17 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const user = await getAuthenticatedUser(env, request);
     if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
-    const subjectHash = await hashCanonicalRequest({ userId: user.id });
-    await enforcePayRateLimit(env, 'tickets:message:user', subjectHash, 60, 30);
+    await enforceTicketRateLimit(env, request, user.id, 'reply', 60, 10, 30);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
     const identity = await resolvePayIdentity(request, env);
-    const ticketResponse = await supabaseRequestAsIdentity(env, identity.accessToken, `/rest/v1/pay_tickets?select=id,status&id=eq.${encodeURIComponent(ticketId)}&limit=1`);
+    const ticketResponse = await supabaseRequestAsIdentity(env, identity.accessToken, `/rest/v1/pay_tickets?select=id,status&id=eq.${encodeURIComponent(ticketId)}&deleted_at=is.null&limit=1`);
     const tickets = await ticketResponse.json() as Array<{ id: string; status: string }>;
     const ticket = tickets[0];
     if (!ticket) return payJson({ code: 'TICKET_NOT_FOUND', message: 'Ticket not found.' }, 404, requestId);
     if (ticket.status === 'closed') return payJson({ code: 'TICKET_CLOSED', message: 'Closed tickets must be reopened before replying.' }, 409, requestId);
+    if (user.role !== 'admin' && await isTicketUserBlocked(env, user.id)) return payJson({ code: 'TICKET_USER_BLOCKED', message: 'Your ability to use Pay support is restricted.' }, 403, requestId);
+    requireTicketJson(request);
     const body = await readJsonBody(request);
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (message.length < 1 || message.length > 10000) return payJson({ code: 'INVALID_MESSAGE', message: 'message must be between 1 and 10000 characters.' }, 400, requestId);
@@ -39,7 +41,7 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     const created = await response.json() as MessageRow;
     return payJson({ message: mapMessage(created) }, 201, requestId);
   } catch (error) {
-    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId);
+    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId, error.code === 'RATE_LIMITED' ? { 'Retry-After': '60' } : {});
     console.error(JSON.stringify({ scope: 'pay:tickets:message', requestId, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
     return payJson({ code: 'TICKET_MESSAGE_FAILED', message: 'Unable to send ticket message.' }, 503, requestId);
   }
