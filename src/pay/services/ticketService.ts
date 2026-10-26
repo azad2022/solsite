@@ -25,9 +25,12 @@ export interface PayTicketMessage {
 
 export interface PayTicketDetail { ticket: PayTicket; messages: PayTicketMessage[]; }
 
+export interface PayTicketModeration { isBlocked: boolean; reason: string | null; blockedAt: string | null; }
+
 interface TicketListEnvelope { tickets?: unknown; }
 interface TicketDetailEnvelope { ticket?: unknown; messages?: unknown; }
-interface TicketMutationEnvelope { ticket?: unknown; message?: unknown; }
+interface TicketMutationEnvelope { ticket?: unknown; message?: unknown; deleted?: unknown; ticketId?: unknown; }
+interface TicketModerationEnvelope { isBlocked?: unknown; reason?: unknown; blockedAt?: unknown; changed?: unknown; }
 
 function record(value: unknown, message: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(message);
@@ -95,4 +98,37 @@ export async function updatePayTicketStatus(ticketId: string, status: PayTicketS
   const payload = await client.request<TicketMutationEnvelope>(`/api/pay/v1/tickets/${encode(ticketId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
   if (!payload.ticket) throw new TypeError('Invalid ticket status response.');
   return parseTicket(payload.ticket);
+}
+
+
+function parseModeration(value: unknown): PayTicketModeration {
+  const row = record(value, 'Invalid ticket moderation response.');
+  if (typeof row.isBlocked !== 'boolean') throw new TypeError('Invalid ticket moderation response.');
+  const reason = row.reason === null ? null : typeof row.reason === 'string' ? row.reason : null;
+  const blockedAt = row.blockedAt === null ? null : typeof row.blockedAt === 'string' ? row.blockedAt : null;
+  return { isBlocked: row.isBlocked, reason, blockedAt };
+}
+
+export async function getPayTicketModeration(ticketId: string, client: PayHttpClient = defaultPayHttpClient): Promise<PayTicketModeration> {
+  const payload = await client.request<TicketModerationEnvelope>(`/api/pay/v1/tickets/${encode(ticketId)}/moderation`);
+  return parseModeration(payload);
+}
+
+export async function blockPayTicketUser(ticketId: string, reason: string, client: PayHttpClient = defaultPayHttpClient): Promise<PayTicketModeration> {
+  const payload = await client.request<TicketModerationEnvelope>(`/api/pay/v1/tickets/${encode(ticketId)}/moderation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason.trim() }),
+  });
+  return parseModeration(payload);
+}
+
+export async function unblockPayTicketUser(ticketId: string, client: PayHttpClient = defaultPayHttpClient): Promise<PayTicketModeration> {
+  const payload = await client.request<TicketModerationEnvelope>(`/api/pay/v1/tickets/${encode(ticketId)}/moderation`, { method: 'DELETE' });
+  return parseModeration(payload);
+}
+
+export async function deletePayTicket(ticketId: string, client: PayHttpClient = defaultPayHttpClient): Promise<void> {
+  const payload = await client.request<TicketMutationEnvelope>(`/api/pay/v1/tickets/${encode(ticketId)}`, { method: 'DELETE' });
+  if (payload.deleted !== true || payload.ticketId !== ticketId) throw new TypeError('Invalid ticket deletion response.');
 }
