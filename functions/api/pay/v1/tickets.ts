@@ -1,10 +1,11 @@
 import { getAuthenticatedUser, type AuthUser } from '../../auth/_shared';
-import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../_shared/runtime';
+import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../_shared/runtime';
+import { enforceTicketRateLimit, isTicketUserBlocked, requireTicketJson } from '../_shared/ticketSecurity';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
 
 interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; PAY_APP_ORIGIN?: string; SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; }
-interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; }
-const ticketSelect = 'id,merchant_id,created_by_user_id,subject,status,priority,created_at,updated_at,closed_at';
+interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; deleted_at?: string | null; deleted_by_user_id?: string | null; }
+const ticketSelect = 'id,merchant_id,created_by_user_id,subject,status,priority,created_at,updated_at,closed_at,deleted_at,deleted_by_user_id';
 
 function originAllowed(request: Request, env: PayEnv): boolean { const expected = env.PAY_APP_ORIGIN?.trim(); return !!expected && request.headers.get('Origin') === expected; }
 function mapTicket(row: TicketRow) { return { id: row.id, merchantId: row.merchant_id, createdByUserId: row.created_by_user_id, subject: row.subject, status: row.status, priority: row.priority, createdAt: row.created_at, updatedAt: row.updated_at, closedAt: row.closed_at }; }
@@ -18,13 +19,14 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
   try {
     const identity = await resolvePayIdentity(request, env);
     const userIsAdmin = identity.user.role === 'admin';
+    await enforceTicketRateLimit(env, request, identity.user.id, 'list', 60, 60, 120);
     const url = new URL(request.url);
     const merchantId = url.searchParams.get('merchantId')?.trim() || '';
     const status = url.searchParams.get('status')?.trim() || '';
     if (!userIsAdmin && !validUuid(merchantId)) return payJson({ code: 'INVALID_MERCHANT_ID', message: 'A valid merchantId is required.' }, 400, requestId);
     if (status && !['open','pending_customer','pending_admin','resolved','closed'].includes(status)) return payJson({ code: 'INVALID_STATUS', message: 'Ticket status is invalid.' }, 400, requestId);
 
-    const params = new URLSearchParams(); params.set('select', ticketSelect); params.set('order', 'updated_at.desc'); params.set('limit', '100');
+    const params = new URLSearchParams(); params.set('select', ticketSelect); params.set('order', 'updated_at.desc'); params.set('limit', '100'); params.set('deleted_at', 'is.null');
     if (userIsAdmin) { if (merchantId) params.set('merchant_id', `eq.${merchantId}`); }
     else params.set('merchant_id', `eq.${merchantId}`);
     if (status) params.set('status', `eq.${status}`);
@@ -32,7 +34,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pa
     const rows = await response.json() as TicketRow[];
     return payJson({ tickets: rows.map(mapTicket) }, 200, requestId);
   } catch (error) {
-    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId);
+    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId, error.code === 'RATE_LIMITED' ? { 'Retry-After': '60' } : {});
     console.error(JSON.stringify({ scope: 'pay:tickets:list', requestId, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
     return payJson({ code: 'TICKET_LIST_FAILED', message: 'Unable to load support tickets.' }, 503, requestId);
   }
@@ -45,8 +47,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const user = await getAuthenticatedUser(env, request);
     if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
-    const subjectHash = await hashCanonicalRequest({ userId: user.id });
-    await enforcePayRateLimit(env, 'tickets:create:user', subjectHash, 60, 30);
+    await enforceTicketRateLimit(env, request, user.id, 'create', 60, 5, 20);
+    if (await isTicketUserBlocked(env, user.id)) return payJson({ code: 'TICKET_USER_BLOCKED', message: 'Your ability to use Pay support is restricted.' }, 403, requestId);
+    requireTicketJson(request);
     const body = await readJsonBody(request);
     const merchantId = typeof body.merchantId === 'string' ? body.merchantId.trim() : '';
     const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
