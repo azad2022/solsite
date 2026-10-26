@@ -112,6 +112,26 @@ BEGIN
      OR NOT has_function_privilege('service_role', 'public.pay_soft_delete_ticket(text,uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Ticket moderation RPC grants are not restricted to service_role.';
   END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN (
+        'pay_create_ticket',
+        'pay_add_ticket_message',
+        'pay_update_ticket_status',
+        'pay_soft_delete_ticket',
+        'pay_block_ticket_user',
+        'pay_unblock_ticket_user',
+        'pay_unblock_ticket_user_by_id'
+      )
+      AND p.prosecdef
+      AND coalesce(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=""']::text[]
+  ) <> 7 THEN
+    RAISE EXCEPTION 'All ticket SECURITY DEFINER functions must use an empty search_path.';
+  END IF;
 END;
 $$;
 
