@@ -53,6 +53,42 @@ jobs:
       - name: Setup PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
+      - name: Create isolated ticket moderation security database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: createdb pay_ticket_moderation_security
+
+      - name: Create ticket moderation fixture schema
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_ticket_moderation_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_ticket_moderation_security_setup.sql
+
+      - name: Apply ticket moderation migration to isolated database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_ticket_moderation_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261026140000_solmint_pay_ticket_moderation_security.sql
+
+      - name: Run ticket moderation database security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_ticket_moderation_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_ticket_moderation_security.sql
+
       - name: Run Pay identity/RLS security checks
         env:
           PGHOST: 127.0.0.1
