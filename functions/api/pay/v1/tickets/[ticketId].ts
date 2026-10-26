@@ -1,11 +1,12 @@
 import { getAuthenticatedUser, type AuthUser } from '../../../auth/_shared';
-import { PayRuntimeError, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../_shared/runtime';
+import { PayRuntimeError, makePayRequestId, payFeatureEnabled, payJson, readJsonBody, supabaseRequest } from '../../_shared/runtime';
+import { enforceTicketRateLimit, requireTicketJson } from '../../_shared/ticketSecurity';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../_shared/identity';
 
 interface PayEnv extends PayIdentityEnv { PAY_API_ENABLED?: string; PAY_APP_ORIGIN?: string; SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string; SUPABASE_SERVICE_ROLE_KEY?: string; }
-interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; }
+interface TicketRow { id: string; merchant_id: string; created_by_user_id: string; subject: string; status: string; priority: string; created_at: string; updated_at: string; closed_at: string | null; deleted_at?: string | null; deleted_by_user_id?: string | null; }
 interface MessageRow { id: string; ticket_id: string; author_user_id: string; body: string; created_at: string; }
-const ticketSelect = 'id,merchant_id,created_by_user_id,subject,status,priority,created_at,updated_at,closed_at';
+const ticketSelect = 'id,merchant_id,created_by_user_id,subject,status,priority,created_at,updated_at,closed_at,deleted_at,deleted_by_user_id';
 const messageSelect = 'id,ticket_id,author_user_id,body,created_at';
 
 function originAllowed(request: Request, env: PayEnv): boolean { const expected = env.PAY_APP_ORIGIN?.trim(); return !!expected && request.headers.get('Origin') === expected; }
@@ -20,7 +21,8 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
     const identity = await resolvePayIdentity(request, env);
-    const response = await supabaseRequestAsIdentity(env, identity.accessToken, `/rest/v1/pay_tickets?select=${ticketSelect}&id=eq.${encodeURIComponent(ticketId)}&limit=1`);
+    await enforceTicketRateLimit(env, request, identity.user.id, 'detail', 60, 120, 240);
+    const response = await supabaseRequestAsIdentity(env, identity.accessToken, `/rest/v1/pay_tickets?select=${ticketSelect}&id=eq.${encodeURIComponent(ticketId)}&deleted_at=is.null&limit=1`);
     const tickets = await response.json() as TicketRow[];
     const ticket = tickets[0];
     if (!ticket) return payJson({ code: 'TICKET_NOT_FOUND', message: 'Ticket not found.' }, 404, requestId);
@@ -28,7 +30,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const messages = await messagesResponse.json() as MessageRow[];
     return payJson({ ticket: mapTicket(ticket), messages: messages.map(mapMessage) }, 200, requestId);
   } catch (error) {
-    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId);
+    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId, error.code === 'RATE_LIMITED' ? { 'Retry-After': '60' } : {});
     console.error(JSON.stringify({ scope: 'pay:tickets:detail', requestId, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
     return payJson({ code: 'TICKET_DETAIL_FAILED', message: 'Unable to load ticket.' }, 503, requestId);
   }
@@ -41,11 +43,11 @@ export const onRequestPatch = async ({ request, env, params }: { request: Reques
     if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
     const user = await getAuthenticatedUser(env, request);
     if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
-    const subjectHash = await hashCanonicalRequest({ userId: user.id });
-    await enforcePayRateLimit(env, 'tickets:status:user', subjectHash, 60, 30);
+    await enforceTicketRateLimit(env, request, user.id, 'status', 60, 10, 30);
     if (user.role !== 'admin') return payJson({ code: 'FORBIDDEN', message: 'Administrator access is required.' }, 403, requestId);
     const ticketId = params.ticketId || '';
     if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
+    requireTicketJson(request);
     const body = await readJsonBody(request);
     const status = typeof body.status === 'string' ? body.status.trim().toLowerCase() : '';
     if (!['open','pending_customer','pending_admin','resolved','closed'].includes(status)) return payJson({ code: 'INVALID_STATUS', message: 'Ticket status is invalid.' }, 400, requestId);
@@ -53,8 +55,33 @@ export const onRequestPatch = async ({ request, env, params }: { request: Reques
     const ticket = await response.json() as TicketRow;
     return payJson({ ticket: mapTicket(ticket) }, 200, requestId);
   } catch (error) {
-    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId);
+    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId, error.code === 'RATE_LIMITED' ? { 'Retry-After': '60' } : {});
     console.error(JSON.stringify({ scope: 'pay:tickets:status', requestId, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
     return payJson({ code: 'TICKET_STATUS_UPDATE_FAILED', message: 'Unable to update ticket status.' }, 503, requestId);
+  }
+};
+
+export const onRequestDelete = async ({ request, env, params }: { request: Request; env: PayEnv; params: Record<string, string | undefined> }) => {
+  const requestId = makePayRequestId();
+  if (!payFeatureEnabled(env)) return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
+  try {
+    if (!originAllowed(request, env)) return payJson({ code: 'ORIGIN_FORBIDDEN', message: 'Request origin is not trusted.' }, 403, requestId);
+    const user = await getAuthenticatedUser(env, request);
+    if (!user || user.is_active === false) return payJson({ code: 'UNAUTHORIZED', message: 'A valid SolMint session is required.' }, 401, requestId);
+    await enforceTicketRateLimit(env, request, user.id, 'delete', 60, 10, 20);
+    if (user.role !== 'admin') return payJson({ code: 'FORBIDDEN', message: 'Administrator access is required.' }, 403, requestId);
+    const ticketId = params.ticketId || '';
+    if (!validUuid(ticketId)) return payJson({ code: 'INVALID_TICKET_ID', message: 'ticketId is invalid.' }, 400, requestId);
+    const response = await supabaseRequest(env, '/rest/v1/rpc/pay_soft_delete_ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ p_admin_user_id: user.id, p_ticket_id: ticketId }),
+    });
+    await response.json();
+    return payJson({ deleted: true, ticketId }, 200, requestId);
+  } catch (error) {
+    if (error instanceof PayRuntimeError) return payJson({ code: error.code, message: error.status >= 500 ? 'Pay service is temporarily unavailable.' : error.message }, error.status, requestId, error.code === 'RATE_LIMITED' ? { 'Retry-After': '60' } : {});
+    console.error(JSON.stringify({ scope: 'pay:tickets:delete', requestId, error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' }));
+    return payJson({ code: 'TICKET_DELETE_FAILED', message: 'Unable to delete ticket.' }, 503, requestId);
   }
 };
