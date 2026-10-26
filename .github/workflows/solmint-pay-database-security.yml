@@ -89,6 +89,15 @@ jobs:
           PGDATABASE: pay_ticket_moderation_security
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261026090718_solmint_pay_ticket_moderation_security.sql
 
+      - name: Apply ticket moderation search_path hardening migration
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_ticket_moderation_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261026091519_solmint_pay_ticket_moderation_search_path_hardening.sql
+
       - name: Run ticket moderation database security checks
         env:
           PGHOST: 127.0.0.1
