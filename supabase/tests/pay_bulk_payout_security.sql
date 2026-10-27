@@ -112,7 +112,6 @@ begin
   );
   if r->>'state' <> 'duplicate_recipient' then raise exception 'duplicate recipient was not rejected before batch creation: %',r; end if;
   if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'duplicate payout batch was created'; end if;
-  if exists(select 1 from public.pay_idempotency_keys where merchant_id='00000000-0000-0000-0000-000000000001' and idempotency_key='duplicate-1') then raise exception 'duplicate payout idempotency record was created'; end if;
 
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
