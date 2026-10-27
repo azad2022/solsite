@@ -115,3 +115,17 @@ The `Supabase Preview` app check on merge commit `6972b0e` started at `14:41:49Z
 - **NOT RUN on current release SHA — Mainnet Read-only**; previous historical PASS was on `0e228bb3553a20d8e345038ff9e71cb93604aea0`, not the current release.
 
 No Mainnet payout/transfer was sent by this audit. The feature must not be labelled fully production-ready until the lifecycle and governance gates are closed.
+
+### 2026-10-27 — Phase C proposal: canonical recipient validation (PR #357)
+
+**State: DRAFT / NOT MERGED / NOT APPLIED TO PRODUCTION.** The migration and test edits are isolated to `fix/pay-payout-canonical-recipient-db-guard`; they have not been merged and this work did not invoke any Production migration action.
+
+The proposed migration `20261027152000_solmint_pay_payout_canonical_recipient.sql` adds `public.pay_is_canonical_solana_address(text)`. It validates Base58 alphabet and allowed encoded length, accounts for leading zero bytes, and verifies that the decoded value represents exactly 32 bytes. The helper denies direct execution to PUBLIC, `anon`, and `authenticated`; the existing owner-owned `SECURITY DEFINER` create RPC calls it internally. Positive PostgreSQL fixtures now use known Base58 values that decode to 32 bytes. Negative tests cover a valid-alphabet string decoding to only 23 bytes, invalid alphabet, NULL, overlong and >32-byte decoded inputs, helper EXECUTE grants, and rejection before a payout batch is persisted.
+
+Validation evidence for the tested code head `d96dc2e15ba95420c96af2c110fb77c21aa9ed20`:
+- **PASS — CI/typecheck/production build/unit tests:** [run 40559683841](https://github.com/azad2022/solsite/actions/runs/40559683841).
+- **PASS — Production Build including the Cloudflare Pages preview-route check:** [run 40559683976](https://github.com/azad2022/solsite/actions/runs/40559683976).
+- **PASS — Database Security, repository migration-chain validation and Bulk Pay SQL security fixture:** [run 40559683893](https://github.com/azad2022/solsite/actions/runs/40559683893).
+- **PASS — Devnet E2E, including real Devnet Bulk Pay transaction verification:** [run 40559683843](https://github.com/azad2022/solsite/actions/runs/40559683843).
+
+Scope is limited to canonical recipient byte-length validation. The database does not yet independently bind USDC/USDT mint addresses to a database-owned asset configuration; that remains tracked by issue [#356](https://github.com/azad2022/solsite/issues/356). The migration is **not** eligible for merge/application while [#355](https://github.com/azad2022/solsite/issues/355) leaves the Production migration-runner trigger/actor **UNKNOWN**. The feature remains unaccepted until the authenticated full Bulk Pay lifecycle E2E in [#354](https://github.com/azad2022/solsite/issues/354) is green. No Mainnet transaction or production financial mutation was performed.
