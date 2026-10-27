@@ -6,8 +6,9 @@ import { resolveAssetFromEnvironment, type SupportedAssetConfig } from '../../..
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
 import type { PaymentAsset } from '../../../../src/pay/types/domain';
 import { findDuplicatePayoutRecipient } from '../../../../src/pay/services/bulkPayoutPolicy';
+import { mintPayInternalPayoutCreatorJwt, type PayInternalJwtEnv } from '../_shared/internal-jwt';
 
-interface PayoutEnv extends PayIdentityEnv {
+interface PayoutEnv extends PayIdentityEnv, PayInternalJwtEnv {
   PAY_USDC_MINT?: string;
   PAY_USDT_MINT?: string;
   PAY_USDC_DECIMALS?: string;
@@ -15,6 +16,7 @@ interface PayoutEnv extends PayIdentityEnv {
 }
 
 type PayoutItemInput = { recipient: string; amountAtomic: string };
+const MAX_SAFE_SOL_LAMPORTS = 9007199254740991n;
 
 function uuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -22,14 +24,16 @@ function uuid(value: unknown): value is string {
 function asset(value: unknown): value is PaymentAsset {
   return value === 'SOL' || value === 'USDC' || value === 'USDT';
 }
-function parseItems(value: unknown): PayoutItemInput[] {
+function parseItems(value: unknown, payoutAsset: PaymentAsset): PayoutItemInput[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > 50) throw new PayRuntimeError('INVALID_ITEMS',400,'Bulk Pay requires between 1 and 50 payout items.');
   const items = value.map((item, index) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new PayRuntimeError('INVALID_ITEM',400,'Payout item ' + (index + 1) + ' is invalid.');
     const row = item as Record<string, unknown>;
     const recipient = typeof row.recipient === 'string' ? row.recipient.trim() : '';
     const amountAtomic = typeof row.amountAtomic === 'string' ? row.amountAtomic.trim() : '';
-    if (!recipient || !amountAtomic || amountAtomic.length > 78 || !/^[0-9]+$/.test(amountAtomic) || BigInt(amountAtomic) <= 0n) throw new PayRuntimeError('INVALID_ITEM',400,'Payout item ' + (index + 1) + ' is invalid.');
+    if (!recipient || !amountAtomic || amountAtomic.length > 78 || !/^[0-9]+$/.test(amountAtomic)) throw new PayRuntimeError('INVALID_ITEM',400,'Payout item ' + (index + 1) + ' is invalid.');
+    const amount = BigInt(amountAtomic);
+    if (amount <= 0n || (payoutAsset === 'SOL' && amount > MAX_SAFE_SOL_LAMPORTS)) throw new PayRuntimeError('INVALID_ITEM',400,'Payout item ' + (index + 1) + ' is invalid for the selected payout asset.');
     let canonicalRecipient: string;
     try { canonicalRecipient = new PublicKey(recipient).toBase58(); } catch { throw new PayRuntimeError('INVALID_RECIPIENT',400,'Payout recipient ' + (index + 1) + ' is not a valid Solana address.'); }
     return { recipient: canonicalRecipient, amountAtomic };
@@ -95,14 +99,15 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const merchantId = typeof body.merchantId === 'string' ? body.merchantId.trim() : '';
     if (!uuid(merchantId)) return payJson({ code:'MERCHANT_ID_INVALID',message:'Merchant ID is invalid.' },400,requestId);
     if (!asset(body.asset)) return payJson({ code:'INVALID_ASSET',message:'Unsupported payout asset.' },400,requestId);
-    const items = parseItems(body.items);
+    const items = parseItems(body.items, body.asset);
     const idempotencyKey = await assertIdempotencyKey(request);
     const canonical = { merchantId, asset:body.asset, items };
     const requestHash = await hashCanonicalRequest(canonical);
     const subjectHash = await hashCanonicalRequest({ userId:identity.user.applicationUserId,merchantId });
     await enforcePayRateLimit(env,'payout-batches:create',subjectHash,60,10);
     const config = resolveAssetFromEnvironment(body.asset, env as Record<string, string | undefined>);
-    const result = await rpc<any>(env, identity.accessToken,'pay_create_payout_batch',{
+    const creatorToken = await mintPayInternalPayoutCreatorJwt(env, identity.user.applicationUserId);
+    const result = await rpc<any>(env, creatorToken,'pay_create_payout_batch',{
       p_merchant_id:merchantId,p_asset:config.asset,p_token_mint:config.tokenMint,p_token_program:config.tokenProgram,p_token_decimals:config.decimals,
       p_items:items,p_idempotency_key:idempotencyKey,p_request_hash:requestHash,
     });

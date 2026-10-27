@@ -91,6 +91,18 @@ test('Bulk Pay verifier rejects duplicate ambiguous transfers',()=>{
   assert.equal(result.reason,'AMBIGUOUS_TRANSFER');
 });
 
+test('Bulk Pay SOL builder rejects lamports above its safe integer representation',async()=>{
+  const latest={blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:123};
+  const connection={getLatestBlockhash:async()=>latest} as unknown as Connection;
+  const amount='9007199254740992';
+  await assert.rejects(
+    () => buildBulkPayoutTransaction({
+      sourceWalletAddress:SOURCE,asset:'SOL',tokenMint:null,tokenProgram:null,tokenDecimals:null,totalAmountAtomic:amount,itemCount:1,
+    },[{recipient:A,amountAtomic:amount}],connection),
+    /SOL_AMOUNT_TOO_LARGE/,
+  );
+});
+
 test('Bulk Pay transaction builder binds fee payer and exact instructions',async()=>{
   const latest={blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:123};
   const connection={getLatestBlockhash:async()=>latest} as unknown as Connection;

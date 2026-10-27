@@ -46,6 +46,7 @@ as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}'
 \i supabase/migrations/20261007173028_solmint_pay_bulk_payout_verifier_hardening.sql
 \i supabase/migrations/20261027143000_solmint_pay_bulk_payout_duplicate_and_transaction_request_safety.sql
 \i supabase/migrations/20261027143100_solmint_pay_bulk_payout_submit_capability_hardening.sql
+\i supabase/migrations/20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql
 
 insert into public.users(id) values ('user-a'),('user-b'),('user-viewer');
 insert into public.pay_merchants(id,status) values
@@ -74,7 +75,21 @@ end $$;
 
 begin;
 set local role authenticated;
-select set_config('request.jwt.claims','{"solmint_user_id":"user-viewer"}',true);
+select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
+DO $$ declare r jsonb;
+begin
+  r := public.pay_create_payout_batch(
+    '00000000-0000-0000-0000-000000000001','USDC','arbitrary-token-mint','spl-token',6,
+    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"}]'::jsonb,'direct-create-no-capability',repeat('f',64)
+  );
+  if r->>'state' <> 'unauthorized' then raise exception 'ordinary authenticated JWT created a payout batch directly: %',r; end if;
+  if exists(select 1 from public.pay_payout_batches) then raise exception 'ordinary direct RPC call created a payout batch'; end if;
+end $$;
+rollback;
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims','{"solmint_user_id":"user-viewer","solmint_pay_payout_creator":"true"}',true);
 DO $$
 declare r jsonb;
 begin
@@ -88,7 +103,7 @@ rollback;
 
 begin;
 set local role authenticated;
-select set_config('request.jwt.claims','{"solmint_user_id":"user-b"}',true);
+select set_config('request.jwt.claims','{"solmint_user_id":"user-b","solmint_pay_payout_creator":"true"}',true);
 DO $$
 declare r jsonb;
 begin
@@ -103,7 +118,18 @@ rollback;
 
 begin;
 set local role authenticated;
-select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
+select set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_payout_creator":"true"}',true);
+DO $$
+declare r jsonb;
+begin
+  r := public.pay_create_payout_batch(
+    '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
+    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"9007199254740992"}]'::jsonb,'unsafe-sol-atomic-1',repeat('c',64)
+  );
+  if r->>'state' <> 'invalid' then raise exception 'unrepresentable SOL lamports amount was accepted: %',r; end if;
+  if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'unrepresentable SOL amount created a batch'; end if;
+end $$;
+
 DO $$
 declare r jsonb; v_batch_id uuid;
 begin

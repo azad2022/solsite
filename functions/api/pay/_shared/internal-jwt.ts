@@ -34,6 +34,7 @@ interface JwtPayload {
   [PAY_INTERNAL_JWT_CLAIM]: string;
   solmint_pay_verifier?: 'true';
   solmint_pay_payout_builder?: 'true';
+  solmint_pay_payout_creator?: 'true';
 }
 
 function base64UrlEncode(input: Uint8Array | string): string {
@@ -125,7 +126,7 @@ async function mintInternalJwt(
   env: PayInternalJwtEnv,
   userId: string,
   nowSeconds: number,
-  capability: 'verifier' | 'payout_builder' | null,
+  capability: 'verifier' | 'payout_builder' | 'payout_creator' | null,
 ): Promise<string> {
   validatePayInternalJwtConfig(env);
   if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 1) throw new Error('JWT issuance time must be a positive safe integer.');
@@ -145,6 +146,7 @@ async function mintInternalJwt(
     [PAY_INTERNAL_JWT_CLAIM]: normalizedUserId,
     ...(capability === 'verifier' ? { solmint_pay_verifier: 'true' as const } : {}),
     ...(capability === 'payout_builder' ? { solmint_pay_payout_builder: 'true' as const } : {}),
+    ...(capability === 'payout_creator' ? { solmint_pay_payout_creator: 'true' as const } : {}),
   };
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
@@ -175,4 +177,12 @@ export async function mintPayInternalPayoutBuilderJwt(
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<string> {
   return mintInternalJwt(env, userId, nowSeconds, 'payout_builder');
+}
+
+export async function mintPayInternalPayoutCreatorJwt(
+  env: PayInternalJwtEnv,
+  userId: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  return mintInternalJwt(env, userId, nowSeconds, 'payout_creator');
 }
