@@ -71,12 +71,12 @@ begin
   if has_function_privilege('authenticated','public.pay_claim_payout_transaction_request(uuid,uuid,text,text)','EXECUTE') is not true then raise exception 'authenticated claim grant missing'; end if;
   if has_table_privilege('authenticated','public.pay_payout_transaction_requests','SELECT') then raise exception 'authenticated can read private prepared transaction data'; end if;
   if has_function_privilege('authenticated','public.pay_create_payout_batch(uuid,text,text,text,integer,jsonb,text,text)','EXECUTE') is not true then raise exception 'authenticated create grant missing'; end if;
-end $;
+end $$;
 
 begin;
 set local role authenticated;
-select set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_payout_creator":"true"}',true);
-DO $ declare r jsonb;
+select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
+DO $$ declare r jsonb;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','USDC','arbitrary-token-mint','spl-token',6,
@@ -84,7 +84,7 @@ begin
   );
   if r->>'state' <> 'unauthorized' then raise exception 'ordinary authenticated JWT created a payout batch directly: %',r; end if;
   if exists(select 1 from public.pay_payout_batches) then raise exception 'ordinary direct RPC call created a payout batch'; end if;
-end $;
+end $$;
 rollback;
 
 begin;
@@ -118,8 +118,8 @@ rollback;
 
 begin;
 set local role authenticated;
-select set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
-DO $
+select set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_payout_creator":"true"}',true);
+DO $$
 declare r jsonb;
 begin
   r := public.pay_create_payout_batch(
@@ -128,9 +128,9 @@ begin
   );
   if r->>'state' <> 'invalid' then raise exception 'unrepresentable SOL lamports amount was accepted: %',r; end if;
   if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'unrepresentable SOL amount created a batch'; end if;
-end $;
+end $$;
 
-DO $
+DO $$
 declare r jsonb; v_batch_id uuid;
 begin
   r := public.pay_create_payout_batch(
