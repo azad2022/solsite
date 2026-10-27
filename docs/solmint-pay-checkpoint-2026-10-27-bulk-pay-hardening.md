@@ -4,7 +4,7 @@ Date: 2026-10-27
 
 ## Status
 
-**PHASE A/B RECORDED LIVE — PR #352 MERGED — POST-PHASE-B API/LIVE SMOKES PASS — FULL BULK PAY LIFECYCLE ACCEPTANCE BLOCKED ON DATABASE INPUT CONTRACT GAPS**
+**PHASE A/B RECORDED LIVE — POST-PHASE-B API/LIVE SMOKES PASS — PR #353 OPEN/DRAFT — DATABASE SECURITY + DEVNET + CI PASS — PAGES PREVIEW GATE IN PROGRESS — FULL LIFECYCLE NOT ACCEPTED**
 
 - Phase A schema PR [#349](https://github.com/azad2022/solsite/pull/349), merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`.
 - Application PR [#348](https://github.com/azad2022/solsite/pull/348), merged as `39d4f0dd13199a05937af7c39d50588a989c21a3`.
@@ -70,3 +70,29 @@ The post-Phase-B smoke automation gap is **CLOSED / PASS**. The full Bulk Pay pr
 - **UNKNOWN — Phase B migration provenance:** Production ledger records `20261027143100`; the available Actions evidence does not establish which actor/workflow applied it. No migration was run by this audit.
 
 The separate legacy `Workers Builds: solsite` check remains **FAILURE** while Cloudflare Pages is **PASS**; the repository is deployed through Pages and this old Worker integration is not the Pages deployment. No payment completion is inferred from a submitted signature; backend/database/finalized-blockchain verification remains authoritative.
+
+
+## 2026-10-27 — PR #353 database-create boundary remediation
+
+Status: **OPEN / DRAFT — CORE CI, DATABASE SECURITY, AND DEVNET PASS — PAGES PREVIEW/PRODUCTION BUILD UNKNOWN (IN PROGRESS)**
+
+PR: [#353 — require internal capability for payout batch creation](https://github.com/azad2022/solsite/pull/353)
+Branch: `fix/pay-bulk-payout-create-capability`
+Tested PR head: `2e774240a2938f6354f9125a578bffc02a530fb8`
+
+Changes on the branch only:
+- Adds a distinct short-lived `solmint_pay_payout_creator` internal JWT capability. The Batch-create API mints it server-side after normal identity resolution and passes the trusted token to `pay_create_payout_batch`.
+- Adds a new repository migration `20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql`; it is **not applied in Production**.
+- Rejects SOL item amounts above `9007199254740991` atomic units before Batch creation in the API and SQL, matching the existing transaction builder’s safe integer limitation.
+- Adds JWT-claim separation, direct-RPC denial/arbitrary-mint regression, database amount-boundary checks, and builder amount-boundary tests.
+
+Observed gates on the tested PR head:
+- CI/quality/unit tests: **PASS** — [40522451593](https://github.com/azad2022/solsite/actions/runs/40522451593).
+- Database Security SQL fixture: **PASS** — [40522450599](https://github.com/azad2022/solsite/actions/runs/40522450599).
+- Devnet E2E: **PASS** — [40522450792](https://github.com/azad2022/solsite/actions/runs/40522450792).
+- Production Build: **IN PROGRESS** — [40522450728](https://github.com/azad2022/solsite/actions/runs/40522450728). The production bundle/typecheck succeeded; the job is waiting on the Cloudflare Pages preview routing assertion.
+- Cloudflare Pages preview: **IN PROGRESS** — [check 122252655944](https://github.com/azad2022/solsite/runs/122252655944).
+- Supabase Preview: **SKIPPED** under the project’s preview-free delivery policy.
+- Legacy Workers Builds: **FAILURE**, separate from Pages — [check 122253430785](https://github.com/azad2022/solsite/runs/122253430785).
+
+No merge has been performed for PR #353. No production migration was dispatched, no Mainnet transfer was sent, and Phase B migration provenance remains **UNKNOWN**. Do not merge while the Pages/Production Build gate is unresolved. After source release, the new migration must only be applied through the controlled Production Migration workflow and only after explicit approval.
