@@ -55,7 +55,7 @@ For current `main` commit `d8523ea01c4d4cb7e16f522587b322a300744242`:
 - Production Build: **PASS** — [40520417755](https://github.com/azad2022/solsite/actions/runs/40520417755).
 - Authentication Build Verification: **PASS** — [40520417756](https://github.com/azad2022/solsite/actions/runs/40520417756).
 - Cloudflare Pages deployment: **PASS** — [check 122246331873](https://github.com/azad2022/solsite/runs/122246331873).
-- Production API Smoke: **PASS**** after the exact commit's successful Pages check — [40520417881](https://github.com/azad2022/solsite/actions/runs/40520417881).
+- Production API Smoke: **PASS** after the exact commit's successful Pages check — [40520417881](https://github.com/azad2022/solsite/actions/runs/40520417881).
 - Live Smoke: **PASS** after the exact commit's successful Pages check — [40520417819](https://github.com/azad2022/solsite/actions/runs/40520417819).
 
 Database Security and real Devnet Bulk Pay E2E remain **PASS on the unchanged application/Phase B source commit** `38223b14272aab57bf0d1c3ebfe993d9ec054dc0`: [Database Security 40505975783](https://github.com/azad2022/solsite/actions/runs/40505975783), [Devnet E2E 40505975665](https://github.com/azad2022/solsite/actions/runs/40505975665). They were not re-run on `d8523ea`; this merge changed workflows and documentation, not payout application code.
