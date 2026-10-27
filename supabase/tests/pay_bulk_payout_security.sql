@@ -49,7 +49,7 @@ as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}'
 \i supabase/migrations/20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql
 \i supabase/migrations/20261027152000_solmint_pay_payout_canonical_recipient.sql
 
-DO $
+DO $$
 begin
   if public.pay_is_canonical_solana_address('4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi') is not true then raise exception 'valid 32-byte Base58 public key was rejected'; end if;
   if public.pay_is_canonical_solana_address('11111111111111111111111111111111') is not true then raise exception '32 leading zero bytes were rejected'; end if;
@@ -60,7 +60,7 @@ begin
   if public.pay_is_canonical_solana_address(repeat('z',45)) is not false then raise exception 'overlong address was accepted'; end if;
   if has_function_privilege('anon','public.pay_is_canonical_solana_address(text)','EXECUTE') then raise exception 'anon can execute the canonical address helper'; end if;
   if has_function_privilege('authenticated','public.pay_is_canonical_solana_address(text)','EXECUTE') then raise exception 'authenticated can execute the canonical address helper directly'; end if;
-end $;
+end $$;
 
 insert into public.users(id) values ('user-a'),('user-b'),('user-viewer');
 insert into public.pay_merchants(id,status) values
@@ -104,7 +104,7 @@ rollback;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_payout_creator":"true"}',true);
-DO $ declare r jsonb;
+DO $$ declare r jsonb;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
@@ -112,7 +112,7 @@ begin
   );
   if r->>'state' <> 'invalid' then raise exception 'recipient with invalid decoded public-key length was accepted: %',r; end if;
   if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'noncanonical recipient created a batch'; end if;
-end $;
+end $$;
 rollback;
 
 begin;
