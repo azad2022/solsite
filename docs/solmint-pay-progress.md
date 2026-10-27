@@ -1597,7 +1597,6 @@ Scope closed in this release sequence:
 - Checkout expiration is rendered through the active locale instead of a raw ISO timestamp.
 - Production browser E2E was corrected to assert `created` immediately after Payment Intent creation and to accept the authoritative `created → pending` transition after Checkout reconciliation.
 - No new API, field, RPC, database schema, financial rule, or client-side financial truth was introduced by these corrections.
-
 Authoritative production evidence:
 - PR #311, #312, #313, #314, #315, and #316 are merged into `main`.
 - Cloudflare Pages deployment for current main commit `5d8b6498...`: **PASS**.
@@ -1776,7 +1775,7 @@ Application commit `0e228bb3553a20d8e345038ff9e71cb93604aea0` passed:
 - Live Browser Audit, including referral lifecycle and authenticated browser UI script: [run 40504617088](https://github.com/azad2022/solsite/actions/runs/40504617088).
 - Cloudflare Pages production deployment: PASS.
 
-Separate Production Browser UI E2E run [40504617153](https://github.com/azad2022/solsite/actions/runs/40504617153) was still in progress at last observation; the runner was delayed at Chromium installation before reaching its test steps. The same referral lifecycle and authenticated UI script passed in Live Browser Audit. Do not describe the separate Browser UI workflow itself as PASS unless its own run completes.
+Production Browser UI E2E: **PASS** — [run 40504617153](https://github.com/azad2022/solsite/actions/runs/40504617153), including the dedicated referral lifecycle and authenticated UI.
 
 Migration provenance note: read-only database queries show Phase B is recorded in Production. I did not dispatch the Production Migration workflow, and the available GitHub Actions history did not establish the execution origin. No direct SQL migration was issued by this work. Provenance is **UNKNOWN** and is not attributed to a specific actor.
 

@@ -46,7 +46,7 @@ For deployed application commit `0e228bb3553a20d8e345038ff9e71cb93604aea0`:
 - Live Smoke: **PASS** — [40504617047](https://github.com/azad2022/solsite/actions/runs/40504617047).
 - Live Browser Audit: **PASS**, including referral lifecycle + authenticated UI: [40504617088](https://github.com/azad2022/solsite/actions/runs/40504617088).
 - Cloudflare Pages: **PASS**.
-- Separate Browser UI E2E run [40504617153](https://github.com/azad2022/solsite/actions/runs/40504617153) was still in progress during Chromium installation at last observation. The exact UI script and referral lifecycle passed in Live Browser Audit; do not mark the separate workflow PASS until its own run concludes.
+- Production Browser UI E2E: **PASS** — [run 40504617153](https://github.com/azad2022/solsite/actions/runs/40504617153), including the dedicated referral lifecycle and authenticated production UI flow.
 
 ## Remaining verification
 
