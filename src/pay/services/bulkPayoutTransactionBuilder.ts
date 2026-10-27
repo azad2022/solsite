@@ -149,7 +149,7 @@ export function isValidPreparedBulkPayoutSignature(
     const binary = atob(transactionBase64);
     const transaction = Transaction.from(Uint8Array.from(binary, character => character.charCodeAt(0)));
     if (!transaction.feePayer || !transaction.feePayer.equals(source)) return false;
-    transaction.addSignature(source, rawSignature);
+    transaction.addSignature(source, Buffer.from(rawSignature));
     return transaction.verifySignatures();
   } catch {
     return false;
