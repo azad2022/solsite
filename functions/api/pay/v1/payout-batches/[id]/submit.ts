@@ -1,4 +1,6 @@
 import { makePayRequestId, assertIdempotencyKey, enforcePayRateLimit, hashCanonicalRequest, payFeatureEnabled, payJson, readJsonBody, PayRuntimeError } from '../../../_shared/runtime';
+import { mintPayInternalPayoutBuilderJwt } from '../../../_shared/internal-jwt';
+import { isValidPreparedBulkPayoutSignature } from '../../../../../../src/pay/services/bulkPayoutTransactionBuilder';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
 
 interface Env extends PayIdentityEnv { PAY_API_ENABLED?: string; }
@@ -27,7 +29,22 @@ export const onRequestPost = async ({ request, env, params }: { request:Request;
     });
     if((await access.json())!==true) return payJson({code:'FORBIDDEN',message:'You do not have permission to submit this Bulk Pay batch.'},403,requestId);
 
-    const resultResponse=await supabaseRequestAsIdentity(env,identity.accessToken,'/rest/v1/rpc/pay_submit_payout_batch',{
+    const builderToken=await mintPayInternalPayoutBuilderJwt(env,identity.user.applicationUserId);
+    const preparedResponse=await supabaseRequestAsIdentity(env,builderToken,'/rest/v1/rpc/pay_get_prepared_payout_transaction_request',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_merchant_id:merchantId,p_batch_id:batchId}),
+    });
+    const prepared=await preparedResponse.json() as Record<string,unknown>;
+    if(prepared.state==='not_found') return payJson({code:'PAYOUT_BATCH_NOT_FOUND',message:'Payout batch was not found.'},404,requestId);
+    if(prepared.state==='not_prepared') return payJson({code:'PAYOUT_TRANSACTION_NOT_PREPARED',message:'The server has no prepared transaction for this payout batch.'},409,requestId);
+    if(prepared.state==='not_ready') return payJson({code:'PAYOUT_BATCH_NOT_SUBMITABLE',message:'This payout batch is no longer submitable.'},409,requestId);
+    if(prepared.state!=='prepared'||typeof prepared.transaction!=='string'||typeof prepared.sourceWalletAddress!=='string') {
+      return payJson({code:'PAYOUT_TRANSACTION_SNAPSHOT_INVALID',message:'The saved payout transaction is invalid.'},503,requestId);
+    }
+    if(!isValidPreparedBulkPayoutSignature(prepared.transaction,prepared.sourceWalletAddress,signature)) {
+      return payJson({code:'SIGNATURE_TRANSACTION_MISMATCH',message:'The signature does not match the exact transaction prepared for this batch.'},422,requestId);
+    }
+
+    const resultResponse=await supabaseRequestAsIdentity(env,builderToken,'/rest/v1/rpc/pay_submit_payout_batch',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({p_merchant_id:merchantId,p_batch_id:batchId,p_signature:signature,p_idempotency_key:idempotencyKey,p_request_hash:requestHash}),

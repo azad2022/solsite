@@ -1,5 +1,20 @@
+import { PublicKey } from '@solana/web3.js';
 import type { ObservedPaymentTransaction, ObservedTransfer } from './verificationPolicy';
 import type { PaymentAsset, TokenProgram } from '../types/domain';
+
+/** Returns the canonical Solana address that appears more than once, or null. */
+export function findDuplicatePayoutRecipient(recipients: readonly string[]): string | null {
+  const seen = new Set<string>();
+  for (const value of recipients) {
+    const trimmed = value.trim();
+    let canonical: string;
+    try { canonical = new PublicKey(trimmed).toBase58(); }
+    catch { canonical = trimmed; }
+    if (seen.has(canonical)) return canonical;
+    seen.add(canonical);
+  }
+  return null;
+}
 
 export interface BulkPayoutVerificationItem {
   recipient: string;

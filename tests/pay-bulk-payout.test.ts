@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
-import { buildBulkPayoutTransaction } from '../src/pay/services/bulkPayoutTransactionBuilder';
-import { verifyBulkPayoutTransaction } from '../src/pay/services/bulkPayoutPolicy';
+import { buildBulkPayoutTransaction, isValidPreparedBulkPayoutSignature } from '../src/pay/services/bulkPayoutTransactionBuilder';
+import { decodeBase58, encodeBase58 } from '../src/pay/services/base58';
+import { findDuplicatePayoutRecipient, verifyBulkPayoutTransaction } from '../src/pay/services/bulkPayoutPolicy';
 import type { ObservedPaymentTransaction } from '../src/pay/services/verificationPolicy';
 
-const SOURCE=Keypair.generate().publicKey.toBase58();
+const SOURCE_KEYPAIR=Keypair.generate();
+const SOURCE=SOURCE_KEYPAIR.publicKey.toBase58();
 const A=Keypair.generate().publicKey.toBase58();
 const B=Keypair.generate().publicKey.toBase58();
 
@@ -15,6 +17,32 @@ function observed(transfers:ObservedPaymentTransaction['transfers'], overrides:P
     commitment:'finalized', feePayer:SOURCE, referenceMatched:false, transfers, ...overrides,
   };
 }
+
+
+test('Bulk Pay rejects a repeated recipient regardless of amount',()=>{
+  assert.equal(findDuplicatePayoutRecipient([A,A]),A);
+  assert.equal(findDuplicatePayoutRecipient([A,B]),null);
+});
+
+test('Bulk Pay validates that a submitted signature signs the exact prepared message',async()=>{
+  const latest={blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:123};
+  const connection={getLatestBlockhash:async()=>latest} as unknown as Connection;
+  const built=await buildBulkPayoutTransaction({
+    sourceWalletAddress:SOURCE,asset:'SOL',tokenMint:null,tokenProgram:null,tokenDecimals:null,totalAmountAtomic:'1000',itemCount:1,
+  },[{recipient:A,amountAtomic:'1000'}],connection);
+  const signed=Transaction.from(Uint8Array.from(atob(built.transaction),char=>char.charCodeAt(0)));
+  signed.sign(SOURCE_KEYPAIR);
+  const signature=encodeBase58(signed.signature!);
+  assert.equal(decodeBase58(signature).length,64);
+  assert.equal(isValidPreparedBulkPayoutSignature(built.transaction,SOURCE,signature),true);
+
+  const otherBlockhash=Keypair.generate().publicKey.toBase58();
+  const wrong=Transaction.from(Uint8Array.from(atob(built.transaction),char=>char.charCodeAt(0)));
+  wrong.recentBlockhash=otherBlockhash;
+  wrong.sign(SOURCE_KEYPAIR);
+  assert.equal(isValidPreparedBulkPayoutSignature(built.transaction,SOURCE,encodeBase58(wrong.signature!)),false);
+  assert.equal(isValidPreparedBulkPayoutSignature(built.transaction,SOURCE,encodeBase58(Keypair.generate().secretKey.slice(0,64))),false);
+});
 
 test('Bulk Pay verifier accepts an exact finalized SOL batch',()=>{
   const result=verifyBulkPayoutTransaction({

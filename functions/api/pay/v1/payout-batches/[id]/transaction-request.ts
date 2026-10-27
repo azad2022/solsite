@@ -1,6 +1,7 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { makePayRequestId, enforcePayRateLimit, hashCanonicalRequest, payFeatureEnabled, payJson, readJsonBody, PayRuntimeError } from '../../../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../../../_shared/identity';
+import { mintPayInternalPayoutBuilderJwt } from '../../../_shared/internal-jwt';
 import { buildBulkPayoutTransaction, type BulkPayoutTransactionBatch, type BulkPayoutTransactionItem } from '../../../../../../src/pay/services/bulkPayoutTransactionBuilder';
 import type { PaymentAsset, TokenProgram } from '../../../../../../src/pay/types/domain';
 
@@ -8,11 +9,33 @@ interface Env extends PayIdentityEnv { PAY_API_ENABLED?: string; SOLANA_RPC_URL?
 function validUuid(value:string):boolean { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
 function isAddress(value:unknown): value is string { if(typeof value!=='string') return false; try { new PublicKey(value); return true; } catch { return false; } }
 
+async function rpc(env:Env, token:string, name:string, body:Record<string,unknown>):Promise<Record<string,unknown>> {
+  const response=await supabaseRequestAsIdentity(env,token,'/rest/v1/rpc/'+name,{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),
+  });
+  return await response.json() as Record<string,unknown>;
+}
+
+function preparedResponse(batchId:string,account:string,value:Record<string,unknown>,requestId:string) {
+  const transaction=value.transaction;
+  const blockhash=value.blockhash;
+  const lastValidBlockHeight=value.lastValidBlockHeight;
+  if(typeof transaction!=='string'||typeof blockhash!=='string'||typeof lastValidBlockHeight!=='number'||!Number.isSafeInteger(lastValidBlockHeight)||lastValidBlockHeight<1) {
+    return payJson({code:'PAYOUT_TRANSACTION_SNAPSHOT_INVALID',message:'The saved payout transaction is invalid.'},503,requestId);
+  }
+  return payJson({apiVersion:'v1',data:{batchId,account,blockhash,lastValidBlockHeight,transaction,transactionEncoding:'base64',transactionType:'legacy'}},200,requestId);
+}
+
 export const onRequestPost = async ({ request, env, params }: { request:Request; env:Env; params:{id?:string} }) => {
   const requestId=makePayRequestId();
   if(!payFeatureEnabled(env)) return payJson({code:'PAY_API_DISABLED',message:'Pay API is not enabled.'},404,requestId);
   const batchId=String(params?.id||'').trim();
   if(!validUuid(batchId)) return payJson({code:'PAYOUT_BATCH_ID_INVALID',message:'Payout batch ID is invalid.'},400,requestId);
+
+  let builderToken:string|undefined;
+  let claimToken:string|undefined;
+  let claimOwned=false;
+  let merchantId='';
   try {
     const identity=await resolvePayIdentity(request,env);
     const body=await readJsonBody(request);
@@ -26,17 +49,18 @@ export const onRequestPost = async ({ request, env, params }: { request:Request;
     const batches=await batchResponse.json() as Array<Record<string,unknown>>;
     const row=batches[0];
     if(!row) return payJson({code:'PAYOUT_BATCH_NOT_FOUND',message:'Payout batch was not found.'},404,requestId);
-    const merchantId=typeof row.merchant_id==='string'?row.merchant_id:'';
+    merchantId=typeof row.merchant_id==='string'?row.merchant_id:'';
     const access=await supabaseRequestAsIdentity(env,identity.accessToken,'/rest/v1/rpc/pay_has_merchant_access',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_merchant_id:merchantId,p_roles:['owner','admin','finance']})
     });
     if((await access.json())!==true) return payJson({code:'FORBIDDEN',message:'You do not have permission to sign Bulk Pay batches.'},403,requestId);
-    if(!['ready','submitted','verifying'].includes(String(row.status))) return payJson({code:'PAYOUT_BATCH_NOT_SIGNABLE',message:'This payout batch is no longer ready for signing.'},409,requestId);
+    if(String(row.status)!=='ready') return payJson({code:'PAYOUT_BATCH_NOT_SIGNABLE',message:'Only a ready payout batch can request its prepared transaction.'},409,requestId);
     if(String(row.source_wallet_address)!==account.toBase58()) return payJson({code:'WALLET_MISMATCH',message:'The connected wallet does not match the merchant source wallet.'},409,requestId);
+    if(!env.SOLANA_RPC_URL || !/^https:\/\//i.test(env.SOLANA_RPC_URL)) return payJson({code:'SOLANA_RPC_MISCONFIGURED',message:'Solana RPC is not configured.'},503,requestId);
 
     const itemsResponse=await supabaseRequestAsIdentity(env,identity.accessToken,'/rest/v1/pay_payout_items?select=line_number,recipient,amount_atomic&batch_id=eq.'+encodeURIComponent(batchId)+'&order=line_number.asc&limit=50');
-    const items=await itemsResponse.json() as Array<Record<string,unknown>>;
-    if(items.length!==Number(row.item_count)) return payJson({code:'PAYOUT_BATCH_INCONSISTENT',message:'The payout batch item count is inconsistent.'},409,requestId);
+    const rows=await itemsResponse.json() as Array<Record<string,unknown>>;
+    if(rows.length!==Number(row.item_count)) return payJson({code:'PAYOUT_BATCH_INCONSISTENT',message:'The payout batch item count is inconsistent.'},409,requestId);
 
     const batch:BulkPayoutTransactionBatch={
       sourceWalletAddress:String(row.source_wallet_address),asset:String(row.asset) as PaymentAsset,
@@ -45,23 +69,65 @@ export const onRequestPost = async ({ request, env, params }: { request:Request;
       tokenDecimals:row.token_decimals===null?null:Number(row.token_decimals),
       totalAmountAtomic:String(row.total_amount_atomic),itemCount:Number(row.item_count),
     };
-    const payoutItems:BulkPayoutTransactionItem[]=items.map(item=>({recipient:String(item.recipient),amountAtomic:String(item.amount_atomic)}));
-    if(batch.sourceWalletAddress!==account.toBase58()) return payJson({code:'WALLET_MISMATCH',message:'The connected wallet does not match the merchant source wallet.'},409,requestId);
-    if(!env.SOLANA_RPC_URL || !/^https:\/\//i.test(env.SOLANA_RPC_URL)) return payJson({code:'SOLANA_RPC_MISCONFIGURED',message:'Solana RPC is not configured.'},503,requestId);
-
+    const items:BulkPayoutTransactionItem[]=rows.map(item=>({recipient:String(item.recipient),amountAtomic:String(item.amount_atomic)}));
     const connection=new Connection(env.SOLANA_RPC_URL,'confirmed');
-    const built=await buildBulkPayoutTransaction(batch,payoutItems,connection);
-    return payJson({apiVersion:'v1',data:{batchId,account:account.toBase58(),blockhash:built.blockhash,lastValidBlockHeight:built.lastValidBlockHeight,transaction:built.transaction,transactionEncoding:'base64',transactionType:'legacy'}},200,requestId);
+    builderToken=await mintPayInternalPayoutBuilderJwt(env,identity.user.applicationUserId);
+    claimToken=crypto.randomUUID();
+    const claim=await rpc(env,builderToken,'pay_claim_payout_transaction_request',{
+      p_merchant_id:merchantId,p_batch_id:batchId,p_claim_token:claimToken,p_request_id:requestId,
+    });
+
+    if(claim.state==='not_found') return payJson({code:'PAYOUT_BATCH_NOT_FOUND',message:'Payout batch was not found.'},404,requestId);
+    if(claim.state==='forbidden') return payJson({code:'FORBIDDEN',message:'You do not have permission to sign this payout batch.'},403,requestId);
+    if(claim.state==='not_ready') return payJson({code:'PAYOUT_BATCH_NOT_SIGNABLE',message:'Only a ready payout batch can request its prepared transaction.'},409,requestId);
+    if(claim.state==='in_progress') return payJson({code:'PAYOUT_TRANSACTION_REQUEST_IN_PROGRESS',message:'The payout transaction is currently being prepared. Retry shortly.'},409,requestId);
+    if(claim.state==='prepared') {
+      const height=claim.lastValidBlockHeight;
+      if(typeof height!=='number'||!Number.isSafeInteger(height)||height<1||typeof claim.transaction!=='string'||typeof claim.blockhash!=='string') {
+        return payJson({code:'PAYOUT_TRANSACTION_SNAPSHOT_INVALID',message:'The saved payout transaction is invalid.'},503,requestId);
+      }
+      const currentHeight=await connection.getBlockHeight('finalized');
+      if(currentHeight>height) {
+        return payJson({code:'PAYOUT_TRANSACTION_EXPIRED',message:'The prepared transaction expired. Reconcile its outcome before creating another batch or transaction.'},409,requestId);
+      }
+      return preparedResponse(batchId,account.toBase58(),claim,requestId);
+    }
+    if(claim.state!=='claimed') return payJson({code:'PAYOUT_TRANSACTION_REQUEST_FAILED',message:'The payout transaction could not be reserved safely.'},503,requestId);
+    claimOwned=true;
+
+    const built=await buildBulkPayoutTransaction(batch,items,connection);
+    const stored=await rpc(env,builderToken,'pay_store_payout_transaction_request',{
+      p_merchant_id:merchantId,p_batch_id:batchId,p_claim_token:claimToken,p_transaction:built.transaction,
+      p_blockhash:built.blockhash,p_last_valid_block_height:built.lastValidBlockHeight,p_request_id:requestId,
+    });
+    if(stored.state==='prepared') {
+      claimOwned=false;
+      return preparedResponse(batchId,account.toBase58(),stored,requestId);
+    }
+    if(stored.state==='claim_lost') return payJson({code:'PAYOUT_TRANSACTION_REQUEST_IN_PROGRESS',message:'The transaction reservation expired while preparing. Retry the request.'},409,requestId);
+    if(stored.state==='not_ready') return payJson({code:'PAYOUT_BATCH_NOT_SIGNABLE',message:'This payout batch is no longer ready.'},409,requestId);
+    if(stored.state==='forbidden') return payJson({code:'FORBIDDEN',message:'You do not have permission to sign this payout batch.'},403,requestId);
+    if(stored.state==='unauthorized') return payJson({code:'PAYOUT_TRANSACTION_RESERVATION_UNAUTHORIZED',message:'The server could not authorize transaction preparation.'},503,requestId);
+    return payJson({code:'PAYOUT_TRANSACTION_REQUEST_FAILED',message:'The payout transaction could not be stored safely.'},503,requestId);
   } catch(error) {
+    if(claimOwned&&builderToken&&claimToken&&merchantId) {
+      try {
+        await rpc(env,builderToken,'pay_release_payout_transaction_request',{
+          p_merchant_id:merchantId,p_batch_id:batchId,p_claim_token:claimToken,p_request_id:requestId,
+        });
+      } catch {
+        // The claim lease allows another request to recover if this process is interrupted.
+      }
+    }
     if(error instanceof PayRuntimeError) return payJson({code:error.code,message:error.message},error.status,requestId);
     const code=error instanceof Error?error.message:'TRANSACTION_BUILD_FAILED';
-    const map:Record<string,[number,string]>={
+    const map:Record<string,[number,string]> = {
       SOURCE_TOKEN_ACCOUNT_NOT_FOUND:[409,'The merchant source wallet does not have the required token account.'],
       BATCH_TRANSACTION_TOO_LARGE:[422,'This batch is too large for a single Solana transaction. Create a smaller batch.'],
       TOTAL_AMOUNT_MISMATCH:[409,'The payout batch total is inconsistent.'],
       ITEM_COUNT_MISMATCH:[409,'The payout batch item count is inconsistent.'],
     };
-    const [status,message]=map[code]||[422,'Bulk Pay transaction could not be prepared.'];
+    const [status,message]=map[code]||[503,'Bulk Pay transaction could not be prepared safely.'];
     console.error(JSON.stringify({scope:'pay:payout-batch:transaction-request',requestId,batchId,code}));
     return payJson({code,message},status,requestId);
   }

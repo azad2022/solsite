@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { generateKeyPairSync } from 'node:crypto';
-import { mintPayInternalJwt, validatePayInternalJwtConfig, type PayInternalJwtEnv } from '../functions/api/pay/_shared/internal-jwt';
+import { mintPayInternalJwt, mintPayInternalPayoutBuilderJwt, mintPayInternalVerifierJwt, validatePayInternalJwtConfig, type PayInternalJwtEnv } from '../functions/api/pay/_shared/internal-jwt';
 
 function pemForKeyPair(algorithm: 'ES256' | 'RS256'): { privateKey: string; publicKey: string } {
   if (algorithm === 'ES256') {
@@ -67,6 +67,26 @@ for (const algorithm of ['ES256', 'RS256'] as const) {
     assert.equal(valid, true);
   });
 }
+
+
+test('payout builder and verifier JWT capabilities are explicit and mutually exclusive', async () => {
+  const keys = pemForKeyPair('ES256');
+  const env: PayInternalJwtEnv = {
+    SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_INTERNAL_JWT_PRIVATE_KEY: keys.privateKey,
+    SUPABASE_INTERNAL_JWT_ALGORITHM: 'ES256',
+    SUPABASE_INTERNAL_JWT_KEY_ID: 'test-kid',
+    SUPABASE_INTERNAL_JWT_ISSUER: 'https://example.supabase.co/auth/v1',
+    SUPABASE_INTERNAL_JWT_AUDIENCE: 'authenticated',
+    SUPABASE_INTERNAL_JWT_TTL_SECONDS: '60',
+  };
+  const builder = base64UrlJson((await mintPayInternalPayoutBuilderJwt(env, 'application-user-123', 1_800_000_000)).split('.')[1]);
+  const verifier = base64UrlJson((await mintPayInternalVerifierJwt(env, 'application-user-123', 1_800_000_000)).split('.')[1]);
+  assert.equal(builder.solmint_pay_payout_builder, 'true');
+  assert.equal(builder.solmint_pay_verifier, undefined);
+  assert.equal(verifier.solmint_pay_verifier, 'true');
+  assert.equal(verifier.solmint_pay_payout_builder, undefined);
+});
 
 test('rejects missing or unsafe production configuration', () => {
   assert.throws(() => validatePayInternalJwtConfig({}), /SUPABASE_URL/);
