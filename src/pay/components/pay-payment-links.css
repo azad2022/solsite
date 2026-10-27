@@ -17,3 +17,4 @@
   .pay-payment-links-actions::before{display:none}
   .pay-payment-links-actions .pay-icon-button{width:34px;height:34px}
 }
+.pay-payment-link-create-grid label small.pay-payment-link-field-help,.pay-payment-link-edit-grid label small.pay-payment-link-field-help{font-size:11px;line-height:1.6;font-weight:400;color:#667085}

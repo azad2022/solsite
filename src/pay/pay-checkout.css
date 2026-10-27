@@ -238,3 +238,5 @@
 .pay-checkout-wallet-fallback > .pay-secondary-action { justify-content: center; }
 .pay-checkout-wallet-return-hint { display: block; color: var(--pay-text-faint); font-size: 9px; line-height: 1.75; }
 @media (max-width: 700px) { .pay-checkout-wallet-fallback { padding: 12px; } }
+
+.pay-checkout-notice p + p{margin-top:8px}

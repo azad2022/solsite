@@ -18,8 +18,10 @@
 @media(max-width:560px){.pay-public-link-fields{grid-template-columns:1fr}.pay-public-link-field-wide{grid-column:auto}}
 
 .pay-public-link-amount>small{display:block;margin-top:5px;color:#667085;font-size:10px}
-.pay-public-link-fee-breakdown{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #eaecf0}
+.pay-public-link-fee-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #eaecf0}
 .pay-public-link-fee-breakdown>div{min-width:0}
 .pay-public-link-fee-breakdown span{display:block;margin-bottom:3px;color:#667085;font-size:9px}
 .pay-public-link-fee-breakdown strong{display:block;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:560px){.pay-public-link-fee-breakdown{grid-template-columns:1fr}}
+
+.pay-public-link-fee-explanation{margin:12px 0 0;color:#475467;font-size:11px;line-height:1.7}
