@@ -1397,7 +1397,6 @@ The earlier runtime/security evidence remains applicable because the application
 - Mainnet Read-only: PASS
 - Webhook Egress Security: PASS
 - Live Smoke: PASS
-
 ### Security / architecture result
 
 No new Backend endpoint, field, database table, RLS rule, RPC, payment rule, or financial calculation was introduced for the wallet UI.
@@ -1745,3 +1744,42 @@ Required release sequence:
 4. Re-run security and runtime smoke checks; replace this pending status with live production evidence.
 
 **Release gate remains open. Do not merge PR #348 until post-migration Production API smoke is green; do not apply Phase B before the application deployment and verification.**
+
+## 2026-10-27 — Bulk Pay duplicate / transaction replay safety (final staged release status)
+
+Status: **PHASE A AND PHASE B MIGRATIONS CONFIRMED LIVE; POST-PHASE-B PRODUCTION SMOKE AUTOMATION FIX OPEN**
+
+Merged changes:
+- Phase A schema PR #349: `f028f8a7a05f8c240d5b79ac72d02d23935afa52`.
+- Bulk Pay application PR #348: `39d4f0dd13199a05937af7c39d50588a989c21a3`.
+- Per-batch pending-signature recovery PR #351: `0e228bb3553a20d8e345038ff9e71cb93604aea0`.
+- Phase B submit capability migration PR #350: `38223b14272aab57bf0d1c3ebfe993d9ec054dc0`.
+
+Current Production application commit: `0e228bb3553a20d8e345038ff9e71cb93604aea0`; Cloudflare Pages deployment passed.
+
+Production read-only queries confirm:
+- Latest migration ledger version: `20261027143100`.
+- `pay_payout_transaction_requests` exists; `authenticated` cannot SELECT it.
+- `pay_payout_items_batch_recipient_uq` exists.
+- `pay_create_payout_batch` rejects duplicate recipients.
+- `pay_submit_payout_batch` checks `solmint_pay_payout_builder`.
+- Authenticated retains EXECUTE permission on the submit RPC, but ordinary user JWTs fail its function-level capability check; the server-issued payout-builder JWT is required by the function body.
+
+Application commit `0e228bb3553a20d8e345038ff9e71cb93604aea0` passed:
+- CI / unit tests: [run 40504617076](https://github.com/azad2022/solsite/actions/runs/40504617076).
+- Production Build: [run 40504617137](https://github.com/azad2022/solsite/actions/runs/40504617137).
+- Database Security: [run 40504617162](https://github.com/azad2022/solsite/actions/runs/40504617162).
+- Devnet E2E: [run 40504616977](https://github.com/azad2022/solsite/actions/runs/40504616977).
+- Mainnet Read-only: [run 40504617067](https://github.com/azad2022/solsite/actions/runs/40504617067).
+- Production API Smoke: [run 40504617133](https://github.com/azad2022/solsite/actions/runs/40504617133).
+- Live Smoke: [run 40504617047](https://github.com/azad2022/solsite/actions/runs/40504617047).
+- Live Browser Audit, including referral lifecycle and authenticated browser UI script: [run 40504617088](https://github.com/azad2022/solsite/actions/runs/40504617088).
+- Cloudflare Pages production deployment: PASS.
+
+Separate Production Browser UI E2E run [40504617153](https://github.com/azad2022/solsite/actions/runs/40504617153) was still in progress at last observation; the runner was delayed at Chromium installation before reaching its test steps. The same referral lifecycle and authenticated UI script passed in Live Browser Audit. Do not describe the separate Browser UI workflow itself as PASS unless its own run completes.
+
+Migration provenance note: read-only database queries show Phase B is recorded in Production. I did not dispatch the Production Migration workflow, and the available GitHub Actions history did not establish the execution origin. No direct SQL migration was issued by this work. Provenance is **UNKNOWN** and is not attributed to a specific actor.
+
+Post-Phase-B smoke gap: the smoke workflows did not previously include Bulk Pay migration files in their push path filters. PR #352 adds those migration paths and makes both workflows wait for a successful Cloudflare Pages deployment check before running on push. When #352 merges, its own workflow-file paths should trigger Production API Smoke and Live Smoke; record both results before considering the security rollout fully validated.
+
+The separate `Workers Builds: solsite` is a legacy Worker integration failure, not the documented Cloudflare Pages deployment path. No payment completion is inferred from a submitted signature; authoritative verification remains server-side.
