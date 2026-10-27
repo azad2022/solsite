@@ -5,6 +5,8 @@ import { matchPayRoute } from '../src/pay/route-match';
 
 const app = readFileSync('src/pay/PayApp.tsx', 'utf8');
 const ui = readFileSync('src/pay/components/PayPaymentLinks.tsx', 'utf8');
+const publicLinkUi = readFileSync('src/pay/components/PayPublicPaymentLink.tsx', 'utf8');
+const checkoutUi = readFileSync('src/pay/PayCheckout.tsx', 'utf8');
 
 test('PayApp exposes the public payment link route and keeps it outside merchant dashboard rendering', () => {
   assert.match(app, /PayPublicPaymentLink/);
@@ -23,6 +25,21 @@ test('Payment Link UI uses the service boundary and provides create/edit/deactiv
   assert.match(ui, /publicUrl/);
   assert.match(ui, /navigator\.clipboard/);
   assert.doesNotMatch(ui, /fetch\(/);
+});
+
+test('Gateway-fee disclosures distinguish fee allocation from the Solana network fee', () => {
+  assert.match(ui, /merchantPayerHelp/);
+  assert.match(ui, /customerPayerHelp/);
+  assert.match(ui, /aria-describedby="pay-payment-link-create-fee-help"/);
+  assert.match(ui, /aria-describedby="pay-payment-link-edit-fee-help"/);
+  assert.match(publicLinkUi, /customerTotal/);
+  assert.match(publicLinkUi, /merchantFeeExplanation/);
+  assert.match(publicLinkUi, /customerFeeExplanation/);
+  assert.doesNotMatch(publicLinkUi, /publicPaymentLinkT\(locale,'baseAmount'\)/);
+  assert.match(checkoutUi, /merchantFeePayerExplanation/);
+  assert.match(checkoutUi, /customerFeePayerExplanation/);
+  assert.match(checkoutUi, /networkFeeNote/);
+  assert.match(checkoutUi, /'linkAmount' : 'baseAmount'/);
 });
 
 

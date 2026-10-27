@@ -531,7 +531,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
             <>
               <div className="pay-checkout-status-grid">
                 <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(uiLocale, 'merchant')}</span><strong>{intent.merchant.businessName}</strong></div></div>
-                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'amount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
+                <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, intent.feePayer === 'merchant' ? 'linkAmount' : 'baseAmount')}</span><strong>{formatAtomic(intent.amountAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'merchantSettlement')}</span><strong>{formatAtomic(intent.merchantSettlementAtomic, decimals)} {intent.asset}</strong></div></div>
                 <div className="pay-checkout-status-card"><span aria-hidden="true" className="pay-checkout-icon-glyph">¤</span><div><span>{checkoutLabel(uiLocale, 'fee')}</span><strong>{formatAtomic(intent.feeAtomic, decimals)} {intent.asset}</strong><small>{checkoutLabel(uiLocale, 'feePayer')}: {intent.feePayer === 'merchant' ? checkoutLabel(uiLocale, 'merchant') : checkoutLabel(uiLocale, 'customer')}</small></div></div>
@@ -542,6 +542,8 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
               <div className="pay-checkout-notice">
                 <strong>{translateTransactionStatus(uiLocale, intent.status)}</strong>
                 <p>{checkoutLabel(uiLocale, 'payInstructions')}</p>
+                <p className="pay-checkout-fee-explanation">{checkoutLabel(uiLocale, intent.feePayer === 'merchant' ? 'merchantFeePayerExplanation' : 'customerFeePayerExplanation')}</p>
+                <p className="pay-checkout-network-fee-note">{checkoutLabel(uiLocale, 'networkFeeNote')}</p>
                 <div className="pay-checkout-payment-actions">
                   <div className="pay-checkout-action-row"><div><span>{checkoutLabel(uiLocale, 'customerTotal')}</span><strong>{formatAtomic(intent.customerTotalAtomic, decimals)} {intent.asset}</strong></div><button type="button" onClick={() => void copyValue('amount')} aria-label={checkoutLabel(uiLocale, 'copy')} title={checkoutLabel(uiLocale, copiedField === 'amount' ? 'copied' : 'copy')}><Copy size={15} /></button></div>
                   <div className="pay-checkout-action-row"><div><span>{checkoutLabel(uiLocale, 'destination')}</span><SnapshotValue value={truncateAddress(intent.recipient)} /></div><button type="button" onClick={() => void copyValue('destination')} aria-label={checkoutLabel(uiLocale, 'copy')} title={checkoutLabel(uiLocale, copiedField === 'destination' ? 'copied' : 'copy')}><Copy size={15} /></button></div>

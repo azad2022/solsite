@@ -2,11 +2,14 @@ import type { PayLocale } from './types';
 
 const labels = {
   'fa-IR': {
-    merchant: 'مرچنت', amount: 'مبلغ', customerTotal: 'مبلغ نهایی مشتری', merchantSettlement: 'دریافتی مرچنت', fee: 'کارمزد درگاه', feePayer: 'پرداخت‌کننده کارمزد', customer: 'مشتری', asset: 'دارایی', network: 'شبکه', destination: 'مقصد', reference: 'مرجع', intentStatus: 'وضعیت پرداخت', commitment: 'تعهد تأیید',
+    merchant: 'مرچنت', amount: 'مبلغ', linkAmount: 'مبلغ درج‌شده در لینک', baseAmount: 'مبلغ پایه پیش از کارمزد', customerTotal: 'مبلغ نهایی مشتری', merchantSettlement: 'دریافتی مرچنت', fee: 'کارمزد درگاه', feePayer: 'پرداخت‌کنندهٔ کارمزد درگاه', customer: 'مشتری', asset: 'دارایی', network: 'شبکه', destination: 'مقصد', reference: 'مرجع', intentStatus: 'وضعیت پرداخت', commitment: 'تعهد تأیید',
     verificationSubmitted: 'درخواست بررسی ثبت شد. پرداخت تا اعلام وضعیت معتبر از سرویس پرداخت، موفق محسوب نمی‌شود.',
     notDetected: 'تراکنش مرتبط هنوز در بررسی خودکار پیدا نشده است.',
     loadFailed: 'دریافت درخواست پرداخت از سرویس پرداخت ناموفق بود.', expired: 'این درخواست پرداخت منقضی شده است.',
     payInstructions: 'کیف پول را متصل و پرداخت را تأیید کنید. پس از امضای تراکنش، سرویس پرداخت SolMint آن را به‌صورت خودکار بررسی می‌کند.',
+    merchantFeePayerExplanation: 'کارمزد درگاه از مبلغ همین پرداخت کسر می‌شود؛ مشتری مبلغ نهایی نمایش‌داده‌شده را می‌پردازد و پذیرنده مبلغ خالص را دریافت می‌کند.',
+    customerFeePayerExplanation: 'کارمزد درگاه به مبلغ پایه اضافه می‌شود؛ مبلغ نهایی نمایش‌داده‌شده شامل کارمزد است و پذیرنده مبلغ پایه را دریافت می‌کند.',
+    networkFeeNote: 'کارمزد شبکه سولانا جدا از کارمزد درگاه است و از کیف پول پرداخت‌کنندهٔ تراکنش پرداخت می‌شود؛ آن کیف پول باید SOL کافی داشته باشد.',
     walletConnect: 'وضعیت کیف پول', walletGeneric: 'کیف پول', walletConnected: 'کیف پول متصل است', walletRequired: 'برای پرداخت با کیف پول آماده شوید.', walletDetected: 'کیف پول شناسایی شد', walletNotDetected: 'کیف پول داخل مرورگر شناسایی نشد', walletConnectionFailed: 'اتصال کیف پول انجام نشد. دوباره تلاش کنید.', walletSignatureMissing: 'کیف پول امضای تراکنش را برنگرداند. دوباره تلاش کنید.',
     copy: 'کپی', copied: 'کپی شد', connect: 'اتصال', changeWallet: 'تغییر کیف پول', disconnect: 'قطع اتصال', chooseWallet: 'انتخاب کیف پول', walletOptionsHint: 'یکی از کیف پول‌های شناسایی‌شده را انتخاب کنید.', technicalDetails: 'جزئیات فنی پرداخت', checkoutSnapshotDescription: 'جزئیات زیر از Payment Intent دریافت شده‌اند و برای بررسی و تطبیق نمایش داده می‌شوند.',
     walletHandoffTitle: 'کیف پول داخل مرورگر شناسایی نشد', walletHandoffDescription: 'می‌توانید این صفحه را داخل کیف پول موبایلی باز کنید یا آدرس عمومی کیف پول خود را وارد کنید.',
@@ -17,11 +20,14 @@ const labels = {
   },
 
   'en-US': {
-    merchant: 'Merchant', amount: 'Amount', customerTotal: 'Customer total', merchantSettlement: 'Merchant receives', fee: 'Gateway fee', feePayer: 'Fee payer', customer: 'Customer', asset: 'Asset', network: 'Network', destination: 'Destination', reference: 'Reference', intentStatus: 'Intent status', commitment: 'Verification commitment',
+    merchant: 'Merchant', amount: 'Amount', linkAmount: 'Link amount', baseAmount: 'Base amount before fee', customerTotal: 'Customer total', merchantSettlement: 'Merchant receives', fee: 'Gateway fee', feePayer: 'Gateway fee paid by', customer: 'Customer', asset: 'Asset', network: 'Network', destination: 'Destination', reference: 'Reference', intentStatus: 'Intent status', commitment: 'Verification commitment',
     verificationSubmitted: 'Verification was requested. The payment is not considered successful until the payment service reports an authoritative state.',
     notDetected: 'The related transaction has not been detected yet.',
     loadFailed: 'The Payment Intent could not be retrieved from the payment service.', expired: 'This Payment Intent has expired.',
     payInstructions: 'Connect your wallet and approve the payment. After the transaction is signed, SolMint Pay verifies the transaction automatically.',
+    merchantFeePayerExplanation: 'The gateway fee is deducted from this payment amount. The customer pays the total shown, and the merchant receives the net amount.',
+    customerFeePayerExplanation: 'The gateway fee is added to the base amount. The total shown includes the fee, and the merchant receives the base amount.',
+    networkFeeNote: 'The Solana network fee is separate from the gateway fee and is paid by the payment wallet. Ensure that wallet has enough SOL.',
     walletConnect: 'Wallet status', walletGeneric: 'Wallet', walletConnected: 'Wallet connected', walletRequired: 'Get your wallet ready to pay.', walletDetected: 'Wallet detected', walletNotDetected: 'No wallet was detected in this browser', walletConnectionFailed: 'Wallet connection failed. Try again.', walletSignatureMissing: 'The wallet did not return a transaction signature. Try again.',
     copy: 'Copy', copied: 'Copied', connect: 'Connect', changeWallet: 'Change wallet', disconnect: 'Disconnect', chooseWallet: 'Choose a wallet', walletOptionsHint: 'Select one of the detected wallets.', technicalDetails: 'Payment details', checkoutSnapshotDescription: 'These values come from the Payment Intent and are shown for inspection and reconciliation.',
     walletHandoffTitle: 'No wallet was detected in this browser', walletHandoffDescription: 'Open this checkout inside a mobile wallet or enter your public wallet address.',
@@ -32,11 +38,14 @@ const labels = {
   },
 
   ar: {
-    merchant: 'التاجر', amount: 'المبلغ', customerTotal: 'إجمالي العميل', merchantSettlement: 'ما يستلمه التاجر', fee: 'رسوم البوابة', feePayer: 'دافع الرسوم', customer: 'العميل', asset: 'الأصل', network: 'الشبكة', destination: 'الوجهة', reference: 'المرجع', intentStatus: 'حالة الدفع', commitment: 'التزام التحقق',
+    merchant: 'التاجر', amount: 'المبلغ', linkAmount: 'المبلغ المحدد في الرابط', baseAmount: 'المبلغ الأساسي قبل الرسوم', customerTotal: 'إجمالي العميل', merchantSettlement: 'ما يستلمه التاجر', fee: 'رسوم البوابة', feePayer: 'من يتحمل رسوم بوابة الدفع', customer: 'العميل', asset: 'الأصل', network: 'الشبكة', destination: 'الوجهة', reference: 'المرجع', intentStatus: 'حالة الدفع', commitment: 'التزام التحقق',
     verificationSubmitted: 'تم طلب التحقق. لن يعتبر الدفع ناجحاً حتى تعلن خدمة الدفع حالة موثوقة.',
     notDetected: 'لم يتم اكتشاف المعاملة المرتبطة بعد.',
     loadFailed: 'تعذر جلب طلب الدفع من خدمة الدفع.', expired: 'انتهت صلاحية طلب الدفع هذا.',
     payInstructions: 'صِل محفظتك وأكّد الدفع. بعد توقيع المعاملة، تتحقق خدمة الدفع من المعاملة تلقائياً.',
+    merchantFeePayerExplanation: 'تُخصم رسوم بوابة الدفع من مبلغ هذه الدفعة؛ يدفع العميل الإجمالي المعروض ويستلم التاجر المبلغ الصافي.',
+    customerFeePayerExplanation: 'تُضاف رسوم بوابة الدفع إلى المبلغ الأساسي؛ الإجمالي المعروض يشمل الرسوم ويستلم التاجر المبلغ الأساسي.',
+    networkFeeNote: 'رسوم شبكة Solana منفصلة عن رسوم بوابة الدفع، وتُدفع من محفظة الدفع. تأكد من توفر رصيد SOL كافٍ في تلك المحفظة.',
     walletConnect: 'حالة المحفظة', walletGeneric: 'المحفظة', walletConnected: 'المحفظة متصلة', walletRequired: 'جهّز محفظتك للدفع.', walletDetected: 'تم اكتشاف المحفظة', walletNotDetected: 'لم يتم اكتشاف محفظة في هذا المتصفح', walletConnectionFailed: 'تعذر اتصال المحفظة. حاول مرة أخرى.', walletSignatureMissing: 'لم تُعد المحفظة توقيع المعاملة. حاول مرة أخرى.',
     copy: 'نسخ', copied: 'تم النسخ', connect: 'اتصال', changeWallet: 'تغيير المحفظة', disconnect: 'قطع الاتصال', chooseWallet: 'اختيار المحفظة', walletOptionsHint: 'اختر إحدى المحافظ التي تم اكتشافها.', technicalDetails: 'تفاصيل الدفع', checkoutSnapshotDescription: 'تأتي هذه القيم من Payment Intent وتُعرض للفحص والمطابقة.',
     walletHandoffTitle: 'لم يتم اكتشاف محفظة في هذا المتصفح', walletHandoffDescription: 'افتح صفحة الدفع داخل محفظة محمولة أو أدخل عنوان محفظتك العام.',
@@ -47,11 +56,14 @@ const labels = {
   },
 
   ru: {
-    merchant: 'Мерчант', amount: 'Сумма', customerTotal: 'Итого клиента', merchantSettlement: 'Получит мерчант', fee: 'Комиссия шлюза', feePayer: 'Плательщик комиссии', customer: 'Клиент', asset: 'Актив', network: 'Сеть', destination: 'Получатель', reference: 'Reference', intentStatus: 'Статус платежа', commitment: 'Требование проверки',
+    merchant: 'Мерчант', amount: 'Сумма', linkAmount: 'Сумма по ссылке', baseAmount: 'Базовая сумма до комиссии', customerTotal: 'Итого клиента', merchantSettlement: 'Получит мерчант', fee: 'Комиссия шлюза', feePayer: 'Кто оплачивает комиссию шлюза', customer: 'Клиент', asset: 'Актив', network: 'Сеть', destination: 'Получатель', reference: 'Reference', intentStatus: 'Статус платежа', commitment: 'Требование проверки',
     verificationSubmitted: 'Запущена проверка. Платёж не считается успешным, пока платёжный сервис не сообщит достоверный статус.',
     notDetected: 'Связанная транзакция пока не обнаружена.',
     loadFailed: 'Не удалось получить запрос на оплату из платёжного сервиса.', expired: 'Срок действия этого запроса на оплату истёк.',
     payInstructions: 'Подключите кошелёк и подтвердите оплату. После подписи транзакции платёжный сервис автоматически проверит транзакцию.',
+    merchantFeePayerExplanation: 'Комиссия шлюза вычитается из суммы этого платежа. Клиент платит указанную итоговую сумму, а мерчант получает сумму за вычетом комиссии.',
+    customerFeePayerExplanation: 'Комиссия шлюза добавляется к базовой сумме. Итоговая сумма включает комиссию, а мерчант получает базовую сумму.',
+    networkFeeNote: 'Комиссия сети Solana не входит в комиссию шлюза и оплачивается кошельком плательщика. На этом кошельке должно быть достаточно SOL.',
     walletConnect: 'Состояние кошелька', walletGeneric: 'Кошелёк', walletConnected: 'Кошелёк подключён', walletRequired: 'Подготовьте кошелёк к оплате.', walletDetected: 'Кошелёк обнаружен', walletNotDetected: 'В этом браузере кошелёк не обнаружен', walletConnectionFailed: 'Не удалось подключить кошелёк. Повторите попытку.', walletSignatureMissing: 'Кошелёк не вернул подпись транзакции. Повторите попытку.',
     copy: 'Копировать', copied: 'Скопировано', connect: 'Подключить', changeWallet: 'Сменить кошелёк', disconnect: 'Отключить', chooseWallet: 'Выберите кошелёк', walletOptionsHint: 'Выберите один из обнаруженных кошельков.', technicalDetails: 'Детали платежа', checkoutSnapshotDescription: 'Эти значения получены из запроса на оплату и показаны для проверки и сверки.',
     walletHandoffTitle: 'В этом браузере кошелёк не обнаружен', walletHandoffDescription: 'Откройте эту страницу оплаты внутри мобильного кошелька или введите публичный адрес кошелька.',
