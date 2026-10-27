@@ -7,19 +7,22 @@ on:
     paths:
       - 'functions/api/pay/**'
       - 'src/pay/**'
+      - 'supabase/migrations/*solmint_pay_bulk_payout*.sql'
       - 'e2e/pay-production-api-contract.e2e.ts'
       - 'package.json'
       - '.github/workflows/solmint-pay-production-api-smoke.yml'
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   production-api-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     env:
       SOLMINT_PAY_PRODUCTION_ORIGIN: https://solmint.ir
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,6 +34,33 @@ jobs:
 
       - name: Install dependencies (immutable)
         run: bun install --frozen-lockfile
+
+      - name: Wait for Cloudflare Pages deployment of this commit
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const token = process.env.GITHUB_TOKEN;
+          const repository = process.env.GITHUB_REPOSITORY;
+          const sha = process.env.GITHUB_SHA;
+          let last = '';
+          for (let attempt = 1; attempt <= 180; attempt += 1) {
+            const response = await fetch(
+              'https://api.github.com/repos/' + repository + '/commits/' + sha + '/check-runs?per_page=100',
+              { headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json' } },
+            );
+            if (!response.ok) throw new Error('GitHub check-runs lookup failed: ' + response.status);
+            const data = await response.json();
+            const check = (data.check_runs || []).find((item) => item.name === 'Cloudflare Pages');
+            last = check ? 'status=' + check.status + ' conclusion=' + check.conclusion : 'Cloudflare Pages check not visible yet';
+            console.log('PAGES_DEPLOY_WAIT attempt=' + attempt + ' ' + last);
+            if (check?.status === 'completed' && check.conclusion === 'success') break;
+            if (check?.status === 'completed' && check.conclusion !== 'success') {
+              throw new Error('Cloudflare Pages deployment failed: ' + check.conclusion);
+            }
+            if (attempt === 180) throw new Error('Cloudflare Pages deployment did not complete within 15 minutes. Last: ' + last);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          NODE
 
       - name: Run production API contract smoke
         run: bun run test:e2e:pay-production-contract

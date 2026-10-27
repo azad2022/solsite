@@ -4,58 +4,52 @@ Date: 2026-10-27
 
 ## Status
 
-**PHASE A DATABASE MIGRATION CONFIRMED LIVE — APPLICATION PR #348 NOT MERGED — PHASE B PENDING**
+**APPLICATION DEPLOYED — PHASE A AND PHASE B MIGRATIONS CONFIRMED LIVE — POST-PHASE-B SMOKE AUTOMATION FIX OPEN**
 
-- Application PR: [#348 — Bulk Pay duplicate and replay safety](https://github.com/azad2022/solsite/pull/348)
-- Phase A schema PR [#349](https://github.com/azad2022/solsite/pull/349) merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`; the Phase A migration is now confirmed in the live Production migration ledger.
-- Phase B submit hardening migration: intentionally separate; do not apply before the new application deployment.
+- Phase A schema PR [#349](https://github.com/azad2022/solsite/pull/349), merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`.
+- Application PR [#348](https://github.com/azad2022/solsite/pull/348), merged as `39d4f0dd13199a05937af7c39d50588a989c21a3`.
+- Pending-signature recovery PR [#351](https://github.com/azad2022/solsite/pull/351), merged as `0e228bb3553a20d8e345038ff9e71cb93604aea0`.
+- Phase B submit-capability migration PR [#350](https://github.com/azad2022/solsite/pull/350), merged as `38223b14272aab57bf0d1c3ebfe993d9ec054dc0`.
+- Smoke workflow hardening PR [#352](https://github.com/azad2022/solsite/pull/352), open Draft pending CI/build.
 
-## What is fixed
+## Implementation
 
-- Duplicate canonical Solana recipients are rejected in the UI and API before batch creation. The SQL create function repeats the check and a unique index provides a database guard.
-- One unsigned transaction is persisted privately per payout batch. Concurrent preparation is serialized and retry returns the identical prepared bytes.
-- A prepared transaction is not silently replaced after expiry; its prior outcome must be reconciled first.
-- Signature submission is validated against the exact server-prepared transaction message.
-- Prepared transaction lifecycle functions use an explicit server-only internal JWT capability.
-- If wallet submission returns a signature but API registration fails, the UI preserves the signature and idempotency key so registration can be retried without creating another transaction.
+- Duplicate canonical Solana recipients are rejected in UI, API and SQL before batch creation. A unique index on `(batch_id, recipient)` is the final database guard.
+- One exact unsigned transaction is persisted privately per payout batch; retries return the same message and an expired transaction is not silently replaced.
+- Submitted Signature is validated against the exact server-prepared transaction message.
+- Transaction preparation and submit mutation require an explicit server-issued internal JWT capability.
+- If wallet send returns a signature but API registration fails, the UI stores that public signature, batch ID and idempotency key per batch in tab-scoped `sessionStorage` before submission and offers retry after reload without sending another wallet transaction.
+- Recovery strings are localized for `fa-IR`, `en-US`, `ar`, and `ru`.
 
-## Validation evidence
+## Live database evidence
 
-The functional implementation passed on source commit `a5956081e983350603858c79dacb3480a5551ee4`:
+Read-only Production queries observed:
+- Latest ledger version is `20261027143100`.
+- Private `pay_payout_transaction_requests` table exists.
+- Authenticated users cannot SELECT that table.
+- Duplicate-recipient unique index exists.
+- `pay_create_payout_batch` contains the duplicate-recipient guard.
+- `pay_submit_payout_batch` contains the `solmint_pay_payout_builder` capability check.
+- Authenticated retains EXECUTE permission on the submit RPC, but a normal user JWT is denied by the function-level capability guard.
 
-- CI / unit tests: [run 40499850986](https://github.com/azad2022/solsite/actions/runs/40499850986)
-- Production Build: [run 40499851031](https://github.com/azad2022/solsite/actions/runs/40499851031)
-- Database Security: [run 40499850883](https://github.com/azad2022/solsite/actions/runs/40499850883)
-- Devnet E2E: [run 40499851161](https://github.com/azad2022/solsite/actions/runs/40499851161)
-- Mainnet Read-only: [run 40499851193](https://github.com/azad2022/solsite/actions/runs/40499851193)
+The live ledger change was observed during read-only verification. I did not dispatch the Production Migration workflow, and the available GitHub Actions history did not establish the execution origin. This provenance remains **UNKNOWN**; no direct SQL migration was issued by this work.
 
-The follow-up implementation commit `5efb377f1457a78c5a6b34448ea8e20a766c4f19` also passed all five gates:
+## Production application gates
 
-- CI: [run 40500223243](https://github.com/azad2022/solsite/actions/runs/40500223243)
-- Production Build: [run 40500223234](https://github.com/azad2022/solsite/actions/runs/40500223234)
-- Database Security: [run 40500223250](https://github.com/azad2022/solsite/actions/runs/40500223250)
-- Devnet E2E: [run 40500223324](https://github.com/azad2022/solsite/actions/runs/40500223324)
-- Mainnet Read-only: [run 40500223235](https://github.com/azad2022/solsite/actions/runs/40500223235)
+For deployed application commit `0e228bb3553a20d8e345038ff9e71cb93604aea0`:
+- CI / unit tests: **PASS** — [40504617076](https://github.com/azad2022/solsite/actions/runs/40504617076).
+- Production Build: **PASS** — [40504617137](https://github.com/azad2022/solsite/actions/runs/40504617137).
+- Database Security: **PASS** — [40504617162](https://github.com/azad2022/solsite/actions/runs/40504617162).
+- Devnet E2E: **PASS** — [40504616977](https://github.com/azad2022/solsite/actions/runs/40504616977).
+- Mainnet Read-only: **PASS** — [40504617067](https://github.com/azad2022/solsite/actions/runs/40504617067).
+- Production API Smoke: **PASS** — [40504617133](https://github.com/azad2022/solsite/actions/runs/40504617133).
+- Live Smoke: **PASS** — [40504617047](https://github.com/azad2022/solsite/actions/runs/40504617047).
+- Live Browser Audit: **PASS**, including referral lifecycle + authenticated UI: [40504617088](https://github.com/azad2022/solsite/actions/runs/40504617088).
+- Cloudflare Pages: **PASS**.
+- Production Browser UI E2E: **PASS** — [run 40504617153](https://github.com/azad2022/solsite/actions/runs/40504617153), including the dedicated referral lifecycle and authenticated production UI flow.
 
-Cloudflare Pages preview passed. The separate legacy `Workers Builds: solsite` integration fails but is not the production Pages path. Supabase Preview remains skipped by the repository's preview-free constraint.
+## Remaining verification
 
-Production read-only preflight found zero existing batches with duplicate recipient rows.
+The smoke workflows did not automatically trigger on Bulk Pay SQL migrations. PR #352 adds the migration path filters and waits for positive Cloudflare Pages deployment evidence. Its merge should run Production API Smoke and Live Smoke after deployment. Both must pass to close the post-Phase-B verification gate.
 
-## Mandatory staged release order
-
-The original single migration was split because changing `pay_submit_payout_batch` in the same migration that introduces API dependencies creates a compatibility gap.
-
-1. **Phase A — schema only:** schema PR #349 is merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`. Its migration adds the duplicate guard, unique index, private prepared-transaction table and internal reservation RPCs while deliberately leaving the existing submit RPC unchanged.
-2. **Phase A production verification:** read-only queries confirm migration `20261027143000` is recorded in Production, the prepared-transaction table and unique index exist, the internal reservation RPCs exist, authenticated users cannot SELECT the private prepared transaction table, and the legacy submit RPC has not yet been hardened. A post-migration production API smoke still needs to be captured before deploying the new application.
-3. **Phase B application:** after Phase A is live and backward compatibility is proven, merge application PR #348. Confirm Cloudflare Pages deployment and production smoke checks. The application uses the internal builder JWT when calling the existing submit RPC.
-4. **Phase B — legacy submit hardening:** only after the new application is deployed and verified, retarget [PR #350](https://github.com/azad2022/solsite/pull/350) to `main`, merge its separate migration `20261027143100_solmint_pay_bulk_payout_submit_capability_hardening.sql` and apply it through the controlled workflow. This makes the legacy submit RPC reject ordinary user JWTs.
-5. Re-run CI, database security and production API smoke; update this checkpoint with live production evidence.
-
-Do not apply Phase B before the application deployment. Do not use manual SQL. Do not dispatch the production migration workflow with `confirm=APPLY` until the previous phase has positive evidence.
-
-## Current production state
-
-- The live migration ledger now includes `20261027143000`.
-- Phase A is applied; Phase B migration `20261027143100` remains unapplied.
-- I did not dispatch the production migration workflow. The live change was detected by read-only database queries, so its execution origin is not verified in this session.
-- PR #348 remains Draft; the production release is not complete.
+The separate legacy `Workers Builds: solsite` integration is not the Cloudflare Pages production path. No payment completion is inferred from signature submission; backend/blockchain verification remains authoritative.
