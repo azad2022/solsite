@@ -55,3 +55,20 @@ test('training center is an independent accessible accordion above ticket action
   assert.match(training, /aria-labelledby="pay-training-title"/);
   assert.match(trainingCss, /prefers-reduced-motion:reduce/);
 });
+
+
+test('account wallet copy remains visible on narrow mobile screens and has an accessible failure state', () => {
+  const accountCss = readFileSync('src/pay/components/pay-account-menu.css', 'utf8');
+  assert.match(account, /navigator\.clipboard\?\.writeText/);
+  assert.match(account, /document\.execCommand\('copy'\)/);
+  assert.match(account, /role="status"/);
+  assert.match(accountCss, /\.pay-account-trigger \.pay-account-copy span\{display:none\}/);
+  assert.doesNotMatch(accountCss, /@media\(max-width:430px\)\{\.pay-account-copy span\{display:none\}/);
+  assert.match(account, /onManageWallet/);
+});
+
+test('account menu links to the existing verified receiving-wallet management flow', () => {
+  assert.match(account, /accountMenuT\(locale, 'manageWallet'\)/);
+  assert.match(account, /onClick=\{\(\) => \{ setOpen\(false\); onManageWallet\(\); \}\}/);
+  assert.match(app, /onManageWallet=\{\(\) => navigate\('wallet'\)\}/);
+});

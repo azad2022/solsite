@@ -12,6 +12,9 @@ type AccountMenuMessages = {
   walletAddress: string;
   copyAddress: string;
   copied: string;
+  copyFailed: string;
+  manageWallet: string;
+  walletManagementHint: string;
   observedAt: string;
   solana: string;
   stablecoin: string;
@@ -36,6 +39,9 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     walletAddress:'آدرس کیف پول',
     copyAddress:'کپی آدرس',
     copied:'کپی شد',
+    copyFailed:'کپی انجام نشد؛ آدرس را انتخاب و دستی کپی کنید.',
+    manageWallet:'مدیریت کیف پول',
+    walletManagementHint:'برای جایگزینی آدرس دریافت، مالکیت کیف پول جدید باید تأیید شود.',
     observedAt:'آخرین مشاهده',
     solana:'Solana',
     stablecoin:'Stablecoin',
@@ -58,6 +64,9 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     walletAddress:'Wallet address',
     copyAddress:'Copy address',
     copied:'Copied',
+    copyFailed:'Could not copy. Select the address and copy it manually.',
+    manageWallet:'Manage wallet',
+    walletManagementHint:'A new receiving wallet must be verified before it can replace the current address.',
     observedAt:'Observed',
     solana:'Solana',
     stablecoin:'Stablecoin',
@@ -80,6 +89,9 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     walletAddress:'عنوان المحفظة',
     copyAddress:'نسخ العنوان',
     copied:'تم النسخ',
+    copyFailed:'تعذر النسخ. حدّد العنوان وانسخه يدويًا.',
+    manageWallet:'إدارة المحفظة',
+    walletManagementHint:'يجب التحقق من ملكية محفظة الاستلام الجديدة قبل استبدال العنوان الحالي.',
     observedAt:'آخر قراءة',
     solana:'Solana',
     stablecoin:'عملة مستقرة',
@@ -102,6 +114,9 @@ const messages: Record<PayLocale, AccountMenuMessages> = {
     walletAddress:'Адрес кошелька',
     copyAddress:'Копировать адрес',
     copied:'Скопировано',
+    copyFailed:'Не удалось скопировать. Выделите адрес и скопируйте его вручную.',
+    manageWallet:'Управление кошельком',
+    walletManagementHint:'Перед заменой текущего адреса необходимо подтвердить владение новым кошельком.',
     observedAt:'Время наблюдения',
     solana:'Solana',
     stablecoin:'Стейблкоин',
