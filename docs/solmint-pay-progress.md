@@ -1709,7 +1709,7 @@ Release conclusion:
 
 ## 2026-10-27 — Bulk Pay duplicate and transaction replay safety (staged release)
 
-Status: **IMPLEMENTATION GATES PASS / PHASE A MERGED TO MAIN / PRODUCTION MIGRATION PENDING**
+Status: **IMPLEMENTATION GATES PASS / PHASE A CONFIRMED LIVE / POST-MIGRATION SMOKE PENDING**
 
 Application PR:
 - PR `#348` — [Bulk Pay duplicate and replay safety](https://github.com/azad2022/solsite/pull/348), still Draft pending Phase A Production migration and smoke verification.
@@ -1720,7 +1720,7 @@ Phase A schema PR:
 - Adds duplicate-recipient rejection in the SQL create function, a unique index on `(batch_id, recipient)`, private prepared-transaction snapshot storage, and internal reservation/read/store/release RPCs.
 - Deliberately does not replace/harden `pay_submit_payout_batch`, preserving compatibility with the old production API until the new application is deployed.
 - The main commit passed CI, Production Build, Database Security, Devnet E2E, Authentication build verification, and Cloudflare Pages production deployment.
-- Production migration `20261027143000_solmint_pay_bulk_payout_duplicate_and_transaction_request_safety.sql` is **not yet applied**. The live migration ledger last observed ends at `20261026091519`.
+- Read-only production verification now confirms migration `20261027143000` is recorded; the prepared-transaction table, unique index, and reservation RPCs exist. The legacy `pay_submit_payout_batch` remains compatible and does not yet require the builder claim.
 
 Phase B hardening:
 - PR `#350` — [legacy submit RPC capability hardening](https://github.com/azad2022/solsite/pull/350), intentionally Draft and based on the Phase A schema branch.
@@ -1736,12 +1736,12 @@ Functional checks on the current application source commit:
 
 Production preflight:
 - Read-only query returned zero existing payout batches with duplicate recipient rows.
-- No Production database mutation was performed during this task.
+- I did not dispatch the Production Migration workflow. The live change was detected through read-only database queries; its execution origin was not established by the workflow evidence available in this review.
 
 Required release sequence:
-1. Apply Phase A via the repository's controlled `SolMint Pay Production Migration` workflow with explicit `confirm=APPLY`; verify migration ledger and old API smoke checks.
-2. Only after Phase A is live, merge and deploy PR `#348`; run production smoke for create, prepared transaction request, signature registration and authoritative verification.
+1. Phase A is now confirmed in the live ledger. Capture a post-migration Production API smoke and confirm legacy endpoint compatibility.
+2. After the smoke is green, merge and deploy PR `#348`; run production smoke for batch create, prepared transaction request, signature registration and authoritative verification.
 3. Only after the application deployment and smoke are green, retarget PR `#350` to `main`, merge it and apply Phase B through the same controlled workflow.
 4. Re-run security and runtime smoke checks; replace this pending status with live production evidence.
 
-**Release gate remains open. Do not merge PR #348 or apply Phase B until Phase A has been applied and verified.**
+**Release gate remains open. Do not merge PR #348 until post-migration Production API smoke is green; do not apply Phase B before the application deployment and verification.**
