@@ -7,6 +7,7 @@ import { isValidWalletAddress } from '../wallet-payment-transport';
 import { detectSolanaWalletProviders, getSolanaWalletProvider, publicKeyString, type SolanaInjectedWalletId } from '../solana-wallet-provider';
 import { bulkPayoutService, type BulkPayoutAssetConfig, type BulkPayoutBatch, type BulkPayoutDetail, type BulkPayoutInputItem } from '../services/bulkPayoutService';
 import { findDuplicatePayoutRecipient } from '../services/bulkPayoutPolicy';
+import { loadPendingBulkPayoutSubmissions, savePendingBulkPayoutSubmissions, type PendingBulkPayoutSubmission, type PendingBulkPayoutSubmissions } from '../services/bulkPayoutPendingSubmission';
 import { bulkT } from './pay-bulk-i18n';
 import './pay-bulk.css';
 
@@ -100,12 +101,13 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
   const [wallets,setWallets]=useState(detectSolanaWalletProviders());
   const [walletId,setWalletId]=useState<SolanaInjectedWalletId|null>(null);
   const [flowError,setFlowError]=useState('');
-  const [pendingSignature,setPendingSignature]=useState<string|null>(null);
-  const [pendingSubmitKey,setPendingSubmitKey]=useState<string|null>(null);
-  const [pendingBatchId,setPendingBatchId]=useState<string|null>(null);
+  const [pendingState,setPendingState]=useState<{merchantId:string;submissions:PendingBulkPayoutSubmissions}>(()=>({merchantId,submissions:loadPendingBulkPayoutSubmissions(merchantId)}));
   const [submittingSignature,setSubmittingSignature]=useState(false);
   const pollingRef=useRef(false);
 
+  const pendingSubmissions = pendingState.merchantId===merchantId ? pendingState.submissions : {};
+  const pendingSelectedSubmission:PendingBulkPayoutSubmission|undefined = selected ? pendingSubmissions[selected.batch.id] : undefined;
+  const pendingSubmissionsRef=useRef<PendingBulkPayoutSubmissions>(pendingSubmissions);
   const decimals=decimalsFor(asset,configs);
   const canCreate=Boolean(configs.find(item=>item.asset===asset));
   const draftAtomic=useMemo(() => draft.map(row=>({
@@ -139,14 +141,45 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
 
   useEffect(()=>{void load();},[load]);
 
+  useEffect(()=>{
+    if(pendingState.merchantId!==merchantId){
+      setPendingState({merchantId,submissions:loadPendingBulkPayoutSubmissions(merchantId)});
+    }
+  },[merchantId,pendingState.merchantId]);
+  useEffect(()=>{pendingSubmissionsRef.current=pendingSubmissions;},[pendingSubmissions]);
+
+  const updatePendingSubmissions=useCallback((update:(current:PendingBulkPayoutSubmissions)=>PendingBulkPayoutSubmissions)=>{
+    const current=pendingSubmissionsRef.current;
+    const next=update(current);
+    if(next===current)return;
+    pendingSubmissionsRef.current=next;
+    savePendingBulkPayoutSubmissions(merchantId,next);
+    setPendingState({merchantId,submissions:next});
+  },[merchantId]);
+
+  const storePendingSubmission=useCallback((submission:PendingBulkPayoutSubmission)=>{
+    updatePendingSubmissions(current=>({...current,[submission.batchId]:submission}));
+  },[updatePendingSubmissions]);
+
+  const clearPendingSubmission=useCallback((batchId:string)=>{
+    updatePendingSubmissions(current=>{
+      if(!current[batchId])return current;
+      const next={...current};
+      delete next[batchId];
+      return next;
+    });
+  },[updatePendingSubmissions]);
+
   const selectBatch=useCallback(async(batch:BulkPayoutBatch)=>{
     setFlowError(''); setFormError('');
     try{
       const detail=await bulkPayoutService.get(merchantId,batch.id);
+      const pending=pendingSubmissionsRef.current[batch.id];
+      if(pending&&(TERMINAL.has(detail.batch.status)||detail.batch.transaction_signature===pending.signature))clearPendingSubmission(batch.id);
       setSelected(detail);
       setFlowState(TERMINAL.has(detail.batch.status)?(detail.batch.status==='completed'?'done':'failed'):'idle');
     }catch(error){setFlowError(errorMessage(error,locale));}
-  },[merchantId,locale]);
+  },[merchantId,locale,clearPendingSubmission]);
 
   useEffect(()=>{setWallets(detectSolanaWalletProviders());},[]);
 
@@ -160,6 +193,7 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
 
   const createBatch=async(event:React.FormEvent)=>{
     event.preventDefault(); setFormError('');
+    if(flowState==='signing'||flowState==='verifying'||submittingSignature)return;
     if(!canCreate){setFormError(bulkT(locale,'noAsset'));return;}
     if(draft.length<1){setFormError(bulkT(locale,'minItems'));return;}
     if(draft.length>50){setFormError(bulkT(locale,'maxItems'));return;}
@@ -184,7 +218,7 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
   };
 
   const signBatch=async()=>{
-    if(!selected||flowState==='signing'||flowState==='verifying'||(pendingSignature&&pendingBatchId===selected.batch.id))return;
+    if(!selected||flowState==='signing'||flowState==='verifying'||pendingSubmissionsRef.current[selected.batch.id])return;
     setFlowError('');
     const providers=detectSolanaWalletProviders();
     setWallets(providers);
@@ -201,13 +235,13 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
       const sent=await entry.provider.signAndSendTransaction(tx);
       const signature=signatureFrom(sent);
       if(!signature){setFlowState('failed');setFlowError(bulkT(locale,'txFailed'));return;}
-      const submitKey=crypto.randomUUID();
-      setPendingSignature(signature); setPendingSubmitKey(submitKey); setPendingBatchId(selected.batch.id);
-      const submitted=await bulkPayoutService.submit(merchantId,selected.batch.id,signature,submitKey);
+      const pending:PendingBulkPayoutSubmission={batchId:selected.batch.id,signature,idempotencyKey:crypto.randomUUID()};
+      storePendingSubmission(pending);
+      const submitted=await bulkPayoutService.submit(merchantId,selected.batch.id,pending.signature,pending.idempotencyKey);
       const submittedDetail=await bulkPayoutService.get(merchantId,submitted.id);
       setSelected(submittedDetail);
       setBatches(current=>current.map(row=>row.id===submitted.id?submittedDetail.batch:row));
-      setPendingSignature(null); setPendingSubmitKey(null); setPendingBatchId(null);
+      clearPendingSubmission(submitted.id);
       setFlowState('submitted');
       pollingRef.current=false;
       void verifyLoop(submittedDetail.batch.id);
@@ -238,20 +272,20 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
   },[locale]);
 
   const retrySubmit=useCallback(async()=>{
-    if(!selected||!pendingSignature||!pendingSubmitKey||pendingBatchId!==selected.batch.id||submittingSignature)return;
+    if(!selected||!pendingSelectedSubmission||submittingSignature)return;
     setSubmittingSignature(true); setFlowError('');
     try{
-      const submitted=await bulkPayoutService.submit(merchantId,selected.batch.id,pendingSignature,pendingSubmitKey);
+      const submitted=await bulkPayoutService.submit(merchantId,selected.batch.id,pendingSelectedSubmission.signature,pendingSelectedSubmission.idempotencyKey);
       const detail=await bulkPayoutService.get(merchantId,submitted.id);
       setSelected(detail);
       setBatches(current=>current.map(row=>row.id===submitted.id?detail.batch:row));
-      setPendingSignature(null); setPendingSubmitKey(null); setPendingBatchId(null);
+      clearPendingSubmission(submitted.id);
       setFlowState('submitted');
       pollingRef.current=false;
       void verifyLoop(detail.batch.id);
     }catch(error){setFlowError(errorMessage(error,locale));}
     finally{setSubmittingSignature(false);}
-  },[selected,pendingSignature,pendingSubmitKey,pendingBatchId,submittingSignature,merchantId,locale,verifyLoop]);
+  },[selected,pendingSelectedSubmission,submittingSignature,merchantId,locale,verifyLoop,clearPendingSubmission]);
 
   const retryVerification=()=>{if(selected&&selected.batch.transaction_signature)void verifyLoop(selected.batch.id);};
   const statusLabel=(value:BulkPayoutBatch['status'])=>bulkT(locale,value);
@@ -290,7 +324,7 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
             <button type="button" className="pay-bulk-icon-button" onClick={()=>removeRow(row.id)} disabled={draft.length<=1} aria-label={bulkT(locale,'remove')} title={bulkT(locale,'remove')}><Trash2 size={15}/></button>
           </div>)}
         </div>
-        <div className="pay-bulk-actions"><button type="button" className="pay-secondary-action" onClick={addRow} disabled={draft.length>=50}><Plus size={15}/>{bulkT(locale,'addRecipient')}</button><button type="submit" className="pay-primary-action" disabled={createState==='creating'||!canCreate}>{createState==='creating'?<RefreshCw size={15} className="pay-spin"/>:<CheckCircle2 size={15}/>} {bulkT(locale,'createBatch')}</button></div>
+        <div className="pay-bulk-actions"><button type="button" className="pay-secondary-action" onClick={addRow} disabled={draft.length>=50}><Plus size={15}/>{bulkT(locale,'addRecipient')}</button><button type="submit" className="pay-primary-action" disabled={createState==='creating'||!canCreate||flowState==='signing'||flowState==='verifying'||submittingSignature}>{createState==='creating'?<RefreshCw size={15} className="pay-spin"/>:<CheckCircle2 size={15}/>} {bulkT(locale,'createBatch')}</button></div>
         {formError?<div className="pay-bulk-error" role="alert"><CircleAlert size={15}/>{formError}</div>:null}
       </form>
 
@@ -306,19 +340,19 @@ export default function PayBulkPay({locale,merchantId}:Props):React.ReactElement
           {selected.batch.status==='ready'?<div className="pay-bulk-sign">
             <label className="pay-bulk-field"><span>{bulkT(locale,'selectWallet')}</span><select value={walletId??''} onChange={event=>setWalletId((event.target.value||null) as SolanaInjectedWalletId|null)}><option value="">{bulkT(locale,'selectWallet')}</option>{wallets.map(wallet=><option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}</select></label>
             {wallets.length===0?<div className="pay-bulk-note">{bulkT(locale,'noWallet')}</div>:null}
-            <button type="button" className="pay-primary-action pay-bulk-sign-button" onClick={()=>void signBatch()} disabled={flowState==='signing'||flowState==='verifying'||submittingSignature||(pendingSignature!==null&&pendingBatchId===selected.batch.id)}>{flowState==='signing'?<RefreshCw size={16} className="pay-spin"/>:<WalletCards size={16}/>} {flowState==='signing'?bulkT(locale,'signing'):bulkT(locale,'sign')}</button>
+            <button type="button" className="pay-primary-action pay-bulk-sign-button" onClick={()=>void signBatch()} disabled={flowState==='signing'||flowState==='verifying'||submittingSignature||Boolean(pendingSelectedSubmission)}>{flowState==='signing'?<RefreshCw size={16} className="pay-spin"/>:<WalletCards size={16}/>} {flowState==='signing'?bulkT(locale,'signing'):bulkT(locale,'sign')}</button>
           </div>:null}
           {selected.batch.status==='submitted'||selected.batch.status==='verifying'?<div className="pay-bulk-progress" aria-live="polite"><RefreshCw size={18} className="pay-spin"/><div><strong>{bulkT(locale,'waitingVerification')}</strong><p>{bulkT(locale,'submittedDescription')}</p></div></div>:null}
           {selected.batch.status==='completed'?<div className="pay-bulk-success" role="status"><CheckCircle2 size={19}/><div><strong>{bulkT(locale,'completedTitle')}</strong><p>{bulkT(locale,'completedDescription')}</p><dl><dt>{bulkT(locale,'batchId')}</dt><dd>{selected.batch.id}</dd>{selected.batch.transaction_signature?<><dt>{bulkT(locale,'signature')}</dt><dd>{selected.batch.transaction_signature}</dd></>:null}</dl></div></div>:null}
           {selected.batch.status==='failed'?<div className="pay-bulk-error" role="alert"><CircleAlert size={16}/><span>{selected.batch.failure_reason||bulkT(locale,'verifyFailed')}</span></div>:null}
-          {flowError?<div className="pay-bulk-error" role="alert"><CircleAlert size={15}/>{flowError}{selected.batch.transaction_signature&&selected.batch.status==='submitted'?<button type="button" className="pay-link-button" onClick={retryVerification}>{bulkT(locale,'retry')}</button>:null}{pendingSignature&&pendingBatchId===selected.batch.id?<button type="button" className="pay-link-button" onClick={()=>void retrySubmit()} disabled={submittingSignature}>{submittingSignature?bulkT(locale,'signing'):bulkT(locale,'retrySubmit')}</button>:null}</div>:null}
+          {flowError||pendingSelectedSubmission?<div className="pay-bulk-error" role="alert"><CircleAlert size={15}/>{flowError||bulkT(locale,'pendingSignatureRecovery')}{selected.batch.transaction_signature&&selected.batch.status==='submitted'?<button type="button" className="pay-link-button" onClick={retryVerification}>{bulkT(locale,'retry')}</button>:null}{pendingSelectedSubmission?<button type="button" className="pay-link-button" onClick={()=>void retrySubmit()} disabled={submittingSignature}>{submittingSignature?bulkT(locale,'signing'):bulkT(locale,'retrySubmit')}</button>:null}</div>:null}
         </div>:<div className="pay-bulk-empty"><WalletCards size={28}/><strong>{bulkT(locale,'review')}</strong><p>{bulkT(locale,'splitHint')}</p></div>}
       </div>
     </div>
 
     <div className="pay-bulk-panel pay-bulk-history">
       <div className="pay-bulk-panel-heading"><div><span className="pay-panel-kicker">{bulkT(locale,'history')}</span><h2>{bulkT(locale,'history')}</h2></div></div>
-      {batches.length===0?<div className="pay-bulk-empty"><Clock3 size={24}/><div><strong>{bulkT(locale,'noHistory')}</strong></div></div>:<div className="pay-bulk-history-list">{batches.map(batch=><button type="button" key={batch.id} className={'pay-bulk-history-row'+(selected?.batch.id===batch.id?' is-active':'')} onClick={()=>void selectBatch(batch)}><span className="pay-bulk-history-main"><strong>{formatAtomic(batch.total_amount_atomic,decimalsFor(batch.asset,configs))} {batch.asset}</strong><small>{batch.item_count} · {date(batch.created_at,locale)}</small></span><span className={'pay-bulk-status is-'+batch.status}>{statusLabel(batch.status)}</span><ChevronDown size={15}/></button>)}</div>}
+      {batches.length===0?<div className="pay-bulk-empty"><Clock3 size={24}/><div><strong>{bulkT(locale,'noHistory')}</strong></div></div>:<div className="pay-bulk-history-list">{batches.map(batch=><button type="button" key={batch.id} className={'pay-bulk-history-row'+(selected?.batch.id===batch.id?' is-active':'')} onClick={()=>void selectBatch(batch)} disabled={flowState==='signing'||flowState==='verifying'||submittingSignature}><span className="pay-bulk-history-main"><strong>{formatAtomic(batch.total_amount_atomic,decimalsFor(batch.asset,configs))} {batch.asset}</strong><small>{batch.item_count} · {date(batch.created_at,locale)}</small></span><span className={'pay-bulk-status is-'+batch.status}>{statusLabel(batch.status)}</span><ChevronDown size={15}/></button>)}</div>}
     </div>
   </section>;
 }
