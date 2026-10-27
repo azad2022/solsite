@@ -642,7 +642,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
                   <p>{checkoutLabel(uiLocale, 'checkoutSnapshotDescription')}</p>
                   <div className="pay-checkout-status-grid">
                     <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(uiLocale, 'asset')}</span><SnapshotValue value={intent.asset} /></div></div>
-                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(uiLocale, 'feePayer')}</span><SnapshotValue value={intent.feePayer} /></div></div>
+                    <div className="pay-checkout-status-card"><ShieldCheck size={18} /><div><span>{checkoutLabel(uiLocale, 'feePayer')}</span><SnapshotValue value={intent.feePayer === 'merchant' ? checkoutLabel(uiLocale, 'merchant') : checkoutLabel(uiLocale, 'customer')} /></div></div>
                     <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'network')}</span><SnapshotValue value={intent.network} /></div></div>
                     <div className="pay-checkout-status-card"><WalletCards size={18} /><div><span>{checkoutLabel(uiLocale, 'destination')}</span><SnapshotValue value={intent.recipient} /></div></div>
                     <div className="pay-checkout-status-card"><ReceiptText size={18} /><div><span>{checkoutLabel(uiLocale, 'reference')}</span><SnapshotValue value={intent.reference} /></div></div>
