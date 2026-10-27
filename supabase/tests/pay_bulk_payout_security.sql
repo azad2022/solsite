@@ -47,6 +47,20 @@ as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}'
 \i supabase/migrations/20261027143000_solmint_pay_bulk_payout_duplicate_and_transaction_request_safety.sql
 \i supabase/migrations/20261027143100_solmint_pay_bulk_payout_submit_capability_hardening.sql
 \i supabase/migrations/20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql
+\i supabase/migrations/20261027152000_solmint_pay_payout_canonical_recipient.sql
+
+DO $
+begin
+  if public.pay_is_canonical_solana_address('4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi') is not true then raise exception 'valid 32-byte Base58 public key was rejected'; end if;
+  if public.pay_is_canonical_solana_address('11111111111111111111111111111111') is not true then raise exception '32 leading zero bytes were rejected'; end if;
+  if public.pay_is_canonical_solana_address('22222222222222222222222222222222') is not false then raise exception 'Base58 string with a 23-byte decoded value was accepted'; end if;
+  if public.pay_is_canonical_solana_address('not-a-base58-address') is not false then raise exception 'invalid Base58 alphabet was accepted'; end if;
+  if public.pay_is_canonical_solana_address(null) is not false then raise exception 'NULL address was not rejected'; end if;
+  if public.pay_is_canonical_solana_address(repeat('z',44)) is not false then raise exception 'address decoding to more than 32 bytes was accepted'; end if;
+  if public.pay_is_canonical_solana_address(repeat('z',45)) is not false then raise exception 'overlong address was accepted'; end if;
+  if has_function_privilege('anon','public.pay_is_canonical_solana_address(text)','EXECUTE') then raise exception 'anon can execute the canonical address helper'; end if;
+  if has_function_privilege('authenticated','public.pay_is_canonical_solana_address(text)','EXECUTE') then raise exception 'authenticated can execute the canonical address helper directly'; end if;
+end $;
 
 insert into public.users(id) values ('user-a'),('user-b'),('user-viewer');
 insert into public.pay_merchants(id,status) values
@@ -80,11 +94,25 @@ DO $$ declare r jsonb;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','USDC','arbitrary-token-mint','spl-token',6,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"}]'::jsonb,'direct-create-no-capability',repeat('f',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"1000"}]'::jsonb,'direct-create-no-capability',repeat('f',64)
   );
   if r->>'state' <> 'unauthorized' then raise exception 'ordinary authenticated JWT created a payout batch directly: %',r; end if;
   if exists(select 1 from public.pay_payout_batches) then raise exception 'ordinary direct RPC call created a payout batch'; end if;
 end $$;
+rollback;
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_payout_creator":"true"}',true);
+DO $ declare r jsonb;
+begin
+  r := public.pay_create_payout_batch(
+    '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
+    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"}]'::jsonb,'noncanonical-recipient-1',repeat('c',64)
+  );
+  if r->>'state' <> 'invalid' then raise exception 'recipient with invalid decoded public-key length was accepted: %',r; end if;
+  if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'noncanonical recipient created a batch'; end if;
+end $;
 rollback;
 
 begin;
@@ -95,7 +123,7 @@ declare r jsonb;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"}]'::jsonb,'viewer-1',repeat('a',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"1000"}]'::jsonb,'viewer-1',repeat('a',64)
   );
   if r->>'state' <> 'forbidden' then raise exception 'viewer was allowed to create Bulk Pay: %',r; end if;
 end $$;
@@ -109,7 +137,7 @@ declare r jsonb;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"}]'::jsonb,'cross-1',repeat('b',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"1000"}]'::jsonb,'cross-1',repeat('b',64)
   );
   if r->>'state' <> 'forbidden' then raise exception 'cross-tenant create was not denied: %',r; end if;
   if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'cross-tenant batch appeared'; end if;
@@ -124,7 +152,7 @@ declare r jsonb;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"9007199254740992"}]'::jsonb,'unsafe-sol-atomic-1',repeat('c',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"9007199254740992"}]'::jsonb,'unsafe-sol-atomic-1',repeat('c',64)
   );
   if r->>'state' <> 'invalid' then raise exception 'unrepresentable SOL lamports amount was accepted: %',r; end if;
   if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'unrepresentable SOL amount created a batch'; end if;
@@ -135,14 +163,14 @@ declare r jsonb; v_batch_id uuid;
 begin
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"},{"recipient":"22222222222222222222222222222222","amountAtomic":"2000"}]'::jsonb,'duplicate-1',repeat('c',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"1000"},{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"2000"}]'::jsonb,'duplicate-1',repeat('c',64)
   );
   if r->>'state' <> 'duplicate_recipient' then raise exception 'duplicate recipient was not rejected before batch creation: %',r; end if;
   if exists(select 1 from public.pay_payout_batches where merchant_id='00000000-0000-0000-0000-000000000001') then raise exception 'duplicate payout batch was created'; end if;
 
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"},{"recipient":"33333333333333333333333333333333","amountAtomic":"2000"}]'::jsonb,'create-1',repeat('c',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"1000"},{"recipient":"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR","amountAtomic":"2000"}]'::jsonb,'create-1',repeat('c',64)
   );
   if r->>'state' <> 'created' then raise exception 'owner create failed: %',r; end if;
   v_batch_id := (r->>'resource_id')::uuid;
@@ -150,13 +178,13 @@ begin
 
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"},{"recipient":"33333333333333333333333333333333","amountAtomic":"2000"}]'::jsonb,'create-1',repeat('c',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"1000"},{"recipient":"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR","amountAtomic":"2000"}]'::jsonb,'create-1',repeat('c',64)
   );
   if r->>'state' <> 'replay' then raise exception 'create replay failed: %',r; end if;
 
   r := public.pay_create_payout_batch(
     '00000000-0000-0000-0000-000000000001','SOL',null,null,null,
-    '[{"recipient":"22222222222222222222222222222222","amountAtomic":"1000"}]'::jsonb,'create-1',repeat('d',64)
+    '[{"recipient":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi","amountAtomic":"1000"}]'::jsonb,'create-1',repeat('d',64)
   );
   if r->>'state' <> 'conflict' then raise exception 'create idempotency conflict missing: %',r; end if;
 
