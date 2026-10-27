@@ -7,7 +7,7 @@ Date: 2026-10-27
 **SOURCE VALIDATED — RELEASE STAGED — NOT MERGED TO MAIN OR RELEASED TO PRODUCTION**
 
 - Application PR: [#348 — Bulk Pay duplicate and replay safety](https://github.com/azad2022/solsite/pull/348)
-- Phase A schema PR: being prepared separately for a backward-compatible migration.
+- Phase A schema PR [#349](https://github.com/azad2022/solsite/pull/349) merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`; its migration is still pending in Production.
 - Phase B submit hardening migration: intentionally separate; do not apply before the new application deployment.
 
 ## What is fixed
@@ -29,7 +29,7 @@ The functional implementation passed on source commit `a5956081e983350603858c79d
 - Devnet E2E: [run 40499851161](https://github.com/azad2022/solsite/actions/runs/40499851161)
 - Mainnet Read-only: [run 40499851193](https://github.com/azad2022/solsite/actions/runs/40499851193)
 
-The checkpoint commit also passed all five gates:
+The follow-up implementation commit `5efb377f1457a78c5a6b34448ea8e20a766c4f19` also passed all five gates:
 
 - CI: [run 40500223243](https://github.com/azad2022/solsite/actions/runs/40500223243)
 - Production Build: [run 40500223234](https://github.com/azad2022/solsite/actions/runs/40500223234)
@@ -45,10 +45,10 @@ Production read-only preflight found zero existing batches with duplicate recipi
 
 The original single migration was split because changing `pay_submit_payout_batch` in the same migration that introduces API dependencies creates a compatibility gap.
 
-1. **Phase A — schema only:** merge the schema-only PR containing `20261027143000_solmint_pay_bulk_payout_duplicate_and_transaction_request_safety.sql`. It adds the duplicate guard, unique index, private prepared-transaction table and internal reservation RPCs, but deliberately leaves the current submit RPC unchanged. Run the controlled production migration workflow and verify the live migration ledger.
-2. **Phase A production verification:** confirm the migration applied and existing Bulk Pay endpoints still work. Do not deploy the new application before this check.
-3. **Phase B application:** merge application PR #348 only after Phase A is live. Cloudflare Pages must deploy the new API/UI code; then run production smoke checks. The application remains compatible because it uses the internal builder JWT when calling the existing submit RPC.
-4. **Phase B — legacy submit hardening:** only after the new application is deployed and verified, merge the separate migration `20261027143100_solmint_pay_bulk_payout_submit_capability_hardening.sql` and apply it through the controlled workflow. This makes the legacy submit RPC reject ordinary user JWTs.
+1. **Phase A — schema only:** schema PR #349 is merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`. Its migration adds the duplicate guard, unique index, private prepared-transaction table and internal reservation RPCs while deliberately leaving the existing submit RPC unchanged. The migration is pending in Production.
+2. **Phase A production migration:** run the controlled Production Migration workflow with explicit `confirm=APPLY`. This is a Production database mutation and must not run until the operator deliberately approves it. Verify the live migration ledger and the existing Bulk Pay endpoints immediately after the run. Do not deploy the new application before this check.
+3. **Phase B application:** after Phase A is live and backward compatibility is proven, merge application PR #348. Confirm Cloudflare Pages deployment and production smoke checks. The application uses the internal builder JWT when calling the existing submit RPC.
+4. **Phase B — legacy submit hardening:** only after the new application is deployed and verified, retarget [PR #350](https://github.com/azad2022/solsite/pull/350) to `main`, merge its separate migration `20261027143100_solmint_pay_bulk_payout_submit_capability_hardening.sql` and apply it through the controlled workflow. This makes the legacy submit RPC reject ordinary user JWTs.
 5. Re-run CI, database security and production API smoke; update this checkpoint with live production evidence.
 
 Do not apply Phase B before the application deployment. Do not use manual SQL. Do not dispatch the production migration workflow with `confirm=APPLY` until the previous phase has positive evidence.
