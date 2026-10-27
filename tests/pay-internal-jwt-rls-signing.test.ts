@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { generateKeyPairSync } from 'node:crypto';
-import { mintPayInternalJwt, mintPayInternalPayoutBuilderJwt, mintPayInternalVerifierJwt, validatePayInternalJwtConfig, type PayInternalJwtEnv } from '../functions/api/pay/_shared/internal-jwt';
+import { mintPayInternalJwt, mintPayInternalPayoutBuilderJwt, mintPayInternalPayoutCreatorJwt, mintPayInternalVerifierJwt, validatePayInternalJwtConfig, type PayInternalJwtEnv } from '../functions/api/pay/_shared/internal-jwt';
 
 function pemForKeyPair(algorithm: 'ES256' | 'RS256'): { privateKey: string; publicKey: string } {
   if (algorithm === 'ES256') {
@@ -69,7 +69,7 @@ for (const algorithm of ['ES256', 'RS256'] as const) {
 }
 
 
-test('payout builder and verifier JWT capabilities are explicit and mutually exclusive', async () => {
+test('payout builder, creator and verifier JWT capabilities are explicit and mutually exclusive', async () => {
   const keys = pemForKeyPair('ES256');
   const env: PayInternalJwtEnv = {
     SUPABASE_URL: 'https://example.supabase.co',
@@ -81,11 +81,17 @@ test('payout builder and verifier JWT capabilities are explicit and mutually exc
     SUPABASE_INTERNAL_JWT_TTL_SECONDS: '60',
   };
   const builder = base64UrlJson((await mintPayInternalPayoutBuilderJwt(env, 'application-user-123', 1_800_000_000)).split('.')[1]);
+  const creator = base64UrlJson((await mintPayInternalPayoutCreatorJwt(env, 'application-user-123', 1_800_000_000)).split('.')[1]);
   const verifier = base64UrlJson((await mintPayInternalVerifierJwt(env, 'application-user-123', 1_800_000_000)).split('.')[1]);
   assert.equal(builder.solmint_pay_payout_builder, 'true');
   assert.equal(builder.solmint_pay_verifier, undefined);
+  assert.equal(builder.solmint_pay_payout_creator, undefined);
+  assert.equal(creator.solmint_pay_payout_creator, 'true');
+  assert.equal(creator.solmint_pay_payout_builder, undefined);
+  assert.equal(creator.solmint_pay_verifier, undefined);
   assert.equal(verifier.solmint_pay_verifier, 'true');
   assert.equal(verifier.solmint_pay_payout_builder, undefined);
+  assert.equal(verifier.solmint_pay_payout_creator, undefined);
 });
 
 test('rejects missing or unsafe production configuration', () => {
