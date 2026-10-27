@@ -17,6 +17,7 @@ interface Props {
   merchant: PayMerchant | null;
   title: string;
   subtitle: string;
+  onManageWallet: () => void;
 }
 
 function intlLocale(locale: PayLocale): string {
@@ -50,7 +51,7 @@ function shortenAddress(value: string): string {
   return `${value.slice(0, 7)}…${value.slice(-6)}`;
 }
 
-export default function PayAccountMenu({ locale, user, merchant, title, subtitle }: Props): React.ReactElement {
+export default function PayAccountMenu({ locale, user, merchant, title, subtitle, onManageWallet }: Props): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [snapshot, setSnapshot] = useState<Awaited<ReturnType<typeof getMerchantWalletBalance>> | null>(null);
@@ -58,6 +59,7 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
   const [referralStats, setReferralStats] = useState<PayReferralStats | null>(null);
   const [referralState, setReferralState] = useState<'idle'|'loading'|'ready'|'unavailable'>('idle');
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const direction = directionFor(locale);
@@ -122,13 +124,32 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
   }, [open]);
 
   const copyAddress = async () => {
-    if (!snapshot?.walletAddress || !navigator.clipboard) return;
+    const address = snapshot?.walletAddress;
+    if (!address) return;
+    setCopyError(false);
     try {
-      await navigator.clipboard.writeText(snapshot.walletAddress);
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(address);
+      } else {
+        const field = document.createElement('textarea');
+        field.value = address;
+        field.setAttribute('readonly', '');
+        field.setAttribute('aria-hidden', 'true');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        field.style.pointerEvents = 'none';
+        field.style.insetInlineStart = '-9999px';
+        document.body.appendChild(field);
+        field.select();
+        const copiedToClipboard = document.execCommand('copy');
+        field.remove();
+        if (!copiedToClipboard) throw new Error('Clipboard copy was not accepted.');
+      }
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
+      window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setCopied(false);
+      setCopyError(true);
     }
   };
 
@@ -206,13 +227,23 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
                   })}
                 </div>
                 <div className="pay-account-wallet-row">
-                  <div>
+                  <div className="pay-account-wallet-address">
                     <span>{accountMenuT(locale, 'walletAddress')}</span>
                     <code dir="ltr">{shortenAddress(snapshot.walletAddress)}</code>
                   </div>
-                  <button type="button" className="pay-account-copy" onClick={() => void copyAddress()} aria-label={accountMenuT(locale, 'copyAddress')}>
-                    {copied ? <Check size={15} /> : <Copy size={15} />}
-                    <span>{copied ? accountMenuT(locale, 'copied') : accountMenuT(locale, 'copyAddress')}</span>
+                  <div className="pay-account-wallet-copy-actions">
+                    <button type="button" className="pay-account-copy" onClick={() => void copyAddress()} aria-label={accountMenuT(locale, copied ? 'copied' : 'copyAddress')}>
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      <span>{copied ? accountMenuT(locale, 'copied') : accountMenuT(locale, 'copyAddress')}</span>
+                    </button>
+                    {copyError ? <span className="pay-account-copy-error" role="status">{accountMenuT(locale, 'copyFailed')}</span> : null}
+                  </div>
+                </div>
+                <div className="pay-account-wallet-manage">
+                  <span>{accountMenuT(locale, 'walletManagementHint')}</span>
+                  <button type="button" onClick={() => { setOpen(false); onManageWallet(); }}>
+                    <WalletCards size={15} />
+                    <span>{accountMenuT(locale, 'manageWallet')}</span>
                   </button>
                 </div>
                 <div className="pay-account-observed">{accountMenuT(locale, 'observedAt')}: {new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(snapshot.observedAt))}</div>

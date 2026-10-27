@@ -356,7 +356,7 @@ export function PayApp({ applicationUser }: PayAppProps): React.ReactElement {
                 ) : null}
               </div>
               {sessionUser ? (
-                <PayAccountMenu locale={locale} user={sessionUser} merchant={merchant} title={accountTitle} subtitle={accountSubtitle} />
+                <PayAccountMenu locale={locale} user={sessionUser} merchant={merchant} title={accountTitle} subtitle={accountSubtitle} onManageWallet={() => navigate('wallet')} />
               ) : (
                 <div className="pay-account-chip" title={translate(locale, 'notConnected')}>
                   <span className="pay-account-avatar" aria-hidden="true"><WalletCards size={17} /></span>
