@@ -4,7 +4,7 @@ Date: 2026-10-27
 
 ## Status
 
-**PHASE A/B RECORDED LIVE — POST-PHASE-B API/LIVE SMOKES PASS — PR #353 OPEN/DRAFT — DATABASE SECURITY + DEVNET + CI PASS — PAGES PREVIEW GATE IN PROGRESS — FULL LIFECYCLE NOT ACCEPTED**
+**PR #353 MERGED/DEPLOYED — DATABASE CREATE CAPABILITY + SOL AMOUNT GUARDS VERIFIED LIVE — POST-DEPLOYMENT GATES PASS — MIGRATION PROVENANCE UNKNOWN — FULL BULK PAY LIFECYCLE NOT ACCEPTED**
 
 - Phase A schema PR [#349](https://github.com/azad2022/solsite/pull/349), merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`.
 - Application PR [#348](https://github.com/azad2022/solsite/pull/348), merged as `39d4f0dd13199a05937af7c39d50588a989c21a3`.
@@ -62,37 +62,56 @@ Database Security and real Devnet Bulk Pay E2E remain **PASS on the unchanged ap
 
 The post-Phase-B smoke automation gap is **CLOSED / PASS**. The full Bulk Pay production lifecycle is **NOT YET ACCEPTED**: current production API/Live Smoke are non-mutating contract checks and do not run an authenticated payout from batch creation through real submission and final verification. The actual Devnet transaction E2E exercises transaction building, submission and verification logic, but not the entire authenticated production API/database flow.
 
-### Remaining technical blockers
+### Current state after PR #353 — 2026-10-27
 
-- **BLOCKED — Database input contract:** `pay_create_payout_batch` accepts recipient strings by Base58 alphabet/length rather than fully validating a canonical 32-byte Solana public key. It also accepts an arbitrary non-null `token_mint` for `USDC`/`USDT` when invoked directly via its `authenticated` EXECUTE grant; the public API applies stronger validation/asset configuration, but the RPC itself is independently callable. Add isolated PostgreSQL adversarial tests and harden the trusted boundary before calling this feature fully release-ready.
-- **BLOCKED — SOL amount preparability:** creation accepts up to 78-digit atomic amounts while the transaction builder rejects SOL amounts above `Number.MAX_SAFE_INTEGER`; a batch can be created successfully but later cannot be built. Align create-time validation with the actual builder/asset contract without floating point.
-- **NOT RUN — Authenticated production Bulk Pay lifecycle/browser E2E:** the existing production API Smoke and Live Smoke do not create/sign/verify a payout batch. Do not infer production payout acceptance from their passing results.
-- **UNKNOWN — Phase B migration provenance:** Production ledger records `20261027143100`; the available Actions evidence does not establish which actor/workflow applied it. No migration was run by this audit.
+This section supersedes the earlier input-contract and SOL amount blocker status above.
 
-The separate legacy `Workers Builds: solsite` check remains **FAILURE** while Cloudflare Pages is **PASS**; the repository is deployed through Pages and this old Worker integration is not the Pages deployment. No payment completion is inferred from a submitted signature; backend/database/finalized-blockchain verification remains authoritative.
+- **PASS — Database create-RPC boundary is live.** The live function requires `solmint_pay_payout_creator=true`; the ordinary authenticated caller test, executed inside a rollback transaction, returned `{"state":"unauthorized"}`.
+- **PASS — SOL safe-amount boundary is live.** The SQL function rejects atomic amounts over `9007199254740991`; the API now validates with `BigInt` before batch creation.
+- **PASS — current application release gates on code SHA `6972b0e7aa74e670245045720d332c24c604af27`:** Pages [122257148361](https://github.com/azad2022/solsite/runs/122257148361), CI [40523523302](https://github.com/azad2022/solsite/actions/runs/40523523302), Production Build [40523523154](https://github.com/azad2022/solsite/actions/runs/40523523154), Authentication Build Verification [40523523389](https://github.com/azad2022/solsite/actions/runs/40523523389), Database Security [40523523221](https://github.com/azad2022/solsite/actions/runs/40523523221), Devnet E2E [40523523771](https://github.com/azad2022/solsite/actions/runs/40523523771), Production API Smoke [40523523238](https://github.com/azad2022/solsite/actions/runs/40523523238), Live Smoke [40523522949](https://github.com/azad2022/solsite/actions/runs/40523522949), and Browser UI E2E [40523523299](https://github.com/azad2022/solsite/actions/runs/40523523299).
+- **PASS — migration version recorded and live SQL matches.** Production ledger contains `20261027150000_solmint_pay_bulk_payout_create_capability_hardening`; live function body contains both the creator-capability guard and the SOL bound.
+- **UNKNOWN — migration execution provenance / release-policy path.** Supabase logs at `2026-10-27T14:41:49.895Z` show a runner cloning `git_ref=main`; at `14:41:54.694Z` it logs that it is applying `20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql`, followed by PostgreSQL DDL at `14:41:54.831Z`. The `Supabase Preview` check for the merge SHA ran in the same 14:41:49–14:41:55 window, but the logs don't identify the initiating actor/control. No corresponding 2026-10-27 run was found for the repository's `workflow_dispatch` Production Migration workflow. Trace this via [issue #355](https://github.com/azad2022/solsite/issues/355); do not guess the actor or rollback the security hardening while provenance is being investigated.
+- **NOT RUN — full authenticated Bulk Pay lifecycle E2E.** Production API Smoke and Live Smoke do not execute a Batch from authenticated creation through wallet submit/recovery and finalized verification. Track [issue #354](https://github.com/azad2022/solsite/issues/354). Do not call the feature fully production-accepted until this gate passes against an isolated database and Devnet without real Mainnet transfers.
+- **FAIL — legacy `Workers Builds: solsite` integration** [122257789655](https://github.com/azad2022/solsite/runs/122257789655). This is a separate old Worker integration; Cloudflare Pages is the configured deployment and is **PASS**.
+- **NOT RUN on this release SHA — Mainnet Read-only.** Most recent previously observed pass was on the older source SHA `0e228bb3553a20d8e345038ff9e71cb93604aea0` (run [40504617067](https://github.com/azad2022/solsite/actions/runs/40504617067)); do not present that as a fresh post-merge run.
 
+No Mainnet transfer was sent by this audit. Payment completion remains dependent on backend verification of a finalized transaction matching the authoritative Batch snapshot.
 
-## 2026-10-27 — PR #353 database-create boundary remediation
+## 2026-10-27 — PR #353 result and production verification
 
-Status: **OPEN / DRAFT — CORE CI, DATABASE SECURITY, AND DEVNET PASS — PAGES PREVIEW/PRODUCTION BUILD UNKNOWN (IN PROGRESS)**
+Status: **MERGED + DEPLOYED / CORE GATES PASS / FULL BULK PAY ACCEPTANCE BLOCKED ON LIFECYCLE E2E AND MIGRATION-PROVENANCE AUDIT**
 
-PR: [#353 — require internal capability for payout batch creation](https://github.com/azad2022/solsite/pull/353)
-Branch: `fix/pay-bulk-payout-create-capability`
-Tested PR head: `2e774240a2938f6354f9125a578bffc02a530fb8`
+PR [#353](https://github.com/azad2022/solsite/pull/353) merged as `6972b0e7aa74e670245045720d332c24c604af27`. The PR added the distinct server-issued `solmint_pay_payout_creator` capability, route/SQL validation of the current SOL safe-lamport ceiling, and regression tests for direct-RPC denial and JWT capability separation.
 
-Changes on the branch only:
-- Adds a distinct short-lived `solmint_pay_payout_creator` internal JWT capability. The Batch-create API mints it server-side after normal identity resolution and passes the trusted token to `pay_create_payout_batch`.
-- Adds a new repository migration `20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql`; it is **not applied in Production**.
-- Rejects SOL item amounts above `9007199254740991` atomic units before Batch creation in the API and SQL, matching the existing transaction builder’s safe integer limitation.
-- Adds JWT-claim separation, direct-RPC denial/arbitrary-mint regression, database amount-boundary checks, and builder amount-boundary tests.
+Post-merge evidence for code SHA `6972b0e7aa74e670245045720d332c24c604af27`:
+- CI / Quality: **PASS** — [40523523302](https://github.com/azad2022/solsite/actions/runs/40523523302).
+- Production Build: **PASS** — [40523523154](https://github.com/azad2022/solsite/actions/runs/40523523154).
+- Authentication Build Verification: **PASS** — [40523523389](https://github.com/azad2022/solsite/actions/runs/40523523389).
+- Cloudflare Pages deployment: **PASS** — [122257148361](https://github.com/azad2022/solsite/runs/122257148361).
+- Database Security: **PASS** — [40523523221](https://github.com/azad2022/solsite/actions/runs/40523523221).
+- Devnet E2E: **PASS** — [40523523771](https://github.com/azad2022/solsite/actions/runs/40523523771).
+- Production API Smoke: **PASS** — [40523523238](https://github.com/azad2022/solsite/actions/runs/40523523238).
+- Live Smoke: **PASS** — [40523522949](https://github.com/azad2022/solsite/actions/runs/40523522949).
+- Production Browser UI E2E: **PASS** — [40523523299](https://github.com/azad2022/solsite/actions/runs/40523523299); this exercises merchant/wallet/invoice/payment-link/support/browser flows but not the Bulk Pay payout lifecycle.
 
-Observed gates on the tested PR head:
-- CI/quality/unit tests: **PASS** — [40522451593](https://github.com/azad2022/solsite/actions/runs/40522451593).
-- Database Security SQL fixture: **PASS** — [40522450599](https://github.com/azad2022/solsite/actions/runs/40522450599).
-- Devnet E2E: **PASS** — [40522450792](https://github.com/azad2022/solsite/actions/runs/40522450792).
-- Production Build: **IN PROGRESS** — [40522450728](https://github.com/azad2022/solsite/actions/runs/40522450728). The production bundle/typecheck succeeded; the job is waiting on the Cloudflare Pages preview routing assertion.
-- Cloudflare Pages preview: **IN PROGRESS** — [check 122252655944](https://github.com/azad2022/solsite/runs/122252655944).
-- Supabase Preview: **SKIPPED** under the project’s preview-free delivery policy.
-- Legacy Workers Builds: **FAILURE**, separate from Pages — [check 122253430785](https://github.com/azad2022/solsite/runs/122253430785).
+Production read-only verification confirms Phase A `20261027143000`, Phase B `20261027143100`, and Phase C `20261027150000` are recorded in the migration ledger. The live `pay_create_payout_batch` definition includes `coalesce(auth.jwt()->>'solmint_pay_payout_creator','') <> 'true'` and the SOL atomic bound `9007199254740991`. A rollback-only production direct-RPC probe using an ordinary authenticated JWT returned `{"state":"unauthorized"}`.
 
-No merge has been performed for PR #353. No production migration was dispatched, no Mainnet transfer was sent, and Phase B migration provenance remains **UNKNOWN**. Do not merge while the Pages/Production Build gate is unresolved. After source release, the new migration must only be applied through the controlled Production Migration workflow and only after explicit approval.
+### Migration execution provenance — UNKNOWN
+
+The migration was not manually executed by this audit, and this audit did not call Supabase `apply_migration`/branch-merge tools or dispatch the controlled Production Migration GitHub workflow. Nevertheless, the Supabase live logs show an internal runner:
+- branch ID `fabf1ac3-5428-45a1-a707-f466ee49eaed` (default project branch `main`);
+- internal `workflow_run` ID `139e72e99c09443a9cc8d0ee1ef10e36`;
+- at `2026-10-27T14:41:49.895Z`, “Cloning git repo... git_ref=main”;
+- at `2026-10-27T14:41:54.694Z`, “Applying migration...” for `20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql`;
+- PostgreSQL logs show the corresponding function DDL at `2026-10-27T14:41:54.831Z`.
+
+The `Supabase Preview` app check on merge commit `6972b0e` started at `14:41:49Z` and completed successfully at `14:41:55Z`; timing correlates with the runner, but no actor/initiating control is present. The repository’s official `.github/workflows/solmint-pay-production-migration.yml` has only `workflow_dispatch` and requires `confirm=APPLY`; no 2026-10-27 run of that workflow was found. The source/trigger must remain **UNKNOWN** until [issue #355](https://github.com/azad2022/solsite/issues/355) resolves it. Do not claim that the official manual migration gate ran, and do not roll back this security hardening while provenance is being investigated.
+
+### Remaining acceptance gates
+
+- **BLOCKED — full authenticated Bulk Pay lifecycle E2E**, tracked in [issue #354](https://github.com/azad2022/solsite/issues/354). Current API/Live Smoke are non-mutating contract suites; Devnet E2E validates transaction build/send/finalized verification but does not run the whole authenticated HTTP API/database lifecycle.
+- **UNKNOWN — production migration automation path**, tracked in issue #355.
+- **FAIL — legacy `Workers Builds: solsite`** [122257789655](https://github.com/azad2022/solsite/runs/122257789655), separate from successful Cloudflare Pages.
+- **NOT RUN on current release SHA — Mainnet Read-only**; previous historical PASS was on `0e228bb3553a20d8e345038ff9e71cb93604aea0`, not the current release.
+
+No Mainnet payout/transfer was sent by this audit. The feature must not be labelled fully production-ready until the lifecycle and governance gates are closed.
