@@ -33,6 +33,7 @@ interface JwtPayload {
   role: typeof PAY_INTERNAL_JWT_ROLE;
   [PAY_INTERNAL_JWT_CLAIM]: string;
   solmint_pay_verifier?: 'true';
+  solmint_pay_payout_builder?: 'true';
 }
 
 function base64UrlEncode(input: Uint8Array | string): string {
@@ -124,7 +125,7 @@ async function mintInternalJwt(
   env: PayInternalJwtEnv,
   userId: string,
   nowSeconds: number,
-  verifier: boolean,
+  capability: 'verifier' | 'payout_builder' | null,
 ): Promise<string> {
   validatePayInternalJwtConfig(env);
   if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 1) throw new Error('JWT issuance time must be a positive safe integer.');
@@ -142,7 +143,8 @@ async function mintInternalJwt(
     exp: nowSeconds + ttl,
     role: PAY_INTERNAL_JWT_ROLE,
     [PAY_INTERNAL_JWT_CLAIM]: normalizedUserId,
-    ...(verifier ? { solmint_pay_verifier: 'true' as const } : {}),
+    ...(capability === 'verifier' ? { solmint_pay_verifier: 'true' as const } : {}),
+    ...(capability === 'payout_builder' ? { solmint_pay_payout_builder: 'true' as const } : {}),
   };
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
@@ -156,7 +158,7 @@ export async function mintPayInternalJwt(
   userId: string,
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<string> {
-  return mintInternalJwt(env, userId, nowSeconds, false);
+  return mintInternalJwt(env, userId, nowSeconds, null);
 }
 
 export async function mintPayInternalVerifierJwt(
@@ -164,5 +166,13 @@ export async function mintPayInternalVerifierJwt(
   userId: string,
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<string> {
-  return mintInternalJwt(env, userId, nowSeconds, true);
+  return mintInternalJwt(env, userId, nowSeconds, 'verifier');
+}
+
+export async function mintPayInternalPayoutBuilderJwt(
+  env: PayInternalJwtEnv,
+  userId: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  return mintInternalJwt(env, userId, nowSeconds, 'payout_builder');
 }

@@ -7,6 +7,7 @@ import {
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
 import type { PaymentAsset, TokenProgram } from '../types/domain';
+import { decodeBase58 } from './base58';
 
 export interface BulkPayoutTransactionItem {
   recipient: string;
@@ -131,3 +132,26 @@ export async function buildBulkPayoutTransaction(
   };
 }
 
+
+/**
+ * Verifies that a submitted Solana signature signs the exact server-prepared message.
+ * This does not prove blockchain submission; the finalized verifier remains authoritative.
+ */
+export function isValidPreparedBulkPayoutSignature(
+  transactionBase64: string,
+  sourceWalletAddress: string,
+  signatureBase58: string,
+): boolean {
+  try {
+    const source = ensureAddress(sourceWalletAddress);
+    const rawSignature = decodeBase58(signatureBase58);
+    if (rawSignature.length !== 64) return false;
+    const binary = atob(transactionBase64);
+    const transaction = Transaction.from(Uint8Array.from(binary, character => character.charCodeAt(0)));
+    if (!transaction.feePayer || !transaction.feePayer.equals(source)) return false;
+    transaction.addSignature(source, Buffer.from(rawSignature));
+    return transaction.verifySignatures();
+  } catch {
+    return false;
+  }
+}

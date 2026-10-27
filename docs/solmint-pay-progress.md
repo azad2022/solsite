@@ -1197,7 +1197,6 @@ Evidence reached all of the previously failing boundaries:
 ### Live Audit evidence
 
 The repository's separate SolMint Pay Live Browser Audit #44 was explicitly triggered through the existing .github/solmint-pay-live-audit.trigger mechanism after the runtime validation.
-
 The Live Browser Audit was executed on main commit:
 fd4fbe504814d114f1d9e6d1c606f37d98d662d4
 
@@ -1707,3 +1706,42 @@ Known non-gating provider integration:
 
 Release conclusion:
 **SolMint Pay Bulk Pay is production-verified and release-ready on main. No unresolved Bulk Pay implementation or production-runtime blocker remains.**
+
+## 2026-10-27 — Bulk Pay duplicate and transaction replay safety (staged release)
+
+Status: **IMPLEMENTATION GATES PASS / PHASE A CONFIRMED LIVE / POST-MIGRATION SMOKE PENDING**
+
+Application PR:
+- PR `#348` — [Bulk Pay duplicate and replay safety](https://github.com/azad2022/solsite/pull/348), still Draft pending Phase A Production migration and smoke verification.
+- Current source commit: `aba2c7a5ee0be4e10afd613c46dad5fb7cb544f1`.
+
+Phase A schema PR:
+- PR `#349` merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`.
+- Adds duplicate-recipient rejection in the SQL create function, a unique index on `(batch_id, recipient)`, private prepared-transaction snapshot storage, and internal reservation/read/store/release RPCs.
+- Deliberately does not replace/harden `pay_submit_payout_batch`, preserving compatibility with the old production API until the new application is deployed.
+- The main commit passed CI, Production Build, Database Security, Devnet E2E, Authentication build verification, and Cloudflare Pages production deployment.
+- Read-only production verification now confirms migration `20261027143000` is recorded; the prepared-transaction table, unique index, and reservation RPCs exist. The legacy `pay_submit_payout_batch` remains compatible and does not yet require the builder claim.
+
+Phase B hardening:
+- PR `#350` — [legacy submit RPC capability hardening](https://github.com/azad2022/solsite/pull/350), intentionally Draft and based on the Phase A schema branch.
+- Its migration `20261027143100_solmint_pay_bulk_payout_submit_capability_hardening.sql` must not be applied before the new application is deployed and verified. It makes the legacy submit RPC reject ordinary authenticated JWTs.
+
+Functional checks on the current application source commit:
+- CI / unit tests: **PASS** — [run 40501543189](https://github.com/azad2022/solsite/actions/runs/40501543189).
+- Production Build: **PASS** — [run 40501543147](https://github.com/azad2022/solsite/actions/runs/40501543147).
+- Database Security: **PASS** — [run 40501543098](https://github.com/azad2022/solsite/actions/runs/40501543098).
+- Devnet E2E: **PASS** — [run 40501543096](https://github.com/azad2022/solsite/actions/runs/40501543096).
+- Mainnet Read-only: **PASS** — [run 40501543178](https://github.com/azad2022/solsite/actions/runs/40501543178).
+- Cloudflare Pages preview: **PASS** on commit `aba2c7a5ee0be4e10afd613c46dad5fb7cb544f1`.
+
+Production preflight:
+- Read-only query returned zero existing payout batches with duplicate recipient rows.
+- I did not dispatch the Production Migration workflow. The live change was detected through read-only database queries; its execution origin was not established by the workflow evidence available in this review.
+
+Required release sequence:
+1. Phase A is now confirmed in the live ledger. Capture a post-migration Production API smoke and confirm legacy endpoint compatibility.
+2. After the smoke is green, merge and deploy PR `#348`; run production smoke for batch create, prepared transaction request, signature registration and authoritative verification.
+3. Only after the application deployment and smoke are green, retarget PR `#350` to `main`, merge it and apply Phase B through the same controlled workflow.
+4. Re-run security and runtime smoke checks; replace this pending status with live production evidence.
+
+**Release gate remains open. Do not merge PR #348 until post-migration Production API smoke is green; do not apply Phase B before the application deployment and verification.**

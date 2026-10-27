@@ -5,6 +5,7 @@ import {
 import { resolveAssetFromEnvironment, type SupportedAssetConfig } from '../../../../src/pay/services/assetPolicy';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
 import type { PaymentAsset } from '../../../../src/pay/types/domain';
+import { findDuplicatePayoutRecipient } from '../../../../src/pay/services/bulkPayoutPolicy';
 
 interface PayoutEnv extends PayIdentityEnv {
   PAY_USDC_MINT?: string;
@@ -23,21 +24,27 @@ function asset(value: unknown): value is PaymentAsset {
 }
 function parseItems(value: unknown): PayoutItemInput[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > 50) throw new PayRuntimeError('INVALID_ITEMS',400,'Bulk Pay requires between 1 and 50 payout items.');
-  return value.map((item, index) => {
+  const items = value.map((item, index) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new PayRuntimeError('INVALID_ITEM',400,'Payout item ' + (index + 1) + ' is invalid.');
     const row = item as Record<string, unknown>;
     const recipient = typeof row.recipient === 'string' ? row.recipient.trim() : '';
     const amountAtomic = typeof row.amountAtomic === 'string' ? row.amountAtomic.trim() : '';
     if (!recipient || !amountAtomic || amountAtomic.length > 78 || !/^[0-9]+$/.test(amountAtomic) || BigInt(amountAtomic) <= 0n) throw new PayRuntimeError('INVALID_ITEM',400,'Payout item ' + (index + 1) + ' is invalid.');
-    try { new PublicKey(recipient); } catch { throw new PayRuntimeError('INVALID_RECIPIENT',400,'Payout recipient ' + (index + 1) + ' is not a valid Solana address.'); }
-    return { recipient, amountAtomic };
+    let canonicalRecipient: string;
+    try { canonicalRecipient = new PublicKey(recipient).toBase58(); } catch { throw new PayRuntimeError('INVALID_RECIPIENT',400,'Payout recipient ' + (index + 1) + ' is not a valid Solana address.'); }
+    return { recipient: canonicalRecipient, amountAtomic };
   });
+  if (findDuplicatePayoutRecipient(items.map(item => item.recipient))) {
+    throw new PayRuntimeError('DUPLICATE_RECIPIENT',400,'A recipient may appear only once in a payout batch.');
+  }
+  return items;
 }
 function mapRpcState(state: string | undefined): { code:string; message:string; status:number } | null {
   switch (state) {
     case 'unauthorized': return { code:'UNAUTHORIZED',message:'A valid SolMint session is required.',status:401 };
     case 'forbidden': return { code:'FORBIDDEN',message:'You do not have permission to operate Bulk Pay for this merchant.',status:403 };
     case 'invalid': return { code:'INVALID_REQUEST',message:'Bulk Pay request is invalid.',status:400 };
+    case 'duplicate_recipient': return { code:'DUPLICATE_RECIPIENT',message:'A recipient may appear only once in a payout batch.',status:400 };
     case 'conflict': return { code:'IDEMPOTENCY_CONFLICT',message:'The idempotency key was already used with different request data.',status:409 };
     case 'in_progress': return { code:'REQUEST_IN_PROGRESS',message:'The same Bulk Pay request is already being processed.',status:409 };
     case 'wallet_not_ready': return { code:'MERCHANT_WALLET_NOT_READY',message:'A single active verified receiving wallet is required before Bulk Pay can be used.',status:409 };
