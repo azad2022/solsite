@@ -1287,9 +1287,9 @@ try {
   await publicPage.locator('.pay-public-link-card').waitFor({ state: 'visible', timeout: 10000 });
   const publicLinkText = (await publicPage.locator('.pay-public-link-card').innerText()).replace(/\s+/g, ' ').trim();
   console.log(`PUBLIC_PAYMENT_LINK_RENDER ${JSON.stringify({ amountAtomic: publicLinkApiBody.data.amountAtomic, amountDecimals: publicLinkApiBody.data.amountDecimals, asset: publicLinkApiBody.data.asset, expectedPublicAmount, cardText: publicLinkText.slice(0, 1000) })}`);
-   assert.ok(publicLinkText.includes('You pay'), 'English payment link must use English customer-total copy.');
+   assert.ok(publicLinkText.includes('Total you pay'), 'English payment link must use English customer-total copy.');
    assert.ok(publicLinkText.includes(expectedPublicAmount), `Public payment link must render the authoritative amount as ${expectedPublicAmount}. Body: ${publicLinkText}`);
-   assert.ok(publicLinkText.includes('SolMint fee'), 'Public payment link must expose the authoritative gateway fee.');
+   assert.ok(publicLinkText.includes('Gateway fee'), 'Public payment link must expose the authoritative gateway fee.');
    assert.ok(publicLinkText.includes('Merchant receives'), 'Public payment link must expose the authoritative merchant settlement.');
    assert.equal(/[\u0600-\u06FF]|[\u0400-\u04FF]/.test(publicLinkText), false, 'English payment link UI must not leak Persian, Arabic, or Cyrillic UI text.');
 
