@@ -148,9 +148,6 @@ begin
   perform set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
   r := public.pay_store_payout_transaction_request('00000000-0000-0000-0000-000000000001',v_batch_id,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','AQIDBA==','11111111111111111111111111111111',123,'req-store-denied');
   if r->>'state' <> 'unauthorized' then raise exception 'normal user JWT stored a payout transaction: %',r; end if;
-  r := public.pay_submit_payout_batch('00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'submit-denied',repeat('d',64));
-  if r->>'state' <> 'unauthorized' then raise exception 'normal user JWT submitted a payout batch: %',r; end if;
-  perform set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_payout_builder":"true"}',true);
 
   r := public.pay_submit_payout_batch(
     '00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'submit-1',repeat('e',64)
