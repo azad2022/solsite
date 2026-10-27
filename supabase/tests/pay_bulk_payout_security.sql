@@ -45,6 +45,7 @@ as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}'
 \i supabase/migrations/20261007164348_solmint_pay_bulk_payout.sql
 \i supabase/migrations/20261007173028_solmint_pay_bulk_payout_verifier_hardening.sql
 \i supabase/migrations/20261027143000_solmint_pay_bulk_payout_duplicate_and_transaction_request_safety.sql
+\i supabase/migrations/20261027143100_solmint_pay_bulk_payout_submit_capability_hardening.sql
 
 insert into public.users(id) values ('user-a'),('user-b'),('user-viewer');
 insert into public.pay_merchants(id,status) values
@@ -150,9 +151,15 @@ begin
   if r->>'state' <> 'unauthorized' then raise exception 'normal user JWT stored a payout transaction: %',r; end if;
 
   r := public.pay_submit_payout_batch(
+    '00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'submit-denied',repeat('d',64)
+  );
+  if r->>'state' <> 'unauthorized' then raise exception 'normal user JWT submitted a payout batch: %',r; end if;
+
+  perform set_config('request.jwt.claims','{"solmint_user_id":"user-a","solmint_pay_payout_builder":"true"}',true);
+  r := public.pay_submit_payout_batch(
     '00000000-0000-0000-0000-000000000001',v_batch_id,repeat('A',88),'submit-1',repeat('e',64)
   );
-  if r->>'state' <> 'submitted' then raise exception 'owner submit failed: %',r; end if;
+  if r->>'state' <> 'submitted' then raise exception 'internal builder submit failed: %',r; end if;
 
   perform set_config('request.jwt.claims','{"solmint_user_id":"user-a"}',true);
   r := public.pay_apply_payout_verification(
