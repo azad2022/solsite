@@ -4,13 +4,13 @@ Date: 2026-10-27
 
 ## Status
 
-**APPLICATION DEPLOYED — PHASE A AND PHASE B MIGRATIONS CONFIRMED LIVE — POST-PHASE-B SMOKE AUTOMATION FIX OPEN**
+**PHASE A/B RECORDED LIVE — PR #352 MERGED — POST-PHASE-B API/LIVE SMOKES PASS — FULL BULK PAY LIFECYCLE ACCEPTANCE BLOCKED ON DATABASE INPUT CONTRACT GAPS**
 
 - Phase A schema PR [#349](https://github.com/azad2022/solsite/pull/349), merged as `f028f8a7a05f8c240d5b79ac72d02d23935afa52`.
 - Application PR [#348](https://github.com/azad2022/solsite/pull/348), merged as `39d4f0dd13199a05937af7c39d50588a989c21a3`.
 - Pending-signature recovery PR [#351](https://github.com/azad2022/solsite/pull/351), merged as `0e228bb3553a20d8e345038ff9e71cb93604aea0`.
 - Phase B submit-capability migration PR [#350](https://github.com/azad2022/solsite/pull/350), merged as `38223b14272aab57bf0d1c3ebfe993d9ec054dc0`.
-- Smoke workflow hardening PR [#352](https://github.com/azad2022/solsite/pull/352), open Draft pending CI/build.
+- Smoke workflow hardening PR [#352](https://github.com/azad2022/solsite/pull/352), merged as `d8523ea01c4d4cb7e16f522587b322a300744242` on 2026-10-27.
 
 ## Implementation
 
@@ -48,8 +48,25 @@ For deployed application commit `0e228bb3553a20d8e345038ff9e71cb93604aea0`:
 - Cloudflare Pages: **PASS**.
 - Production Browser UI E2E: **PASS** — [run 40504617153](https://github.com/azad2022/solsite/actions/runs/40504617153), including the dedicated referral lifecycle and authenticated production UI flow.
 
-## Remaining verification
+## Post-merge verification — 2026-10-27
 
-The smoke workflows did not automatically trigger on Bulk Pay SQL migrations. PR #352 adds the migration path filters and waits for positive Cloudflare Pages deployment evidence. Its merge should run Production API Smoke and Live Smoke after deployment. Both must pass to close the post-Phase-B verification gate.
+For current `main` commit `d8523ea01c4d4cb7e16f522587b322a300744242`:
+- CI / Quality and unit tests: **PASS** — [40520417775](https://github.com/azad2022/solsite/actions/runs/40520417775).
+- Production Build: **PASS** — [40520417755](https://github.com/azad2022/solsite/actions/runs/40520417755).
+- Authentication Build Verification: **PASS** — [40520417756](https://github.com/azad2022/solsite/actions/runs/40520417756).
+- Cloudflare Pages deployment: **PASS** — [check 122246331873](https://github.com/azad2022/solsite/runs/122246331873).
+- Production API Smoke: **PASS**** after the exact commit's successful Pages check — [40520417881](https://github.com/azad2022/solsite/actions/runs/40520417881).
+- Live Smoke: **PASS** after the exact commit's successful Pages check — [40520417819](https://github.com/azad2022/solsite/actions/runs/40520417819).
 
-The separate legacy `Workers Builds: solsite` integration is not the Cloudflare Pages production path. No payment completion is inferred from signature submission; backend/blockchain verification remains authoritative.
+Database Security and real Devnet Bulk Pay E2E remain **PASS on the unchanged application/Phase B source commit** `38223b14272aab57bf0d1c3ebfe993d9ec054dc0`: [Database Security 40505975783](https://github.com/azad2022/solsite/actions/runs/40505975783), [Devnet E2E 40505975665](https://github.com/azad2022/solsite/actions/runs/40505975665). They were not re-run on `d8523ea`; this merge changed workflows and documentation, not payout application code.
+
+The post-Phase-B smoke automation gap is **CLOSED / PASS**. The full Bulk Pay production lifecycle is **NOT YET ACCEPTED**: current production API/Live Smoke are non-mutating contract checks and do not run an authenticated payout from batch creation through real submission and final verification. The actual Devnet transaction E2E exercises transaction building, submission and verification logic, but not the entire authenticated production API/database flow.
+
+### Remaining technical blockers
+
+- **BLOCKED — Database input contract:** `pay_create_payout_batch` accepts recipient strings by Base58 alphabet/length rather than fully validating a canonical 32-byte Solana public key. It also accepts an arbitrary non-null `token_mint` for `USDC`/`USDT` when invoked directly via its `authenticated` EXECUTE grant; the public API applies stronger validation/asset configuration, but the RPC itself is independently callable. Add isolated PostgreSQL adversarial tests and harden the trusted boundary before calling this feature fully release-ready.
+- **BLOCKED — SOL amount preparability:** creation accepts up to 78-digit atomic amounts while the transaction builder rejects SOL amounts above `Number.MAX_SAFE_INTEGER`; a batch can be created successfully but later cannot be built. Align create-time validation with the actual builder/asset contract without floating point.
+- **NOT RUN — Authenticated production Bulk Pay lifecycle/browser E2E:** the existing production API Smoke and Live Smoke do not create/sign/verify a payout batch. Do not infer production payout acceptance from their passing results.
+- **UNKNOWN — Phase B migration provenance:** Production ledger records `20261027143100`; the available Actions evidence does not establish which actor/workflow applied it. No migration was run by this audit.
+
+The separate legacy `Workers Builds: solsite` check remains **FAILURE** while Cloudflare Pages is **PASS**; the repository is deployed through Pages and this old Worker integration is not the Pages deployment. No payment completion is inferred from a submitted signature; backend/database/finalized-blockchain verification remains authoritative.
