@@ -24,7 +24,8 @@ env:
   # Supavisor session-mode endpoint keeps production migration CI on IPv4-capable
   # infrastructure without requiring Supabase Management API access. The region
   # matches the current production project metadata (eu-central-1).
-  SUPABASE_DB_URL: postgresql://postgres.nvopkbiedorfshwbmyhn@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
+  # Use the connection URI stored from Supabase Dashboard → Connect; do not synthesize a pooler hostname.
+  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
   SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
 jobs:
@@ -47,11 +48,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -z "$SUPABASE_DB_URL" ]]; then
+            echo "ERROR: required GitHub Actions secret SUPABASE_DB_URL is missing or empty."
+            exit 1
+          fi
           if [[ -z "$SUPABASE_DB_PASSWORD" ]]; then
             echo "ERROR: required GitHub Actions secret SUPABASE_DB_PASSWORD is missing or empty."
             exit 1
           fi
-          echo "Production migration database credentials are present (values are not printed)."
+          node --input-type=module <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL;
+          let uri;
+          try {
+            uri = new URL(raw);
+          } catch {
+            console.error('ERROR: SUPABASE_DB_URL is not a valid PostgreSQL connection URI.');
+            process.exit(1);
+          }
+          if (!['postgres:', 'postgresql:'].includes(uri.protocol) || !uri.hostname || !uri.username || !uri.pathname || uri.pathname === '/') {
+            console.error('ERROR: SUPABASE_DB_URL must be a PostgreSQL URI with host, username, and database path.');
+            process.exit(1);
+          }
+          console.log(
+            'PostgreSQL connection URI validated: ' +
+            'host=' + uri.hostname +
+            ', port=' + (uri.port || '5432') +
+            ', embedded_password=' + (uri.password.length > 0 ? 'yes' : 'no')
+          );
+          NODE
+          echo "Production migration credential sources are present (values are not printed)."
 
       - name: Preview pending migrations
         env:
