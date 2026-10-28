@@ -95,11 +95,11 @@ test('Payment Link upgrade contract stores redirect/capacity/field snapshots and
   }
   assert.match(upgrade, /pay_validate_payment_link_checkout_fields/);
   assert.match(upgrade, /pay_normalize_payment_link_checkout_field_values/);
-  assert.match(upgrade, /select \\* into v_link[\\s\\S]*for update/i);
-  assert.match(upgrade, /v_link\\.max_payments[\\s\\S]*capacity_reached/i);
-  assert.match(upgrade, /payment_link_success_url = v_link\\.success_url/);
+  assert.match(upgrade, /select \* into v_link[\s\S]*for update/i);
+  assert.match(upgrade, /v_link\.max_payments[\s\S]*capacity_reached/i);
+  assert.match(upgrade, /payment_link_success_url = v_link\.success_url/);
   assert.match(upgrade, /customer_custom_fields = v_custom_values/);
-  assert.match(upgrade, /grant execute on function public\\.pay_create_payment_intent_from_link[\\s\\S]*to service_role/i);
+  assert.match(upgrade, /grant execute on function public\.pay_create_payment_intent_from_link[\s\S]*to service_role/i);
   assert.match(publicRoute, /p_customer_custom_fields: customFields/);
   assert.match(publicRoute, /PAYMENT_LINK_CAPACITY_REACHED/);
   assert.match(route, /p_success_url: successUrl/);
