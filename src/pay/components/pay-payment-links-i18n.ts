@@ -20,7 +20,7 @@ const messages = {
     hasPayments:'این لینک سابقه پرداخت دارد و قابل حذف نیست؛ آن را غیرفعال کنید.', deleteForbidden:'برای حذف این لینک دسترسی ندارید.',
     deleteFailed:'حذف لینک انجام نشد؛ دوباره تلاش کنید.', deactivate:'غیرفعال کردن لینک',
     publicUrl:'آدرس عمومی', autoLocale:'خودکار', merchantPayer:'پذیرنده', customerPayer:'مشتری',
-    successUrl:'آدرس هدایت پس از پرداخت', successUrlHint:'فقط HTTPS مجاز است؛ هدایت تنها پس از وضعیت نهایی completed انجام می‌شود.', maxPayments:'سقف تعداد پرداخت‌ها', maxPaymentsHint:'خالی = نامحدود. پرداخت‌های تکمیل‌شده و درخواست‌های فعالِ منقضی‌نشده ظرفیت را اشغال می‌کنند.', checkoutFields:'فیلدهای سفارشی Checkout', addCheckoutField:'افزودن فیلد', removeField:'حذف فیلد', fieldKey:'کلید فیلد', fieldLabel:'عنوان نمایشی', fieldType:'نوع فیلد', fieldRequired:'اجباری', fieldTypeText:'متن کوتاه', fieldTypeEmail:'ایمیل', fieldTypeTextarea:'متن بلند',
+    unlimited:'نامحدود', noCustomFields:'فیلد سفارشی تعریف نشده است.', successUrl:'آدرس هدایت پس از پرداخت', successUrlHint:'فقط HTTPS مجاز است؛ هدایت تنها پس از وضعیت نهایی completed انجام می‌شود.', maxPayments:'سقف تعداد پرداخت‌ها', maxPaymentsHint:'خالی = نامحدود. پرداخت‌های تکمیل‌شده و درخواست‌های فعالِ منقضی‌نشده ظرفیت را اشغال می‌کنند.', checkoutFields:'فیلدهای سفارشی Checkout', addCheckoutField:'افزودن فیلد', removeField:'حذف فیلد', fieldKey:'کلید فیلد', fieldLabel:'عنوان نمایشی', fieldType:'نوع فیلد', fieldRequired:'اجباری', fieldTypeText:'متن کوتاه', fieldTypeEmail:'ایمیل', fieldTypeTextarea:'متن بلند',
   },
   'en-US': {
     title:'Payment Links', subtitle:'Payment links for this merchant.', refresh:'Refresh',
@@ -41,7 +41,7 @@ const messages = {
     hasPayments:'This link has payment history and cannot be deleted. Deactivate it instead.', deleteForbidden:'You cannot delete this payment link.',
     deleteFailed:'Payment link could not be deleted. Retry.', deactivate:'Deactivate link',
     publicUrl:'Public URL', autoLocale:'Auto', merchantPayer:'Merchant', customerPayer:'Customer',
-    successUrl:'Post-payment redirect URL', successUrlHint:'HTTPS only. Redirect happens only after the authoritative completed status.', maxPayments:'Payment limit', maxPaymentsHint:'Leave blank for unlimited. Completed payments and unexpired active checkouts reserve capacity.', checkoutFields:'Custom Checkout fields', addCheckoutField:'Add field', removeField:'Remove field', fieldKey:'Field key', fieldLabel:'Display label', fieldType:'Field type', fieldRequired:'Required', fieldTypeText:'Short text', fieldTypeEmail:'Email', fieldTypeTextarea:'Long text',
+    unlimited:'Unlimited', noCustomFields:'No custom Checkout fields configured.', successUrl:'Post-payment redirect URL', successUrlHint:'HTTPS only. Redirect happens only after the authoritative completed status.', maxPayments:'Payment limit', maxPaymentsHint:'Leave blank for unlimited. Completed payments and unexpired active checkouts reserve capacity.', checkoutFields:'Custom Checkout fields', addCheckoutField:'Add field', removeField:'Remove field', fieldKey:'Field key', fieldLabel:'Display label', fieldType:'Field type', fieldRequired:'Required', fieldTypeText:'Short text', fieldTypeEmail:'Email', fieldTypeTextarea:'Long text',
   },
   ar: {
     title:'روابط الدفع', subtitle:'روابط الدفع لهذا التاجر.', refresh:'تحديث',
@@ -62,7 +62,7 @@ const messages = {
     hasPayments:'هذا الرابط لديه سجل مدفوعات ولا يمكن حذفه. عطّله بدلًا من ذلك.', deleteForbidden:'لا تملك صلاحية حذف رابط الدفع هذا.',
     deleteFailed:'تعذر حذف رابط الدفع. أعد المحاولة.', deactivate:'تعطيل الرابط',
     publicUrl:'الرابط العام', autoLocale:'تلقائي', merchantPayer:'التاجر', customerPayer:'العميل',
-    successUrl:'رابط إعادة التوجيه بعد الدفع', successUrlHint:'يُقبل HTTPS فقط؛ لا تتم إعادة التوجيه إلا بعد الحالة النهائية completed.', maxPayments:'حدّ عدد المدفوعات', maxPaymentsHint:'اتركه فارغًا لغير المحدود. تُحتسب المدفوعات المكتملة وعمليات الدفع النشطة غير المنتهية ضمن السعة.', checkoutFields:'حقول Checkout مخصصة', addCheckoutField:'إضافة حقل', removeField:'حذف الحقل', fieldKey:'مفتاح الحقل', fieldLabel:'التسمية الظاهرة', fieldType:'نوع الحقل', fieldRequired:'مطلوب', fieldTypeText:'نص قصير', fieldTypeEmail:'بريد إلكتروني', fieldTypeTextarea:'نص طويل',
+    unlimited:'غير محدود', noCustomFields:'لم يتم إعداد حقول Checkout مخصصة.', successUrl:'رابط إعادة التوجيه بعد الدفع', successUrlHint:'يُقبل HTTPS فقط؛ لا تتم إعادة التوجيه إلا بعد الحالة النهائية completed.', maxPayments:'حدّ عدد المدفوعات', maxPaymentsHint:'اتركه فارغًا لغير المحدود. تُحتسب المدفوعات المكتملة وعمليات الدفع النشطة غير المنتهية ضمن السعة.', checkoutFields:'حقول Checkout مخصصة', addCheckoutField:'إضافة حقل', removeField:'حذف الحقل', fieldKey:'مفتاح الحقل', fieldLabel:'التسمية الظاهرة', fieldType:'نوع الحقل', fieldRequired:'مطلوب', fieldTypeText:'نص قصير', fieldTypeEmail:'بريد إلكتروني', fieldTypeTextarea:'نص طويل',
   },
   ru: {
     title:'Платёжные ссылки', subtitle:'Платёжные ссылки этого мерчанта.', refresh:'Обновить',
@@ -83,7 +83,7 @@ const messages = {
     hasPayments:'У ссылки есть история платежей, поэтому удалить её нельзя. Вместо этого деактивируйте её.', deleteForbidden:'У вас нет права удалить эту платёжную ссылку.',
     deleteFailed:'Не удалось удалить платёжную ссылку. Повторите попытку.', deactivate:'Деактивировать ссылку',
     publicUrl:'Публичный URL', autoLocale:'Авто', merchantPayer:'Мерчант', customerPayer:'Клиент',
-    successUrl:'URL перенаправления после оплаты', successUrlHint:'Только HTTPS. Перенаправление выполняется лишь после авторитетного статуса completed.', maxPayments:'Лимит платежей', maxPaymentsHint:'Оставьте пустым для отсутствия лимита. Учитываются завершённые платежи и активные незавершённые оформления до истечения срока.', checkoutFields:'Пользовательские поля Checkout', addCheckoutField:'Добавить поле', removeField:'Удалить поле', fieldKey:'Ключ поля', fieldLabel:'Отображаемая подпись', fieldType:'Тип поля', fieldRequired:'Обязательное', fieldTypeText:'Короткий текст', fieldTypeEmail:'Электронная почта', fieldTypeTextarea:'Длинный текст',
+    unlimited:'Без ограничений', noCustomFields:'Пользовательские поля Checkout не настроены.', successUrl:'URL перенаправления после оплаты', successUrlHint:'Только HTTPS. Перенаправление выполняется лишь после авторитетного статуса completed.', maxPayments:'Лимит платежей', maxPaymentsHint:'Оставьте пустым для отсутствия лимита. Учитываются завершённые платежи и активные незавершённые оформления до истечения срока.', checkoutFields:'Пользовательские поля Checkout', addCheckoutField:'Добавить поле', removeField:'Удалить поле', fieldKey:'Ключ поля', fieldLabel:'Отображаемая подпись', fieldType:'Тип поля', fieldRequired:'Обязательное', fieldTypeText:'Короткий текст', fieldTypeEmail:'Электронная почта', fieldTypeTextarea:'Длинный текст',
   },
 } as const;
 
