@@ -234,7 +234,7 @@ insert into public.pay_payment_events (
   '2026-10-28T00:02:00Z'::timestamptz
 );
 
-do $
+do $$
 declare
   v_payload jsonb;
   v_function_definer boolean;
