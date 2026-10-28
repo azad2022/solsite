@@ -125,6 +125,24 @@ jobs:
           PGDATABASE: pay_payment_link_security
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_payment_link_mutation_security.sql
 
+      - name: Create isolated webhook payload security database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: createdb pay_webhook_payload_security
+
+      - name: Run Pay webhook payload enrichment security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_webhook_payload_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_webhook_payload_enrichment_security.sql
+
       - name: Create isolated API-key security database
         env:
           PGHOST: 127.0.0.1
