@@ -1,6 +1,7 @@
 import { PayRuntimeError, assertIdempotencyKey, calculateSnapshot, enforcePayRateLimit, hashCanonicalRequest, makePayRequestId, payFeatureEnabled, payJson, readJsonBody } from '../_shared/runtime';
 import { resolvePayIdentity, supabaseRequestAsIdentity, type PayIdentityEnv } from '../_shared/identity';
 import { resolveAssetFromEnvironment } from '../../../../src/pay/services/assetPolicy';
+import { normalizePaymentLinkSuccessUrl, parsePaymentLinkCheckoutFields, parsePaymentLinkMaxPayments } from '../../../../src/pay/services/paymentLinkExtras';
 
 interface PayEnv extends PayIdentityEnv {
   PAY_API_ENABLED?: string;
@@ -14,7 +15,7 @@ interface PayEnv extends PayIdentityEnv {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SELECT = [
   'id','merchant_id','slug','title','description','fixed_amount_atomic::text','asset','fee_payer',
-  'checkout_locale','is_active','expires_at','created_at','updated_at',
+  'checkout_locale','is_active','expires_at','created_at','updated_at','success_url','max_payments','checkout_fields',
 ].join(',');
 
 function safeLimit(value: string | null): number {
@@ -108,6 +109,16 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     const feePayer = body.feePayer;
     const checkoutLocale = body.checkoutLocale === undefined ? 'auto' : body.checkoutLocale;
     const expiresAt = body.expiresAt === undefined || body.expiresAt === null || body.expiresAt === '' ? null : body.expiresAt;
+    let successUrl: string | null;
+    let maxPayments: number | null;
+    let checkoutFields: ReturnType<typeof parsePaymentLinkCheckoutFields>;
+    try {
+      successUrl = normalizePaymentLinkSuccessUrl(body.successUrl);
+      maxPayments = parsePaymentLinkMaxPayments(body.maxPayments);
+      checkoutFields = parsePaymentLinkCheckoutFields(body.checkoutFields ?? []);
+    } catch {
+      return payJson({ code: 'INVALID_PAYMENT_LINK_INPUT', message: 'Payment Link settings are invalid.' }, 400, requestId);
+    }
 
     if (!UUID.test(merchantId)) return payJson({ code: 'MERCHANT_ID_INVALID', message: 'Merchant ID is invalid.' }, 400, requestId);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120) return payJson({ code: 'PAYMENT_LINK_SLUG_INVALID', message: 'Payment link slug is invalid.' }, 400, requestId);
@@ -137,6 +148,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
 
     const requestHash = await hashCanonicalRequest({
       merchantId, slug, title, description, fixedAmountAtomic: amountAtomic, asset, feePayer, checkoutLocale, expiresAt: normalizedExpiresAt,
+      successUrl, maxPayments, checkoutFields,
     });
     const idempotencyKey = await assertIdempotencyKey(request);
     const identitySubject = await hashCanonicalRequest({ userId: identity.user.applicationUserId });
@@ -149,6 +161,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         p_merchant_id: merchantId, p_slug: slug, p_title: title, p_description: description,
         p_fixed_amount_atomic: amountAtomic, p_asset: asset, p_fee_payer: feePayer, p_checkout_locale: checkoutLocale,
         p_expires_at: normalizedExpiresAt, p_idempotency_key: idempotencyKey, p_request_hash: requestHash,
+        p_success_url: successUrl, p_max_payments: maxPayments, p_checkout_fields: checkoutFields,
       }),
     });
     const result = await response.json() as { state?: string; response_status?: number; response_body?: unknown };
@@ -203,6 +216,16 @@ function parseMutationInput(body: Record<string, unknown>) {
   const feePayer = body.feePayer;
   const checkoutLocale = body.checkoutLocale;
   const isActive = body.isActive;
+  let successUrl: string | null;
+  let maxPayments: number | null;
+  let checkoutFields: ReturnType<typeof parsePaymentLinkCheckoutFields>;
+  try {
+    successUrl = normalizePaymentLinkSuccessUrl(body.successUrl);
+    maxPayments = parsePaymentLinkMaxPayments(body.maxPayments);
+    checkoutFields = parsePaymentLinkCheckoutFields(body.checkoutFields ?? []);
+  } catch {
+    throw new PayRuntimeError('INVALID_PAYMENT_LINK_INPUT', 400, 'Payment Link settings are invalid.');
+  }
   let expiresAt: string | null = null;
   if (body.expiresAt !== null && body.expiresAt !== undefined && body.expiresAt !== '') {
     if (typeof body.expiresAt !== 'string' || Number.isNaN(Date.parse(body.expiresAt))) throw new PayRuntimeError('INVALID_PAYMENT_LINK_EXPIRY', 400, 'Payment link expiry is invalid.');
@@ -219,7 +242,7 @@ function parseMutationInput(body: Record<string, unknown>) {
   if (typeof checkoutLocale !== 'string' || !MUTATION_LOCALES.has(checkoutLocale)) throw new PayRuntimeError('INVALID_PAYMENT_LINK_INPUT', 400, 'Payment link locale is invalid.');
   if (typeof isActive !== 'boolean') throw new PayRuntimeError('INVALID_PAYMENT_LINK_INPUT', 400, 'Payment link active state is invalid.');
   if (isActive && expiresAt && Date.parse(expiresAt) <= Date.now()) throw new PayRuntimeError('INVALID_PAYMENT_LINK_EXPIRY', 400, 'An active payment link cannot already be expired.');
-  return { slug, title, description, fixedAmountAtomic, asset, feePayer, checkoutLocale, isActive, expiresAt };
+  return { slug, title, description, fixedAmountAtomic, asset, feePayer, checkoutLocale, isActive, expiresAt, successUrl, maxPayments, checkoutFields };
 }
 
 export const onRequestPatch = async ({ request, env }: { request: Request; env: PayEnv }) => {
@@ -259,6 +282,7 @@ export const onRequestPatch = async ({ request, env }: { request: Request; env: 
         p_description: input.description, p_fixed_amount_atomic: input.fixedAmountAtomic, p_asset: input.asset,
         p_fee_payer: input.feePayer, p_checkout_locale: input.checkoutLocale, p_is_active: input.isActive,
         p_expires_at: input.expiresAt, p_idempotency_key: idempotencyKey, p_request_hash: requestHash,
+         p_success_url: input.successUrl, p_max_payments: input.maxPayments, p_checkout_fields: input.checkoutFields,
       }),
     });
     const result = await rpcResponse.json() as { state?: string; response_status?: number; response_body?: unknown };
