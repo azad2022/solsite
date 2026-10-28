@@ -69,6 +69,10 @@ CREATE TABLE public.pay_idempotency_keys (
   UNIQUE (merchant_id,scope,idempotency_key)
 );
 
+GRANT ALL ON public.users, public.pay_merchants, public.pay_merchant_members,
+  public.pay_payment_links, public.pay_payment_intents, public.pay_idempotency_keys
+  TO service_role;
+
 CREATE OR REPLACE FUNCTION public.pay_request_user_id()
 RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
 AS $request_user$
