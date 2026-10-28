@@ -91,7 +91,7 @@ test('OpenAPI documents the released Payment Link mutation surface', () => {
 
 test('Payment Link upgrade contract stores redirect/capacity/field snapshots and enforces capacity under lock', () => {
   for (const column of ['success_url','max_payments','checkout_fields','payment_link_success_url','payment_link_checkout_fields','customer_custom_fields']) {
-    assert.match(upgrade, new RegExp('add column if not exists ' + column));
+    assert.match(upgrade, new RegExp('add column if not exists ' + column, 'i'));
   }
   assert.match(upgrade, /pay_validate_payment_link_checkout_fields/);
   assert.match(upgrade, /pay_normalize_payment_link_checkout_field_values/);

@@ -57,7 +57,7 @@ test('Payment Link redirect is gated on authoritative completion and custom Chec
   assert.match(ui, /CheckoutFieldsEditor/);
   assert.match(publicLinkUi, /sanitizePaymentLinkCheckoutFieldValues/);
   assert.match(publicLinkUi, /capacityReached/);
-  assert.match(publicLinkUi, /createFromPublic\\(slug, customer, crypto\\.randomUUID\\(\\), link\\.checkoutFields\\)/);
+  assert.match(publicLinkUi, /createFromPublic\(slug, customer, crypto\.randomUUID\(\), link\.checkoutFields\)/);
   assert.match(checkoutUi, /intent\\.status !== 'completed'/);
   assert.match(checkoutUi, /window\\.location\\.assign\\(intent\\.successRedirectUrl\\)/);
   assert.doesNotMatch(checkoutUi, /successRedirectUrl[\\s\\S]{0,120}status === 'confirmed'/);
