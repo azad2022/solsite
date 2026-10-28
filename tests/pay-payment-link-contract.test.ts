@@ -6,6 +6,7 @@ const route = readFileSync('functions/api/pay/v1/payment-links.ts', 'utf8');
 const publicRoute = readFileSync('functions/api/pay/v1/payment-links/[slug].ts', 'utf8');
 const migration = readFileSync('supabase/migrations/20260927134700_solmint_pay_payment_link_end_to_end.sql', 'utf8');
 const mutations = readFileSync('supabase/migrations/20260927150000_solmint_pay_payment_link_mutations.sql', 'utf8');
+const upgrade = readFileSync('supabase/migrations/20261028101500_solmint_pay_payment_link_upgrade_stages_2_3.sql', 'utf8');
 const openapi = JSON.parse(readFileSync('public/openapi.json', 'utf8'));
 
 test('Payment Link merchant route exposes the real DB fields and creation mutation', () => {
@@ -86,4 +87,22 @@ test('OpenAPI documents the released Payment Link mutation surface', () => {
   assert.equal(paymentLinks?.delete?.operationId, 'deletePayPaymentLink');
   assert.match(String(paymentLinks?.patch?.description || ''), /Historical Payment Intent snapshots remain unchanged/);
   assert.match(String(paymentLinks?.delete?.description || ''), /deactivate/);
+});
+
+test('Payment Link upgrade contract stores redirect/capacity/field snapshots and enforces capacity under lock', () => {
+  for (const column of ['success_url','max_payments','checkout_fields','payment_link_success_url','payment_link_checkout_fields','customer_custom_fields']) {
+    assert.match(upgrade, new RegExp('add column if not exists ' + column));
+  }
+  assert.match(upgrade, /pay_validate_payment_link_checkout_fields/);
+  assert.match(upgrade, /pay_normalize_payment_link_checkout_field_values/);
+  assert.match(upgrade, /select \\* into v_link[\\s\\S]*for update/i);
+  assert.match(upgrade, /v_link\\.max_payments[\\s\\S]*capacity_reached/i);
+  assert.match(upgrade, /payment_link_success_url = v_link\\.success_url/);
+  assert.match(upgrade, /customer_custom_fields = v_custom_values/);
+  assert.match(upgrade, /grant execute on function public\\.pay_create_payment_intent_from_link[\\s\\S]*to service_role/i);
+  assert.match(publicRoute, /p_customer_custom_fields: customFields/);
+  assert.match(publicRoute, /PAYMENT_LINK_CAPACITY_REACHED/);
+  assert.match(route, /p_success_url: successUrl/);
+  assert.match(route, /p_max_payments: maxPayments/);
+  assert.match(route, /p_checkout_fields: checkoutFields/);
 });
