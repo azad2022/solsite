@@ -362,6 +362,6 @@ begin
     or position('CANARY_' in v_payload::text) > 0 then
     raise exception 'merchant metadata must not masquerade as an authoritative Payment Link snapshot: %', v_payload;
   end if;
-end $;
+end $$;
 
 rollback;
