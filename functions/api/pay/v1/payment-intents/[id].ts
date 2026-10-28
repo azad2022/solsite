@@ -1,4 +1,5 @@
 import { error, handleOptions, json, supabaseSecret } from '../../../v1/_shared';
+import { normalizePaymentLinkSuccessUrl } from '../../../../../src/pay/services/paymentLinkExtras';
 
 type Env = {
   SUPABASE_URL?: string;
@@ -29,6 +30,7 @@ type PaymentIntentRow = {
   network: string;
   verification_commitment: string;
   payment_link_id: string | null;
+  payment_link_success_url: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -51,7 +53,7 @@ const PAYMENT_INTENT_SELECT = [
   'id', 'merchant_id', 'amount_atomic', 'asset', 'token_mint', 'token_program',
   'token_decimals', 'recipient', 'reference', 'fee_bps', 'fee_payer', 'fee_atomic',
   'fee_recipient', 'gas_sponsored', 'status', 'expires_at', 'customer_total_atomic',
-  'merchant_net_atomic', 'merchant_settlement_atomic', 'network', 'verification_commitment', 'payment_link_id', 'metadata'
+  'merchant_net_atomic', 'merchant_settlement_atomic', 'network', 'verification_commitment', 'payment_link_id', 'payment_link_success_url', 'metadata'
 ].join(',');
 
 async function supabaseGet<T>(base: string, headers: Record<string, string>, query: string): Promise<T[]> {
@@ -88,6 +90,9 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const merchant = merchantRows[0];
     if (!merchant || merchant.status !== 'active') return error(request, 'MERCHANT_UNAVAILABLE', 'Merchant is not available for checkout.', 404);
 
+    const successRedirectUrl = payment.payment_link_id && payment.payment_link_success_url !== null
+      ? normalizePaymentLinkSuccessUrl(payment.payment_link_success_url)
+      : null;
     const metadata = payment.metadata && typeof payment.metadata === 'object' && !Array.isArray(payment.metadata) ? payment.metadata : {};
     const snapshotLocale = metadata.paymentLinkCheckoutLocale === 'fa-IR' || metadata.paymentLinkCheckoutLocale === 'en-US' || metadata.paymentLinkCheckoutLocale === 'ar' || metadata.paymentLinkCheckoutLocale === 'ru' || metadata.paymentLinkCheckoutLocale === 'auto'
       ? metadata.paymentLinkCheckoutLocale
@@ -133,6 +138,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
         checkoutLocale: snapshotLocale ?? paymentLink?.checkout_locale ?? null,
         paymentLinkTitle: snapshotTitle ?? paymentLink?.title ?? null,
         paymentLinkDescription: snapshotDescription ?? paymentLink?.description ?? null,
+        successRedirectUrl,
       }
     }, 200, 'no-store');
   } catch (cause) {
