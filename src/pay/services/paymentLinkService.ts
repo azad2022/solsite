@@ -146,7 +146,7 @@ function parseLink(value: unknown): PayPaymentLink {
     amount_decimals: amountDecimals,
     success_url: row.success_url === null ? null : normalizePaymentLinkSuccessUrl(row.success_url),
     max_payments: parsePaymentLinkMaxPayments(row.max_payments),
-    checkout_fields: parsePaymentLinkCheckoutFields(row.checkout_fields),
+    checkout_fields: parsePaymentLinkCheckoutFields(row.checkout_fields ?? []),
   };
 }
 
