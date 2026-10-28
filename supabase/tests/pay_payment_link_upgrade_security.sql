@@ -243,8 +243,7 @@ BEGIN
     1000000,'USDC',NULL,NULL,NULL,'recipient','reference-1',100,'merchant',
     10000,1000000,990000,'fee-recipient','solana',now()+interval '10 minutes',
     '{}'::jsonb,'intent-upgrade-1',repeat('b',64),'payment-intents:link',
-    'Ali','Ahmadi','Order',' 
-    '::jsonb
+    'Ali','Ahmadi','Order',v_values
   );
   IF v->>'state' <> 'created' THEN RAISE EXCEPTION 'first intent create failed: %',v; END IF;
   v_id := (v->>'resource_id')::uuid;
@@ -262,3 +261,135 @@ BEGIN
 END;
 $first_intent$;
 COMMIT;
+
+
+-- After an update, existing Payment Intents retain their snapshots; new intents must
+-- satisfy the new field schema, and the locked capacity counts active reservations.
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims','{"solmint_user_id":"upgrade-owner"}',true);
+DO $update_link$
+DECLARE
+  v_link_id uuid;
+  v_result jsonb;
+  v_new_fields jsonb := '[{"key":"purchase_ref","label":"Purchase reference","type":"text","required":true}]'::jsonb;
+BEGIN
+  SELECT id INTO v_link_id FROM public.pay_payment_links WHERE slug='upgrade-link';
+  v_result := public.pay_update_payment_link(
+    v_link_id,'00000000-0000-0000-0000-000000000001',
+    'upgrade-link','Upgrade test revised','new description',1000000,'USDC','merchant','en-US',
+    true,NULL,'update-upgrade-1',repeat('c',64),
+    'https://merchant.example/paid-v2',2,v_new_fields
+  );
+  IF v_result->>'state' <> 'updated' THEN RAISE EXCEPTION 'configured link update failed: %',v_result; END IF;
+  IF v_result->'response_body'->'data'->>'success_url' <> 'https://merchant.example/paid-v2'
+     OR v_result->'response_body'->'data'->>'max_payments' <> '2'
+     OR v_result->'response_body'->'data'->'checkout_fields' <> v_new_fields THEN
+    RAISE EXCEPTION 'configured update settings missing from response: %',v_result;
+  END IF;
+END;
+$update_link$;
+COMMIT;
+
+DO $immutable_snapshot$
+BEGIN
+  IF (SELECT payment_link_success_url FROM public.pay_payment_intents ORDER BY created_at NULLS FIRST LIMIT 1) <> 'https://merchant.example/paid' THEN
+    RAISE EXCEPTION 'changing the Payment Link mutated a historical success redirect snapshot';
+  END IF;
+  IF (SELECT payment_link_checkout_fields FROM public.pay_payment_intents ORDER BY id LIMIT 1)
+     <> '[{"key":"order_id","label":"Order ID","type":"text","required":true},{"key":"email","label":"Receipt email","type":"email","required":false}]'::jsonb THEN
+    RAISE EXCEPTION 'changing the Payment Link mutated historical field definitions';
+  END IF;
+  IF (SELECT customer_custom_fields FROM public.pay_payment_intents ORDER BY id LIMIT 1)
+     <> '{"order_id":"ORDER-001","email":"customer@example.com"}'::jsonb THEN
+    RAISE EXCEPTION 'historical custom field values changed';
+  END IF;
+END;
+$immutable_snapshot$;
+
+-- New field schema is checked server-side, not just in the browser.
+BEGIN;
+SET LOCAL ROLE service_role;
+DO $new_field_intents$
+DECLARE
+  v_link_id uuid;
+  v_result jsonb;
+  v_second_id uuid;
+  v_replay jsonb;
+  v_blocked jsonb;
+BEGIN
+  SELECT id INTO v_link_id FROM public.pay_payment_links WHERE slug='upgrade-link';
+
+  v_result := public.pay_create_payment_intent_from_link(
+    v_link_id,'00000000-0000-0000-0000-000000000001',1000000,'USDC',NULL,NULL,NULL,
+    'recipient','reference-missing',100,'merchant',10000,1000000,990000,'fee-recipient',
+    'solana',now()+interval '10 minutes','{}'::jsonb,'intent-missing-field',repeat('d',64),
+    'payment-intents:link','Ali','Ahmadi','Order','{}'::jsonb
+  );
+  IF v_result->>'state' <> 'invalid_custom_fields' THEN
+    RAISE EXCEPTION 'missing required custom field was not rejected: %',v_result;
+  END IF;
+
+  v_result := public.pay_create_payment_intent_from_link(
+    v_link_id,'00000000-0000-0000-0000-000000000001',1000000,'USDC',NULL,NULL,NULL,
+    'recipient','reference-2',100,'merchant',10000,1000000,990000,'fee-recipient',
+    'solana',now()+interval '10 minutes','{}'::jsonb,'intent-upgrade-2',repeat('e',64),
+    'payment-intents:link','Ali','Ahmadi','Order','{"purchase_ref":"PO-002"}'::jsonb
+  );
+  IF v_result->>'state' <> 'created' THEN RAISE EXCEPTION 'second capped intent failed: %',v_result; END IF;
+  v_second_id := (v_result->>'resource_id')::uuid;
+
+  v_replay := public.pay_create_payment_intent_from_link(
+    v_link_id,'00000000-0000-0000-0000-000000000001',1000000,'USDC',NULL,NULL,NULL,
+    'recipient','reference-2',100,'merchant',10000,1000000,990000,'fee-recipient',
+    'solana',now()+interval '10 minutes','{}'::jsonb,'intent-upgrade-2',repeat('e',64),
+    'payment-intents:link','Ali','Ahmadi','Order','{"purchase_ref":"PO-002"}'::jsonb
+  );
+  IF v_replay->>'state' <> 'replay' OR (SELECT count(*) FROM public.pay_payment_intents WHERE payment_link_id=v_link_id) <> 2 THEN
+    RAISE EXCEPTION 'idempotent replay was blocked by capacity or created a duplicate: %',v_replay;
+  END IF;
+
+  v_blocked := public.pay_create_payment_intent_from_link(
+    v_link_id,'00000000-0000-0000-0000-000000000001',1000000,'USDC',NULL,NULL,NULL,
+    'recipient','reference-3',100,'merchant',10000,1000000,990000,'fee-recipient',
+    'solana',now()+interval '10 minutes','{}'::jsonb,'intent-upgrade-3',repeat('f',64),
+    'payment-intents:link','Ali','Ahmadi','Order','{"purchase_ref":"PO-003"}'::jsonb
+  );
+  IF v_blocked->>'state' <> 'capacity_reached' THEN
+    RAISE EXCEPTION 'payment capacity was not enforced after two active intents: %',v_blocked;
+  END IF;
+
+  -- Expired/failed reservations do not permanently consume a slot.
+  UPDATE public.pay_payment_intents SET status='expired',expires_at=now()-interval '1 second'
+   WHERE id=(SELECT id FROM public.pay_payment_intents WHERE payment_link_id=v_link_id AND id<>v_second_id ORDER BY id LIMIT 1);
+  v_result := public.pay_create_payment_intent_from_link(
+    v_link_id,'00000000-0000-0000-0000-000000000001',1000000,'USDC',NULL,NULL,NULL,
+    'recipient','reference-4',100,'merchant',10000,1000000,990000,'fee-recipient',
+    'solana',now()+interval '10 minutes','{}'::jsonb,'intent-upgrade-4',repeat('1',64),
+    'payment-intents:link','Ali','Ahmadi','Order','{"purchase_ref":"PO-004"}'::jsonb
+  );
+  IF v_result->>'state' <> 'created' THEN RAISE EXCEPTION 'expired reservation did not release capacity: %',v_result; END IF;
+END;
+$new_field_intents$;
+COMMIT;
+
+DO $constraints$
+BEGIN
+  IF public.pay_validate_payment_link_checkout_fields('[{"key":"dup","label":"One","type":"text","required":false},{"key":"dup","label":"Two","type":"text","required":false}]'::jsonb) THEN
+    RAISE EXCEPTION 'duplicate Checkout field keys were accepted';
+  END IF;
+  IF public.pay_validate_payment_link_checkout_fields('[{"key":"bad-key","label":"Bad","type":"text","required":false}]'::jsonb) THEN
+    RAISE EXCEPTION 'invalid Checkout field key was accepted';
+  END IF;
+  IF public.pay_validate_payment_link_checkout_fields(('[{"key":"f1","label":"1","type":"text","required":false},{"key":"f2","label":"2","type":"text","required":false},{"key":"f3","label":"3","type":"text","required":false},{"key":"f4","label":"4","type":"text","required":false},{"key":"f5","label":"5","type":"text","required":false},{"key":"f6","label":"6","type":"text","required":false}]')::jsonb) THEN
+    RAISE EXCEPTION 'more than five Checkout fields were accepted';
+  END IF;
+  IF has_function_privilege('authenticated',
+    'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,jsonb)',
+    'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated can invoke the service-role-only Payment Intent creator';
+  END IF;
+END;
+$constraints$;
+
+SELECT 'pay_payment_link_upgrade_security_ok' AS result;
