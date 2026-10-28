@@ -102,7 +102,7 @@ async function readPaymentLinkUsage(env: PayEnv, paymentLinkId: string): Promise
         + '&or=(status.eq.completed,expires_at.gt.' + now + ')&limit=1',
       { headers: { Accept: 'application/json', Prefer: 'count=exact', Range: '0-0' } },
     );
-    const match = /\\/(\\d+)$/.exec(response.headers.get('content-range') || '');
+    const match = /\/(\d+)$/.exec(response.headers.get('content-range') || '');
     return match ? Number(match[1]) : null;
   } catch {
     return null;
@@ -118,7 +118,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const link = await readLink(env, slug);
     const maxPayments = parsePaymentLinkMaxPayments(link.max_payments);
     const checkoutFields = parsePaymentLinkCheckoutFields(link.checkout_fields ?? []);
-    const successUrl = normalizePaymentLinkSuccessUrl(link.success_url);
+    normalizePaymentLinkSuccessUrl(link.success_url);
     const assetConfig = resolveAssetFromEnvironment(link.asset as 'SOL' | 'USDC' | 'USDT', env as Record<string, string | undefined>);
     const snapshot = calculateSnapshot(link.fixed_amount_atomic!, link.fee_payer as 'merchant' | 'customer', 100);
     if (BigInt(snapshot.merchantNetAtomic) <= 0n) {
