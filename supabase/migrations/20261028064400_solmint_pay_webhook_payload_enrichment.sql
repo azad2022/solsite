@@ -42,7 +42,8 @@ begin
         'externalOrderId', p.external_order_id,
         'paymentLinkId', p.payment_link_id::text,
         'paymentLinkSlug', case
-          when jsonb_typeof(p.metadata -> 'paymentLinkSlug') = 'string'
+          when p.payment_link_id is not null
+            and jsonb_typeof(p.metadata -> 'paymentLinkSlug') = 'string'
             then p.metadata ->> 'paymentLinkSlug'
           else null
         end,

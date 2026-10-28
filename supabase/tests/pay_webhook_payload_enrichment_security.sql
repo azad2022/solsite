@@ -104,6 +104,30 @@ insert into public.pay_payment_intents (
   'CANARY_CUSTOMER_PURPOSE'
 );
 
+-- Direct Payment Intents may carry merchant metadata keys that resemble our
+-- internal Payment Link snapshot. They must not be presented as a real link
+-- unless the authoritative payment_link_id is set.
+insert into public.pay_payment_intents (
+  id, merchant_id, amount_atomic, customer_total_atomic, merchant_net_atomic,
+  asset, network, external_order_id, payment_link_id, metadata, fee_recipient,
+  customer_first_name, customer_last_name, customer_purpose
+) values (
+  '11111111-1111-4111-8111-111111111112',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  10,
+  10,
+  10,
+  'SOL',
+  'solana',
+  null,
+  null,
+  '{"paymentLinkSlug":"CANARY_FAKE_PAYMENT_LINK_SLUG","privateValue":"CANARY_DIRECT_METADATA"}'::jsonb,
+  'CANARY_DIRECT_FEE_RECIPIENT',
+  'CANARY_DIRECT_FIRST_NAME',
+  'CANARY_DIRECT_LAST_NAME',
+  'CANARY_DIRECT_PURPOSE'
+);
+
 insert into public.pay_webhooks (
   id, merchant_id, endpoint_url, secret_ciphertext, secret_key_version, status, active, subscribed_events
 ) values
@@ -198,7 +222,19 @@ insert into public.pay_payment_events (
   '2026-10-28T00:01:00Z'::timestamptz
 );
 
-do $$
+insert into public.pay_payment_events (
+  id, payment_id, event_type, from_status, to_status, payload, created_at
+) values (
+  '03000000-0000-4000-8000-000000000003',
+  '11111111-1111-4111-8111-111111111112',
+  'payment.status_changed',
+  'created',
+  'pending',
+  '{"reason":"direct_payment_created"}'::jsonb,
+  '2026-10-28T00:02:00Z'::timestamptz
+);
+
+do $
 declare
   v_payload jsonb;
   v_function_definer boolean;
@@ -316,6 +352,16 @@ begin
   if v_count <> 1 then
     raise exception 'empty subscribed_events must continue to receive all events';
   end if;
-end $$;
+
+  select payload into v_payload
+    from public.pay_webhook_deliveries
+   where webhook_id = '01000000-0000-4000-8000-000000000001'
+     and event_id = '03000000-0000-4000-8000-000000000003';
+  if v_payload #>> '{data,paymentLinkId}' is not null
+    or v_payload #>> '{data,paymentLinkSlug}' is not null
+    or position('CANARY_' in v_payload::text) > 0 then
+    raise exception 'merchant metadata must not masquerade as an authoritative Payment Link snapshot: %', v_payload;
+  end if;
+end $;
 
 rollback;
