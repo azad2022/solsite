@@ -83,10 +83,10 @@ jobs:
               if (typeof summary !== 'string') return '';
               // Do not take the first HTTPS URL in the summary: that is often the
               // Cloudflare dashboard "View logs" URL, not the deployed preview.
-              const branchMatch = summary.match(/Branch Preview URL:<\\/strong>\\s*<\\/td>\\s*<td>\\s*<a href=['"](https:\\/\\/[^'"]+)['"]/i);
-              if (branchMatch) return branchMatch[1].replace(/\\/$/, '');
-              const previewMatch = summary.match(/Preview URL:<\\/strong>\\s*<\\/td>\\s*<td>\\s*<a href=['"](https:\\/\\/[^'"]+)['"]/i);
-              return previewMatch ? previewMatch[1].replace(/\\/$/, '') : '';
+              const branchMatch = summary.match(/Branch Preview URL:<\/strong>\s*<\/td>\s*<td>\s*<a href=['"](https:\/\/[^'"]+)['"]/i);
+              if (branchMatch) return branchMatch[1].replace(/\/$/, '');
+              const previewMatch = summary.match(/Preview URL:<\/strong>\s*<\/td>\s*<td>\s*<a href=['"](https:\/\/[^'"]+)['"]/i);
+              return previewMatch ? previewMatch[1].replace(/\/$/, '') : '';
             };
             const parsedChecks = checks.map((check) => ({
               ...check,
