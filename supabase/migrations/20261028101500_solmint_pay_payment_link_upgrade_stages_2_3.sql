@@ -21,7 +21,7 @@ BEGIN
 
   FOR v_field IN SELECT value FROM jsonb_array_elements(p_fields) AS fields(value) LOOP
     IF jsonb_typeof(v_field) <> 'object'
-       OR jsonb_object_length(v_field) <> 4
+       OR (SELECT count(*) FROM jsonb_object_keys(v_field)) <> 4
        OR NOT (v_field ?& ARRAY['key','label','type','required'])
        OR jsonb_typeof(v_field->'key') <> 'string'
        OR jsonb_typeof(v_field->'label') <> 'string'
