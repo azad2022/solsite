@@ -234,11 +234,13 @@ SET LOCAL ROLE service_role;
 DO $first_intent$
 DECLARE
   v jsonb;
+  v_link_id uuid;
   v_id uuid;
   v_values jsonb := '{"order_id":"ORDER-001","email":"customer@example.com"}'::jsonb;
 BEGIN
+  SELECT id INTO v_link_id FROM public.pay_payment_links WHERE slug='upgrade-link';
   v := public.pay_create_payment_intent_from_link(
-    '00000000-0000-0000-0000-000000000001'::uuid,
+    v_link_id,
     '00000000-0000-0000-0000-000000000001'::uuid,
     1000000,'USDC',NULL,NULL,NULL,'recipient','reference-1',100,'merchant',
     10000,1000000,990000,'fee-recipient','solana',now()+interval '10 minutes',
@@ -293,14 +295,14 @@ COMMIT;
 
 DO $immutable_snapshot$
 BEGIN
-  IF (SELECT payment_link_success_url FROM public.pay_payment_intents ORDER BY created_at NULLS FIRST LIMIT 1) <> 'https://merchant.example/paid' THEN
+  IF (SELECT payment_link_success_url FROM public.pay_payment_intents WHERE customer_custom_fields->>'order_id'='ORDER-001' LIMIT 1) <> 'https://merchant.example/paid' THEN
     RAISE EXCEPTION 'changing the Payment Link mutated a historical success redirect snapshot';
   END IF;
-  IF (SELECT payment_link_checkout_fields FROM public.pay_payment_intents ORDER BY id LIMIT 1)
+  IF (SELECT payment_link_checkout_fields FROM public.pay_payment_intents WHERE customer_custom_fields->>'order_id'='ORDER-001' LIMIT 1)
      <> '[{"key":"order_id","label":"Order ID","type":"text","required":true},{"key":"email","label":"Receipt email","type":"email","required":false}]'::jsonb THEN
     RAISE EXCEPTION 'changing the Payment Link mutated historical field definitions';
   END IF;
-  IF (SELECT customer_custom_fields FROM public.pay_payment_intents ORDER BY id LIMIT 1)
+  IF (SELECT customer_custom_fields FROM public.pay_payment_intents WHERE customer_custom_fields->>'order_id'='ORDER-001' LIMIT 1)
      <> '{"order_id":"ORDER-001","email":"customer@example.com"}'::jsonb THEN
     RAISE EXCEPTION 'historical custom field values changed';
   END IF;
