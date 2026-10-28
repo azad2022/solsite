@@ -145,6 +145,12 @@ BEGIN
     RETURN jsonb_build_object('state','error');
   END IF;
 
+  -- Hold the Link row lock long enough for the second independent test session
+  -- to overlap this call. This delay exists only in this disposable test fixture.
+  IF coalesce(p_metadata->>'paymentLinkSlug','') = 'upgrade-concurrency' THEN
+    PERFORM pg_sleep(1);
+  END IF;
+
   INSERT INTO public.pay_payment_intents(merchant_id,amount_atomic,asset,status,expires_at,metadata)
   VALUES(p_merchant_id,p_amount_atomic,p_asset,'created',p_expires_at,coalesce(p_metadata,'{}'::jsonb))
   RETURNING id INTO v_id;
