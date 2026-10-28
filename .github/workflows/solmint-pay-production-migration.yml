@@ -43,6 +43,7 @@ jobs:
           version: latest
 
       - name: Require production credentials
+        id: connection
         shell: bash
         run: |
           set -euo pipefail
@@ -69,16 +70,48 @@ jobs:
             process.exit(1);
           }
           const hadEmbeddedPassword = uri.password.length > 0;
+          let embeddedPasswordMatchesStandalone = 'not-applicable';
+          if (hadEmbeddedPassword) {
+            try {
+              embeddedPasswordMatchesStandalone =
+                decodeURIComponent(uri.password) === process.env.SUPABASE_DB_PASSWORD ? 'yes' : 'no';
+            } catch {
+              embeddedPasswordMatchesStandalone = 'no';
+            }
+          }
           uri.password = '';
           appendFileSync(process.env.GITHUB_ENV, 'SUPABASE_DB_URL_SANITIZED=' + uri.toString() + '\n');
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            'embedded_password_matches_standalone=' + embeddedPasswordMatchesStandalone + '\n'
+          );
           console.log(
             'PostgreSQL connection URI validated: ' +
             'host=' + uri.hostname +
             ', port=' + (uri.port || '5432') +
-            ', embedded_password_removed=' + (hadEmbeddedPassword ? 'yes' : 'not-needed')
+            ', embedded_password_removed=' + (hadEmbeddedPassword ? 'yes' : 'not-needed') +
+            ', embedded_password_matches_standalone=' + embeddedPasswordMatchesStandalone
           );
           NODE
           echo "Production migration credential sources are present (values are not printed)."
+
+      - name: Read-only PostgreSQL authentication probe
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGSSLMODE: require
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          fi
+          database_name="$(psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --dbname "$SUPABASE_DB_URL_SANITIZED" --command 'SELECT current_database();')"
+          if [[ "$database_name" != "postgres" ]]; then
+            echo "ERROR: PostgreSQL authentication succeeded, but the configured database is not the expected database."
+            exit 1
+          fi
+          echo "Read-only psql authentication probe passed for the configured Production database. No data or schema was changed."
 
       - name: Preview pending migrations
         env:
