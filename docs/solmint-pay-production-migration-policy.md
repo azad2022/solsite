@@ -60,9 +60,9 @@ Workflow زیر در repository قرار دارد:
 Workflow فعلی از این GitHub Actions secrets استفاده می‌کند:
 
 - `SUPABASE_DB_URL`: URI اتصال PostgreSQL که مستقیماً از Supabase Dashboard → Connect گرفته شده باشد. Hostname مربوط به pooler را از روی region حدس یا سرهم نکنید.
-- `SUPABASE_DB_PASSWORD`: رمز دیتابیس برای متغیر محیطی `PGPASSWORD`؛ اگر URI خودش password داشته باشد، مقدار URI برای آن اتصال استفاده می‌شود.
+- `SUPABASE_DB_PASSWORD`: تنها منبع رمز احراز هویت PostgreSQL؛ Workflow آن را از طریق `PGPASSWORD` به CLI می‌دهد.
 
-مقادیر این secrets هرگز نباید در log، issue، PR یا ChatGPT چاپ یا وارد شوند. Workflow پیش از اتصال، صرفاً شکل URI و وجود credential sourceها را بررسی می‌کند و مقدار محرمانه را نمایش نمی‌دهد.
+اگر URI دارای password باشد، Workflow پیش از اجرای هر دستور Supabase CLI آن بخش را از URI حذف می‌کند؛ بنابراین رمز جاسازی‌شده در URL نمی‌تواند بر مقدار مستقل `SUPABASE_DB_PASSWORD` غلبه کند. مقادیر secrets هرگز نباید در log، issue، PR یا ChatGPT چاپ یا وارد شوند.
 
 `SUPABASE_ACCESS_TOKEN` دیگر برای مسیر فعلی این workflow لازم نیست؛ روش قبلی مبتنی بر `supabase link` به محدودیت مجوز Management API خورد. مسیر فعلی مستقیماً از Supabase CLI و PostgreSQL connection URI استفاده می‌کند.
 

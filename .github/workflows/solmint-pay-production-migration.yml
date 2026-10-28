@@ -21,10 +21,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Supavisor session-mode endpoint keeps production migration CI on IPv4-capable
-  # infrastructure without requiring Supabase Management API access. The region
-  # matches the current production project metadata (eu-central-1).
-  # Use the connection URI stored from Supabase Dashboard → Connect; do not synthesize a pooler hostname.
+  # Use the existing connection URI secret copied from Supabase Dashboard → Connect.
+  # Any password embedded in the URI is stripped; PGPASSWORD is the sole password source.
   SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
   SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
@@ -57,6 +55,7 @@ jobs:
             exit 1
           fi
           node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
           const raw = process.env.SUPABASE_DB_URL;
           let uri;
           try {
@@ -69,11 +68,14 @@ jobs:
             console.error('ERROR: SUPABASE_DB_URL must be a PostgreSQL URI with host, username, and database path.');
             process.exit(1);
           }
+          const hadEmbeddedPassword = uri.password.length > 0;
+          uri.password = '';
+          appendFileSync(process.env.GITHUB_ENV, 'SUPABASE_DB_URL_SANITIZED=' + uri.toString() + '\n');
           console.log(
             'PostgreSQL connection URI validated: ' +
             'host=' + uri.hostname +
             ', port=' + (uri.port || '5432') +
-            ', embedded_password=' + (uri.password.length > 0 ? 'yes' : 'no')
+            ', embedded_password_removed=' + (hadEmbeddedPassword ? 'yes' : 'not-needed')
           );
           NODE
           echo "Production migration credential sources are present (values are not printed)."
@@ -81,15 +83,15 @@ jobs:
       - name: Preview pending migrations
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+        run: supabase db push --db-url "$SUPABASE_DB_URL_SANITIZED" --dry-run
 
       - name: Apply pending migrations
         if: inputs.confirm == 'APPLY'
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        run: supabase db push --db-url "$SUPABASE_DB_URL_SANITIZED"
 
       - name: Verify migration state
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: supabase migration list --db-url "$SUPABASE_DB_URL"
+        run: supabase migration list --db-url "$SUPABASE_DB_URL_SANITIZED"
