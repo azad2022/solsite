@@ -72,6 +72,9 @@ CREATE TABLE public.pay_idempotency_keys (
 GRANT ALL ON public.users, public.pay_merchants, public.pay_merchant_members,
   public.pay_payment_links, public.pay_payment_intents, public.pay_idempotency_keys
   TO service_role;
+-- The authenticated RPC fixture reads the selected Link ID as a normal merchant session.
+-- Production RLS remains authoritative; this isolated fixture has no RLS policies.
+GRANT SELECT ON public.pay_payment_links TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.pay_request_user_id()
 RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
