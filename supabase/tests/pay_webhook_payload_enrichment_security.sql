@@ -315,7 +315,8 @@ begin
     raise exception 'atomic amount fields must be JSON strings';
   end if;
 
-  if jsonb_object_length(v_payload -> 'data') <> 12 then
+  select count(*) into v_count from jsonb_object_keys(v_payload -> 'data');
+  if v_count <> 12 then
     raise exception 'webhook data must contain exactly the twelve documented allowlisted fields';
   end if;
 
