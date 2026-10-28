@@ -2,65 +2,77 @@
 
 Date: 2026-10-28
 
-## Current status
+## Current decision
 
-**IMPLEMENTATION / PRE-MERGE VALIDATION PASS — PRODUCTION RELEASE BLOCKED UNTIL THE CONTROLLED MIGRATION IS APPLIED AND VERIFIED**
+**IMPLEMENTATION AND PRE-MERGE CHECKS PASS — PRODUCTION RELEASE BLOCKED BY MIGRATION CREDENTIALS AND MIGRATION-RUNNER PROVENANCE**
 
 - Pull request: [#363 — Payment Link upgrade stages 2–3](https://github.com/azad2022/solsite/pull/363)
-- Validated application/workflow SHA: `562ca34a696a538befc0d6d3bb8722c73a4e090c`
+- Validated implementation/workflow SHA: `d0ef0830e71c191e6c83706b128d7da2d5e205fd`
 - Feature branch: `feat/pay-payment-link-upgrade-stages-2-3`
-- The PR remains a draft. No production migration was applied by this checkpoint.
+- PR is still Draft and not merged.
+- No production DDL was applied by this work.
 
 ## Implemented scope
 
-- Merchant-configured HTTPS success redirect is copied from the Payment Link into the Payment Intent snapshot. Checkout redirects only when the fetched authoritative Payment Intent status is `completed`.
-- Optional `max_payments` is enforced in the database Payment Intent creation routine while the Payment Link row is locked. The public remaining-count is presentation only; it is not the authority for accepting payments.
-- A two-session PostgreSQL concurrency test submits two independent checkout requests against a one-payment link and verifies exactly one `created`, one `capacity_reached`, and one active reservation.
-- Checkout fields are allowlisted (up to five fields with unique keys and validated type/label/required flag). Server and SQL validate values, and the submitted values are stored on the Payment Intent. They are not included in the public Payment Intent response.
-- Merchant form, public Checkout form, shared service contracts, localized text, and contract/security regression coverage were added.
-- The Production Build preview check was fixed to choose a successful Cloudflare Pages check with a parsed Preview URL instead of accidentally taking the first HTTPS link (which can be a Cloudflare dashboard log URL).
+- Merchant-configured HTTPS success redirect is snapshotted onto the Payment Intent. Checkout redirects only after the fetched authoritative Payment Intent status is `completed`.
+- Optional `max_payments` is enforced by the database creation routine while the Payment Link row is locked. The displayed remaining count is informative only; it does not authorize a payment.
+- Up to five allowlisted custom Checkout fields have validated definitions and values. Values are stored on the Payment Intent and not returned by the public Payment Intent endpoint. The authenticated merchant transaction detail path exposes the supported values/definitions to the merchant.
+- Merchant management UI, public Checkout form, service/domain contracts, four-locale copy and regression/security tests were added.
+- A two-session PostgreSQL concurrency test submits two independent requests against a one-payment link and requires exactly one `created`, one `capacity_reached`, and one active/completed reservation.
+- The Production Build preview smoke was fixed to select a successful Cloudflare Pages check with a valid Preview URL, rather than mistaking a Cloudflare dashboard log URL for the preview.
+- The controlled migration workflow now has a `DRY_RUN` mode which executes the dry-run and migration-list steps but cannot execute the apply step. A test guards the `APPLY` condition.
 
-## Validation evidence for SHA `562ca34a696a538befc0d6d3bb8722c73a4e090c`
+## Validation evidence for SHA `d0ef0830e71c191e6c83706b128d7da2d5e205fd`
 
 | Gate | Result | Evidence |
 |---|---|---|
-| CI / typecheck / unit tests | **PASS** | [Run 40709334381](https://github.com/azad2022/solsite/actions/runs/40709334381) |
-| Production Build and Preview route smoke | **PASS** | [Run 40709334359](https://github.com/azad2022/solsite/actions/runs/40709334359) |
-| Payment Link DB security fixture | **PASS** | [Run 40709334360](https://github.com/azad2022/solsite/actions/runs/40709334360) |
-| SolMint Pay Devnet E2E | **PASS** | [Run 40709334349](https://github.com/azad2022/solsite/actions/runs/40709334349) |
-| SolMint Pay Mainnet read-only | **PASS** | [Run 40709334539](https://github.com/azad2022/solsite/actions/runs/40709334539) |
-| Cloudflare Pages preview | **PASS** | [Check 122890364825](https://github.com/azad2022/solsite/runs/122890364825) |
+| CI / typecheck / unit tests | **PASS** | [Run 40709977425](https://github.com/azad2022/solsite/actions/runs/40709977425) |
+| Production Build and Cloudflare Pages preview route smoke | **PASS** | [Run 40709977371](https://github.com/azad2022/solsite/actions/runs/40709977371) |
+| Database Security, including concurrent capacity test | **PASS** | [Run 40709977423](https://github.com/azad2022/solsite/actions/runs/40709977423) |
+| SolMint Pay Devnet E2E | **PASS** | [Run 40709977346](https://github.com/azad2022/solsite/actions/runs/40709977346) |
+| SolMint Pay Mainnet read-only | **PASS** | [Run 40709977332](https://github.com/azad2022/solsite/actions/runs/40709977332) |
+| Cloudflare Pages preview deployment | **PASS** | [Check 122893638894](https://github.com/azad2022/solsite/runs/122893638894) |
+| Supabase Preview | **SKIPPED** | Project branching/preview DB is disabled; SQL security tests ran against a disposable PostgreSQL database. |
+| Legacy `Workers Builds: solsite` | **FAIL — NON-GATING LEGACY CHECK** | [Check 122892998006](https://github.com/azad2022/solsite/runs/122892998006). Cloudflare Pages, the configured production release integration, passed. |
 
-The Supabase Preview check is **SKIPPED** because Supabase branching/preview DB is disabled for this project. The database upgrade is instead tested in the workflow's disposable PostgreSQL fixture; Production was queried read-only to verify the migration is still pending.
+## Production database facts (read-only)
 
-## Production database facts
+- Latest applied migration is `20261028064400` (`solmint_pay_webhook_payload_enrichment`).
+- Repository contains 105 migration files; Production records 104 migration versions. The only repository migration not recorded in Production is `20261028101500_solmint_pay_payment_link_upgrade_stages_2_3.sql`.
+- Production `public.pay_payment_links` does not contain `success_url`, `max_payments`, or `checkout_fields`.
+- Production `public.pay_payment_intents` does not contain `payment_link_success_url`, `payment_link_checkout_fields`, or `customer_custom_fields`.
+- Live Payment Link create/update RPCs still have the pre-upgrade signatures.
+- RLS is enabled on the Payment Link, Payment Intent and idempotency tables. Authenticated clients have no direct INSERT grant on Payment Links/Intents, nor direct SELECT/INSERT on idempotency keys.
+- The live Payment Intent table has its expiry guard as the only user-defined trigger.
+- All of the above were queried read-only. The live migration ledger has not been edited.
 
-Read-only inspection of Production shows:
+## Migration preflight — BLOCKED
 
-- Latest applied migration version is `20261028064400` (`solmint_pay_webhook_payload_enrichment`).
-- `public.pay_payment_links` does not yet contain `success_url`, `max_payments`, or `checkout_fields`.
-- `public.pay_payment_intents` does not yet contain `payment_link_success_url`, `payment_link_checkout_fields`, or `customer_custom_fields`.
-- The live Payment Link creation/update RPC signatures are still the pre-upgrade versions.
-- `pay_payment_links` and `pay_payment_intents` have RLS enabled; `authenticated` has table SELECT but no direct INSERT on these tables. `pay_idempotency_keys` has RLS enabled and no direct SELECT/INSERT grant to `authenticated`.
-- The existing Payment Intent table currently has its expiry guard as the only user-defined table trigger. The new migration's update behavior was tested in an isolated PostgreSQL fixture; live production DDL was not executed.
+The repository-controlled migration workflow was dispatched on this branch with `confirm=DRY_RUN`:
+- [Run 40710242502](https://github.com/azad2022/solsite/actions/runs/40710242502)
+- The workflow confirmed the GitHub Actions database secret was **present**, but `supabase db push --dry-run` failed to authenticate to the configured Supavisor session endpoint with PostgreSQL `SQLSTATE 28P01` (`password authentication failed`).
+- The Apply step was **skipped** because the input was `DRY_RUN`. No DDL was applied.
+- The earlier Main-branch migration workflow [run 40647321161](https://github.com/azad2022/solsite/actions/runs/40647321161) failed at the same authentication step. This is a known migration-release blocker, not an issue introduced by the Payment Link SQL.
 
-No production writes were performed by this checkpoint.
+The credential value was not read or printed. The exact cause (for example, a stale/mismatched secret or database password) is **UNKNOWN**; it must not be guessed or “fixed” by resetting Production credentials without authorization.
 
-## Release decision and next gate
+## Migration provenance — UNKNOWN
 
-**Do not merge/deploy the application before the schema/RPC migration is applied.** The current application branch queries the new columns, so code-first deployment would make Payment Link reads and Payment Intent reads fail against the current Production schema.
+Issue [#355](https://github.com/azad2022/solsite/issues/355) records evidence that Supabase's linked GitHub runner applied earlier migrations from `main` while the repository's controlled GitHub migration workflow was failing. The initiating actor and exact integration setting remain unknown. Do not merge a new migration or change the Supabase integration based on inference; resolve this provenance path first, preserving the live security hardening already deployed.
 
-Required order:
-1. Approve and run the repository's controlled Production Migration workflow with the exact intended migration, after its dry-run and migration audit.
-2. Verify live columns, overload signatures, grants/revokes, RLS isolation, and the recorded migration version using read-only checks.
-3. Update `docs/solmint-pay-live-migration-ledger.txt` only after the live database records the migration and positive evidence exists.
-4. Re-run release checks against the final branch head, make the PR ready, merge through the normal path, and verify the Cloudflare Pages production deployment plus post-deploy smoke.
+## Required order to complete release
 
-The legacy `Workers Builds: solsite` integration is separate from the configured Cloudflare Pages release path; its final status should be recorded if it completes, but it must not be substituted for the Pages deployment result.
+1. Repair/confirm the database credential through the authorized secret-management route without exposing its value, then rerun `DRY_RUN` and verify it lists **only** `20261028101500_solmint_pay_payment_link_upgrade_stages_2_3.sql`.
+2. Resolve the auto-migration provenance recorded in issue #355 and ensure the migration applies through the agreed, auditable path. The `APPLY` mode must not be used until the preflight and release audit pass.
+3. Apply the intended migration through the controlled release path; then read-only verify columns, RPC overloads, grants/revokes, RLS, and the recorded version.
+4. Update `docs/solmint-pay-live-migration-ledger.txt` only after positive evidence that Production has recorded the migration.
+5. Re-run the release gates on the final source head, then make PR #363 ready, merge the application through the normal path, and perform Production Pages/API smoke checks.
+
+The application must **not** be merged/deployed against the current Production schema, because its API selects columns that are not yet present. This checkpoint is a pre-merge validation record, not production-release acceptance.
 
 ## Audit rules
 
 - `submitted` is not `paid`; redirect relies only on backend status `completed`.
-- Capacity enforcement is database-authoritative and serialized under a Link-row lock.
-- No direct frontend Supabase/RPC calls or client-side secret exposure were introduced.
-- This checkpoint is a **pre-merge** validation record, not a production release acceptance.
+- Capacity is database-authoritative and serialized under a Payment Link row lock.
+- No direct sensitive Supabase/RPC call from frontend and no client-side secret exposure were introduced.
+- No Production DDL or payment operation was performed by this checkpoint.
