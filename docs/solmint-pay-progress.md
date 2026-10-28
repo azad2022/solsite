@@ -1828,3 +1828,27 @@ Production ledger/runtime now show Phase A `20261027143000`, Phase B `2026102714
 **Migration audit deviation:** no manual SQL, Supabase `apply_migration`, Supabase branch-merge, or official GitHub `workflow_dispatch` migration was intentionally invoked by this audit. However, Supabase logs show an internal runner cloning `git_ref=main` at `2026-10-27T14:41:49.895Z` and applying `20261027150000_solmint_pay_bulk_payout_create_capability_hardening.sql` at `14:41:54.694Z`, followed by its PostgreSQL DDL at `14:41:54.831Z`. The Supabase app check for the merge SHA ran in the same window. The logs don't name the initiating actor/control; the official GitHub migration workflow has no matching run that day. Keep provenance **UNKNOWN**, do not rollback the security migration, and resolve automation ownership/control through [issue #355](https://github.com/azad2022/solsite/issues/355).
 
 Remaining acceptance gate: full authenticated Bulk Pay lifecycle E2E [issue #354](https://github.com/azad2022/solsite/issues/354). The feature is **not yet fully production-accepted** until that lifecycle is covered with an isolated database and Devnet, plus the migration deployment provenance is resolved.
+
+## 2026-10-28 — Payment Link webhook payload enrichment (Feature 1a)
+
+Status: **IMPLEMENTATION IN PR — NOT DEPLOYED; CI VALIDATION PENDING**
+
+Scope:
+- Enriches the existing `pay_enqueue_webhook_deliveries()` payload only; preserves the current outer `id/type/createdAt/data` envelope and event type.
+- Emits an explicit allowlist: Payment Intent ID, current/previous status, integer atomic amount snapshots as strings, asset, network, external order ID, payment-link ID and snapshotted slug, and the existing reason.
+- Does not emit the full metadata object, payer identity fields, fee recipient, endpoint/signing secrets, IP, or telemetry.
+- Retains the existing `SECURITY DEFINER`, empty `search_path`, role grants, merchant matching, active/subscription checks, immutable endpoint/secret snapshots, and `(webhook_id,event_id)` idempotency.
+- Adds an isolated PostgreSQL trigger-path test and attaches it to the existing database-security workflow.
+- Reconciles `docs/solmint-pay-live-migration-ledger.txt` with the 103 migrations confirmed in the live Supabase ledger. The new Feature 1a migration is intentionally not listed as applied before production deployment.
+
+Discovery evidence:
+- `main` baseline before this PR: `89bf80f0b95ffe425e5ebd4d75c773e1499c32be`.
+- Live Supabase project `nvopkbiedorfshwbmyhn): 103 migration records; the repository has matching migration filenames/versions. Latest applied migration at discovery: `20261027150000_solmint_pay_bulk_payout_create_capability_hardening`.
+- Production currently had 48 payment links, 111 payment intents, 45 payment events, and zero webhook subscriptions/deliveries at inspection time. No production webhook was created and no production payment/event was written for this work.
+- Existing latest observed `pay_payment_events` entries used `payment.status_changed` and only a `reason` payload. The feature keeps that event type and adds an allowlisted payment snapshot to the webhook delivery only.
+- The current `SolMint Pay Production Browser UI E2E` run `40640446155` failed in the referral lifecycle step at `.pay-referrals-stats` timeout; unrelated to Feature 1a and intentionally unchanged here.
+
+Validation:
+- SQL fixture/test has been added; its result remains **PENDING** until the CI workflow executes on this branch.
+- Existing TypeScript tests, build, Production API Smoke, Live Smoke, and browser checks have not been inferred as passing for this PR. No production migration has been run.
+- Do not mark Feature 1a completed until the actual CI checks, PR review, applied migration, live function/ACL/trigger verification, and available post-deploy checks are evidenced.
