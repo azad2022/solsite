@@ -4,10 +4,11 @@ Date: 2026-10-28
 
 ## Current decision
 
-**IMPLEMENTATION AND PRE-MERGE CHECKS PASS — PRODUCTION RELEASE BLOCKED BY MIGRATION CREDENTIALS AND MIGRATION-RUNNER PROVENANCE**
+**FEATURE IMPLEMENTATION PASSES; FINAL WORKFLOW-CORRECTION GATES ARE RUNNING — PRODUCTION RELEASE BLOCKED BY DATABASE AUTHENTICATION AND MIGRATION-RUNNER PROVENANCE**
 
 - Pull request: [#363 — Payment Link upgrade stages 2–3](https://github.com/azad2022/solsite/pull/363)
-- Validated implementation/workflow SHA: `d0ef0830e71c191e6c83706b128d7da2d5e205fd`
+- Original implementation SHA: `d0ef0830e71c191e6c83706b128d7da2d5e205fd`
+- Latest workflow credential-source fix SHA: `2b11b495d4fa35a246b1a18848104093e7b3b25a` (final production-build check was still running when this checkpoint was prepared)
 - Feature branch: `feat/pay-payment-link-upgrade-stages-2-3`
 - PR is still Draft and not merged.
 - No production DDL was applied by this work.
@@ -46,15 +47,20 @@ Date: 2026-10-28
 - The live Payment Intent table has its expiry guard as the only user-defined trigger.
 - All of the above were queried read-only. The live migration ledger has not been edited.
 
-## Migration preflight — BLOCKED
+## Migration preflight — BLOCKED (new evidence collected 2026-10-28)
 
-The repository-controlled migration workflow was dispatched on this branch with `confirm=DRY_RUN`:
-- [Run 40710242502](https://github.com/azad2022/solsite/actions/runs/40710242502)
-- The workflow confirmed the GitHub Actions database secret was **present**, but `supabase db push --dry-run` failed to authenticate to the configured Supavisor session endpoint with PostgreSQL `SQLSTATE 28P01` (`password authentication failed`).
-- The Apply step was **skipped** because the input was `DRY_RUN`. No DDL was applied.
-- The earlier Main-branch migration workflow [run 40647321161](https://github.com/azad2022/solsite/actions/runs/40647321161) failed at the same authentication step. This is a known migration-release blocker, not an issue introduced by the Payment Link SQL.
+### Connection history and root-cause evidence
+- The workflow's older, controlled implementation successfully authenticated with its then-current database credential on 2026-09-16 in [run 35067223433](https://github.com/azad2022/solsite/actions/runs/35067223433); that run progressed to a migration-lineage error (`Remote migration versions not found in local migrations directory`). So a connection method using the Supavisor session pooler and the database password did work historically.
+- The current workflow's explicit `PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}` plumbing is intact. On 2026-10-28, both [main run 40647321161](https://github.com/azad2022/solsite/actions/runs/40647321161) and [feature run 40710242502](https://github.com/azad2022/solsite/actions/runs/40710242502) reached the correct Supavisor endpoint and were rejected by PostgreSQL with `SQLSTATE 28P01`.
+- Read-only Supavisor logs independently recorded `password authentication failed for user "postgres"` for Production project `nvopkbiedorfshwbmyhn` in `eu-central-1`. The `postgres` database role is permitted to log in and has no role-expiry date.
+- GitHub Actions secret metadata (values never accessed) reports `SUPABASE_DB_PASSWORD` last updated 2026-09-17T10:00:04Z and `SUPABASE_DB_URL` last updated 2026-09-17T16:38:29Z—both after the last demonstrated successful connection. These timestamps do not identify who made the update or why, and do not prove that the database password itself changed.
+- The old workflow ignored the existing `SUPABASE_DB_URL` secret and synthesized its pooler endpoint from a hardcoded hostname. Inspection of the existing URL secret confirms it contains an embedded password; using that embedded credential was also rejected in [read-only run 40713657679](https://github.com/azad2022/solsite/actions/runs/40713657679).
+- Workflow source has now been changed to read the existing `SUPABASE_DB_URL` secret for the host/username/database, strip its embedded password before invoking Supabase CLI, and use `SUPABASE_DB_PASSWORD` through `PGPASSWORD` as the only password source. The regression test also checks this invariant. This prevents a password embedded in the URI from overriding the standalone secret; it does not make an invalid standalone password valid.
+- The most recent migration attempt was `DRY_RUN`; Apply was skipped, and no DDL was applied by these attempts.
 
-The credential value was not read or printed. The exact cause (for example, a stale/mismatched secret or database password) is **UNKNOWN**; it must not be guessed or “fixed” by resetting Production credentials without authorization.
+### Current conclusion and next action
+The evidence does **not** prove that the database password was changed by the owner. However, the current standalone secret and the URI-embedded password were both rejected; the exact cause/actor remains unknown. Stop further authentication attempts until the operator verifies `SUPABASE_DB_PASSWORD` against the current Production PostgreSQL password. Do not reset the Production password automatically, and do not send it in chat.
+
 
 ## Migration provenance — UNKNOWN
 
@@ -62,7 +68,7 @@ Issue [#355](https://github.com/azad2022/solsite/issues/355) records evidence th
 
 ## Required order to complete release
 
-1. Repair/confirm the database credential through the authorized secret-management route without exposing its value, then rerun `DRY_RUN` and verify it lists **only** `20261028101500_solmint_pay_payment_link_upgrade_stages_2_3.sql`.
+1. Verify/update GitHub Actions secret `SUPABASE_DB_PASSWORD` to the current Production PostgreSQL password, using a trusted password manager or existing deployment secret. Do not paste the password into chat. Then rerun `DRY_RUN` and verify it lists **only** `20261028101500_solmint_pay_payment_link_upgrade_stages_2_3.sql`.
 2. Resolve the auto-migration provenance recorded in issue #355 and ensure the migration applies through the agreed, auditable path. The `APPLY` mode must not be used until the preflight and release audit pass.
 3. Apply the intended migration through the controlled release path; then read-only verify columns, RPC overloads, grants/revokes, RLS, and the recorded version.
 4. Update `docs/solmint-pay-live-migration-ledger.txt` only after positive evidence that Production has recorded the migration.
