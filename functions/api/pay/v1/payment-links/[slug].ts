@@ -12,6 +12,7 @@ import {
 import { resolveAssetFromEnvironment } from '../../../../../src/pay/services/assetPolicy';
 import { supabaseSecret } from '../../../v1/_shared';
 import { randomReferenceAddress } from '../../../../../src/pay/services/walletSignature';
+import { normalizePaymentLinkSuccessUrl, parsePaymentLinkCheckoutFields, parsePaymentLinkMaxPayments, sanitizePaymentLinkCheckoutFieldValues } from '../../../../../src/pay/services/paymentLinkExtras';
 
 interface PayEnv extends PayRuntimeEnv {
   PAY_APP_ORIGIN?: string;
@@ -71,13 +72,14 @@ function linkIntentExpiry(env: PayEnv, linkExpiresAt: string | null): string {
 async function readLink(env: PayEnv, slug: string) {
   const response = await publicSupabaseRequest(
     env,
-    '/rest/v1/pay_payment_links?select=id,merchant_id,slug,title,description,fixed_amount_atomic::text,asset,fee_payer,checkout_locale,is_active,expires_at&slug=eq.' + encodeURIComponent(slug) + '&limit=1',
+    '/rest/v1/pay_payment_links?select=id,merchant_id,slug,title,description,fixed_amount_atomic::text,asset,fee_payer,checkout_locale,is_active,expires_at,success_url,max_payments,checkout_fields&slug=eq.' + encodeURIComponent(slug) + '&limit=1',
     { headers: { Accept: 'application/json' } },
   );
   const rows = await response.json() as Array<{
     id: string; merchant_id: string; slug: string; title: string; description: string | null;
     fixed_amount_atomic: string | null; asset: string | null; fee_payer: string | null;
     checkout_locale: string; is_active: boolean; expires_at: string | null;
+    success_url: string | null; max_payments: number | null; checkout_fields: unknown;
   }>;
   const link = rows[0];
   if (!link) throw new PayRuntimeError('PAYMENT_LINK_NOT_FOUND', 404, 'Payment link was not found.');
@@ -90,6 +92,23 @@ async function readLink(env: PayEnv, slug: string) {
   return link;
 }
 
+async function readPaymentLinkUsage(env: PayEnv, paymentLinkId: string): Promise<number | null> {
+  try {
+    const now = encodeURIComponent(new Date().toISOString());
+    const response = await publicSupabaseRequest(
+      env,
+      '/rest/v1/pay_payment_intents?select=id&payment_link_id=eq.' + encodeURIComponent(paymentLinkId)
+        + '&status=in.(created,pending,detected,verifying,confirmed,completed)'
+        + '&or=(status.eq.completed,expires_at.gt.' + now + ')&limit=1',
+      { headers: { Accept: 'application/json', Prefer: 'count=exact', Range: '0-0' } },
+    );
+    const match = /\\/(\\d+)$/.exec(response.headers.get('content-range') || '');
+    return match ? Number(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const onRequestGet = async ({ request, env, params }: { request: Request; env: PayEnv; params: { slug?: string } }) => {
   const requestId = makePayRequestId();
   if (!payFeatureEnabled(env)) return payJson({ code: 'PAY_API_DISABLED', message: 'Pay API is not enabled.' }, 404, requestId);
@@ -97,6 +116,9 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const slug = String(params?.slug || '').trim();
     if (!validSlug(slug)) return payJson({ code: 'PAYMENT_LINK_SLUG_INVALID', message: 'Payment link is invalid.' }, 400, requestId);
     const link = await readLink(env, slug);
+    const maxPayments = parsePaymentLinkMaxPayments(link.max_payments);
+    const checkoutFields = parsePaymentLinkCheckoutFields(link.checkout_fields ?? []);
+    const successUrl = normalizePaymentLinkSuccessUrl(link.success_url);
     const assetConfig = resolveAssetFromEnvironment(link.asset as 'SOL' | 'USDC' | 'USDT', env as Record<string, string | undefined>);
     const snapshot = calculateSnapshot(link.fixed_amount_atomic!, link.fee_payer as 'merchant' | 'customer', 100);
     if (BigInt(snapshot.merchantNetAtomic) <= 0n) {
@@ -106,6 +128,11 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const merchants = await merchantResponse.json() as Array<{ id: string; business_name: string; status: string }>;
     const merchant = merchants[0];
     if (!merchant || merchant.status !== 'active') return payJson({ code: 'MERCHANT_UNAVAILABLE', message: 'Merchant is not available for checkout.' }, 404, requestId);
+    let remainingPayments: number | null = null;
+    if (maxPayments !== null) {
+      const usage = await readPaymentLinkUsage(env, link.id);
+      if (usage !== null) remainingPayments = Math.max(0, maxPayments - usage);
+    }
     return payJson({
       apiVersion: 'v1',
       data: {
@@ -116,6 +143,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
         customerTotalAtomic: snapshot.customerTotalAtomic,
         merchantSettlementAtomic: snapshot.merchantNetAtomic,
         asset: link.asset, feePayer: link.fee_payer, checkoutLocale: link.checkout_locale, expiresAt: link.expires_at,
+        maxPayments, remainingPayments, checkoutFields,
         merchant: { businessName: merchant.business_name },
       },
     }, 200, requestId);
@@ -148,20 +176,26 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; }
     catch { return payJson({ code: 'INVALID_PUBLIC_PAYER_DATA', message: 'Payer information is required.' }, 400, requestId); }
-    const unexpectedFields = Object.keys(body).filter((key) => !['firstName', 'lastName', 'paymentReason'].includes(key));
+    const unexpectedFields = Object.keys(body).filter((key) => !['firstName', 'lastName', 'paymentReason', 'customFields'].includes(key));
     if (unexpectedFields.length > 0) {
       return payJson({ code: 'INVALID_PUBLIC_PAYER_DATA', message: 'Unsupported payer fields were supplied.' }, 400, requestId);
     }
     const customerFirstName = normalizePayerText(body.firstName, 'firstName', 120);
     const customerLastName = normalizePayerText(body.lastName, 'lastName', 120);
     const customerPurpose = normalizePayerText(body.paymentReason, 'paymentReason', 1000);
+    let customFields: Record<string, string>;
+    try {
+      customFields = sanitizePaymentLinkCheckoutFieldValues(link.checkout_fields ?? [], body.customFields ?? {});
+    } catch {
+      throw new PayRuntimeError('INVALID_CUSTOM_CHECKOUT_FIELDS', 400, 'Custom Checkout fields are invalid.');
+    }
     const assetConfig = resolveAssetFromEnvironment(asset, env as Record<string, string | undefined>);
     const amountAtomic = link.fixed_amount_atomic!;
     const calculated = calculateSnapshot(amountAtomic, feePayer, 100);
     if (BigInt(calculated.merchantNetAtomic) <= 0n) throw new PayRuntimeError('AMOUNT_TOO_SMALL', 400, 'Payment amount is too small after gateway fee.');
     const idempotencyKey = await assertIdempotencyKey(request);
     const scope = 'payment-intents:link';
-    const requestHash = await hashCanonicalRequest({ paymentLinkId: link.id, merchantId: link.merchant_id, amountAtomic, asset, feePayer, customerFirstName, customerLastName, customerPurpose });
+    const requestHash = await hashCanonicalRequest({ paymentLinkId: link.id, merchantId: link.merchant_id, amountAtomic, asset, feePayer, customerFirstName, customerLastName, customerPurpose, customFields });
     const subject = await hashSubject(link.id + ':' + (request.headers.get('CF-Connecting-IP') || 'shared'));
     await enforcePayRateLimit(env, 'payment-links:checkout', subject, 60, 60);
     const expiresAt = linkIntentExpiry(env, link.expires_at);
@@ -185,9 +219,14 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
         },
         p_idempotency_key: idempotencyKey, p_request_hash: requestHash, p_scope: scope,
         p_customer_first_name: customerFirstName, p_customer_last_name: customerLastName, p_customer_purpose: customerPurpose,
+        p_customer_custom_fields: customFields,
       }),
     });
     const result = await rpcResponse.json() as { state?: string; response_status?: number; response_body?: unknown };
+    if (result.state === 'capacity_reached') return payJson({ code: 'PAYMENT_LINK_CAPACITY_REACHED', message: 'This payment link has reached its payment limit.' }, 409, requestId);
+    if (result.state === 'payment_link_changed') return payJson({ code: 'PAYMENT_LINK_CHANGED', message: 'The payment link settings changed. Reload the link and try again.' }, 409, requestId);
+    if (result.state === 'payment_link_unavailable') return payJson({ code: 'PAYMENT_LINK_UNAVAILABLE', message: 'This payment link is no longer available.' }, 404, requestId);
+    if (result.state === 'invalid_custom_fields') return payJson({ code: 'INVALID_CUSTOM_CHECKOUT_FIELDS', message: 'The custom Checkout fields are invalid or have changed.' }, 400, requestId);
     if (result.state === 'conflict') return payJson({ code: 'IDEMPOTENCY_CONFLICT', message: 'The Idempotency-Key was reused with different request data.' }, 409, requestId);
     if (result.state === 'in_progress') return payJson({ code: 'REQUEST_IN_PROGRESS', message: 'An identical request is already being processed.' }, 409, requestId);
     if (result.state === 'replay') return payJson(result.response_body || {}, 200, requestId);
