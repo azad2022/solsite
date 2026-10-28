@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, CheckCircle2, Clipboard, Clock3, ExternalLink, FilePlus2, Link2, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import { Check, CheckCircle2, Clipboard, Clock3, ExternalLink, FilePlus2, Link2, Loader2, Plus, RefreshCw, Trash2, X, XCircle } from 'lucide-react';
 import { PayHttpError } from '../http';
 import type { PayLocale } from '../types';
 import { payPaymentLinkService, type PayPaymentLink, type CreatePayPaymentLinkInput, type UpdatePayPaymentLinkInput } from '../services/paymentLinkService';
 import { paymentLinkT } from './pay-payment-links-i18n';
+import type { PayPaymentLinkCheckoutField } from '../services/paymentLinkExtras';
 import './pay-payment-links.css';
 
 interface Props { locale: PayLocale; merchantId: string | null; }
@@ -14,6 +15,7 @@ const LOCALES: CreatePayPaymentLinkInput['checkoutLocale'][] = ['auto', 'fa-IR',
 const EMPTY_DRAFT: CreatePayPaymentLinkInput = {
   merchantId: '', slug: '', title: '', description: '', fixedAmountAtomic: '',
   asset: 'USDC', feePayer: 'merchant', checkoutLocale: 'auto', expiresAt: null,
+  successUrl: null, maxPayments: null, checkoutFields: [],
 };
 const EMPTY_ASSET_DECIMALS = { SOL: null, USDC: null, USDT: null };
 type EditDraft = Omit<UpdatePayPaymentLinkInput, 'merchantId' | 'linkId'>;
@@ -28,6 +30,9 @@ function editDraftFromRow(row: PayPaymentLink): EditDraft {
     checkoutLocale: row.checkout_locale,
     isActive: row.is_active,
     expiresAt: row.expires_at,
+    successUrl: row.success_url,
+    maxPayments: row.max_payments,
+    checkoutFields: row.checkout_fields,
   };
 }
 
@@ -83,6 +88,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const [amountInput, setAmountInput] = useState('');
   const [assetDecimals, setAssetDecimals] = useState<{ SOL: number | null; USDC: number | null; USDT: number | null }>({ ...EMPTY_ASSET_DECIMALS });
   const [expiresInput, setExpiresInput] = useState('');
+  const [maxPaymentsInput, setMaxPaymentsInput] = useState('');
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<'invalid'|'forbidden'|'conflict'|'error'|null>(null);
   const [created, setCreated] = useState<PayPaymentLink | null>(null);
@@ -90,6 +96,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   const [editMode, setEditMode] = useState(false);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [editAmountInput, setEditAmountInput] = useState('');
+  const [editMaxPaymentsInput, setEditMaxPaymentsInput] = useState('');
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<'invalid'|'forbidden'|'conflict'|'error'|null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -137,16 +144,18 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     if (!merchantId || decimals === null || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120
       || !draft.title.trim() || draft.title.trim().length > 200
       || (draft.description?.length || 0) > 5000
+       || (maxPaymentsInput.trim() !== '' && (!/^[1-9]\d*$/.test(maxPaymentsInput.trim()) || !Number.isSafeInteger(Number(maxPaymentsInput.trim())) || Number(maxPaymentsInput.trim()) > 2147483647))
       || !amount) {
       setFormError('invalid'); return;
     }
     setCreating(true);
     try {
-      const result = await payPaymentLinkService.create({ ...draft, merchantId, slug, fixedAmountAtomic: amount, expiresAt: expiresInput ? new Date(expiresInput).toISOString() : null }, crypto.randomUUID());
+      const result = await payPaymentLinkService.create({ ...draft, merchantId, slug, fixedAmountAtomic: amount, expiresAt: expiresInput ? new Date(expiresInput).toISOString() : null, successUrl: draft.successUrl || null, maxPayments: maxPaymentsInput.trim() ? Number(maxPaymentsInput.trim()) : null, checkoutFields: draft.checkoutFields ?? [] }, crypto.randomUUID());
       setCreated(result);
       setDraft({ ...EMPTY_DRAFT, merchantId });
       setAmountInput('');
       setExpiresInput('');
+      setMaxPaymentsInput('');
       await load();
     } catch (cause) {
       if (cause instanceof PayHttpError && cause.status === 403) setFormError('forbidden');
@@ -160,6 +169,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     setSelected(row);
     setEditDraft(editDraftFromRow(row));
     setEditAmountInput(formatAtomic(row.fixed_amount_atomic || '', row.amount_decimals));
+    setEditMaxPaymentsInput(row.max_payments === null ? '' : String(row.max_payments));
     setEditMode(true);
     setUpdateError(null);
     setDeleteConfirm(false);
@@ -187,6 +197,7 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 120
       || !editDraft.title.trim() || editDraft.title.trim().length > 200
       || (editDraft.description?.length || 0) > 5000
+       || (editMaxPaymentsInput.trim() !== '' && (!/^[1-9]\d*$/.test(editMaxPaymentsInput.trim()) || !Number.isSafeInteger(Number(editMaxPaymentsInput.trim())) || Number(editMaxPaymentsInput.trim()) > 2147483647))
       || !amount
       || !editDraft.asset || !editDraft.feePayer || !editDraft.checkoutLocale
       || (editDraft.isActive && editDraft.expiresAt && Date.parse(editDraft.expiresAt) <= Date.now())) {
@@ -198,6 +209,8 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
         merchantId, linkId: selected.id, slug, title: editDraft.title, description: editDraft.description || null,
         fixedAmountAtomic: amount, asset: editDraft.asset, feePayer: editDraft.feePayer,
         checkoutLocale: editDraft.checkoutLocale, isActive: editDraft.isActive, expiresAt: editDraft.expiresAt || null,
+        successUrl: editDraft.successUrl || null, maxPayments: editMaxPaymentsInput.trim() ? Number(editMaxPaymentsInput.trim()) : null,
+        checkoutFields: editDraft.checkoutFields ?? [],
       }, crypto.randomUUID());
       setRows(current => current.map(row => row.id === result.id ? result : row));
       setSelected(result);
@@ -256,7 +269,12 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
         <label><span>{paymentLinkT(locale,'expires')}</span><input type="datetime-local" value={expiresInput} onChange={e=>{setExpiresInput(e.target.value);setCreated(null);setFormError(null);}}/></label>
         <label className="pay-payment-link-create-wide"><span>{paymentLinkT(locale,'description')}</span><textarea value={draft.description || ''} onChange={e=>update('description',e.target.value)} maxLength={5000} rows={3}/></label>
       </div>
-      {formError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{formError==='invalid'?paymentLinkT(locale,'createInvalid'):formError==='forbidden'?paymentLinkT(locale,'createForbidden'):formError==='conflict'?paymentLinkT(locale,'createConflict'):paymentLinkT(locale,'createFailed')}</span></div> : null}
+      <div className="pay-payment-link-config-fields">
+         <label className="pay-payment-link-create-wide"><span>{paymentLinkT(locale,'successUrl')}</span><input type="url" inputMode="url" placeholder="https://merchant.example/paid" value={draft.successUrl || ''} onChange={e=>update('successUrl',e.target.value || null)} maxLength={2048}/><small>{paymentLinkT(locale,'successUrlHint')}</small></label>
+         <label><span>{paymentLinkT(locale,'maxPayments')}</span><input type="number" min="1" max="2147483647" step="1" inputMode="numeric" value={maxPaymentsInput} onChange={e=>{setMaxPaymentsInput(e.target.value);setFormError(null);setCreated(null)}}/><small>{paymentLinkT(locale,'maxPaymentsHint')}</small></label>
+       </div>
+       <CheckoutFieldsEditor locale={locale} fields={draft.checkoutFields ?? []} onChange={fields=>update('checkoutFields',fields)}/>
+       {formError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{formError==='invalid'?paymentLinkT(locale,'createInvalid'):formError==='forbidden'?paymentLinkT(locale,'createForbidden'):formError==='conflict'?paymentLinkT(locale,'createConflict'):paymentLinkT(locale,'createFailed')}</span></div> : null}
       {created ? <div className="pay-payment-link-created" role="status"><CheckCircle2 size={17}/><div><strong>{paymentLinkT(locale,'created')}</strong><code>{publicUrl(created.slug)}</code></div><button type="button" className="pay-secondary-action" onClick={() => void copyCreated()}><Clipboard size={15}/>{copied?paymentLinkT(locale,'copied'):paymentLinkT(locale,'copy')}</button><a className="pay-secondary-action" href={publicUrl(created.slug)} target="_blank" rel="noreferrer"><ExternalLink size={15}/>{paymentLinkT(locale,'open')}</a></div> : null}
       <div className="pay-payment-link-create-actions"><button type="submit" className="pay-primary-action" disabled={creating || !merchantId || loading || assetDecimals[draft.asset] === null}>{creating?<Loader2 className="animate-spin" size={17}/>:<FilePlus2 size={17}/>} {creating?paymentLinkT(locale,'creating'):paymentLinkT(locale,'createAction')}</button><span>{paymentLinkT(locale,'fixedHint')}</span></div>
     </form>
@@ -281,7 +299,12 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
           <label><span>{paymentLinkT(locale,'active')}</span><select value={editDraft.isActive ? 'active' : 'inactive'} onChange={e=>updateEdit('isActive',e.target.value === 'active')}><option value="active">{paymentLinkT(locale,'active')}</option><option value="inactive">{paymentLinkT(locale,'inactive')}</option></select></label>
           <label className="pay-payment-link-create-wide"><span>{paymentLinkT(locale,'description')}</span><textarea value={editDraft.description || ''} onChange={e=>updateEdit('description',e.target.value)} maxLength={5000} rows={3}/></label>
         </div>
-        {updateError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{updateError==='invalid'?paymentLinkT(locale,'updateInvalid'):updateError==='forbidden'?paymentLinkT(locale,'updateForbidden'):updateError==='conflict'?paymentLinkT(locale,'updateConflict'):paymentLinkT(locale,'updateFailed')}</span></div> : null}
+        <div className="pay-payment-link-config-fields">
+           <label className="pay-payment-link-create-wide"><span>{paymentLinkT(locale,'successUrl')}</span><input type="url" inputMode="url" placeholder="https://merchant.example/paid" value={editDraft.successUrl || ''} onChange={e=>updateEdit('successUrl',e.target.value || null)} maxLength={2048}/><small>{paymentLinkT(locale,'successUrlHint')}</small></label>
+           <label><span>{paymentLinkT(locale,'maxPayments')}</span><input type="number" min="1" max="2147483647" step="1" inputMode="numeric" value={editMaxPaymentsInput} onChange={e=>{setEditMaxPaymentsInput(e.target.value);setUpdateError(null)}}/><small>{paymentLinkT(locale,'maxPaymentsHint')}</small></label>
+         </div>
+         <CheckoutFieldsEditor locale={locale} fields={editDraft.checkoutFields ?? []} onChange={fields=>updateEdit('checkoutFields',fields)}/>
+         {updateError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{updateError==='invalid'?paymentLinkT(locale,'updateInvalid'):updateError==='forbidden'?paymentLinkT(locale,'updateForbidden'):updateError==='conflict'?paymentLinkT(locale,'updateConflict'):paymentLinkT(locale,'updateFailed')}</span></div> : null}
         {deleteError ? <div className="pay-payment-link-form-message is-error" role="alert"><XCircle size={17}/><span>{deleteError==='hasPayments'?paymentLinkT(locale,'hasPayments'):deleteError==='forbidden'?paymentLinkT(locale,'deleteForbidden'):paymentLinkT(locale,'deleteFailed')}</span></div> : null}
         <div className="pay-payment-link-edit-actions"><button type="submit" className="pay-primary-action" disabled={updating}>{updating?<Loader2 className="animate-spin" size={17}/>:<CheckCircle2 size={17}/>} {updating?paymentLinkT(locale,'saving'):paymentLinkT(locale,'save')}</button><button type="button" className="pay-secondary-action" onClick={cancelEdit}>{paymentLinkT(locale,'cancel')}</button></div>
       </form> : <>
@@ -312,3 +335,43 @@ export default function PayPaymentLinks({ locale, merchantId }: Props): React.Re
   </section>;
 }
 function Detail({label,value}:{label:string;value:string}):React.ReactElement{return <div className="pay-payment-link-detail-cell"><span>{label}</span><strong>{value}</strong></div>;}
+
+
+function CheckoutFieldsEditor({ locale, fields, onChange }: {
+  locale: PayLocale;
+  fields: PayPaymentLinkCheckoutField[];
+  onChange: (fields: PayPaymentLinkCheckoutField[]) => void;
+}): React.ReactElement {
+  const addField = () => {
+    if (fields.length >= 5) return;
+    let index = 1;
+    while (fields.some(field => field.key === 'field_' + index)) index += 1;
+    onChange([...fields, { key: 'field_' + index, label: '', type: 'text', required: false }]);
+  };
+  const updateField = <K extends keyof PayPaymentLinkCheckoutField>(index: number, key: K, value: PayPaymentLinkCheckoutField[K]) => {
+    onChange(fields.map((field, position) => position === index ? { ...field, [key]: value } : field));
+  };
+
+  return <section className="pay-payment-link-checkout-fields" aria-label={paymentLinkT(locale,'checkoutFields')}>
+    <div className="pay-payment-link-checkout-fields-heading">
+      <strong>{paymentLinkT(locale,'checkoutFields')}</strong>
+      <button type="button" className="pay-secondary-action" onClick={addField} disabled={fields.length >= 5}>
+        <Plus size={15}/>{paymentLinkT(locale,'addCheckoutField')}
+      </button>
+    </div>
+    {fields.length === 0 ? <p className="pay-payment-link-checkout-fields-empty">{paymentLinkT(locale,'noCustomFields')}</p> : null}
+    <div className="pay-payment-link-checkout-fields-list">
+      {fields.map((field,index) => <div className="pay-payment-link-checkout-field-row" key={field.key + ':' + index}>
+        <label><span>{paymentLinkT(locale,'fieldKey')}</span><input value={field.key} maxLength={32} pattern="[a-z][a-z0-9_]{0,31}" onChange={event=>updateField(index,'key',event.target.value)}/></label>
+        <label><span>{paymentLinkT(locale,'fieldLabel')}</span><input value={field.label} maxLength={80} onChange={event=>updateField(index,'label',event.target.value)}/></label>
+        <label><span>{paymentLinkT(locale,'fieldType')}</span><select value={field.type} onChange={event=>updateField(index,'type',event.target.value as PayPaymentLinkCheckoutField['type'])}>
+          <option value="text">{paymentLinkT(locale,'fieldTypeText')}</option>
+          <option value="email">{paymentLinkT(locale,'fieldTypeEmail')}</option>
+          <option value="textarea">{paymentLinkT(locale,'fieldTypeTextarea')}</option>
+        </select></label>
+        <label className="pay-payment-link-field-required"><input type="checkbox" checked={field.required} onChange={event=>updateField(index,'required',event.target.checked)}/><span>{paymentLinkT(locale,'fieldRequired')}</span></label>
+        <button type="button" className="pay-icon-button" onClick={()=>onChange(fields.filter((_,position)=>position!==index))} aria-label={paymentLinkT(locale,'removeField')} title={paymentLinkT(locale,'removeField')}><Trash2 size={15}/></button>
+      </div>)}
+    </div>
+  </section>;
+}
