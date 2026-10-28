@@ -254,7 +254,7 @@ begin
 
   if v_payload ->> 'id' <> '03000000-0000-4000-8000-000000000001'
     or v_payload ->> 'type' <> 'payment.status_changed'
-    or v_payload ->> 'createdAt' <> '2026-10-28T00:00:00+00:00' then
+    or (v_payload ->> 'createdAt')::timestamptz <> '2026-10-28T00:00:00Z'::timestamptz then
     raise exception 'existing webhook envelope fields changed unexpectedly: %', v_payload;
   end if;
 
