@@ -18,3 +18,26 @@
   .pay-payment-links-actions .pay-icon-button{width:34px;height:34px}
 }
 .pay-payment-link-create-grid label small.pay-payment-link-field-help,.pay-payment-link-edit-grid label small.pay-payment-link-field-help{font-size:11px;line-height:1.6;font-weight:400;color:#667085}
+
+.pay-payment-link-config-fields{display:grid;grid-template-columns:minmax(0,2fr) minmax(180px,1fr);gap:12px;margin-top:14px}
+.pay-payment-link-config-fields label{display:grid;gap:6px;min-width:0}
+.pay-payment-link-config-fields label>span{font-size:12px;font-weight:700;color:#344054}
+.pay-payment-link-config-fields input{width:100%;min-width:0;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;padding:10px 12px;background:#fff;color:#101828;font:inherit;font-size:12px}
+.pay-payment-link-config-fields input:focus{outline:3px solid rgba(240,77,153,.12);border-color:#f04d99}
+.pay-payment-link-config-fields small{color:#667085;font-size:11px;line-height:1.6}
+.pay-payment-link-checkout-fields{margin-top:16px;padding:14px;border:1px solid #eaecf0;border-radius:14px;background:#fcfcfd}
+.pay-payment-link-checkout-fields-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.pay-payment-link-checkout-fields-heading>strong{font-size:13px;color:#101828}
+.pay-payment-link-checkout-fields-empty{color:#667085;font-size:12px;margin:8px 0}
+.pay-payment-link-checkout-fields-list{display:grid;gap:10px}
+.pay-payment-link-checkout-field-row{display:grid;grid-template-columns:minmax(100px,1fr) minmax(130px,1.6fr) minmax(120px,1fr) auto auto;gap:10px;align-items:end;padding:10px;border:1px solid #eaecf0;border-radius:12px;background:#fff}
+.pay-payment-link-checkout-field-row label{display:grid;gap:5px;min-width:0}
+.pay-payment-link-checkout-field-row label>span{font-size:10px;font-weight:700;color:#475467}
+.pay-payment-link-checkout-field-row input:not([type=checkbox]),.pay-payment-link-checkout-field-row select{width:100%;min-width:0;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;padding:9px 10px;background:#fff;color:#101828;font:inherit;font-size:11px}
+.pay-payment-link-checkout-field-row input:focus,.pay-payment-link-checkout-field-row select:focus{outline:3px solid rgba(240,77,153,.12);border-color:#f04d99}
+.pay-payment-link-field-required{display:flex!important;align-items:center;gap:7px;min-height:35px}
+.pay-payment-link-field-required input{accent-color:#d63387}
+.pay-payment-link-field-required span{white-space:nowrap}
+.pay-payment-link-checkout-field-row .pay-icon-button{width:34px;height:34px}
+@media(max-width:900px){.pay-payment-link-checkout-field-row{grid-template-columns:repeat(2,minmax(0,1fr))}.pay-payment-link-checkout-field-row .pay-icon-button{justify-self:end}}
+@media(max-width:720px){.pay-payment-link-config-fields{grid-template-columns:1fr}.pay-payment-link-checkout-field-row{grid-template-columns:1fr}.pay-payment-link-checkout-fields-heading{align-items:flex-start;flex-direction:column}.pay-payment-link-checkout-field-row .pay-icon-button{justify-self:start}}
