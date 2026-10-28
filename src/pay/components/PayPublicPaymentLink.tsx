@@ -146,7 +146,7 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
         {link.description ? <div className="pay-public-link-description"><strong>{publicPaymentLinkT(locale,'description')}</strong><div>{link.description}</div></div> : null}
         {capacityReached || link.remainingPayments === 0 ? <div className="pay-public-link-capacity-full" role="alert">
           <XCircle size={22}/><p>{publicPaymentLinkT(locale,'capacityReached')}</p>
-          <button type="button" className="pay-secondary-action" onClick={() => void load()} disabled={state === 'loading'}><RefreshCw size={15}/>{publicPaymentLinkT(locale,'retry')}</button>
+          <button type="button" className="pay-secondary-action" onClick={() => void load()}><RefreshCw size={15}/>{publicPaymentLinkT(locale,'retry')}</button>
         </div> : <>
           <div className="pay-public-link-customer">
             <div className="pay-public-link-customer-heading"><div className="pay-public-link-customer-icon" aria-hidden="true"><UserRound size={17}/></div><div><strong>{publicPaymentLinkT(locale,'customerInfoTitle')}</strong><span>{publicPaymentLinkT(locale,'customerInfoHint')}</span></div></div>
