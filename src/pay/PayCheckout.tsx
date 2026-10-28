@@ -112,6 +112,7 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
   const [receipt, setReceipt] = useState<PayPaymentReceipt | null>(null);
   const [receiptState, setReceiptState] = useState<'idle' | 'loading' | 'ready' | 'retryable'>('idle');
   const walletPaymentInFlightRef = useRef(false);
+  const redirectedIntentIdRef = useRef<string | null>(null);
 
   const uiLocale: PayLocale =
     intent?.checkoutLocale && intent.checkoutLocale !== 'auto'
@@ -158,6 +159,13 @@ export function PayCheckout({ locale, localeHint, intentId, onBack }: PayCheckou
     void loadIntent(true);
     return () => { mountedRef.current = false; };
   }, [loadIntent]);
+
+  useEffect(() => {
+    if (!intent || intent.status !== 'completed' || !intent.successRedirectUrl) return;
+    if (redirectedIntentIdRef.current === intent.id) return;
+    redirectedIntentIdRef.current = intent.id;
+    window.location.assign(intent.successRedirectUrl);
+  }, [intent?.id, intent?.status, intent?.successRedirectUrl]);
 
   useEffect(() => {
     if (!currentIntentId) return;
