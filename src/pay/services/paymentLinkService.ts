@@ -1,4 +1,5 @@
 import { defaultPayHttpClient, type PayHttpClient } from '../http';
+import { normalizePaymentLinkSuccessUrl, parseNullableCapacityCount, parsePaymentLinkCheckoutFields, parsePaymentLinkMaxPayments, sanitizePaymentLinkCheckoutFieldValues, type PayPaymentLinkCheckoutField } from './paymentLinkExtras';
 
 export interface CreatePayPaymentLinkInput {
   merchantId: string;
@@ -10,12 +11,16 @@ export interface CreatePayPaymentLinkInput {
   feePayer: 'merchant' | 'customer';
   checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
   expiresAt?: string | null;
+  successUrl?: string | null;
+  maxPayments?: number | null;
+  checkoutFields?: PayPaymentLinkCheckoutField[];
 }
 
 export interface PublicPayCustomerInput {
   firstName: string;
   lastName: string;
   paymentReason: string;
+  customFields?: Record<string, string>;
 }
 
 export interface PublicPayPaymentLink {
@@ -32,6 +37,9 @@ export interface PublicPayPaymentLink {
   feePayer: 'merchant' | 'customer';
   checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
   expiresAt: string | null;
+  maxPayments: number | null;
+  remainingPayments: number | null;
+  checkoutFields: PayPaymentLinkCheckoutField[];
   merchant: { businessName: string };
 }
 
@@ -47,6 +55,9 @@ export interface UpdatePayPaymentLinkInput {
   checkoutLocale: 'fa-IR' | 'en-US' | 'ar' | 'ru' | 'auto';
   isActive: boolean;
   expiresAt?: string | null;
+  successUrl?: string | null;
+  maxPayments?: number | null;
+  checkoutFields?: PayPaymentLinkCheckoutField[];
 }
 
 export interface DeletePayPaymentLinkResult {
@@ -70,6 +81,9 @@ export interface PayPaymentLink {
   created_at: string;
   updated_at: string;
   amount_decimals: number | null;
+  success_url: string | null;
+  max_payments: number | null;
+  checkout_fields: PayPaymentLinkCheckoutField[];
 }
 
 interface Envelope { success?: boolean; apiVersion?: string; data?: unknown; }
@@ -130,6 +144,9 @@ function parseLink(value: unknown): PayPaymentLink {
     created_at: requiredString(row, 'created_at'),
     updated_at: requiredString(row, 'updated_at'),
     amount_decimals: amountDecimals,
+    success_url: row.success_url === null ? null : normalizePaymentLinkSuccessUrl(row.success_url),
+    max_payments: parsePaymentLinkMaxPayments(row.max_payments),
+    checkout_fields: parsePaymentLinkCheckoutFields(row.checkout_fields),
   };
 }
 
@@ -163,6 +180,9 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
       if (input.description && input.description.trim().length > 5000) throw new TypeError('Payment link description is too long.');
       if (!/^\d{1,78}$/.test(input.fixedAmountAtomic.trim()) || BigInt(input.fixedAmountAtomic.trim()) <= 0n) throw new TypeError('Payment link amount is invalid.');
       if (!ASSETS.has(input.asset) || !PAYERS.has(input.feePayer) || !LOCALES.has(input.checkoutLocale)) throw new TypeError('Payment link option is invalid.');
+      const successUrl = normalizePaymentLinkSuccessUrl(input.successUrl);
+      const maxPayments = parsePaymentLinkMaxPayments(input.maxPayments);
+      const checkoutFields = parsePaymentLinkCheckoutFields(input.checkoutFields ?? []);
       if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
       const payload = await client.request<Envelope>('/api/pay/v1/payment-links', {
         method: 'POST',
@@ -177,6 +197,9 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
           feePayer: input.feePayer,
           checkoutLocale: input.checkoutLocale,
           expiresAt: input.expiresAt || null,
+          successUrl,
+          maxPayments,
+          checkoutFields,
         }),
       });
       if (payload.success !== true || payload.apiVersion !== 'v1' || !payload.data) throw new TypeError('Invalid Pay payment link create envelope.');
@@ -217,10 +240,13 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
         feePayer: feePayer as PublicPayPaymentLink['feePayer'],
         checkoutLocale: checkoutLocale as PublicPayPaymentLink['checkoutLocale'],
         expiresAt: nullableString(row, 'expiresAt'),
+        maxPayments: parseNullableCapacityCount(row.maxPayments, 'maxPayments'),
+        remainingPayments: parseNullableCapacityCount(row.remainingPayments, 'remainingPayments'),
+        checkoutFields: parsePaymentLinkCheckoutFields(row.checkoutFields ?? []),
         merchant: { businessName: requiredString(merchant, 'businessName') },
       };
     },
-    async createFromPublic(slug: string, customer: PublicPayCustomerInput, idempotencyKey: string): Promise<{ id: string }> {
+    async createFromPublic(slug: string, customer: PublicPayCustomerInput, idempotencyKey: string, checkoutFields: PayPaymentLinkCheckoutField[] = []): Promise<{ id: string }> {
       const normalized = slug.trim();
       if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized) || normalized.length < 3 || normalized.length > 120) throw new TypeError('Payment link slug is invalid.');
       if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
@@ -230,10 +256,11 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
       if (firstName.length < 1 || firstName.length > 120) throw new TypeError('Customer first name is invalid.');
       if (lastName.length < 1 || lastName.length > 120) throw new TypeError('Customer last name is invalid.');
       if (paymentReason.length < 1 || paymentReason.length > 1000) throw new TypeError('Payment reason is invalid.');
+      const customFields = sanitizePaymentLinkCheckoutFieldValues(checkoutFields, customer.customFields ?? {});
       const payload = await client.request<Envelope>('/api/pay/v1/payment-links/' + encodeURIComponent(normalized), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.trim() },
-        body: JSON.stringify({ firstName, lastName, paymentReason }),
+        body: JSON.stringify({ firstName, lastName, paymentReason, customFields }),
       });
       const row = record(payload.data);
       const id = requiredString(row, 'id');
@@ -250,6 +277,9 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
       const amount = input.fixedAmountAtomic.trim();
       if (!/^\d{1,78}$/.test(amount) || BigInt(amount) <= 0n) throw new TypeError('Payment link amount is invalid.');
       if (!ASSETS.has(input.asset) || !PAYERS.has(input.feePayer) || !LOCALES.has(input.checkoutLocale)) throw new TypeError('Payment link option is invalid.');
+      const successUrl = normalizePaymentLinkSuccessUrl(input.successUrl);
+      const maxPayments = parsePaymentLinkMaxPayments(input.maxPayments);
+      const checkoutFields = parsePaymentLinkCheckoutFields(input.checkoutFields ?? []);
       if (typeof input.isActive !== 'boolean') throw new TypeError('Payment link active state is invalid.');
       if (!idempotencyKey.trim()) throw new TypeError('Idempotency key is required.');
       const payload = await client.request<Envelope>('/api/pay/v1/payment-links?merchantId=' + encodeURIComponent(input.merchantId.trim()) + '&linkId=' + encodeURIComponent(input.linkId.trim()), {
@@ -267,6 +297,9 @@ export function createPayPaymentLinkService(client: PayHttpClient = defaultPayHt
           checkoutLocale: input.checkoutLocale,
           isActive: input.isActive,
           expiresAt: input.expiresAt || null,
+          successUrl,
+          maxPayments,
+          checkoutFields,
         }),
       });
       if (payload.success !== true || payload.apiVersion !== 'v1' || !payload.data) throw new TypeError('Invalid Pay payment link update envelope.');
