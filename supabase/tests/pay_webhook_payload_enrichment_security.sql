@@ -315,6 +315,21 @@ begin
     raise exception 'atomic amount fields must be JSON strings';
   end if;
 
+  if jsonb_object_length(v_payload -> 'data') <> 12 then
+    raise exception 'webhook data must contain exactly the twelve documented allowlisted fields';
+  end if;
+
+  select count(*) into v_count
+    from public.pay_webhook_deliveries
+   where webhook_id = '01000000-0000-4000-8000-000000000001'
+     and event_id = '03000000-0000-4000-8000-000000000001'
+     and endpoint_url_snapshot = 'https://hooks.example.com/primary'
+     and secret_ciphertext_snapshot = 'CANARY_WEBHOOK_SECRET'
+     and secret_key_version_snapshot = 'v1';
+  if v_count <> 1 then
+    raise exception 'endpoint and signing-secret snapshots must remain available only in the delivery routing columns';
+  end if;
+
   if (v_payload -> 'data') ? 'metadata'
     or (v_payload -> 'data') ? 'feeRecipient'
     or (v_payload -> 'data') ? 'customerFirstName'
