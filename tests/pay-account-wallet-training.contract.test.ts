@@ -57,13 +57,19 @@ test('training center is an independent accessible accordion above ticket action
 });
 
 
-test('account wallet copy remains visible on narrow mobile screens and has an accessible failure state', () => {
+test('account wallet copy uses an isolated class not hidden by mobile header styles', () => {
   const accountCss = readFileSync('src/pay/components/pay-account-menu.css', 'utf8');
+  const payBaseCss = readFileSync('src/pay/pay.css', 'utf8');
+
   assert.match(account, /navigator\.clipboard\?\.writeText/);
   assert.match(account, /document\.execCommand\('copy'\)/);
   assert.match(account, /role="status"/);
-  assert.match(accountCss, /\.pay-account-trigger \.pay-account-copy span\{display:none\}/);
-  assert.doesNotMatch(accountCss, /@media\(max-width:430px\)\{\.pay-account-copy span\{display:none\}/);
+  assert.match(account, /<button[^>]*className="pay-account-address-copy"/);
+  assert.doesNotMatch(account, /<button[^>]*className="pay-account-copy"/);
+  assert.match(accountCss, /\.pay-account-address-copy\{/);
+  assert.match(accountCss, /\.pay-account-address-copy:focus-visible/);
+  assert.match(payBaseCss, /\.pay-account-copy \{ display: none; \}/);
+  assert.doesNotMatch(payBaseCss, /\.pay-account-address-copy \{ display: none; \}/);
   assert.match(account, /onManageWallet/);
 });
 

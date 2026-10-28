@@ -232,7 +232,7 @@ export default function PayAccountMenu({ locale, user, merchant, title, subtitle
                     <code dir="ltr">{shortenAddress(snapshot.walletAddress)}</code>
                   </div>
                   <div className="pay-account-wallet-copy-actions">
-                    <button type="button" className="pay-account-copy" onClick={() => void copyAddress()} aria-label={accountMenuT(locale, copied ? 'copied' : 'copyAddress')}>
+                    <button type="button" className="pay-account-address-copy" onClick={() => void copyAddress()} aria-label={accountMenuT(locale, copied ? 'copied' : 'copyAddress')}>
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                       <span>{copied ? accountMenuT(locale, 'copied') : accountMenuT(locale, 'copyAddress')}</span>
                     </button>
