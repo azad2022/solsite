@@ -252,30 +252,30 @@ begin
    where webhook_id = '01000000-0000-4000-8000-000000000001'
      and event_id = '03000000-0000-4000-8000-000000000001';
 
-  if v_payload ->> 'id' <> '03000000-0000-4000-8000-000000000001'
-    or v_payload ->> 'type' <> 'payment.status_changed'
-    or (v_payload ->> 'createdAt')::timestamptz <> '2026-10-28T00:00:00Z'::timestamptz then
+  if v_payload ->> 'id' IS DISTINCT FROM '03000000-0000-4000-8000-000000000001'
+    or v_payload ->> 'type' IS DISTINCT FROM 'payment.status_changed'
+    or (v_payload ->> 'createdAt')::timestamptz IS DISTINCT FROM '2026-10-28T00:00:00Z'::timestamptz then
     raise exception 'existing webhook envelope fields changed unexpectedly: %', v_payload;
   end if;
 
-  if v_payload #>> '{data,paymentId}' <> '11111111-1111-4111-8111-111111111111'
-    or v_payload #>> '{data,status}' <> 'pending'
-    or v_payload #>> '{data,previousStatus}' <> 'created'
-    or v_payload #>> '{data,amountAtomic}' <> '123456789012345678901234567890'
-    or v_payload #>> '{data,customerTotalAtomic}' <> '123456789012345678901234567899'
-    or v_payload #>> '{data,merchantNetAtomic}' <> '123456789012345678901234567887'
-    or v_payload #>> '{data,asset}' <> 'USDC'
-    or v_payload #>> '{data,network}' <> 'solana'
-    or v_payload #>> '{data,externalOrderId}' <> 'order-2026-42'
-    or v_payload #>> '{data,paymentLinkId}' <> '22222222-2222-4222-8222-222222222222'
-    or v_payload #>> '{data,paymentLinkSlug}' <> 'shop-order-42'
-    or v_payload #>> '{data,reason}' <> 'customer_verification_requested' then
+  if v_payload #>> '{data,paymentId}' IS DISTINCT FROM '11111111-1111-4111-8111-111111111111'
+    or v_payload #>> '{data,status}' IS DISTINCT FROM 'pending'
+    or v_payload #>> '{data,previousStatus}' IS DISTINCT FROM 'created'
+    or v_payload #>> '{data,amountAtomic}' IS DISTINCT FROM '123456789012345678901234567890'
+    or v_payload #>> '{data,customerTotalAtomic}' IS DISTINCT FROM '123456789012345678901234567899'
+    or v_payload #>> '{data,merchantNetAtomic}' IS DISTINCT FROM '123456789012345678901234567887'
+    or v_payload #>> '{data,asset}' IS DISTINCT FROM 'USDC'
+    or v_payload #>> '{data,network}' IS DISTINCT FROM 'solana'
+    or v_payload #>> '{data,externalOrderId}' IS DISTINCT FROM 'order-2026-42'
+    or v_payload #>> '{data,paymentLinkId}' IS DISTINCT FROM '22222222-2222-4222-8222-222222222222'
+    or v_payload #>> '{data,paymentLinkSlug}' IS DISTINCT FROM 'shop-order-42'
+    or v_payload #>> '{data,reason}' IS DISTINCT FROM 'customer_verification_requested' then
     raise exception 'webhook payload is missing or misrepresenting allowlisted fields: %', v_payload;
   end if;
 
-  if jsonb_typeof(v_payload #> '{data,amountAtomic}') <> 'string'
-    or jsonb_typeof(v_payload #> '{data,customerTotalAtomic}') <> 'string'
-    or jsonb_typeof(v_payload #> '{data,merchantNetAtomic}') <> 'string' then
+  if jsonb_typeof(v_payload #> '{data,amountAtomic}') IS DISTINCT FROM 'string'
+    or jsonb_typeof(v_payload #> '{data,customerTotalAtomic}') IS DISTINCT FROM 'string'
+    or jsonb_typeof(v_payload #> '{data,merchantNetAtomic}') IS DISTINCT FROM 'string' then
     raise exception 'atomic amount fields must be JSON strings';
   end if;
 
@@ -305,7 +305,7 @@ begin
     from public.pay_webhook_deliveries
    where webhook_id = '01000000-0000-4000-8000-000000000001'
      and event_id = '03000000-0000-4000-8000-000000000002';
-  if v_payload ->> 'sentinel' <> 'preserve-existing' then
+  if v_payload ->> 'sentinel' IS DISTINCT FROM 'preserve-existing' then
     raise exception 'idempotent conflict overwrote an existing webhook delivery';
   end if;
 
