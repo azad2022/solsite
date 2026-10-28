@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Apply all pending repository migrations to SolMint Pay Production'
+        description: 'NO skips; DRY_RUN previews migrations without writes; APPLY applies all pending repository migrations to Production.'
         required: true
         default: 'NO'
         type: choice
         options:
           - 'NO'
+          - 'DRY_RUN'
           - 'APPLY'
 
 permissions:
@@ -28,7 +29,7 @@ env:
 
 jobs:
   migrate:
-    if: inputs.confirm == 'APPLY'
+    if: inputs.confirm == 'APPLY' || inputs.confirm == 'DRY_RUN'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -58,6 +59,7 @@ jobs:
         run: supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
 
       - name: Apply pending migrations
+        if: inputs.confirm == 'APPLY'
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase db push --db-url "$SUPABASE_DB_URL"
