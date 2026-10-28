@@ -184,10 +184,10 @@ BEGIN
     'public.pay_update_payment_link(uuid,uuid,text,text,text,numeric,text,text,text,boolean,timestamptz,text,text,text,integer,jsonb)',
     'EXECUTE') THEN RAISE EXCEPTION 'anon can update configured Payment Links'; END IF;
   IF has_function_privilege('service_role',
-    'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,jsonb)',
+    'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb)',
     'EXECUTE') IS NOT TRUE THEN RAISE EXCEPTION 'service_role cannot create configured Payment Intents'; END IF;
   IF has_function_privilege('anon',
-    'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,jsonb)',
+    'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb)',
     'EXECUTE') THEN RAISE EXCEPTION 'anon can create Payment Intents from Payment Links'; END IF;
   IF has_function_privilege('service_role',
     'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text)',
@@ -391,7 +391,7 @@ BEGIN
     RAISE EXCEPTION 'more than five Checkout fields were accepted';
   END IF;
   IF has_function_privilege('authenticated',
-    'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,jsonb)',
+    'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb)',
     'EXECUTE') THEN
     RAISE EXCEPTION 'authenticated can invoke the service-role-only Payment Intent creator';
   END IF;
