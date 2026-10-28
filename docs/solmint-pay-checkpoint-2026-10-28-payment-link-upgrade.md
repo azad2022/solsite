@@ -7,7 +7,7 @@ Date: 2026-10-28
 **IMPLEMENTATION / PRE-MERGE VALIDATION PASS — PRODUCTION RELEASE BLOCKED UNTIL THE CONTROLLED MIGRATION IS APPLIED AND VERIFIED**
 
 - Pull request: [#363 — Payment Link upgrade stages 2–3](https://github.com/azad2022/solsite/pull/363)
-- Validated application/workflow SHA: `2d3b738c82dfc466e1acb20e26dd711555c09d5d`
+- Validated application/workflow SHA: `562ca34a696a538befc0d6d3bb8722c73a4e090c`
 - Feature branch: `feat/pay-payment-link-upgrade-stages-2-3`
 - The PR remains a draft. No production migration was applied by this checkpoint.
 
@@ -15,20 +15,21 @@ Date: 2026-10-28
 
 - Merchant-configured HTTPS success redirect is copied from the Payment Link into the Payment Intent snapshot. Checkout redirects only when the fetched authoritative Payment Intent status is `completed`.
 - Optional `max_payments` is enforced in the database Payment Intent creation routine while the Payment Link row is locked. The public remaining-count is presentation only; it is not the authority for accepting payments.
+- A two-session PostgreSQL concurrency test submits two independent checkout requests against a one-payment link and verifies exactly one `created`, one `capacity_reached`, and one active reservation.
 - Checkout fields are allowlisted (up to five fields with unique keys and validated type/label/required flag). Server and SQL validate values, and the submitted values are stored on the Payment Intent. They are not included in the public Payment Intent response.
 - Merchant form, public Checkout form, shared service contracts, localized text, and contract/security regression coverage were added.
 - The Production Build preview check was fixed to choose a successful Cloudflare Pages check with a parsed Preview URL instead of accidentally taking the first HTTPS link (which can be a Cloudflare dashboard log URL).
 
-## Validation evidence for SHA `2d3b738c82dfc466e1acb20e26dd711555c09d5d`
+## Validation evidence for SHA `562ca34a696a538befc0d6d3bb8722c73a4e090c`
 
 | Gate | Result | Evidence |
 |---|---|---|
-| CI / typecheck / unit tests | **PASS** | [Run 40708386070](https://github.com/azad2022/solsite/actions/runs/40708386070) |
-| Production Build and Preview route smoke | **PASS** | [Run 40708386142](https://github.com/azad2022/solsite/actions/runs/40708386142) |
-| Payment Link DB security fixture | **PASS** | [Run 40708386124](https://github.com/azad2022/solsite/actions/runs/40708386124) |
-| SolMint Pay Devnet E2E | **PASS** | [Run 40708386071](https://github.com/azad2022/solsite/actions/runs/40708386071) |
-| SolMint Pay Mainnet read-only | **PASS** | [Run 40708386063](https://github.com/azad2022/solsite/actions/runs/40708386063) |
-| Cloudflare Pages preview | **PASS** | [Check 122887070239](https://github.com/azad2022/solsite/runs/122887070239) |
+| CI / typecheck / unit tests | **PASS** | [Run 40709334381](https://github.com/azad2022/solsite/actions/runs/40709334381) |
+| Production Build and Preview route smoke | **PASS** | [Run 40709334359](https://github.com/azad2022/solsite/actions/runs/40709334359) |
+| Payment Link DB security fixture | **PASS** | [Run 40709334360](https://github.com/azad2022/solsite/actions/runs/40709334360) |
+| SolMint Pay Devnet E2E | **PASS** | [Run 40709334349](https://github.com/azad2022/solsite/actions/runs/40709334349) |
+| SolMint Pay Mainnet read-only | **PASS** | [Run 40709334539](https://github.com/azad2022/solsite/actions/runs/40709334539) |
+| Cloudflare Pages preview | **PASS** | [Check 122890364825](https://github.com/azad2022/solsite/runs/122890364825) |
 
 The Supabase Preview check is **SKIPPED** because Supabase branching/preview DB is disabled for this project. The database upgrade is instead tested in the workflow's disposable PostgreSQL fixture; Production was queried read-only to verify the migration is still pending.
 
