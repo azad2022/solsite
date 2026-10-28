@@ -24,7 +24,7 @@ test('A DRY_RUN cannot execute the migration apply step', () => {
 test('Production migration uses the repository-supplied Supabase connection URI', () => {
   assert.match(workflow, /SUPABASE_DB_URL:\s+\$\{\{\s*secrets\.SUPABASE_DB_URL\s*\}\}/);
   assert.match(workflow, /new URL\(raw\)/);
-  assert.match(workflow, /embedded_password=/);
+  assert.match(workflow, /embedded_password_removed=/);
   assert.doesNotMatch(workflow, /aws-0-eu-central-1\.pooler\.supabase\.com/);
 });
 
