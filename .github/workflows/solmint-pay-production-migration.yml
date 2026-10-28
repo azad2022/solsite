@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'NO skips; DRY_RUN previews migrations without writes; APPLY applies all pending repository migrations to Production.'
+        description: 'NO skips; AUTH_PROBE tests direct DB authentication only; DRY_RUN previews migrations without writes; APPLY applies all pending repository migrations to Production.'
         required: true
         default: 'NO'
         type: choice
         options:
           - 'NO'
+          - 'AUTH_PROBE'
           - 'DRY_RUN'
           - 'APPLY'
 
@@ -28,7 +29,7 @@ env:
 
 jobs:
   migrate:
-    if: inputs.confirm == 'APPLY' || inputs.confirm == 'DRY_RUN'
+    if: inputs.confirm == 'APPLY' || inputs.confirm == 'DRY_RUN' || inputs.confirm == 'AUTH_PROBE'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -38,6 +39,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Supabase CLI
+        if: inputs.confirm != 'AUTH_PROBE'
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
         with:
           version: latest
@@ -95,7 +97,42 @@ jobs:
           NODE
           echo "Production migration credential sources are present (values are not printed)."
 
-      - name: Read-only PostgreSQL authentication probe
+      - name: Read-only direct PostgreSQL authentication probe
+        if: inputs.confirm == 'AUTH_PROBE'
+        env:
+          PGHOST: db.nvopkbiedorfshwbmyhn.supabase.co
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGDATABASE: postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGSSLMODE: require
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          fi
+          if result="$(psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command 'SELECT current_database();' 2>&1)"; then
+            if [[ "$result" != 'postgres' ]]; then
+              echo "ERROR: direct PostgreSQL authentication succeeded, but the database name was unexpected."
+              exit 1
+            fi
+            echo "Direct PostgreSQL authentication probe PASSED. The configured GitHub credential is accepted by PostgreSQL."
+          else
+            psql_status=$?
+            if grep -Eqi '28P01|password authentication failed' <<< "$result"; then
+              echo "Direct PostgreSQL endpoint REJECTED the configured GitHub credential with SQLSTATE 28P01."
+            elif grep -Eqi 'network is unreachable|no route to host|could not translate host name|timeout expired|connection refused|could not connect' <<< "$result"; then
+              echo "Direct PostgreSQL endpoint was unreachable from this runner; the credential test is INCONCLUSIVE (network/IPv6/endpoint path)."
+            else
+              echo "Direct PostgreSQL probe failed for a different connection reason; detailed output is omitted. The credential test is INCONCLUSIVE."
+            fi
+            exit "$psql_status"
+          fi
+
+      - name: Read-only PostgreSQL authentication probe via Session Pooler
+        if: inputs.confirm == 'DRY_RUN'
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           PGSSLMODE: require
@@ -114,6 +151,7 @@ jobs:
           echo "Read-only psql authentication probe passed for the configured Production database. No data or schema was changed."
 
       - name: Preview pending migrations
+        if: inputs.confirm == 'DRY_RUN' || inputs.confirm == 'APPLY'
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase db push --db-url "$SUPABASE_DB_URL_SANITIZED" --dry-run
@@ -125,6 +163,7 @@ jobs:
         run: supabase db push --db-url "$SUPABASE_DB_URL_SANITIZED"
 
       - name: Verify migration state
+        if: inputs.confirm == 'APPLY'
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase migration list --db-url "$SUPABASE_DB_URL_SANITIZED"
