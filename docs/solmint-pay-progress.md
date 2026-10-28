@@ -1831,41 +1831,38 @@ Remaining acceptance gate: full authenticated Bulk Pay lifecycle E2E [issue #354
 
 ## 2026-10-28 — Payment Link webhook payload enrichment (Feature 1a)
 
-Status: **IMPLEMENTATION VALIDATED IN PR #361 — APPLICABLE CHECKS PASS — NOT DEPLOYED TO PRODUCTION**
+Status: **LIVE IN PRODUCTION — POST-DEPLOY SMOKES PASS — RELEASE-PROVENANCE GATE UNKNOWN/BLOCKED**
 
-PR and revisions:
-- PR: [#361](https://github.com/azad2022/solsite/pull/361).
-- Code-bearing revision tested: `06f6c7abae146d4b286500adfdbed2b79c1e9203`. A later documentation-only revision `a1e509245b74c30c7f52baaceab4f02879e28ea6` was also run through the relevant PR checks.
-- PR is open and unmerged at checkpoint time. The production migration `20261028064400_solmint_pay_webhook_payload_enrichment.sql` remains pending and is not listed as applied.
-- No code or database writes were made against Production for this feature.
+Release identity:
+- PR [#361](https://github.com/azad2022/solsite/pull/361) merged on 2026-10-28 at `06:58:15Z`.
+- Main merge commit: `dbe7453ba7b48bb47ebe6db158c4bb9816c92c88`.
+- Feature migration: `20261028064400_solmint_pay_webhook_payload_enrichment.sql`.
+- The repository migration ledger now records the 104 migrations observed in Production, including this feature migration. The migration was deployed, but **not by the repository's documented migration workflow**; the execution path must remain marked unknown until the existing control issue is resolved.
 
-Implementation:
+Feature implementation:
 - Enriches only `pay_enqueue_webhook_deliveries()`; preserves the existing `id/type/createdAt/data` envelope and `payment.status_changed` event type.
-- Adds a strict allowlist: Payment Intent ID, current/previous status, exact atomic amounts serialized as JSON strings, asset, network, external order ID, Payment Link ID/slug and existing reason.
-- Emits the Payment Link slug only when the authoritative `payment_link_id` is present. Direct Payment Intent metadata cannot impersonate a Payment Link snapshot.
+- Adds a strict allowlist: Payment Intent ID, current/previous status, exact atomic amounts as JSON strings, asset, network, external order ID, Payment Link ID/slug and existing reason.
+- Emits the Payment Link slug only when authoritative `payment_link_id` is present. Direct Payment Intent metadata cannot impersonate a Payment Link snapshot.
 - Excludes full metadata, fee recipient, payer identity fields, webhook secrets/ciphertext, IP and unrelated private data.
-- Retains SECURITY DEFINER, empty `search_path`, the existing role restrictions, merchant/active/subscription filters, immutable endpoint/signing snapshots, and delivery idempotency.
-- Adds an isolated PostgreSQL trigger-path/security test and attaches it to the existing database-security workflow.
-- Reconciles `docs/solmint-pay-live-migration-ledger.txt` with the 103 live-applied migration names. The repository contains 104 migration files: 103 applied migrations plus this one pending migration.
-
-Discovery evidence:
-- Baseline `main` HEAD: `89bf80f0b95ffe425e5ebd4d75c773e1499c32be`.
-- Live Supabase project `nvopkbiedorfshwbmyhn`: 103 migration records; repository, tracked ledger and live names/versions match. Latest applied migration at Discovery was `20261027150000_solmint_pay_bulk_payout_create_capability_hardening`.
-- At the time of inspection, Production had 48 payment links, 111 payment intents, 45 payment events, and zero webhook subscriptions/deliveries. No production webhook, Payment Intent or event was created for this work.
-- Existing observed payment events used `payment.status_changed` and a `reason` payload. The event type remains unchanged.
+- Retains SECURITY DEFINER, empty `search_path`, role restrictions, merchant/active/subscription filters, immutable endpoint/signing snapshots and delivery idempotency.
+- Adds an isolated PostgreSQL trigger-path/security test and wires it into the existing database-security workflow.
 
 Validation evidence:
-- **PASS** — full SolMint Pay Database Security workflow [40646624417](https://github.com/azad2022/solsite/actions/runs/40646624417), including migration-chain integrity and the new `pay_webhook_payload_enrichment_security.sql` test.
-- **PASS** — CI/quality [40646624360](https://github.com/azad2022/solsite/actions/runs/40646624360), including TypeScript typecheck, production build, unit tests and source-tree cleanliness.
-- **PASS** — SolMint Pay Devnet E2E [40646624327](https://github.com/azad2022/solsite/actions/runs/40646624327).
-- **PASS** — Production Build and Preview route checks [40646624428](https://github.com/azad2022/solsite/actions/runs/40646624428).
-- **PASS** — Cloudflare Pages PR preview deployment: [commit `a1e5092` preview](https://feat-pay-webhook-payload-enr.solsite-9uh.pages.dev).
-- **FAIL — separate legacy path** — `Workers Builds: solsite` [run 122677035359](https://github.com/azad2022/solsite/runs/122677035359). This is distinct from the configured Cloudflare Pages deployment, which succeeded. It is documented rather than hidden; it must not be treated as a green check.
-- **SKIPPED by repository configuration** — Supabase Preview because preview branching is disabled. The database test ran successfully in an isolated PostgreSQL CI database instead.
-- A prior baseline Production Browser UI E2E run [40640446155](https://github.com/azad2022/solsite/actions/runs/40640446155) failed in a referral lifecycle selector wait. That pre-existing issue is outside Feature 1a; no unrelated Referral code was changed.
+- **PASS** — PR CI/quality, Database Security, Devnet E2E, Production Build and Cloudflare Pages preview on the final PR revisions. Main push checks on merge commit `dbe7453ba7b48bb47ebe6db158c4bb9816c92c88` passed: [CI](https://github.com/azad2022/solsite/actions/runs/40647101366), [Database Security](https://github.com/azad2022/solsite/actions/runs/40647101402), [Devnet E2E](https://github.com/azad2022/solsite/actions/runs/40647101311), [Production Build](https://github.com/azad2022/solsite/actions/runs/40647101352), and Cloudflare Pages [check 122678596923](https://github.com/azad2022/solsite/runs/122678596923).
+- **PASS — post-deploy Live Smoke:** [run 40647249201](https://github.com/azad2022/solsite/actions/runs/40647249201).
+- **PASS — post-deploy Production API Smoke:** [run 40647249254](https://github.com/azad2022/solsite/actions/runs/40647249254).
+- **FAIL — official production migration workflow:** [run 40647321161](https://github.com/azad2022/solsite/actions/runs/40647321161) failed at `supabase db push --dry-run` with PostgreSQL `28P01` / password authentication failed for the configured database user. The workflow skipped both Apply and Verify steps. Do not claim this workflow deployed the migration.
+- **FAIL — separate legacy Workers check:** [run 122678580472](https://github.com/azad2022/solsite/runs/122678580472). Cloudflare Pages succeeded. The separate Workers failure is recorded rather than suppressed.
+- Supabase Preview passed on the merged commit, but its linked integration runner also applied the migration outside the documented workflow, which is the provenance discrepancy below.
 
-Release gate:
-- Feature 1a is validated for merge, but is **not yet marked deployed or production-complete**.
-- After merge, use the existing controlled `SolMint Pay Production Migration` workflow. Confirm the dry-run shows only the intended new migration, apply it through the workflow, then verify the migration ledger, function definition, trigger and grants read-only.
-- After migration, run available Production API Smoke / Live Smoke checks and inspect logs for payload size/errors; no real payment or fake production webhook should be created to claim E2E coverage.
-- Rollback must be a new forward migration restoring the exact prior function definition. Do not run ad hoc SQL on Production or repair migration history.
+Production migration and read-only checks:
+- Supabase unified logs show a runner with `workflow_run=88b3c77423ff488a88715a60699c2728` and branch `fabf1ac3-5428-45a1-a707-f466ee49eaed` cloning `git_ref=main` at `2026-10-28T06:58:44.885Z` and logging `Applying migration... file=20261028064400_solmint_pay_webhook_payload_enrichment.sql` at `2026-10-28T06:58:49.406Z`.
+- PostgreSQL logs record the migration's `CREATE FUNCTION`, `REVOKE`, and `GRANT` at `06:58:49Z`. This strongly correlates the database change with the Supabase-linked runner, but the logs do not identify the initiating actor/control. **Provenance remains UNKNOWN.**
+- Read-only verification confirms 104 live migration records and the expected latest version, matching function definition, SECURITY DEFINER, empty `search_path`, enabled event trigger, and EXECUTE grants only to `postgres` and `service_role`.
+- Production counts remained 48 payment links, 111 payment intents and 45 payment events; webhook subscriptions and deliveries remained zero. No production Payment Intent, webhook or event was created for testing.
+
+Release governance / next gate:
+- The feature implementation is deployed and the available post-deploy smoke checks passed.
+- **Do not mark release governance fully accepted** until issue [#355](https://github.com/azad2022/solsite/issues/355) establishes why the Supabase-linked runner applies migrations on merge and reconciles that behavior with `docs/solmint-pay-production-migration-policy.md`. This release's evidence was added to issue #355. No Supabase integration setting was changed and no migration was retried through an alternate path.
+- The official migration workflow's database credential must be corrected through the approved secret-management route; do not ask for or print the secret value.
+- No rollback is requested: the deployed function matches the reviewed source migration and read-only contract/security checks passed. If rollback becomes necessary, use a new forward migration restoring the exact prior function definition; never use ad hoc Production SQL or migration history repair.
