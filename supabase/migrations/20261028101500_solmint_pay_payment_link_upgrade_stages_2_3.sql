@@ -658,19 +658,19 @@ REVOKE ALL ON FUNCTION public.pay_create_payment_intent_from_link(
   uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text
 ) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.pay_create_payment_intent_from_link(
-  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text
+  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text
 ) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.pay_create_payment_intent_from_link(
-  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,jsonb
+  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.pay_create_payment_intent_from_link(
-  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text
+  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text
 ) TO service_role;
 GRANT EXECUTE ON FUNCTION public.pay_create_payment_intent_from_link(
-  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,jsonb
+  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb
 ) TO service_role;
 
 COMMENT ON FUNCTION public.pay_create_payment_intent_from_link(
-  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,jsonb
+  uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb
 ) IS
   'Service-role-only Payment Link Checkout creator. Locks the link row, enforces capacity, and snapshots the redirect and validated custom fields.';
