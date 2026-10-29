@@ -2022,3 +2022,20 @@ Status: **RELEASED — migration ledger, live schema/security verification, CI, 
 - Phase C (removing legacy overloads) is not part of this release and requires separate explicit approval.
 - Issue [#355](https://github.com/azad2022/solsite/issues/355) remains open for the separate Supabase-linked migration-runner provenance investigation. Both migrations in this release were applied through the controlled, auditable GitHub Actions workflow. The independent runner's exact trigger/actor remains **UNKNOWN** and must not be described as resolved.
 
+
+
+## 2026-10-29 — Workers Builds duplicate deployment path retired
+
+Status: **RESOLVED for Cloudflare Workers Builds duplicate trigger; production remains on the existing Cloudflare Pages integration.**
+
+- Read-only Cloudflare inspection found a second active Workers Builds trigger for the same `azad2022/solsite` repository and `main` branch. It ran the same `bun run build` command and then attempted `npx wrangler pages deploy dist`.
+- The last three main-branch Workers Builds logs show that the build itself completed, but the deploy command failed because it targeted Pages project `solmint`; the actual configured Pages project is `solsite`.
+- The actual Cloudflare Pages project remains linked to `azad2022/solsite:main`, builds `bun run build` to `dist`, and the latest deployment for `29ac6279fe9060db784d2802057c8038a78bb5ab` passed its build and deploy stages. The `solmint.ir` domain remains attached to that Pages project.
+- Deleted the single active duplicate Workers Builds production trigger through the Cloudflare API on 2026-10-29. A read-back of the Worker-build trigger list returned an empty list. Historical failed build records remain as audit history; the failed checks were not suppressed or relabeled.
+- No Cloudflare Pages settings, custom domains, runtime bindings, secrets, repository code, or production database were changed for this cleanup.
+
+### Separate unresolved database deployment governance item
+
+Issue [#355](https://github.com/azad2022/solsite/issues/355) remains **OPEN**. Supabase unified logs still show the linked internal runner cloning `main`, but a read-only query over 2026-10-28 17:00 UTC through 2026-10-29 17:00 UTC found no `Applying migration` event in that window. This is not proof that automatic Production deployment is disabled or that the historical provenance issue is resolved.
+
+The available Supabase connector does not expose the GitHub Integration dashboard setting. Per [Supabase's GitHub Integration documentation](https://supabase.com/docs/guides/deployment/branching/github-integration), the `Deploy to production` toggle is the provider-level control for automatic migration deployment. Do not close Issue #355 until that toggle is directly inspected, disabled if enabled with owner approval, and the state is verified. Both Payment Link Upgrade migrations were still applied through the documented, audited GitHub Actions `DRY_RUN` → approved `APPLY` path.
