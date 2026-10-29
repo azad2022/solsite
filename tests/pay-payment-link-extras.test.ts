@@ -18,9 +18,14 @@ test('Payment Link success URL is optional and accepts only absolute HTTPS desti
   assert.equal(normalizePaymentLinkSuccessUrl(undefined), null);
   assert.equal(normalizePaymentLinkSuccessUrl(null), null);
   assert.equal(normalizePaymentLinkSuccessUrl('https://merchant.example/paid'), 'https://merchant.example/paid');
+  assert.equal(normalizePaymentLinkSuccessUrl('https://merchant.example:8443/paid'), 'https://merchant.example:8443/paid');
+  assert.equal(normalizePaymentLinkSuccessUrl('https://merchant.example:443/paid'), 'https://merchant.example/paid');
   assert.throws(() => normalizePaymentLinkSuccessUrl('/paid'));
   assert.throws(() => normalizePaymentLinkSuccessUrl('http://merchant.example/paid'));
   assert.throws(() => normalizePaymentLinkSuccessUrl('https://user:pass@merchant.example/paid'));
+  assert.throws(() => normalizePaymentLinkSuccessUrl('https://merchant.example:99999/paid'));
+  assert.throws(() => normalizePaymentLinkSuccessUrl('https://merchant_name.example/paid'));
+  assert.throws(() => normalizePaymentLinkSuccessUrl('https://merchant.example/%zz'));
   assert.throws(() => normalizePaymentLinkSuccessUrl('https://merchant.example/has space'));
   assert.throws(() => normalizePaymentLinkSuccessUrl('https://merchant.example/' + 'a'.repeat(2048)));
 });
