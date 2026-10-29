@@ -64,7 +64,20 @@ export function normalizePaymentLinkSuccessUrl(value: unknown): string | null {
   if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) {
     throw new TypeError('Payment Link success URL must be an absolute HTTPS URL without credentials.');
   }
-  return url.toString();
+
+  // Keep the accepted authority syntax aligned with the SQL validator. WHATWG URL
+  // canonicalizes IDNs, scheme casing and default ports before the DB sees the value.
+  const hostname = url.hostname;
+  const domainHost = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*\.?$/i;
+  const ipv6Host = /^\[[0-9a-f:.]+\]$/i;
+  const canonical = url.toString();
+  if ((!domainHost.test(hostname) && !ipv6Host.test(hostname))
+      || canonical.length > MAX_ATOMIC_JSON_TEXT
+      || /%(?![0-9a-fA-F]{2})/.test(canonical)
+      || canonical.includes('\\')) {
+    throw new TypeError('Payment Link success URL is outside the supported HTTPS URL format.');
+  }
+  return canonical;
 }
 
 /** NULL means unlimited. The positive integer range matches PostgreSQL integer storage. */
