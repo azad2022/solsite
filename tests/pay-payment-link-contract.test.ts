@@ -106,3 +106,18 @@ test('Payment Link upgrade contract stores redirect/capacity/field snapshots and
   assert.match(route, /p_max_payments: maxPayments/);
   assert.match(route, /p_checkout_fields: checkoutFields/);
 });
+
+const publicIntent = readFileSync('functions/api/pay/v1/payment-intents/[id].ts', 'utf8');
+const webhookEnrichment = readFileSync('supabase/migrations/20261028064400_solmint_pay_webhook_payload_enrichment.sql', 'utf8');
+const privilegeHardening = readFileSync('supabase/migrations/20261029140401_solmint_pay_payment_link_rpc_service_role_revoke.sql', 'utf8');
+
+test('Payment Link upgrade keeps customer PII out of public Intent and webhook payloads', () => {
+  assert.doesNotMatch(publicIntent, /customer_(?:first_name|last_name|purpose|custom_fields)|payment_link_checkout_fields/i);
+  assert.doesNotMatch(webhookEnrichment, /p\\.customer_(?:first_name|last_name|purpose|custom_fields)/i);
+  assert.match(webhookEnrichment, /jsonb_build_object/);
+});
+
+test('Payment Link merchant mutation overloads explicitly revoke service_role EXECUTE', () => {
+  assert.match(privilegeHardening, /pay_create_payment_link[\\s\\S]*from service_role/i);
+  assert.match(privilegeHardening, /pay_update_payment_link[\\s\\S]*from service_role/i);
+});
