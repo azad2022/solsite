@@ -189,9 +189,23 @@ BEGIN
   IF has_function_privilege('authenticated',
     'public.pay_create_payment_link(uuid,text,text,text,numeric,text,text,text,timestamptz,text,text,text,integer,jsonb)',
     'EXECUTE') IS NOT TRUE THEN RAISE EXCEPTION 'authenticated cannot create configured Payment Links'; END IF;
+  IF has_function_privilege('service_role',
+    'public.pay_create_payment_link(uuid,text,text,text,numeric,text,text,text,timestamptz,text,text,text,integer,jsonb)',
+    'EXECUTE') THEN RAISE EXCEPTION 'service_role can invoke merchant-session Payment Link creation'; END IF;
   IF has_function_privilege('anon',
     'public.pay_update_payment_link(uuid,uuid,text,text,text,numeric,text,text,text,boolean,timestamptz,text,text,text,integer,jsonb)',
     'EXECUTE') THEN RAISE EXCEPTION 'anon can update configured Payment Links'; END IF;
+  IF has_function_privilege('authenticated',
+    'public.pay_update_payment_link(uuid,uuid,text,text,text,numeric,text,text,text,boolean,timestamptz,text,text,text,integer,jsonb)',
+    'EXECUTE') IS NOT TRUE THEN RAISE EXCEPTION 'authenticated cannot update configured Payment Links'; END IF;
+  IF has_function_privilege('service_role',
+    'public.pay_update_payment_link(uuid,uuid,text,text,text,numeric,text,text,text,boolean,timestamptz,text,text,text,integer,jsonb)',
+    'EXECUTE') THEN RAISE EXCEPTION 'service_role can invoke merchant-session Payment Link update'; END IF;
+  IF has_function_privilege('anon', 'public.pay_validate_payment_link_success_url(text)', 'EXECUTE')
+     OR has_function_privilege('service_role', 'public.pay_validate_payment_link_success_url(text)', 'EXECUTE') IS NOT TRUE
+     OR has_function_privilege('authenticated', 'public.pay_validate_payment_link_success_url(text)', 'EXECUTE') IS NOT TRUE THEN
+    RAISE EXCEPTION 'Payment Link success URL validator grants are incorrect';
+  END IF;
   IF has_function_privilege('service_role',
     'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb)',
     'EXECUTE') IS NOT TRUE THEN RAISE EXCEPTION 'service_role cannot create configured Payment Intents'; END IF;
@@ -390,6 +404,19 @@ COMMIT;
 
 DO $constraints$
 BEGIN
+  IF NOT public.pay_validate_payment_link_success_url('https://merchant.example/paid')
+     OR NOT public.pay_validate_payment_link_success_url('https://merchant.example:8443/paid')
+     OR NOT public.pay_validate_payment_link_success_url('https://[2001:db8::1]:8443/paid') THEN
+    RAISE EXCEPTION 'valid canonical HTTPS URL was rejected';
+  END IF;
+  IF public.pay_validate_payment_link_success_url('http://merchant.example/paid')
+     OR public.pay_validate_payment_link_success_url('https://user@merchant.example/paid')
+     OR public.pay_validate_payment_link_success_url('https://merchant.example:99999/paid')
+     OR public.pay_validate_payment_link_success_url('https://merchant.example/%zz')
+     OR public.pay_validate_payment_link_success_url('https://merchant.example' || chr(92) || 'evil') THEN
+    RAISE EXCEPTION 'invalid HTTPS URL was accepted';
+  END IF;
+
   IF public.pay_validate_payment_link_checkout_fields('[{"key":"dup","label":"One","type":"text","required":false},{"key":"dup","label":"Two","type":"text","required":false}]'::jsonb) THEN
     RAISE EXCEPTION 'duplicate Checkout field keys were accepted';
   END IF;
@@ -403,6 +430,13 @@ BEGIN
     'public.pay_create_payment_intent_from_link(uuid,uuid,numeric,text,text,text,integer,text,text,integer,text,numeric,numeric,numeric,text,text,timestamptz,jsonb,text,text,text,text,text,text,jsonb)',
     'EXECUTE') THEN
     RAISE EXCEPTION 'authenticated can invoke the service-role-only Payment Intent creator';
+  END IF;
+
+  IF public.pay_normalize_payment_link_checkout_field_values(
+       '[{"key":"notes","label":"Notes","type":"textarea","required":true}]'::jsonb,
+       jsonb_build_object('notes', E'First line\r\nSecond line')
+     ) <> jsonb_build_object('notes', E'First line\nSecond line') THEN
+    RAISE EXCEPTION 'textarea line breaks were not preserved consistently';
   END IF;
 END;
 $constraints$;
