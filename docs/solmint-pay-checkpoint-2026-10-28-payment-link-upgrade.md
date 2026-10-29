@@ -1,5 +1,33 @@
 # SolMint Pay — Payment Link Upgrade Stages 2–3 Checkpoint
 
+Updated: 2026-10-29
+
+## Current release status — RELEASED / LIVE VERIFIED
+
+PR [#363](https://github.com/azad2022/solsite/pull/363) is merged to `main` with squash commit `33713e1e8e19248c1c4ce20fe9bc221475ed096d`. Both feature migrations were applied through the controlled GitHub Actions workflow and verified in the live migration ledger before the application was merged. Cloudflare Pages deployed the exact merge commit.
+
+- Feature migration dry-run: [40886346878](https://github.com/azad2022/solsite/actions/runs/40886346878); feature migration APPLY + ledger verify: [40887513648](https://github.com/azad2022/solsite/actions/runs/40887513648).
+- Corrective privilege migration dry-run: [40888030531](https://github.com/azad2022/solsite/actions/runs/40888030531); corrective APPLY + ledger verify: [40888257913](https://github.com/azad2022/solsite/actions/runs/40888257913).
+- Live read-only checks: both target migration versions recorded; all six columns present; RLS enabled on Payment Links, Payment Intents and idempotency table; configured create/update RPC privilege matrix is `anon=false`, `authenticated=true`, `service_role=false`.
+- The correction was evidence-driven: first post-apply verification found direct `service_role` EXECUTE on the configured merchant-session-only create/update RPC overloads; a separate additive migration revoked those grants and the security test now reproduces that direct grant before applying the correction.
+- Backward compatibility: all 48 pre-existing links had `success_url=NULL`, `max_payments=NULL`, `checkout_fields=[]` before Browser UI E2E. Current post-smoke count is 49 because one inert Browser UI test link and append-only audit evidence remain; the 49 current links all have the backward-compatible defaults.
+- CI/security/Devnet/Mainnet/Production Build gates passed on the reviewed feature head: [CI](https://github.com/azad2022/solsite/actions/runs/40888025387), [Database Security](https://github.com/azad2022/solsite/actions/runs/40888024956), [Devnet E2E](https://github.com/azad2022/solsite/actions/runs/40888025250), [Mainnet read-only](https://github.com/azad2022/solsite/actions/runs/40888024988), [Production Build](https://github.com/azad2022/solsite/actions/runs/40888024821).
+- Post-merge Production API Smoke [40888926558](https://github.com/azad2022/solsite/actions/runs/40888926558), Live Smoke [40888926402](https://github.com/azad2022/solsite/actions/runs/40888926402), and Browser UI E2E [40888926564](https://github.com/azad2022/solsite/actions/runs/40888926564) all passed. Browser screenshots/artifacts: [12903553899](https://github.com/azad2022/solsite/actions/runs/40888926564/artifacts/12903553899).
+
+D2 is implemented as NO customer PII/custom values in Webhooks; D3 has no extra status table in this release (status rules remain explicit in the DB routine); D5 remains capped at five `text/email/textarea` fields. Phase C (deleting old RPC overloads) was not performed and requires separate approval.
+
+## Exceptions and follow-up retained explicitly
+
+- [Issue #355](https://github.com/azad2022/solsite/issues/355) remains OPEN / migration-runner provenance UNKNOWN. The 2026-10-29 read-only log query found no migration apply in its inspected 24-hour window, but it does not resolve earlier runner provenance; no integration setting was changed.
+- The independent external `Workers Builds: solsite` check remains failed; the actual Cloudflare Pages deployment for the merge commit succeeded. This is a separate legacy integration.
+- The additional Live Browser Audit's first attempt timed out waiting for the referral stats locator even though the same referral lifecycle passed within the official Browser UI E2E; an attempt-2 rerun was requested and should be recorded when its final conclusion is known.
+- Supabase Security/Performance advisor output includes project-wide baseline warnings; no unrelated tables, policies, extensions, indexes, or Auth settings were changed here.
+- The post-merge Browser UI E2E intentionally retained immutable history: its test merchant is suspended, test user disabled, test link inactive; two Payment Intents and one payment event are preserved as append-only evidence. This is expected test cleanup, not a live customer transaction.
+
+---
+
+## Historical pre-apply checkpoint (recorded 2026-10-28; statements below describe the old state and are superseded by the current release status)
+
 Date: 2026-10-28
 
 ## Current decision

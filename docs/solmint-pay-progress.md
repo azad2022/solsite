@@ -1907,3 +1907,70 @@ Status: **RELEASE BLOCKED — PR #363 remains Draft and unmerged. No Production 
 - D5: current implementation allows at most five `text/email/textarea` fields with required/optional semantics. Owner decision remains pending.
 
 This checkpoint records findings only. It is not production acceptance and does not authorize `APPLY` or merge.
+
+## 2026-10-29 — Payment Link upgrade stages 2–3 released and live-verified
+
+Status: **RELEASED — controlled migrations applied, Production deployed, requested release gates passed**
+
+- Pull request [#363](https://github.com/azad2022/solsite/pull/363) was squash-merged to `main`.
+- Merge commit: `33713e1e8e19248c1c4ce20fe9bc221475ed096d`.
+- Feature head immediately before merge: `a24bd0a028e87240756b68f1cacaf11387664c51`.
+- The exact merge commit was deployed by Cloudflare Pages; the Pages check is [here](https://github.com/azad2022/solsite/runs/123501907314). The legacy external `Workers Builds: solsite` check still fails independently and is not the configured Pages deployment path.
+
+### Controlled Production migration evidence
+
+Both Production migrations were applied using the repository-controlled `SolMint Pay Production Migration` workflow. No manual SQL mutation was used.
+
+| Gate | Evidence | Result |
+|---|---|---|
+| DRY_RUN of feature migration; exactly one pending migration | [Run 40886346878](https://github.com/azad2022/solsite/actions/runs/40886346878) | PASS |
+| APPLY + migration ledger verification for `20261028101500_solmint_pay_payment_link_upgrade_stages_2_3.sql` | [Run 40887513648](https://github.com/azad2022/solsite/actions/runs/40887513648) | PASS |
+| DRY_RUN of corrective privilege migration; exactly one pending migration | [Run 40888030531](https://github.com/azad2022/solsite/actions/runs/40888030531) | PASS |
+| APPLY + migration ledger verification for `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke.sql` | [Run 40888257913](https://github.com/azad2022/solsite/actions/runs/40888257913) | PASS |
+
+### Independent read-only Production verification
+
+After both APPLY runs, live PostgreSQL read-only checks confirmed:
+
+- Both target versions are recorded in `supabase_migrations.schema_migrations`.
+- All six new columns exist across `public.pay_payment_links` and `public.pay_payment_intents`.
+- RLS remains enabled on `pay_payment_links`, `pay_payment_intents`, and `pay_idempotency_keys`.
+- The configured create/update Payment Link RPC overloads have `anon EXECUTE=false`, `authenticated EXECUTE=true`, `service_role EXECUTE=false`. The corrective migration was added after the first live verification found a direct `service_role` grant that the first migration/test fixture had not exposed.
+- The custom Payment Intent creator remains service-role-only; the old creator signature without payer identity/capacity is non-executable. Existing pre-Phase-C overloads remain in place and Phase C has not been executed.
+- Before production Browser UI E2E created its test fixture, all **48 pre-existing Payment Links** had the intended backward-compatible defaults: `success_url IS NULL`, `max_payments IS NULL`, and `checkout_fields = []`. The post-smoke count is 49 because the authenticated Browser UI E2E intentionally retained one inert test link and append-only audit history; all 49 current links have the same legacy defaults.
+- At final post-smoke read, counts were 113 Payment Intents, 46 payment events, 0 webhook subscriptions and 0 webhook deliveries. The retained fixture's merchant is suspended, the user is inactive, and its link is inactive. Two fixture Payment Intents and one event remain as immutable audit evidence by design; the E2E cleanup explicitly verifies the fixture is inert.
+
+### CI and post-merge Production smoke evidence
+
+Checks on the reviewed feature head:
+
+- [CI / Quality — Run 40888025387](https://github.com/azad2022/solsite/actions/runs/40888025387): PASS.
+- [Database Security, including capacity concurrency and corrective grants — Run 40888024956](https://github.com/azad2022/solsite/actions/runs/40888024956): PASS.
+- [Devnet E2E — Run 40888025250](https://github.com/azad2022/solsite/actions/runs/40888025250): PASS.
+- [Mainnet read-only — Run 40888024988](https://github.com/azad2022/solsite/actions/runs/40888024988): PASS.
+- [Production Build — Run 40888024821](https://github.com/azad2022/solsite/actions/runs/40888024821): PASS.
+
+Post-merge gates on `main` / merge commit:
+
+- [Production API Smoke — Run 40888926558](https://github.com/azad2022/solsite/actions/runs/40888926558): PASS.
+- [Live Smoke — Run 40888926402](https://github.com/azad2022/solsite/actions/runs/40888926402): PASS.
+- [Production Browser UI E2E — Run 40888926564](https://github.com/azad2022/solsite/actions/runs/40888926564): PASS. This includes the dedicated referral lifecycle E2E, authenticated browser UI, Payment Link create/update/delete guard, Payment Intent lookup, ticket lifecycle, locale persistence, and evidence artifact upload ([screenshots/artifact](https://github.com/azad2022/solsite/actions/runs/40888926564/artifacts/12903553899)).
+
+### Security and scope decisions
+
+- D2: no customer names, purpose or custom-field values in merchant webhook payloads; payload stays allowlisted.
+- D3: no separate capacity-status lookup table was added. Capacity status semantics remain explicit in the authoritative database routine and are covered by database/security tests.
+- D5: custom Checkout fields remain capped at five and restricted to the existing `text`, `email`, and `textarea` types.
+- Capacity is database-authoritative and serialized under `SELECT ... FOR UPDATE` on the Payment Link row. Matching idempotent replays are handled before capacity rejection. Expired reservations stop consuming a slot. Checkout redirects only after the public Intent API returns authoritative `completed`.
+- Custom field values and definitions are not returned by the public Payment Intent response; the webhook envelope remains allowlisted.
+- No new API family or financial business rule was introduced. Financial truth remains backend-owned.
+
+### Known exceptions that are not silently marked resolved
+
+- [Issue #355](https://github.com/azad2022/solsite/issues/355) remains **OPEN / provenance UNKNOWN**. A read-only 24-hour Supabase unified-log query on 2026-10-29 found one internal runner clone of `main` but zero `Applying migration` rows in that window; this does not identify the earlier runner's initiator or prove the integration setting. Do not attribute an actor or disable/reconfigure Supabase GitHub Integration based on timing alone.
+- The separate external `Workers Builds: solsite` check remains failed; Cloudflare Pages for the actual site deployment passed. Do not create an unrelated Worker or weaken repository gates to mask that external integration.
+- The project-wide Supabase Security/Performance advisor findings observed on 2026-10-29 were recorded as baseline advisories; unrelated RLS/SECURITY DEFINER, extension, index or auth settings were not changed as part of this release.
+- The extra [Live Browser Audit run 40888926523](https://github.com/azad2022/solsite/actions/runs/40888926523) had a first-attempt referral stats locator timeout while the same dedicated referral lifecycle E2E passed in the official Browser UI E2E. Attempt 2 was requested; record its final result when completed. This separate audit is not substituted for the passing three requested post-merge gates above.
+
+Phase C (removal of old Payment Link RPC overloads) is intentionally **not performed** and requires separate explicit approval.
+
