@@ -172,7 +172,7 @@ BEGIN
   END IF;
 
   IF left(v_authority, 1) = '[' THEN
-    v_parts := regexp_match(v_authority, '^\[([0-9A-Fa-f:.]+)\](:([0-9]{1,5}))?$');
+    v_parts := regexp_match(v_authority, '^\[([0-9a-f:.]+)\](:([0-9]{1,5}))?$');
     IF v_parts IS NULL THEN
       RETURN false;
     END IF;
@@ -194,14 +194,30 @@ BEGIN
     v_host := v_parts[1];
     v_port_text := v_parts[3];
     IF char_length(v_host) > 254
-       OR v_host !~ '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?$' THEN
+       OR v_host <> lower(v_host)
+       OR v_host !~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.?$' THEN
       RETURN false;
+    END IF;
+
+    -- WHATWG URL converts non-canonical numeric hosts to dotted IPv4. Enforce
+    -- canonical dotted-quad values here too, rather than accepting shorthand.
+    IF v_host ~ '^[0-9.]+$' THEN
+      v_parts := regexp_match(v_host, '^(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$');
+      IF v_parts IS NULL
+         OR v_parts[1]::integer > 255
+         OR v_parts[2]::integer > 255
+         OR v_parts[3]::integer > 255
+         OR v_parts[4]::integer > 255 THEN
+        RETURN false;
+      END IF;
     END IF;
   END IF;
 
-  IF v_port_text IS NOT NULL AND v_port_text::integer > 65535 THEN
+  IF v_port_text IS NOT NULL
+     AND (v_port_text !~ '^(0|[1-9][0-9]{0,4})$' OR v_port_text::integer > 65535) THEN
     RETURN false;
   END IF;
+
   RETURN true;
 EXCEPTION WHEN others THEN
   RETURN false;
