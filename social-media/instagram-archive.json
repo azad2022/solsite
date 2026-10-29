@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "account": "solmint_wallet",
+  "purpose": "Prevent repetitive SolMint Pay Instagram content and track publication state.",
+  "posts": [
+    {
+      "date": "2026-10-29",
+      "locale": "fa-IR",
+      "topic": "SolMint Pay gateway overview",
+      "creativeConcept": "White/pink premium fintech checkout scene with pink horned dolphin; Persian title and verified feature overview",
+      "caption": "درگاه پرداخت رمزارزی فقط به ارسال تراکنش خلاصه نمی‌شود؛ پیگیری درست وضعیت پرداخت هم اهمیت دارد. SolMint Pay با تمرکز فعلی بر شبکه Solana، ابزارهایی برای پرداخت‌لینک، فاکتور و مدیریت تراکنش‌ها در اختیار کسب‌وکارها قرار می‌دهد. وضعیت «ارسال‌شده» با تأیید نهایی پرداخت یکسان نیست؛ نتیجه باید از مسیر معتبر بررسی شود.\n\nبرای آشنایی با SolMint Pay به Solmint.ir سر بزنید.\n\n#SolMintPay #Solana #CryptoPayments #Web3 #پرداخت_رمزارزی",
+      "status": "draft_not_published",
+      "notes": "Original image concept was generated and formatted, but no Instagram media ID/permalink exists; do not mark as published or reuse this concept."
+    }
+  ]
+}
