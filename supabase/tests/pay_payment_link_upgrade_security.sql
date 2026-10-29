@@ -406,12 +406,17 @@ DO $constraints$
 BEGIN
   IF NOT public.pay_validate_payment_link_success_url('https://merchant.example/paid')
      OR NOT public.pay_validate_payment_link_success_url('https://merchant.example:8443/paid')
+     OR NOT public.pay_validate_payment_link_success_url('https://127.0.0.1/paid')
      OR NOT public.pay_validate_payment_link_success_url('https://[2001:db8::1]:8443/paid') THEN
     RAISE EXCEPTION 'valid canonical HTTPS URL was rejected';
   END IF;
   IF public.pay_validate_payment_link_success_url('http://merchant.example/paid')
      OR public.pay_validate_payment_link_success_url('https://user@merchant.example/paid')
      OR public.pay_validate_payment_link_success_url('https://merchant.example:99999/paid')
+     OR public.pay_validate_payment_link_success_url('https://merchant.example:080/paid')
+     OR public.pay_validate_payment_link_success_url('https://MERCHANT.example/paid')
+     OR public.pay_validate_payment_link_success_url('https://127.1/paid')
+     OR public.pay_validate_payment_link_success_url('https://127.000.0.1/paid')
      OR public.pay_validate_payment_link_success_url('https://merchant.example/%zz')
      OR public.pay_validate_payment_link_success_url('https://merchant.example' || chr(92) || 'evil') THEN
     RAISE EXCEPTION 'invalid HTTPS URL was accepted';
