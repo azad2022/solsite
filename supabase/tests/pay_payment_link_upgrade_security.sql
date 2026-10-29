@@ -176,6 +176,17 @@ $core_creator$;
 \i supabase/migrations/20260930073558_solmint_pay_public_payer_identity_20260930100000.sql
 \i supabase/migrations/20261028101500_solmint_pay_payment_link_upgrade_stages_2_3.sql
 
+-- Simulate Supabase project-level default EXECUTE grants on newly-created functions.
+-- The corrective migration must remove the direct service_role grants from the two
+-- merchant-session-only overloads; the isolated database otherwise lacks these defaults.
+GRANT EXECUTE ON FUNCTION public.pay_create_payment_link(
+  uuid,text,text,text,numeric,text,text,text,timestamptz,text,text,text,integer,jsonb
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.pay_update_payment_link(
+  uuid,uuid,text,text,text,numeric,text,text,text,boolean,timestamptz,text,text,text,integer,jsonb
+) TO service_role;
+\i supabase/migrations/20261029140401_solmint_pay_payment_link_rpc_service_role_revoke.sql
+
 INSERT INTO public.users(id,is_active) VALUES ('upgrade-owner',true);
 INSERT INTO public.pay_merchants(id,status) VALUES ('00000000-0000-0000-0000-000000000001','active');
 INSERT INTO public.pay_merchant_members(user_id,merchant_id,status,role)
