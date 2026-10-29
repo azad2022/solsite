@@ -427,6 +427,30 @@
                       "null"
                     ],
                     "format": "date-time"
+                  },
+                  "successUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "pattern": "^https://"
+                  },
+                  "maxPayments": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "checkoutFields": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "$ref": "#/components/schemas/PayPaymentLinkCheckoutField"
+                    }
                   }
                 }
               }
@@ -496,6 +520,138 @@
           },
           "503": {
             "description": "Payment link deletion service temporarily unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPayPaymentLink",
+        "summary": "Create a merchant Payment Link",
+        "description": "Creates a fixed-amount Payment Link for an authenticated merchant. Optional success redirect, capacity limit, and custom Checkout field definitions are stored in the database; capacity is enforced by the Payment Intent creation function under a link-row lock.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "merchantId",
+                  "slug",
+                  "title",
+                  "fixedAmountAtomic",
+                  "asset",
+                  "feePayer",
+                  "checkoutLocale"
+                ],
+                "properties": {
+                  "merchantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 5000
+                  },
+                  "fixedAmountAtomic": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,78}$"
+                  },
+                  "asset": {
+                    "type": "string",
+                    "enum": [
+                      "SOL",
+                      "USDC",
+                      "USDT"
+                    ]
+                  },
+                  "feePayer": {
+                    "type": "string",
+                    "enum": [
+                      "merchant",
+                      "customer"
+                    ]
+                  },
+                  "checkoutLocale": {
+                    "type": "string",
+                    "enum": [
+                      "fa-IR",
+                      "en-US",
+                      "ar",
+                      "ru",
+                      "auto"
+                    ]
+                  },
+                  "expiresAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "successUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "pattern": "^https://"
+                  },
+                  "maxPayments": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "checkoutFields": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "$ref": "#/components/schemas/PayPaymentLinkCheckoutField"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay of an existing Payment Link"
+          },
+          "201": {
+            "description": "Created authoritative Payment Link"
+          },
+          "400": {
+            "description": "Invalid Payment Link input"
+          },
+          "401": {
+            "description": "Authenticated Solmint session required"
+          },
+          "403": {
+            "description": "Merchant access denied"
+          },
+          "409": {
+            "description": "Idempotency conflict or duplicate slug"
+          },
+          "503": {
+            "description": "Payment Link service temporarily unavailable"
           }
         }
       }
@@ -638,7 +794,154 @@
         ],
         "responses": {
           "200": {
-            "description": "Public Payment Link checkout snapshot"
+            "description": "Public Payment Link checkout snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "apiVersion",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "apiVersion": {
+                      "const": "v1"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "slug",
+                        "title",
+                        "amountAtomic",
+                        "amountDecimals",
+                        "feeBps",
+                        "feeAtomic",
+                        "customerTotalAtomic",
+                        "merchantSettlementAtomic",
+                        "asset",
+                        "feePayer",
+                        "checkoutLocale",
+                        "expiresAt",
+                        "maxPayments",
+                        "remainingPayments",
+                        "checkoutFields",
+                        "merchant"
+                      ],
+                      "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "amountAtomic": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,78}$"
+                        },
+                        "amountDecimals": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255
+                        },
+                        "feeBps": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 10000
+                        },
+                        "feeAtomic": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,78}$"
+                        },
+                        "customerTotalAtomic": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,78}$"
+                        },
+                        "merchantSettlementAtomic": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,78}$"
+                        },
+                        "asset": {
+                          "type": "string",
+                          "enum": [
+                            "SOL",
+                            "USDC",
+                            "USDT"
+                          ]
+                        },
+                        "feePayer": {
+                          "type": "string",
+                          "enum": [
+                            "merchant",
+                            "customer"
+                          ]
+                        },
+                        "checkoutLocale": {
+                          "type": "string",
+                          "enum": [
+                            "fa-IR",
+                            "en-US",
+                            "ar",
+                            "ru",
+                            "auto"
+                          ]
+                        },
+                        "expiresAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "maxPayments": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 1,
+                          "maximum": 2147483647
+                        },
+                        "remainingPayments": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 2147483647
+                        },
+                        "checkoutFields": {
+                          "type": "array",
+                          "maxItems": 5,
+                          "items": {
+                            "$ref": "#/components/schemas/PayPaymentLinkCheckoutField"
+                          }
+                        },
+                        "merchant": {
+                          "type": "object",
+                          "required": [
+                            "businessName"
+                          ],
+                          "properties": {
+                            "businessName": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid Payment Link slug"
@@ -657,7 +960,7 @@
       "post": {
         "operationId": "createPublicPayPaymentIntentFromLink",
         "summary": "Create a public Payment Intent from a Payment Link",
-        "description": "Creates an authoritative Payment Intent for a public Payment Link without requiring customer registration. The request must contain only the payer first name, payer last name, and payment reason. Customer identity is stored server-side with the Payment Intent and is not exposed by the public Payment Intent GET contract.",
+        "description": "Creates a Payment Intent from a public Payment Link. Custom field values must match that Link's server-owned field definition. The backend locks the Payment Link row and enforces its capacity. The public route does not accept or return the success redirect URL.",
         "security": [],
         "parameters": [
           {
@@ -699,6 +1002,13 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 1000
+                  },
+                  "customFields": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
                   }
                 }
               }
@@ -722,7 +1032,7 @@
             "description": "Payment Link or merchant not available"
           },
           "409": {
-            "description": "Payment Link unavailable, merchant wallet not ready, or idempotency conflict"
+            "description": "Payment Link unavailable, capacity reached, merchant wallet not ready, or idempotency conflict"
           },
           "410": {
             "description": "Payment Link expired"
@@ -945,7 +1255,8 @@
               "expiresAt",
               "customerTotalAtomic",
               "network",
-              "verificationCommitment"
+              "verificationCommitment",
+              "successRedirectUrl"
             ],
             "properties": {
               "id": {
@@ -1068,6 +1379,15 @@
                   "confirmed",
                   "finalized"
                 ]
+              },
+              "successRedirectUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri",
+                "maxLength": 2048,
+                "pattern": "^https://"
               }
             }
           }
@@ -1183,7 +1503,10 @@
           "checkout_locale",
           "is_active",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "success_url",
+          "max_payments",
+          "checkout_fields"
         ],
         "properties": {
           "id": {
@@ -1257,6 +1580,37 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000
+          },
+          "success_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "maxLength": 2048,
+            "pattern": "^https://"
+          },
+          "max_payments": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "checkout_fields": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/PayPaymentLinkCheckoutField"
+            }
           }
         }
       },
@@ -1554,6 +1908,39 @@
                 }
               }
             }
+          }
+        }
+      },
+      "PayPaymentLinkCheckoutField": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "type",
+          "required"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,31}",
+            "maxLength": 32
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "email",
+              "textarea"
+            ]
+          },
+          "required": {
+            "type": "boolean"
           }
         }
       }

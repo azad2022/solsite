@@ -1,5 +1,6 @@
 import type { PayLocale } from './types';
 import { defaultPayHttpClient, PayHttpError, type PayHttpClient } from './http';
+import { normalizePaymentLinkSuccessUrl } from './services/paymentLinkExtras';
 
 export type PayPaymentStatus =
   | 'created' | 'pending' | 'detected' | 'verifying' | 'confirmed' | 'completed'
@@ -34,6 +35,7 @@ export interface PayPaymentIntent {
   readonly checkoutLocale: PayLocale | 'auto' | null;
   readonly paymentLinkTitle: string | null;
   readonly paymentLinkDescription: string | null;
+  readonly successRedirectUrl: string | null;
 }
 
 interface PaymentIntentEnvelope {
@@ -178,6 +180,9 @@ function parsePaymentIntent(payload: unknown): PayPaymentIntent {
     paymentLinkDescription: data.paymentLinkDescription === null || data.paymentLinkDescription === undefined
       ? null
       : requiredString(data.paymentLinkDescription, 'paymentLinkDescription'),
+    successRedirectUrl: data.successRedirectUrl === null || data.successRedirectUrl === undefined
+      ? null
+      : normalizePaymentLinkSuccessUrl(data.successRedirectUrl),
   };
 }
 

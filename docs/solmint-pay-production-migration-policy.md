@@ -57,12 +57,16 @@ Workflow زیر در repository قرار دارد:
 
 ## Credentials
 
-برای اجرای workflow فقط این GitHub Actions secrets لازم‌اند:
+Workflow فعلی از این GitHub Actions secrets استفاده می‌کند:
 
-- `SUPABASE_ACCESS_TOKEN`
-- `SUPABASE_DB_PASSWORD`
+- `SUPABASE_DB_URL`: URI اتصال PostgreSQL که مستقیماً از Supabase Dashboard → Connect گرفته شده باشد. Hostname مربوط به pooler را از روی region حدس یا سرهم نکنید.
+- `SUPABASE_DB_PASSWORD`: تنها منبع رمز احراز هویت PostgreSQL؛ Workflow آن را از طریق `PGPASSWORD` به CLI می‌دهد.
 
-شناسه Production به‌صورت غیرمحرمانه در workflow ثبت شده است:
+اگر URI دارای password باشد، Workflow پیش از اجرای هر دستور Supabase CLI آن بخش را از URI حذف می‌کند؛ بنابراین رمز جاسازی‌شده در URL نمی‌تواند بر مقدار مستقل `SUPABASE_DB_PASSWORD` غلبه کند. مقادیر secrets هرگز نباید در log، issue، PR یا ChatGPT چاپ یا وارد شوند.
+
+`SUPABASE_ACCESS_TOKEN` دیگر برای مسیر فعلی این workflow لازم نیست؛ روش قبلی مبتنی بر `supabase link` به محدودیت مجوز Management API خورد. مسیر فعلی مستقیماً از Supabase CLI و PostgreSQL connection URI استفاده می‌کند.
+
+شناسه Production به‌صورت غیرمحرمانه این است:
 
 `nvopkbiedorfshwbmyhn`
 

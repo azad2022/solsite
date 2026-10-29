@@ -50,3 +50,15 @@ test('Payment Link create stays disabled until merchant and authoritative asset 
   assert.match(ui, /disabled=\{creating \|\| !merchantId \|\| loading \|\| assetDecimals\[draft\.asset\] === null\}/);
   assert.match(ui, /decimals === null/);
 });
+
+test('Payment Link redirect is gated on authoritative completion and custom Checkout fields use the service boundary', () => {
+  assert.match(ui, /successUrl/);
+  assert.match(ui, /maxPayments/);
+  assert.match(ui, /CheckoutFieldsEditor/);
+  assert.match(publicLinkUi, /sanitizePaymentLinkCheckoutFieldValues/);
+  assert.match(publicLinkUi, /capacityReached/);
+  assert.match(publicLinkUi, /createFromPublic\(slug, customer, crypto\.randomUUID\(\), link\.checkoutFields\)/);
+  assert.match(checkoutUi, /intent\.status !== 'completed'/);
+  assert.match(checkoutUi, /window\.location\.assign\(intent\.successRedirectUrl\)/);
+  assert.doesNotMatch(checkoutUi, /successRedirectUrl[\s\S]{0,120}status === 'confirmed'/);
+});

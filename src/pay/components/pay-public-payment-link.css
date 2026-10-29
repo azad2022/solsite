@@ -25,3 +25,8 @@
 @media(max-width:560px){.pay-public-link-fee-breakdown{grid-template-columns:1fr}}
 
 .pay-public-link-fee-explanation{margin:12px 0 0;color:#475467;font-size:11px;line-height:1.7}
+
+.pay-public-link-capacity{margin:10px 0 0;padding:10px 12px;border:1px solid #f2c5d4;border-radius:12px;background:#fff5f8;color:#9e235c;font-size:11px;line-height:1.7}
+.pay-public-link-capacity-full{display:grid;justify-items:start;gap:10px;margin-top:16px;padding:16px;border:1px solid #f2c5d4;border-radius:16px;background:#fff5f8;color:#9e235c}
+.pay-public-link-capacity-full p{margin:0;line-height:1.7}
+.pay-public-link-custom-field-label{overflow-wrap:anywhere}

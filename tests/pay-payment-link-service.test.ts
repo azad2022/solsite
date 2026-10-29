@@ -113,7 +113,7 @@ test('public payment link service creates a Payment Intent only through the publ
   assert.equal(path, '/api/pay/v1/payment-links/solmint-store');
   assert.equal(init?.method, 'POST');
   assert.equal(new Headers(init?.headers).get('Idempotency-Key'), 'link-checkout-e2e-key');
-  assert.deepEqual(JSON.parse(String(init?.body)), { firstName:'Ali', lastName:'Ahmadi', paymentReason:'Order 123' });
+  assert.deepEqual(JSON.parse(String(init?.body)), { firstName:'Ali', lastName:'Ahmadi', paymentReason:'Order 123', customFields:{} });
 });
 
 

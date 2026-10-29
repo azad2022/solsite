@@ -24,7 +24,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     const payments = await getJson<Record<string, unknown>>(
       env,
       identity.accessToken,
-      `/rest/v1/pay_payment_intents?select=id,merchant_id,external_order_id,amount_atomic,asset,token_mint,token_program,token_decimals,recipient,reference,fee_bps,fee_payer,fee_atomic,gas_sponsored,status,expires_at,created_at,updated_at,customer_total_atomic,merchant_net_atomic,merchant_settlement_atomic,network,payment_link_id,invoice_id,customer_wallet_address,fee_recipient,fee_payer_address&id=eq.${encodeURIComponent(id)}&limit=1`,
+      `/rest/v1/pay_payment_intents?select=id,merchant_id,external_order_id,amount_atomic,asset,token_mint,token_program,token_decimals,recipient,reference,fee_bps,fee_payer,fee_atomic,gas_sponsored,status,expires_at,created_at,updated_at,customer_total_atomic,merchant_net_atomic,merchant_settlement_atomic,network,payment_link_id,payment_link_checkout_fields,customer_custom_fields,invoice_id,customer_wallet_address,fee_recipient,fee_payer_address&id=eq.${encodeURIComponent(id)}&limit=1`,
     );
     const payment = payments[0];
     if (!payment) return payJson({ code: 'TRANSACTION_NOT_FOUND', message: 'Transaction was not found.' }, 404, requestId);

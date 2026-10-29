@@ -242,3 +242,29 @@ jobs:
           PGPASSWORD: postgres
           PGDATABASE: pay_api_key_security
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_api_key_lifecycle_security.sql
+      - name: Create isolated Payment Link upgrade security database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: createdb pay_payment_link_upgrade_security
+
+      - name: Run Payment Link upgrade security checks
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_payment_link_upgrade_security
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/pay_payment_link_upgrade_security.sql
+
+      - name: Run Payment Link capacity concurrency check
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: pay_payment_link_upgrade_security
+        run: bash supabase/tests/pay_payment_link_capacity_concurrency.sh

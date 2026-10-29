@@ -5,6 +5,7 @@ import type { PayLocale } from '../types';
 import { directionFor, normalizePayLocale } from '../i18n';
 import { payPaymentLinkService, type PublicPayPaymentLink } from '../services/paymentLinkService';
 import { publicPaymentLinkT } from './pay-public-payment-link-i18n';
+import { sanitizePaymentLinkCheckoutFieldValues } from '../services/paymentLinkExtras';
 import './pay-public-payment-link.css';
 
 interface Props { slug: string; initialLocale: PayLocale; }
@@ -36,6 +37,8 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
   const [lastName, setLastName] = useState('');
   const [paymentReason, setPaymentReason] = useState('');
   const [customerValidationError, setCustomerValidationError] = useState(false);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
+  const [capacityReached, setCapacityReached] = useState(false);
 
   const direction = directionFor(locale);
   const linkUrl = useMemo(() => window.location.origin + '/pay/link/' + encodeURIComponent(slug), [slug]);
@@ -45,6 +48,8 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
     try {
       const result = await payPaymentLinkService.getPublic(slug);
       setLink(result);
+      setCustomFieldValues(current => Object.fromEntries(result.checkoutFields.map(field => [field.key, current[field.key] ?? ''])));
+      setCapacityReached(result.remainingPayments === 0);
       const resolvedLocale = publicLocale(result.checkoutLocale, initialLocale);
       setLocale(resolvedLocale);
       setState('ready');
@@ -76,13 +81,21 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
 
   const startPayment = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!link || creating) return;
+    if (!link || creating || capacityReached || link.remainingPayments === 0) return;
 
     setCustomerValidationError(false);
+    let sanitizedCustomFields: Record<string, string>;
+    try {
+      sanitizedCustomFields = sanitizePaymentLinkCheckoutFieldValues(link.checkoutFields, customFieldValues);
+    } catch {
+      setCustomerValidationError(true);
+      return;
+    }
     const customer = {
       firstName: normalizeCustomerText(firstName),
       lastName: normalizeCustomerText(lastName),
       paymentReason: normalizeCustomerText(paymentReason),
+      customFields: sanitizedCustomFields,
     };
     if (customer.firstName.length < 1 || customer.firstName.length > 120 || customer.lastName.length < 1 || customer.lastName.length > 120 || customer.paymentReason.length < 1 || customer.paymentReason.length > 1000) {
       setCustomerValidationError(true);
@@ -94,13 +107,16 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
     setPaymentReason(customer.paymentReason);
     setCreating(true);
     try {
-      const result = await payPaymentLinkService.createFromPublic(slug, customer, crypto.randomUUID());
+      const result = await payPaymentLinkService.createFromPublic(slug, customer, crypto.randomUUID(), link.checkoutFields);
       const resolvedLocale = publicLocale(link.checkoutLocale, initialLocale);
       const target = '/pay/checkout/' + encodeURIComponent(result.id) + '?locale=' + encodeURIComponent(resolvedLocale);
       window.history.pushState({}, '', target);
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (cause) {
-      if (cause instanceof PayHttpError && cause.status === 410) setState('expired');
+      if (cause instanceof PayHttpError && cause.status === 409 && cause.code === 'PAYMENT_LINK_CAPACITY_REACHED') {
+        setCapacityReached(true);
+        setState('ready');
+      } else if (cause instanceof PayHttpError && cause.status === 410) setState('expired');
       else if (cause instanceof PayHttpError && cause.status === 409) setState('unavailable');
       else setState('error');
     } finally { setCreating(false); }
@@ -125,19 +141,31 @@ export default function PayPublicPaymentLink({ slug, initialLocale }: Props): Re
           </div>
           <p className="pay-public-link-fee-explanation">{publicPaymentLinkT(locale, link.feePayer === 'merchant' ? 'merchantFeeExplanation' : 'customerFeeExplanation')}</p>
         </div>
+        {link.maxPayments !== null && link.remainingPayments !== null && link.remainingPayments > 0 ? <p className="pay-public-link-capacity" role="status">{publicPaymentLinkT(locale,'capacityRemaining').replace('{count}', String(link.remainingPayments)).replace('{limit}', String(link.maxPayments))}</p> : null}
         <div className="pay-public-link-meta"><div><span>{publicPaymentLinkT(locale,'feePayer')}</span><strong>{link.feePayer==='merchant'?publicPaymentLinkT(locale,'merchant'):publicPaymentLinkT(locale,'customer')}</strong></div><div><span>{publicPaymentLinkT(locale,'expires')}</span><strong>{link.expiresAt ? new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : locale,{dateStyle:'medium',timeStyle:'short'}).format(new Date(link.expiresAt)) : publicPaymentLinkT(locale,'noExpiry')}</strong></div></div>
         {link.description ? <div className="pay-public-link-description"><strong>{publicPaymentLinkT(locale,'description')}</strong><div>{link.description}</div></div> : null}
-        <div className="pay-public-link-customer">
-          <div className="pay-public-link-customer-heading"><div className="pay-public-link-customer-icon" aria-hidden="true"><UserRound size={17}/></div><div><strong>{publicPaymentLinkT(locale,'customerInfoTitle')}</strong><span>{publicPaymentLinkT(locale,'customerInfoHint')}</span></div></div>
-          <div className="pay-public-link-fields">
-            <label><span>{publicPaymentLinkT(locale,'firstName')}</span><input value={firstName} onChange={event => setFirstName(event.target.value)} placeholder={publicPaymentLinkT(locale,'firstNamePlaceholder')} autoComplete="given-name" maxLength={120} disabled={creating} required /></label>
-            <label><span>{publicPaymentLinkT(locale,'lastName')}</span><input value={lastName} onChange={event => setLastName(event.target.value)} placeholder={publicPaymentLinkT(locale,'lastNamePlaceholder')} autoComplete="family-name" maxLength={120} disabled={creating} required /></label>
-            <label className="pay-public-link-field-wide"><span>{publicPaymentLinkT(locale,'paymentReason')}</span><textarea value={paymentReason} onChange={event => setPaymentReason(event.target.value)} placeholder={publicPaymentLinkT(locale,'paymentReasonPlaceholder')} maxLength={1000} rows={3} disabled={creating} required /></label>
+        {capacityReached || link.remainingPayments === 0 ? <div className="pay-public-link-capacity-full" role="alert">
+          <XCircle size={22}/><p>{publicPaymentLinkT(locale,'capacityReached')}</p>
+          <button type="button" className="pay-secondary-action" onClick={() => void load()}><RefreshCw size={15}/>{publicPaymentLinkT(locale,'retry')}</button>
+        </div> : <>
+          <div className="pay-public-link-customer">
+            <div className="pay-public-link-customer-heading"><div className="pay-public-link-customer-icon" aria-hidden="true"><UserRound size={17}/></div><div><strong>{publicPaymentLinkT(locale,'customerInfoTitle')}</strong><span>{publicPaymentLinkT(locale,'customerInfoHint')}</span></div></div>
+            <div className="pay-public-link-fields">
+              <label><span>{publicPaymentLinkT(locale,'firstName')}</span><input value={firstName} onChange={event => setFirstName(event.target.value)} placeholder={publicPaymentLinkT(locale,'firstNamePlaceholder')} autoComplete="given-name" maxLength={120} disabled={creating} required /></label>
+              <label><span>{publicPaymentLinkT(locale,'lastName')}</span><input value={lastName} onChange={event => setLastName(event.target.value)} placeholder={publicPaymentLinkT(locale,'lastNamePlaceholder')} autoComplete="family-name" maxLength={120} disabled={creating} required /></label>
+              <label className="pay-public-link-field-wide"><span>{publicPaymentLinkT(locale,'paymentReason')}</span><textarea value={paymentReason} onChange={event => setPaymentReason(event.target.value)} placeholder={publicPaymentLinkT(locale,'paymentReasonPlaceholder')} maxLength={1000} rows={3} disabled={creating} required /></label>
+              {link.checkoutFields.map(field => <label key={field.key} className={field.type === 'textarea' ? 'pay-public-link-field-wide' : undefined}>
+                <span>{field.label}{field.required ? ' *' : ''}</span>
+                {field.type === 'textarea'
+                  ? <textarea value={customFieldValues[field.key] ?? ''} onChange={event => setCustomFieldValues(current => ({ ...current, [field.key]: event.target.value }))} maxLength={2000} rows={3} disabled={creating} required={field.required} />
+                  : <input type={field.type === 'email' ? 'email' : 'text'} value={customFieldValues[field.key] ?? ''} onChange={event => setCustomFieldValues(current => ({ ...current, [field.key]: event.target.value }))} maxLength={field.type === 'email' ? 254 : 500} disabled={creating} required={field.required} />}
+              </label>)}
+            </div>
+            <small>{publicPaymentLinkT(locale,'customerInfoPrivacy')}</small>
           </div>
-          <small>{publicPaymentLinkT(locale,'customerInfoPrivacy')}</small>
-        </div>
-        <div className="pay-public-link-actions"><button type="submit" className="pay-primary-action" disabled={creating}><ShieldCheck size={17}/>{creating?publicPaymentLinkT(locale,'creating'):publicPaymentLinkT(locale,'continue')}</button><button type="button" className="pay-secondary-action" onClick={() => void copyLink()}><Clipboard size={15}/>{copied?publicPaymentLinkT(locale,'copied'):publicPaymentLinkT(locale,'copy')}</button></div>
-        {customerValidationError ? <div className="pay-public-link-error pay-public-link-inline-validation" role="alert"><span>{publicPaymentLinkT(locale,'customerInfoValidation')}</span></div> : null}
+          <div className="pay-public-link-actions"><button type="submit" className="pay-primary-action" disabled={creating}><ShieldCheck size={17}/>{creating?publicPaymentLinkT(locale,'creating'):publicPaymentLinkT(locale,'continue')}</button><button type="button" className="pay-secondary-action" onClick={() => void copyLink()}><Clipboard size={15}/>{copied?publicPaymentLinkT(locale,'copied'):publicPaymentLinkT(locale,'copy')}</button></div>
+          {customerValidationError ? <div className="pay-public-link-error pay-public-link-inline-validation" role="alert"><span>{publicPaymentLinkT(locale,'customerInfoValidation')}</span></div> : null}
+        </>}
         <div className="pay-public-link-meta"><div><span>{publicPaymentLinkT(locale,'paymentLink')}</span><strong>{link.slug}</strong></div><div><span>{publicPaymentLinkT(locale,'secure')}</span><strong><Check size={13}/> SolMint Pay</strong></div></div>
       </form>}
     </section>

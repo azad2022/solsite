@@ -1,4 +1,5 @@
 import { defaultPayHttpClient, type PayHttpClient } from '../http';
+import { parsePaymentLinkCheckoutFields, sanitizePaymentLinkCheckoutFieldValues, type PayPaymentLinkCheckoutField } from './paymentLinkExtras';
 
 export type PayTransactionStatus =
   | 'created' | 'pending' | 'detected' | 'verifying' | 'confirmed' | 'completed'
@@ -32,7 +33,11 @@ export interface PayTransaction {
 }
 
 export interface PayTransactionDetail {
-  payment: PayTransaction & { fee_bps: number; gas_sponsored: boolean; fee_recipient: string | null; fee_payer_address: string | null };
+  payment: PayTransaction & {
+    fee_bps: number; gas_sponsored: boolean; fee_recipient: string | null; fee_payer_address: string | null;
+    payment_link_checkout_fields: PayPaymentLinkCheckoutField[];
+    customer_custom_fields: Record<string, string>;
+  };
   transactions: Array<Record<string, unknown>>;
   transfers: Array<Record<string, unknown>>;
   events: Array<Record<string, unknown>>;
@@ -114,9 +119,11 @@ function parseDetail(payload: unknown): PayTransactionDetail {
   const payment = parseTransaction(data.payment);
   const enriched = record(data.payment);
   if (!Number.isInteger(enriched.fee_bps) || typeof enriched.gas_sponsored !== 'boolean') throw new TypeError('Invalid Pay transaction detail fields.');
+  const customFieldDefinitions = parsePaymentLinkCheckoutFields(enriched.payment_link_checkout_fields ?? []);
+  const customFieldValues = sanitizePaymentLinkCheckoutFieldValues(customFieldDefinitions, enriched.customer_custom_fields ?? {});
   const list = (field: string) => Array.isArray(data[field]) ? data[field].map(record) : (() => { throw new TypeError(`Invalid Pay transaction detail list: ${field}`); })();
   return {
-    payment: { ...payment, fee_bps: enriched.fee_bps as number, gas_sponsored: enriched.gas_sponsored as boolean, fee_recipient: nullableString(enriched.fee_recipient, 'fee_recipient'), fee_payer_address: nullableString(enriched.fee_payer_address, 'fee_payer_address') },
+    payment: { ...payment, fee_bps: enriched.fee_bps as number, gas_sponsored: enriched.gas_sponsored as boolean, fee_recipient: nullableString(enriched.fee_recipient, 'fee_recipient'), fee_payer_address: nullableString(enriched.fee_payer_address, 'fee_payer_address'), payment_link_checkout_fields: customFieldDefinitions, customer_custom_fields: customFieldValues },
     transactions: list('transactions'),
     transfers: list('transfers'),
     events: list('events'),
