@@ -1866,3 +1866,44 @@ Release governance / next gate:
 - **Do not mark release governance fully accepted** until issue [#355](https://github.com/azad2022/solsite/issues/355) establishes why the Supabase-linked runner applies migrations on merge and reconciles that behavior with `docs/solmint-pay-production-migration-policy.md`. This release's evidence was added to issue #355. No Supabase integration setting was changed and no migration was retried through an alternate path.
 - The official migration workflow's database credential must be corrected through the approved secret-management route; do not ask for or print the secret value.
 - No rollback is requested: the deployed function matches the reviewed source migration and read-only contract/security checks passed. If rollback becomes necessary, use a new forward migration restoring the exact prior function definition; never use ad hoc Production SQL or migration history repair.
+
+
+## 2026-10-29 — Payment Link Upgrade re-audit (HELD; no Production mutation)
+
+Status: **RELEASE BLOCKED — PR #363 remains Draft and unmerged. No Production SQL, migration, or payment operation was executed in this re-audit.**
+
+### Repository / CI evidence
+
+- Audited branch: `feat/pay-payment-link-upgrade-stages-2-3`; code HEAD at audit start: `9c6d98178b2952e92ee2c007069901a0c75ee746`.
+- PR #363 remains open, Draft, and unmerged: https://github.com/azad2022/solsite/pull/363
+- Current HEAD checks passed: CI run [40727991265](https://github.com/azad2022/solsite/actions/runs/40727991265), Production Build [40727991037](https://github.com/azad2022/solsite/actions/runs/40727991037), Database Security [40727991149](https://github.com/azad2022/solsite/actions/runs/40727991149), Devnet E2E [40727990982](https://github.com/azad2022/solsite/actions/runs/40727990982), Mainnet read-only [40727991194](https://github.com/azad2022/solsite/actions/runs/40727991194).
+- Historical Production Build failure [40673983476](https://github.com/azad2022/solsite/actions/runs/40673983476) on earlier source: application build passed; the Referral route smoke step chose the Cloudflare dashboard “View logs” URL as the preview URL and timed out after 120 attempts. The branch's current preview-URL parser now selects a successful Pages check with an explicit Preview URL; the current Production Build workflow passes.
+- Cloudflare Workers Builds preview failure was caused after `bun run build` succeeded: the old duplicate preview build ran `npx wrangler versions upload`, then Wrangler failed with “Missing entry-point to Worker script or to assets directory.” This is the separate legacy Workers Builds integration, not the repository's passing Cloudflare Pages production path. Cloudflare's old non-production trigger is marked deleted; the current main-only trigger deploys Pages with `npx wrangler pages deploy dist`. Do not modify Cloudflare settings as part of this checkout change.
+
+### Read-only Production database verification
+
+- Live Supabase migration ledger currently returns 104 migration records; latest is `20261028064400_solmint_pay_webhook_payload_enrichment`.
+- Target migration `20261028101500_solmint_pay_payment_link_upgrade_stages_2_3` is absent from the live ledger.
+- Live `public.pay_payment_links` has no `success_url`, `max_payments`, or `checkout_fields`; live `public.pay_payment_intents` has no `payment_link_success_url`, `payment_link_checkout_fields`, or `customer_custom_fields`.
+- Earlier controlled DRY_RUN [40880951699](https://github.com/azad2022/solsite/actions/runs/40880951699) passed Session Pooler authentication and listed only the target migration; Apply was skipped. The live ledger/schema are still unchanged from the read-only verification.
+- Supabase-linked migration provenance remains unresolved in [Issue #355](https://github.com/azad2022/solsite/issues/355). The controlled Apply path remains blocked until provenance and the approved sequence are resolved.
+
+### Payment Link implementation audit — partial pass, open findings
+
+- The new intent creator locks the Payment Link row with `FOR UPDATE` before checking idempotency/capacity. A completed matching idempotency record is replayed before link availability and capacity checks; a mismatched hash conflicts.
+- Capacity is currently defined as completed intents (permanent consumption) plus `created/pending/detected/verifying/confirmed` intents whose `expires_at > now()`. Expired timestamps free capacity even if a status-cleanup job has not changed the status. Failed/expired/underpaid/overpaid/wrong-token/wrong-recipient/duplicate/ambiguous/refunded states do not count.
+- Disposable-PostgreSQL Database Security workflow currently passes and includes a two-session capacity race, idempotent replay, expiry release, custom field validation and selected `has_function_privilege` checks. The privilege checks are not a complete matrix across anon/authenticated/service_role for every changed overload; strengthen them before release.
+- Public Payment Intent GET explicitly selects and returns a bounded field list; it excludes first/last name, purpose, custom field values and the custom field definitions. Public checkout logs do not intentionally serialize request bodies/custom values. Existing webhook payload construction is explicit/allowlisted and excludes customer names and custom field values (D2 default NO is currently respected).
+- API success URL validation uses the platform URL parser and rejects invalid URLs/credentials, whereas the SQL constraint currently relies on a looser HTTPS-authority regex. These are not fully equivalent two-way validators and must be aligned/tested before release.
+- API preserves multiline whitespace for `textarea`, but the SQL normalizer collapses whitespace. Align semantics or document/test deliberate behavior.
+- The migration is additive and defaults existing links to `success_url = NULL`, `max_payments = NULL` (unlimited), and `checkout_fields = []`; this should preserve old behavior structurally. A live smoke against the existing 48 links is **not yet validated**, because the migration remains unapplied.
+- The named `solmint-pay-payment-link-upgrade` skill file was not found at the expected repository skill paths; the available Build Web Apps, Release Audit, master frontend instruction and checkpoint docs were reviewed. The pasted task text remains the task contract; no alternative skill file is assumed.
+
+### Deployment sequence proposal and owner decisions pending
+
+- Recommended: split into Phase A (migration and SQL security/concurrency tests only) and Phase B (application/API/UI changes only after read-only production schema/RPC/grant/RLS verification confirms Phase A). Keep old overload removal as Phase C. Do not merge or apply until the maintainer explicitly approves the sequence and all blocking findings are reconciled.
+- D2: default is no customer PII/custom values in webhooks; current payload follows an allowlist.
+- D3: proposed capacity statuses are completed + unexpired active reservation statuses listed above.
+- D5: current implementation allows at most five `text/email/textarea` fields with required/optional semantics. Owner decision remains pending.
+
+This checkpoint records findings only. It is not production acceptance and does not authorize `APPLY` or merge.
