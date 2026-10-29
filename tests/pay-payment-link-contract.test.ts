@@ -113,11 +113,11 @@ const privilegeHardening = readFileSync('supabase/migrations/20261029140401_solm
 
 test('Payment Link upgrade keeps customer PII out of public Intent and webhook payloads', () => {
   assert.doesNotMatch(publicIntent, /customer_(?:first_name|last_name|purpose|custom_fields)|payment_link_checkout_fields/i);
-  assert.doesNotMatch(webhookEnrichment, /p\\.customer_(?:first_name|last_name|purpose|custom_fields)/i);
+  assert.doesNotMatch(webhookEnrichment, /p\.customer_(?:first_name|last_name|purpose|custom_fields)/i);
   assert.match(webhookEnrichment, /jsonb_build_object/);
 });
 
 test('Payment Link merchant mutation overloads explicitly revoke service_role EXECUTE', () => {
-  assert.match(privilegeHardening, /pay_create_payment_link[\\s\\S]*from service_role/i);
-  assert.match(privilegeHardening, /pay_update_payment_link[\\s\\S]*from service_role/i);
+  assert.match(privilegeHardening, /pay_create_payment_link[\s\S]*from service_role/i);
+  assert.match(privilegeHardening, /pay_update_payment_link[\s\S]*from service_role/i);
 });
