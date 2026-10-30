@@ -28,7 +28,7 @@ export function deriveCanonicalMetadataAddress(programId, seed = 'idl') {
   const program = new PublicKey(programId);
   const metadataProgram = new PublicKey(PROGRAM_METADATA_PROGRAM_ID);
   const [address] = PublicKey.findProgramAddressSync(
-    [program.toBuffer(), Buffer.alloc(32), seedBytes],
+    [program.toBuffer(), seedBytes],
     metadataProgram,
   );
   return address.toBase58();
