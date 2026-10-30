@@ -1,3 +1,4 @@
+import { PublicKey } from '@solana/web3.js';
 import type { SupportedAssetConfig } from './assetPolicy';
 
 export const SUBSCRIPTION_PROGRAM_ID_V050 = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44' as const;
@@ -97,7 +98,6 @@ function canonicalAddress(value: string, field: string): string {
   try {
     // PublicKey validates the decoded 32-byte representation and normalizes Base58.
     // Requiring exact round-trip rejects non-canonical textual representations.
-    const { PublicKey } = requireWeb3PublicKey();
     const address = new PublicKey(value);
     const canonical = address.toBase58();
     if (canonical !== value || canonical === ZERO_ADDRESS) {
@@ -109,15 +109,6 @@ function canonicalAddress(value: string, field: string): string {
     return fail('INVALID_ADDRESS', `${field} is not a valid 32-byte Solana address.`);
   }
 }
-
-// Kept behind a tiny function so all address parsing in this module uses the
-// project's already-pinned web3.js 1.x dependency and no additional SDK.
-function requireWeb3PublicKey(): { PublicKey: typeof import('@solana/web3.js').PublicKey } {
-  // Static import semantics are required by the ESM/Vite/Cloudflare build.
-  return { PublicKey: Web3PublicKey };
-}
-
-import { PublicKey as Web3PublicKey } from '@solana/web3.js';
 
 function validateAddressList(
   values: readonly string[],
