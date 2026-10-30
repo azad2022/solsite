@@ -10,6 +10,8 @@ const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const DEVNET_SIMULATION_FEE_PAYER = 'EZTvPLYyjn6TnXqhiFKw59aqgAPHwxV4qUwhHXctNbXV';
 const WRAPPED_SOL_MINT = 'So11111111111111111111111111111111111111112';
 const SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+// Pinned program-v0.5.0 Plan::LEN / PLAN_LEN_V1 from program/src/state/plan.rs.
+const PLAN_ACCOUNT_BYTES = 491;
 const ALLOWED_RPC_METHODS = new Set([
   'getGenesisHash',
   'getAccountInfo',
@@ -71,7 +73,7 @@ test('pinned Subscription Program is executable on Devnet and CreatePlan simulat
   const feePayer = new PublicKey(DEVNET_SIMULATION_FEE_PAYER);
   const [balanceResult, rentResult, blockhashResult] = await Promise.all([
     rpc('getBalance', [feePayer.toBase58(), { commitment: 'finalized' }]),
-    rpc('getMinimumBalanceForRentExemption', [464, { commitment: 'confirmed' }]),
+    rpc('getMinimumBalanceForRentExemption', [PLAN_ACCOUNT_BYTES, { commitment: 'confirmed' }]),
     rpc('getLatestBlockhash', [{ commitment: 'confirmed' }]),
   ]);
   assert.ok(Number.isSafeInteger(balanceResult?.value) && balanceResult.value > 0, 'Devnet simulation fee payer must have a readable positive balance');
