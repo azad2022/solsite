@@ -2096,3 +2096,20 @@ Status: **SOURCE TAGS IDENTIFIED; DEPLOYED-BINARY/AUDIT GATES STILL UNKNOWN.**
 - Upstream security notes reinforce: u64::MAX ATA delegate, active does not imply collectable, slot-granular `init_id`, held/delayed signed transaction risks, dual-signer immediate cancellation, and broad impact of revoking shared authority. These behaviors must be explicit in Consent, authority lifecycle, reconciliation and customer support design.
 - Follow-up evidence and exact limitations are recorded in `docs/solmint-pay-subscription-baseline-audit.md`.
 - No source code, dependency, lockfile, migration, signer, ProgramData, RPC setting, or funds changed. No live or Devnet transaction was sent.
+
+
+## 2026-10-30 — Upstream on-chain Subscription instruction spot-check
+
+Status: **ON-CHAIN RULES SPOT-CHECKED; FULL RELEASE SECURITY REVIEW / LIVE DEPLOYMENT VERIFICATION STILL BLOCKED.**
+
+- Read the pinned `program-v0.5.0` source for `create_plan`, `plan`, `subscribe`, `initialize_subscription_authority`, `transfer_subscription`, `transfer_utils`, `cancel_subscription`, `update_plan`, `revoke_subscription_authority`, `revoke_delegation`, and `revoke_abandoned_subscription`.
+- Source confirms Plan cap of 1–8760 hours, 4 destination addresses and 4 additional pullers; Plan Owner is always an eligible Puller. Empty destination allowlist means any destination, so SolMint must enforce a non-empty allowlist at its own plan policy boundary.
+- Subscribe binds current plan mint/amount/period/created_at and the subscriber's `SubscriptionAuthority.init_id`; SubscriptionDelegation stores a terms snapshot and per-period accounting. The shared ATA Token Delegate is approved for `u64::MAX`; effective limits are enforced by Plan/Subscription program state, not a single-cycle delegate allowance.
+- Plan mint, amount, period and destinations are not mutable through UpdatePlan. Active plan lifecycle/status, end time, pullers and metadata may be updated with stale-state checks; finite end may only be shortened. After Sunset the plan is otherwise immutable except removal of Pullers.
+- Normal cancellation remains valid through the current period's expiry boundary. It is different from dual-signed immediate cancellation, a per-subscription close, and revoking the shared User+Mint authority.
+- Reinitializing the shared authority can re-approve the `u64::MAX` token delegate after a user revoked it, while retaining its original recorded payer. Revoke success must not be described as permanent protection against all held/delayed signed authorization transactions.
+- The source confirms that the program enforces each pull's Plan/Subscription constraints but does not schedule billing. “Active” does not guarantee a pull is currently collectible.
+- These verified source behaviors and SolMint implications are recorded in `docs/solmint-pay-subscription-baseline-audit.md`.
+- This is a focused source spot-check, not a complete review of the 8-commit audit delta or Cantina PDF. Live ProgramData, deployed binary hash, upgrade authority, deployment slot, and exact live IDL remain **UNKNOWN**.
+- No implementation, dependency, lockfile, schema, runtime config, signer, chain transaction or funds were changed.
+
