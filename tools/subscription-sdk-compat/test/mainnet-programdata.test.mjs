@@ -109,6 +109,7 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
   assert.equal(idlMetadata.program, PROGRAM_ID, 'metadata account must reference the pinned Subscription Program');
   assert.equal(idlMetadata.seed, 'idl', 'metadata account must use the canonical IDL seed');
   assert.equal(idlMetadata.canonical, true, 'IDL metadata must be canonical, not third-party metadata');
+  assert.equal(idlMetadata.authority, null, 'canonical IDL metadata must not carry a third-party authority');
   assert.equal(idlMetadata.dataSource, 0, 'IDL metadata must store direct data in the metadata account');
   assert.equal(idlMetadata.encoding, 1, 'IDL metadata must use UTF-8 encoding');
   assert.equal(idlMetadata.compression, 2, 'IDL metadata must use zlib compression');
