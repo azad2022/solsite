@@ -2485,3 +2485,19 @@ Status: **PARTIAL PASS — Workerd runtime compatibility proven for the isolated
   - Subscription RPC / simulation evidence: **NOT IMPLEMENTED**.
   - Subscription Devnet E2E / adversarial verification and accounting: **NOT IMPLEMENTED**.
 - **Overall Part 2.1: BLOCKED.** Do not start Part 2.2 until the remaining gates are independently evidenced as PASS.
+
+
+## 2026-10-30 — Part 2.1 runtime target and exact-head revalidation
+
+Status: **PARTIAL PASS — Pages Functions is the selected runtime target for the non-signing SDK adapter; Part 2.1 remains BLOCKED.**
+
+- Revalidated repository refs: `main` = `7b975d56860b6d937ad76ab2983c71937644dfa3`; `feat/pay-subscription-billing` = `4d1bf9ddf079f00310f9839f86bc73f9f594ca35`; PR #366 is OPEN / DRAFT / NOT MERGED.
+- Compared the compatibility-tested commit `9e3c564e82a51427f185b71a62f19236c565f527` with current feature HEAD. The only intervening change is this progress ledger; runtime harness, SDK pins, adapter and CI workflow are unchanged.
+- Current feature HEAD `4d1bf9ddf079f00310f9839f86bc73f9f594ca35` has successful runs: CI `41084539839`, Devnet E2E `41084539632`, Mainnet read-only `41084539638`, Production Build `41084539973`, and Database Security `41084540044`. The CI compatibility job reports SUCCESS for exact-head checkout, Node 24 setup, lock resolution, `npm ci`, six SDK tests, and local Pages/Workerd runtime test.
+- Runtime target decision is based on current source, not a new deployment assumption: existing Pay API transaction-request routes and transaction builders are Cloudflare Pages Functions under `functions/api/pay/`; root `wrangler.toml` enables `nodejs_compat`. `server.ts` is a separate Node/Express server and is not deployed as a Worker. Therefore the SDK instruction-builder + Kit→web3 adapter should target the existing Pages Functions runtime when integrated into customer/API transaction construction; a new Node service is not justified for this adapter by current code evidence.
+- This runtime decision does **not** place Collector private-key signing in Pages Functions. Collector signing remains a separate, isolated trust boundary and must be designed independently; the local Workerd test uses synthetic inputs and a no-op signer only.
+- The Workerd proof is bounded: it imports the pinned SDK, invokes a synthetic CreatePlan builder and converts the result in local Workerd. It is not proof of deployed production behavior, RPC/simulation, customer consent, Collector signing, verification, accounting, or Subscription E2E.
+- Gate state: Pages/Workerd fixture **PASS**; exact-head CI for current HEAD **PASS**; supported Node 24 dependency installation **PASS**. Committed lockfile **BLOCKED** (generated artifact only); TypeScript adapter compile **NOT IMPLEMENTED**; independent pinned-IDL byte/account-meta golden fixtures **BLOCKED**; real Backend adapter integration **NOT IMPLEMENTED**; approved RPC/simulation **NOT IMPLEMENTED**; Subscription Devnet E2E and adversarial Verification/Accounting **NOT IMPLEMENTED**.
+- No source code, production runtime configuration, database, secret, key, Collector signer, verifier, accounting, Mainnet or Devnet state was changed by this checkpoint. Existing Devnet E2E ran as a separate CI workflow for ordinary Pay flows; it is not Subscription E2E.
+- Local Working Tree remains **UNKNOWN** because no local clone/status is available through the GitHub connector.
+- Next Part 2.1 work: make the isolated dependency graph reproducible with a committed lockfile; add TypeScript compile coverage for the adapter; add independent fixtures derived from the pinned release IDL/source for instruction bytes and account metas. Keep Part 2.2 blocked until every Part 2.1 gate is PASS.
