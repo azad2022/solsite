@@ -85,3 +85,11 @@ export function assertApprovedMainnetRpcUrl(rpcUrl) {
   }
   return true;
 }
+
+export function stripTrailingZeroBytes(bytes) {
+  if (!Buffer.isBuffer(bytes)) throw new Error('PROGRAM_BYTES_BUFFER_REQUIRED');
+  let end = bytes.length;
+  while (end > 0 && bytes[end - 1] === 0) end -= 1;
+  if (end === 0) throw new Error('PROGRAM_BYTES_EMPTY_AFTER_ZERO_PADDING');
+  return bytes.subarray(0, end);
+}
