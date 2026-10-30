@@ -199,3 +199,38 @@ The following source files were read directly at tag `program-v0.5.0`. This is a
 - Slot-scoped `init_id` and delayed/held signed transactions create lifecycle/replay concerns. Recent blockhash expiry, durable nonce flows and smart-wallet pending proposals must be considered in the wallet flow, revoke UX and support/runbooks. Do not treat a displayed Revoke success as proof that all previously signed but unlanded authorization transactions are harmless.
 - No Program source change or SDK dependency was made. The 8-commit delta to the release remains incompletely audited; ProgramData/binary/upgrade authority and Cantina PDF are still **UNKNOWN / NOT REVIEWED**.
 
+
+
+## 2026-10-30 — Additional upstream residual-risk review
+
+This section records the additional security considerations found in the official `program-v0.5.0` README Security Considerations and rechecked against the pinned instruction/source files. It is not a full Cantina report review.
+
+### Delayed transaction / authority lifecycle
+
+- `init_id` is slot-granular, not a global generation counter. Same-slot close/re-init may preserve the same value; idempotent initialization does not refresh it.
+- A held signed transaction combining `InitSubscriptionAuthority` and `Subscribe` with `UNKNOWN_INIT_ID` can land after an attempted authority revoke, recreate the shared authority, approve `u64::MAX` and create a subscription without a new signature at landing time.
+- Held authority init/close/revoke transactions are not all bound to a monotonic authority generation. Pending durable-nonce or program-controlled wallet proposals may execute long after the original UI session.
+- V1 safety decision: separate customer-signed Authority initialization and Subscribe; fetch and use the actual on-chain `init_id`; reject `UNKNOWN_INIT_ID`; use recent blockhash for consent/control transactions; defer Durable Nonce and pending smart-wallet/multisig proposals until a proven pending-approval cancellation/recovery model exists. This is a recommended product/engineering gate, not an implemented feature.
+- Same-period Resume replay, second-granular immediate-cancel replay and UpdatePlan ABA residuals must be included in adversarial tests. Never claim revocation is final while a signed pending operation can still execute.
+
+### Shared authority, delegate replacement and collectability
+
+- One SPL Token account has one approved Delegate slot; initializing the SubscriptionAuthority may replace a previously configured delegate. Customer consent must disclose and validate this before signing.
+- Authority is shared per customer+mint; re-approving or revoking it can affect multiple Plan subscriptions for that pair. A revoke of the shared authority is not equivalent to cancelling one subscription.
+- On-chain active state does not prove collectability: the delegate can be revoked, ATA frozen/empty/closed, or otherwise unspendable. The Program has no delinquency state; service entitlement needs independent Backend collectability and verified payment policy.
+- Reinitialization may reapprove the broad delegate after manual revocation. Treat shared authority state and each SubscriptionDelegation lifecycle separately.
+
+### All Pullers, period accounting and destination/fee constraints
+
+- Plan Owner is an implicit Puller and can transfer independently of SolMint Collector. Reconciliation must discover all valid TransferSubscription instructions/events, not just Collector-generated signatures.
+- Period accounting is cumulative within the current on-chain period. The Program advances to the aligned current period after missed periods; it does not create automatic debt for every missed period. Backend cycle identity must use actual on-chain period start and usage.
+- Plan destination allowlist checks destination token-account owner. Empty list permits any destination. Production Plan policy must enforce a non-empty allowlist and validate the destination ATA, mint/program and owner.
+- One TransferSubscription instruction carries one receiver/amount. A two-leg Merchant principal + Gateway fee design requires separate instructions in one transaction and explicit allowlisting for both destination owners. LiteSVM must prove shared allowance, rollback on any failed leg, no unexpected transfers and correct event/balance accounting; Devnet must then verify the same contract. Until then, split-fee Subscription charging is BLOCKED.
+- Plan Sunset blocks new subscriptions but is not an immediate stop for existing pulls. A finite Plan may be shortened after consent, and a near-end Subscribe can incur a full amount for a partial first period. Recommended v1 gate: reject enrollment when less than one full period remains.
+
+### Evidence status and policy impact
+
+- These findings are included in the updated Subscription Skill, Build Web Apps Skill, Release Audit Skill and project-level instruction.
+- Durable-nonce and pending-proposal restrictions, two-step init/subscribe, explicit non-empty destinations, no near-end enrollment and no split-fee charging before atomic tests are v1 safety decisions; they are not claims that current code already enforces them.
+- The Cantina PDF still has **NOT REVIEWED** status; the eight-commit release delta, deployed ProgramData/binary/upgrade authority/live IDL and SDK compatibility remain **UNKNOWN**.
+- No runtime, DB schema, secrets, signer, ProgramData or on-chain state was changed. No transaction was sent.
