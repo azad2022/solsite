@@ -124,7 +124,74 @@ jobs:
           SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
         run: npm run test:devnet-sim
 
+  subscription-verified-build:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      elf_sha256: ${{ steps.hash.outputs.elf_sha256 }}
+    steps:
+      - name: Checkout pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Verify exact upstream source commit and toolchain pins
+        working-directory: upstream-subscriptions
+        run: |
+          test "$(git rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          grep -F 'solana = "3.1.10"' Cargo.toml
+          grep -F 'channel = "1.92"' rust-toolchain.toml
+          grep -F 'name = "subscriptions_program"' program/Cargo.toml
+
+      - name: Download pinned solana-verify CLI and verify release checksum
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
+            --output solana-verify
+          echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
+          chmod 0755 solana-verify
+          ./solana-verify --version
+
+      - name: Build pinned source in deterministic Solana Docker image (no RPC)
+        working-directory: upstream-subscriptions
+        run: ../solana-verify build . --workspace-path . --library-name subscriptions_program
+
+      - name: Compute reproducible executable hash
+        id: hash
+        working-directory: upstream-subscriptions
+        run: |
+          set -euo pipefail
+          binary="$(find . -path '*/target/deploy/subscriptions_program.so' -type f -print -quit)"
+          if [ -z "$binary" ]; then
+            echo "::error::Pinned verified build did not produce subscriptions_program.so"
+            find . -name '*.so' -type f -print
+            exit 1
+          fi
+          hash="$(../solana-verify get-executable-hash "$binary")"
+          if ! [[ "$hash" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::solana-verify returned an invalid executable hash"
+            exit 1
+          fi
+          echo "elf_sha256=$hash" >> "$GITHUB_OUTPUT"
+          mkdir -p ../artifacts
+          printf '{"source_commit":"364a41976c33347d092902443bbec2def9227e75","solana_verify_version":"0.5.2","solana_cli_build_version":"3.1.10","rust_toolchain":"1.92","docker_image_digest":"sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3","elf_sha256":"%s"}\n' "$hash" > ../artifacts/subscription-program-verified-build.json
+          printf 'Pinned source commit: 364a41976c33347d092902443bbec2def9227e75\nVerified build ELF SHA-256: %s\n' "$hash"
+
+      - name: Upload sanitized reproducible build evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-subscription-verified-build
+          path: artifacts/subscription-program-verified-build.json
+          if-no-files-found: error
+          retention-days: 30
+
   subscription-mainnet-programdata:
+    needs: subscription-verified-build
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -169,6 +236,7 @@ jobs:
       - name: Read Mainnet Program and ProgramData metadata
         env:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+          EXPECTED_PROGRAM_ELF_SHA256: ${{ needs.subscription-verified-build.outputs.elf_sha256 }}
         run: npm run test:mainnet-programdata
 
       - name: Upload sanitized ProgramData evidence
