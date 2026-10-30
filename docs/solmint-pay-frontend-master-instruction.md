@@ -2285,3 +2285,12 @@ Future capability boundary:
 اگر Backend authoritative state را نداده است، Frontend حق تصمیم‌گیری ندارد.
 
 **SolMint Pay فعلاً یک درگاه پرداخت Solana است؛ اما باید از همین امروز به شکلی ساخته شود که فردا بدون بازنویسی بنیادی بتواند به یک زیرساخت پرداخت چندزنجیره‌ای و یک پلتفرم integration واقعی تبدیل شود.**
+
+
+## 139. Project-level AI Operating Instructions
+
+برای جلوگیری از تکرار Prompt و یکسان‌ماندن رفتار عامل در همه نشست‌ها، دستورالعمل اجرایی پایدار پروژه در فایل زیر نگهداری می‌شود:
+
+`docs/solmint-pay-project-instructions.md`
+
+این فایل مکمل Master Specification است و جایگزین آن، Source Code، Backend Contract، Database/RLS/Migrations یا شواهد زنده نیست. هر دو سند باید پیش از تغییر مرتبط، از همان HEAD جاری خوانده شوند. قواعد اختصاصی Subscription در `docs/skills/solmint-pay-subscriptions/SKILL.md` و مهندسی Frontend/Release در Skillهای مربوط باقی می‌مانند. در تعارض، ترتیب تقدم منابع همین سند و شواهد واقعی Repository/Backend حفظ می‌شود.
