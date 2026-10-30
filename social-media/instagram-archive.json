@@ -19,7 +19,21 @@
       "creativeConcept": "Exact previously generated English 1080x1080 SolMint Pay artwork with payment checkout, merchant dashboard motifs, and pink dolphin mascot",
       "caption": "Your business, now on Solana. 🌸\n\nSolMint Pay brings together tools designed to help businesses work with crypto payments on Solana, including payment links, invoices, transaction tracking, and developer integrations.\n\nExplore the SolMint ecosystem: https://solmint.ir/\n\n#SolMintPay #Solana #CryptoPayments #Web3 #Fintech",
       "status": "blocked_upload_and_image_hosting_credit_not_published",
-      "notes": "NOT PUBLISHED. Instagram upload using the generated local file was rejected because the file key belongs to another project/session. Canva only exposed a 200x200 thumbnail; it was not used. A test of the direct hosted-image pipeline was attempted through FAL Instant but blocked because the Composio wallet has zero credits. A BYOK FAL account connection has been initiated; do not claim publication or advance language rotation until a post is successfully published. Exact English artwork remains available in the conversation and must not be regenerated if the user later explicitly requests this exact artwork."
+      "notes": "NOT PUBLISHED. Instagram upload using the generated local file was rejected because the file key belongs to another project/session. Canva only exposed a 200x200 thumbnail; it was not used. A test of the direct hosted-image pipeline was blocked because the Composio wallet has zero credits. Do not claim publication or advance language rotation until a post is successfully published. Exact English artwork must not be regenerated if the user later explicitly requests that exact artwork."
+    },
+    {
+      "date": "2026-10-30",
+      "locale": "fa-IR",
+      "topic": "Three essentials for a clearer crypto checkout: asset, network, amount",
+      "creativeConcept": "Premium minimal editorial graphic with three translucent glass information tiles labelled ASSET, NETWORK, AMOUNT, linked to an abstract transaction receipt; white/off-white with SolMint pink, violet and blue; no phone mockup, no dashboard, no dolphin mascot. Image generation was blocked before an asset was created.",
+      "caption": "یک تجربه پرداخت رمزارزی شفاف، پیش از تأیید تراکنش شروع می‌شود: دارایی، شبکه و مبلغ باید برای کاربر روشن باشند. همین جزئیات ساده می‌توانند از ابهام و خطای کاربر کم کنند.\n\nما در حال توسعه SolMint Pay با تمرکز بر تجربه پرداخت در اکوسیستم Solana هستیم. جزئیات محصول را در وب‌سایت SolMint ببینید.\n\nhttps://solmint.ir/\n\n#SolMintPay #Solana #پرداخت_رمزارزی #Web3 #CryptoPayments",
+      "asset_url": null,
+      "asset_hash": null,
+      "status": "blocked_insufficient_composio_credits_not_published",
+      "post_id": null,
+      "permalink": null,
+      "news_urls": [],
+      "notes": "Run attempt on 2026-10-30: Instagram identity verified as @solmint_wallet (IG user ID 28872422869093449), recent media inspected (one existing video dated 2026-09-07), publishing quota reported 0/100 in the rolling 24-hour window. FAL AI image generation was attempted exactly once using openai/gpt-image-2.5/sunburst/text-to-image, but Composio returned: 'The user's Composio wallet is out of credits, so Instant calls are paused.' Per instruction, stopped immediately: no retry, no alternate paid provider, no media container, no publication. This draft is not a successful post and does not advance language rotation."
     }
   ]
 }
