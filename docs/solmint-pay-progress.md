@@ -2380,3 +2380,48 @@ No Production database, runtime configuration, secret/key, on-chain Program stat
 - Correctly separated the 15-commit audited-baseline-to-release delta (which includes Rust program source changes) from the 8-commit post-remediation-to-release delta (21 paths, no `program/src/**` entries).
 - Stage 2 remains **BLOCKED**, not complete: Cantina PDF text was not extractable in this environment and live Mainnet ProgramData/binary/upgrade authority/slot/on-chain IDL evidence is unavailable. SDK adapter and final API/DB contract freeze are not approved.
 - Latest source-reviewed application HEAD remains `2a043a010cbb8d5d01d38f529760c5b247fbd6d3`; subsequent commits are documentation-only. PR #366 remains OPEN / DRAFT / NOT MERGED.
+
+
+## 2026-10-30 — Subscription Phase 2 Cantina report completed; ProgramData gate still open
+
+Repository: `azad2022/solsite`  
+Branch: `feat/pay-subscription-billing`  
+Source code reviewed at: `c11acab73c92ed3a8341d35b2549cd56e264cb89`  
+Phase 2 documentation follow-up: `4cf0dd42cd86891d5ad4388d82e9aceba92be26f` (implementation-plan review matrix)  
+PR #366: OPEN / DRAFT / NOT MERGED at last revalidation.  
+Working Tree: UNKNOWN (local Git unavailable; remote GitHub refs reviewed).
+
+### Cantina PDF — completed review
+- Read the complete 12-page Cantina report dated 2026-07-30. Audit baseline `d6b3a5dc7ab18c4168441af733c81ab0a599d414`; remediation follow-up commit `debb4f75ff7571218b39de3b633074dd843e70db`.
+- Summary: 9 findings — 1 High, 5 Medium, 2 Low, 1 Informational; no Critical or Gas findings. Aggregate report disposition: 4 Fixed and 5 Acknowledged. Cantina's follow-up says all findings were addressed and no new vulnerabilities were found. Acknowledged means residual risk accepted/documented, not fixed by Program code.
+- High `3.1.1` remains the dominant protocol risk: old signed but unsubmitted create operations, especially Init+Subscribe with `UNKNOWN_INIT_ID`, can land later and restore authority/delegation after attempted revoke. The Program did not gain persistent consent epoch/action nonce/tombstone/deadline in the remediation. V1 limits: separate Init and Subscribe, fetch actual `init_id`, reject sentinel, recent blockhash only, no Durable Nonce or unresolved smart-wallet/multisig proposals, no retained pending signed bytes, reconcile approval lifecycle. Residual protocol risk remains.
+- Medium `3.2.1` CancelNow: `expected_current_period_start_ts` added (`d4b29e80...`), but same-second replay residual remains acknowledged. `3.2.2` UpdatePlan: fixed and Cantina verified (`653dec58...`) via expected state fields; README still notes ABA if values are changed and later restored. `3.2.3` Resume: same-period cancellation can collide on `expires_at_ts`; old pending Resume can undo a later cancellation. `3.2.4` Authority controls: held Init can reapprove `u64::MAX`; held Close/Revoke can affect a newly created authority at same PDA. `3.2.5` finite Plan near-end Subscribe: full period amount may be charged for a partial/zero-length first window; `end_ts` is not bound by the signed Subscribe payload.
+- Low `3.3.1` optional CreatePlan payer missing from IDL/generated client was fixed and Cantina verified (`11173179...`). Low `3.3.2` rent sponsor lock risk was acknowledged/documented (`0ac23b9...`); not an enforceable opt-in/recovery guarantee. V1 decision: no rent sponsorship; Merchant funds Plan rent; user funds their Authority/Subscription rent; Collector pays network fee only. Informational `3.4.1` IDL generation errors swallowing was fixed (`1b6e98e...`); current Program `build.rs` propagates errors.
+- Full finding matrix, source evidence and V1 mitigations are in `docs/solmint-pay-subscription-implementation-plan.md`.
+
+### Program, SDK, IDL and release comparison
+- Program tag `program-v0.5.0` = `364a41976c33347d092902443bbec2def9227e75`; SDK tag `ts-client-v0.5.0` = `5a347ffaa969036061d274d3c91e0277962e2b51` (3 commits later). Program ID: `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`.
+- Audit baseline → Program release delta: 15 commits. Remediation → Program release delta: 8 commits / 21 paths and no `program/src/**` paths. This means Program source did not change in that narrower post-remediation release delta; it is not deployment proof.
+- Program tag root Cargo/IDL reports `0.5.0-beta.1`, package TypeScript at that tag `0.5.0-beta.2`; SDK tag package and IDL report `0.5.0`. Program and SDK IDL JSON are byte-equivalent after changing only the program version string; no structural instruction/account schema delta was found. SDK changelog says SDK 0.5.0 matches Program 0.5.0 and the deployed binary/IDL were built from commit `364a419` while labeled beta.1. Live chain must independently confirm that.
+- Official SDK `@solana/subscriptions@0.5.0` is an `@solana/kit` plugin with peer `@solana/kit ^7.0.0`; its overlay builders produce Kit instructions and rely on Kit RPC/signers. SolMint root package uses `@solana/web3.js@1.99.0`, no Kit/Subscriptions SDK dependency. Static compatibility assessment is PASS; actual Kit↔web3.js / worker/runtime / signer compatibility spike was not executed. SDK integration remains BLOCKED / NOT IMPLEMENTED; no dependency was installed.
+
+### ProgramData / Mainnet evidence
+- Re-inspected `.github/workflows/solmint-pay-mainnet-readonly.yml` and `e2e/pay-mainnet-readonly.e2e.ts`. Workflow hard-codes the public Mainnet RPC endpoint and checks Pay provider health plus a finalized System Program transaction. It does not query the Subscriptions Program/ProgramData, deployed slot, upgrade authority, executable bytes, source verification or on-chain IDL.
+- Therefore the successful Mainnet workflow is not ProgramData proof and is not proof of the production Helius endpoint. No approved read-only production RPC tool was available in this session. Program executable/loader owner, ProgramData address, deployment slot, upgrade authority, deployed bytecode hash, `solana-verify` match, and on-chain IDL bytes/hash remain UNKNOWN.
+- ProgramData gate requires a sanitized read-only artifact produced in the approved Mainnet environment; never include RPC URL credentials, API keys, signer material or private data in output. Required evidence: cluster/genesis, Program ID/loader owner/executable, ProgramData address, deployment slot, upgrade authority/null, deployed ELF length+SHA-256, reproducible source/commit match, on-chain IDL hash and structural comparison to pinned IDL.
+
+### Contract freeze checkpoint
+- **PASS (architecture/security invariants only):** bounded-context separation; Plan Owner implicit Puller; Collector additional explicit Puller and independent fee payer; all Puller reconciliation; two-step Init/Subscribe with actual `init_id`; V1 rejection of `UNKNOWN_INIT_ID`/Durable Nonce/unresolved proposals; fixed-hours period and chain-derived cycle identity; Active != collectable/entitled; finalized transfer verification + atomic accounting before entitlement; unchanged Pay verifier with dedicated Subscription verification/accounting; original SPL Token only; approved mints; explicit non-empty destination-owner list; no rent sponsorship; no split principal+gateway fee until same-tx atomic tests pass.
+- **NOT FROZEN:** concrete API paths/payloads, SQL table/column/state names, grants/roles/permissions, exact retry/grace/entitlement policy, gateway fee model, split-fee mechanics, Collector key custody. Do not create routes, migrations, APIs or domain schemas as part of this checkpoint.
+
+### Exact-head CI and scope
+- At source HEAD `c11acab...`, the following GitHub workflows completed SUCCESS: CI run `41058801495`; Pay Database Security `41058801594`; Pay Mainnet Read-only `41058801611`; Pay Devnet E2E `41058801628`; Production Build `41058801579`. These are existing Pay/site tests and do not include Subscription application/ProgramData tests. No local tests were run during this documentation/audit update.
+- No Production DDL, runtime configuration, secret/key, Program state, Mainnet transaction, Devnet Subscription transaction, Collector signer, live Plan, funds or customer consent was changed. Only documentation on the feature branch changed.
+
+### Phase 2 decision
+- **PASS:** complete Cantina PDF read and finding matrix; pinned upstream source/audit/SDK static review; Program/SDK IDL structural comparison; architecture-level security invariants.
+- **BLOCKED:** approved live ProgramData/deployed binary/upgrade authority/slot/on-chain IDL proof; actual SDK adapter/runtime compatibility; final schema/API/RBAC/Consent/Accounting contract freeze.
+- **UNKNOWN:** all live deployment facts above and local Working Tree.
+- **NOT IMPLEMENTED:** isolated SDK adapter, persisted Subscription domain/schema/API, Collector, dedicated verifier/accounting, Subscription integration/adversarial/Devnet E2E and UI.
+
+**STOP:** Phase 2 is not complete. Do not begin Phase 3 backend/schema/API/Collector, Phase 4 adversarial implementation/UI, or Phase 5 production release.
