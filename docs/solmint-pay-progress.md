@@ -2089,7 +2089,7 @@ Status: **SOURCE TAGS IDENTIFIED; DEPLOYED-BINARY/AUDIT GATES STILL UNKNOWN.**
 
 - Inspected upstream `solana-foundation/subscriptions` audit status, release changelog, pinned source/SDK tags, package metadata and IDL.
 - Cantina audit baseline is `d6b3a5dc7ab18c4168441af733c81ab0a599d414`; remediation is stated through `debb4f75ff7571218b39de3b633074dd843e70db`.
-- Compare confirms release commit `364a41976c33347d092902443bbec2def9227e75e` is 8 commits after the remediation commit. The release delta includes Rust program instructions/state/transfer helper changes, IDL changes, SDK changes and integration tests. The release binary's full audit coverage is therefore not established by the remediation marker alone.
+- Compare confirms release commit `364a41976c33347d092902443bbec2def9227e75e` is 8 commits after the remediation commit. The exact eight-commit compare lists changes to release workflow/toolchain, manifests and lockfiles, audit/README files, IDL, TypeScript/Rust SDK files and tests, and sample webapp files. It does **not** list `program/src/**` Rust source files in this range; the earlier wording that claimed Rust instruction/state/transfer-helper changes was incorrect and is superseded. The SDK/IDL/dependency/build delta still needs security and compatibility review, and the Cantina report remains NOT REVIEWED. The release binary's full audit coverage is therefore not established by the remediation marker alone.
 - Upstream changelog says v0.5.0 targeted Mainnet on 2026-08-10, but the deployed binary and on-chain IDL report `0.5.0-beta.1`, built at `364a419` before the version bump. This is upstream release-note evidence only; live ProgramData/binary/authority/slot and exact on-chain IDL were not independently read.
 - SDK tag `ts-client-v0.5.0` declares `@solana/subscriptions@0.5.0` and peer dependency `@solana/kit ^7.0.0`; current SolMint runtime declares `@solana/web3.js@1.99.0` and no `@solana/kit`. SDK integration requires a compatibility/dependency design.
 - Cantina PDF was identified by its path in upstream `audits/AUDIT_STATUS.md` but was not successfully retrieved/read in this session. Do not report the PDF as reviewed.
@@ -2305,3 +2305,41 @@ PR #366: OPEN / DRAFT / NOT MERGED.
 - **UNKNOWN:** Cantina PDF review, release delta audit, deployed ProgramData/binary/source match/upgrade authority/slot/IDL, approved production Mainnet RPC evidence, SDK compatibility and Collector key custody.
 
 No Production database/schema/grant/RLS, runtime setting, secret/key, Mainnet transaction, live Plan, customer consent or funds were changed. Existing Devnet E2E remained limited to the pre-existing ordinary Pay test flows; no Subscription transaction was submitted. Local Git Working Tree remains UNKNOWN; remote branch state was verified through GitHub.
+
+
+## 2026-10-30 — Subscription Phase 1 read-only baseline audit
+
+Repository: `azad2022/solsite`  
+Main HEAD at audit: `7b975d56860b6d937ad76ab2983c71937644dfa3`  
+Subscription branch HEAD reviewed: `9f67efb12d30775085f7fe9c828dae84d1e6800b`  
+Branch comparison: `ahead 28 / behind 0`  
+PR: [#366](https://github.com/azad2022/solsite/pull/366), OPEN / DRAFT / NOT MERGED.
+
+### Scope actually verified
+- Re-read the persistent project instructions, Master Specification, Subscription Skill, Build Web Apps Skill, Release Audit Skill, and installed Supabase Skill.
+- Revalidated repository default branch, exact main SHA, feature branch existence/head, PR base/head and current diff. Local Git Working Tree remains **UNKNOWN** because local Git access is unavailable in this environment.
+- Production Supabase project `nvopkbiedorfshwbmyhn`: `ACTIVE_HEALTHY`, PostgreSQL `17.6.1.147`.
+- Fresh read-only DB introspection: 33 `public.pay_*` tables; RLS enabled on all 33; FORCE RLS on 0. No public table or routine with Subscription/Billing Cycle/Consent/Collector naming was found. This proves only schema presence/absence, not adversarial tenant isolation.
+- Production migration ledger contains 106 entries; latest is `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- Live ordinary verifier `public.pay_apply_verified_observation`: SECURITY DEFINER, empty `search_path`, definition MD5 `862417b40ce5db32abc714184ef475f5`. Its audited contract requires ordinary-payment source-authority/fee-payer alignment and rejects sponsored gas; it is not compatible with the Subscription Authority PDA + separate Collector fee-payer model. Keep it unchanged and require a dedicated Subscription verifier/accounting boundary.
+- Current branch compare contains one Subscription application slice: pure Plan-input policy `src/pay/services/subscriptionPlanPolicy.ts` plus `tests/pay-subscription-plan-policy.test.ts` (14 test cases). It is not a persisted Plan API or lifecycle implementation. No Subscription route, migration, tables, Billing Engine, Collector signer, dedicated verifier/accounting adapter, Consent flow, or Subscription UI is present in this branch diff.
+- Exact-head Actions evidence on `9f67efb...`: CI run `41051484372` SUCCESS (quality/typecheck/build/unit tests, 424 tests reported); Database Security `41051484223` SUCCESS; existing Pay Devnet E2E `41051484239` SUCCESS; Production Build `41051484250` SUCCESS; Mainnet read-only `41051484232` SUCCESS. The Devnet job covers existing ordinary Pay, hosted transaction builder, Bulk Pay and Payment Intent reconciliation—not Subscription charges. Database Security has no Subscription schema to exercise. Mainnet job is a non-mutating provider smoke, not ProgramData or production-Helius verification.
+- Issue #355 remains OPEN; migration-runner provenance/trigger is UNKNOWN. Production DDL remains BLOCKED until the repository's controlled path is evidenced and explicit APPLY is authorized.
+- Corrected the post-remediation upstream delta description in this ledger and `docs/solmint-pay-subscription-baseline-audit.md` (commit `f8c90880bba1fae7374d4c4cac37c6db5f0d61d7`): the eight-commit compare lists SDK/IDL/dependency/build-release/sample-app changes and does not list `program/src/**` Rust source files. This does not clear the release audit gate.
+- Upstream Cantina report exists in the upstream repository but was not rendered/read in this environment: **NOT REVIEWED**. Actual Mainnet ProgramData/binary hash/upgrade authority/deployment slot/IDL and approved production RPC evidence remain **UNKNOWN**. SDK v0.5.0 requires `@solana/kit ^7`; SolMint uses `@solana/web3.js 1.x`; adapter compatibility remains **UNKNOWN**.
+
+### Phase 1 result
+- **PASS (limited scope):** repository/branch/PR inventory, current Production schema/migration read-only discovery, existing Pay CI workflow status and current Subscription gap inventory.
+- **BLOCKED:** Production DDL due Issue #355; split principal + gateway-fee charging until same-transaction cumulative allowance/atomic rollback, dedicated verifier and accounting are proven.
+- **NOT IMPLEMENTED:** persisted Subscription domain/API/schema, customer consent/authority lifecycle, billing cycle/attempt engine, isolated Collector, dedicated verification/accounting, Subscription-specific adversarial/Devnet E2E and UI.
+- **UNKNOWN / NOT REVIEWED:** full Cantina PDF findings; live ProgramData/binary/IDL/upgrade authority/slot; approved production Mainnet RPC; SDK adapter compatibility; Collector key custody and isolation. RLS presence is not an adversarial security PASS.
+- No Production DDL, runtime/secret/key change, Collector creation, live Plan, customer consent, Mainnet transaction or funds movement occurred in this checkpoint. No Subscription Devnet transaction was run by this task.
+
+### Five-stage delivery sequence
+1. **Baseline audit** — this checkpoint; repository and DB inventory completed with the unresolved evidence above explicitly retained.
+2. **Program assurance + contract freeze** — read the full Cantina report, verify the actual deployed Program/IDL through approved read-only Mainnet evidence, resolve SDK compatibility, and review Domain/API/DB/RBAC/Consent/state-transition/accounting contracts before naming schema or routes.
+3. **Backend implementation** — additive DB/API, atomic Billing Cycle/Attempt claim and reconciliation, isolated Collector, dedicated Subscription verification/accounting and outbox; ordinary Pay remains unchanged.
+4. **Adversarial validation + product UI** — unit/component/integration/database RLS security/LiteSVM/Devnet E2E, retries and ambiguous outcome recovery, then Merchant Dashboard and Customer Consent/Portal UI based only on real contracts.
+5. **Controlled production release** — resolve Issue #355, controlled migration DRY_RUN and separately authorized APPLY, isolated signer/key lifecycle approval, exact deployment SHA, Pages deployment smoke, runtime verification, rollback and final Release Audit.
+
+Next checkpoint: Stage 2. Do not begin Production migrations, create Collector signing material, or enable live billing while any relevant gate above remains BLOCKED/UNKNOWN.
