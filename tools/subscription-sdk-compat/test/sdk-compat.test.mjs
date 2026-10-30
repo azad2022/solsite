@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   AccountRole,
   address,
+  createNoopSigner,
   isSignerRole,
   isWritableRole,
 } from '@solana/kit';
@@ -38,8 +39,10 @@ const AMOUNT_ATOMIC = 1_250_000n;
 
 // These signers are address-only test doubles. The SDK builders below only
 // derive PDAs and attach signer account metadata; no signing method is invoked.
-const merchantSigner = { address: address(MERCHANT) };
-const subscriberSigner = { address: address(SUBSCRIBER) };
+// Kit's noop signer satisfies the real TransactionSigner runtime contract while
+// deliberately providing no private key and no usable cryptographic signature.
+const merchantSigner = createNoopSigner(address(MERCHANT));
+const subscriberSigner = createNoopSigner(address(SUBSCRIBER));
 
 function expectedWeb3Meta(account) {
   return {
@@ -135,16 +138,14 @@ function assertLegacyAndVersionedSerialization(web3Instruction, feePayer, expect
   assert.deepEqual(
     Array.from(compiled.accountKeyIndexes, (keyIndex) => {
       const key = versionedParsed.message.staticAccountKeys[keyIndex];
-      const expected = effectiveKeys.find((entry) => entry.pubkey === key.toBase58());
       return {
         pubkey: key.toBase58(),
         isSigner: keyIndex < versionedParsed.message.header.numRequiredSignatures,
         isWritable: keyIndex < versionedParsed.message.header.numRequiredSignatures
           ? keyIndex < versionedParsed.message.header.numRequiredSignatures - versionedParsed.message.header.numReadonlySignedAccounts
           : keyIndex < versionedParsed.message.staticAccountKeys.length - versionedParsed.message.header.numReadonlyUnsignedAccounts,
-        expected,
       };
-    }).map(({ pubkey, isSigner, isWritable }) => ({ pubkey, isSigner, isWritable })),
+    }),
     effectiveKeys,
     'v0 compiled privileges must match Solana fee-payer promotion and preserve account order',
   );
