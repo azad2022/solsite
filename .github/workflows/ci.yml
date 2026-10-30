@@ -188,10 +188,21 @@ jobs:
             echo "::error::solana-verify returned an invalid executable hash"
             exit 1
           fi
+          idl_file="$GITHUB_WORKSPACE/upstream-subscriptions/idl/subscriptions.json"
+          if [ ! -s "$idl_file" ]; then
+            echo "::error::Pinned upstream IDL file is missing or empty"
+            exit 1
+          fi
+          idl_hash="$(sha256sum "$idl_file" | awk '{print $1}')"
+          if ! [[ "$idl_hash" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::Pinned source IDL SHA-256 is invalid"
+            exit 1
+          fi
           echo "elf_sha256=$hash" >> "$GITHUB_OUTPUT"
+          echo "idl_sha256=$idl_hash" >> "$GITHUB_OUTPUT"
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          printf '{"source_commit":"364a41976c33347d092902443bbec2def9227e75","solana_verify_version":"0.5.2","solana_cli_build_version":"3.1.10","rust_toolchain_file":"1.92","build_container_rust_toolchain":"%s","docker_image_digest":"sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3","elf_sha256":"%s"}\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" > "$GITHUB_WORKSPACE/artifacts/subscription-program-reproducible-build.json"
-          printf 'Pinned source commit: 364a41976c33347d092902443bbec2def9227e75\nBuild container Rust toolchain: %s\nReproducible ELF SHA-256: %s\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash"
+          printf '{"source_commit":"364a41976c33347d092902443bbec2def9227e75","solana_verify_version":"0.5.2","solana_cli_build_version":"3.1.10","rust_toolchain_file":"1.92","build_container_rust_toolchain":"%s","docker_image_digest":"sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3","elf_sha256":"%s","idl_sha256":"%s"}\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" "$idl_hash" > "$GITHUB_WORKSPACE/artifacts/subscription-program-reproducible-build.json"
+          printf 'Pinned source commit: 364a41976c33347d092902443bbec2def9227e75\nBuild container Rust toolchain: %s\nReproducible ELF SHA-256: %s\nPinned source IDL SHA-256: %s\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" "$idl_hash"
 
       - name: Upload sanitized reproducible build evidence
         if: success()
