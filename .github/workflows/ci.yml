@@ -88,7 +88,7 @@ jobs:
       - name: Report installed dependency versions and engine requirements
         run: |
           npm ls --depth=0
-          node --input-type=module -e "import { createRequire } from 'node:module'; import { readFileSync } from 'node:fs'; import { dirname, join } from 'node:path'; const require = createRequire(import.meta.url); for (const name of ['@solana/subscriptions','@solana/kit','@solana-program/token','@solana-program/token-2022','@solana/web3.js']) { let path = require.resolve(name); while (true) { const candidate = join(dirname(path), 'package.json'); try { const pkg = JSON.parse(readFileSync(candidate, 'utf8')); if (pkg.name === name) { console.log(name + '@' + pkg.version + ' engines=' + JSON.stringify(pkg.engines ?? {})); break; } } catch {} const parent = dirname(dirname(path)); if (parent === dirname(path)) throw new Error('package.json not found: ' + name); path = parent; } }"
+          node --input-type=module -e "import { createRequire } from 'node:module'; import { readFileSync } from 'node:fs'; import { dirname, join } from 'node:path'; const require = createRequire(import.meta.url); for (const name of ['@solana/subscriptions','@solana/kit','@solana-program/token','@solana-program/token-2022','@solana/web3.js']) { let dir = dirname(require.resolve(name)); for (;;) { const candidate = join(dir, 'package.json'); try { const pkg = JSON.parse(readFileSync(candidate, 'utf8')); if (pkg.name === name) { console.log(name + '@' + pkg.version + ' engines=' + JSON.stringify(pkg.engines ?? {})); break; } } catch {} const parent = dirname(dir); if (parent === dir) throw new Error('package.json not found: ' + name); dir = parent; } }"
 
       - name: Execute SDK / PDA / web3.js transaction compatibility tests
         run: npm test
