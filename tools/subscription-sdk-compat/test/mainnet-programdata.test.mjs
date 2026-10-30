@@ -49,7 +49,11 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
   let endpoint;
   try { endpoint = new URL(RPC_URL); } catch { throw new Error('SOLANA_RPC_URL_FORMAT_INVALID'); }
   assert.equal(endpoint.protocol, 'https:', 'Mainnet RPC must use HTTPS.');
-  assert.notEqual(endpoint.hostname.toLowerCase(), 'api.mainnet-beta.solana.com', 'Public Solana RPC fallback is prohibited.');
+  const hostname = endpoint.hostname.toLowerCase();
+  assert.ok(
+    hostname === 'mainnet.helius-rpc.com' || hostname.endsWith('.helius-rpc.com'),
+    'A dedicated Helius Mainnet endpoint is required; public RPC fallback is prohibited.',
+  );
 
   const genesisHash = await rpc('getGenesisHash');
   assert.equal(genesisHash, MAINNET_GENESIS_HASH, 'configured endpoint must be Solana Mainnet');
