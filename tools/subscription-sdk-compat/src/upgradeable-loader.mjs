@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { PublicKey } from '@solana/web3.js';
 
 export const UPGRADEABLE_LOADER_PROGRAM_ID = 'BPFLoaderUpgradeab1e11111111111111111111111';
+export const SOLANA_MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
 
 const PROGRAM_STATE_TAG = 2;
 const PROGRAM_DATA_STATE_TAG = 3;
