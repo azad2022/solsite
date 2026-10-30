@@ -22,10 +22,13 @@ The harness is outside the root application package. It does not add SDK depende
 7. Compile the typed adapter and SDK instruction-builder call sites with the repository-pinned TypeScript compiler.
 8. Start a local Cloudflare Pages Functions server with the pinned Wrangler CLI.
 9. Query the dedicated Devnet RPC, verify the Program account is executable, and simulate a synthetic CreatePlan instruction with signature verification disabled. This test does not submit or sign a transaction. The Pages Function imports the real SDK and adapter, exercises the SDK instruction builder and conversion in the local Workerd runtime, and verifies the Node compatibility imports required by the dependency graph (`node:events`, `node:path`, `node:fs/promises`, and `Buffer`).
+10. In a separate read-only Mainnet job, verify cluster genesis, Program account/Upgradeable Loader state, derived ProgramData PDA, deployment slot, upgrade authority, and SHA-256 of the deployed ELF. This job consumes the existing `SOLANA_RPC_URL` GitHub Actions secret; it has no public RPC fallback and never logs or writes the endpoint/API key.
 
 The Pages test uses only local synthetic addresses and a no-op test signer. It does not use RPC, secrets, private keys, customer data or a real wallet. It never signs or submits a transaction and does not deploy to Cloudflare.
 
 The Devnet simulation uses only the public key of the existing Devnet test fee payer and the dedicated `SOLANA_DEVNET_RPC_URL` GitHub secret. It never reads a private key, signs, submits, creates an on-chain Plan, or mutates Devnet. The RPC method allowlist excludes transaction submission methods.
+
+The Mainnet ProgramData probe uses only `getGenesisHash` and `getAccountInfo` against the dedicated `SOLANA_RPC_URL` GitHub Actions secret. It rejects the default public Solana RPC endpoint, validates the Mainnet genesis hash and loader account layout, and writes a metadata-only evidence artifact containing ProgramData address, deployment slot, upgrade authority and ELF SHA-256. It excludes the RPC URL/API key and raw executable bytes. This Mainnet proof is separate from the isolated SDK compatibility PASS and remains BLOCKED if the GitHub secret is unavailable.
 
 ## Reproduce
 
@@ -38,7 +41,8 @@ npm ci
 npm run typecheck
 npm test
 npm run test:workerd
-SOLANA_DEVNET_RPC_URL=https://your-dedicated-devnet-rpc npm run test:devnet-sim
+SOLANA_DEVNET_RPC_URL=<configured-secret> npm run test:devnet-sim
+SOLANA_RPC_URL=<configured-mainnet-secret> npm run test:mainnet-programdata
 ```
 
 `npm run test:workerd` runs `wrangler pages dev` locally against this directory's isolated `wrangler.toml`. It does not use the root production configuration or change Cloudflare settings.
