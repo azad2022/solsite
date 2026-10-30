@@ -28,7 +28,7 @@ function metadataFixture({ seed = 'idl', program = TARGET_PROGRAM_ID, content = 
   return bytes;
 }
 
-test('canonical Program Metadata PDA derives using program, zero authority and fixed 16-byte seed', () => {
+test('canonical Program Metadata PDA derives using program and fixed 16-byte seed', () => {
   const first = deriveCanonicalMetadataAddress(TARGET_PROGRAM_ID, 'idl');
   const second = deriveCanonicalMetadataAddress(TARGET_PROGRAM_ID, 'idl');
   assert.equal(first, second);
