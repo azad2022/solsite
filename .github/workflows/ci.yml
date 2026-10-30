@@ -51,7 +51,7 @@ jobs:
           test -z "$(git status --porcelain --untracked-files=all)"
 
   subscription-sdk-compat:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing'
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -120,6 +120,11 @@ jobs:
 
       - name: Execute SDK integration in local Cloudflare Pages Workerd runtime
         run: npm run test:workerd
+
+      - name: Simulate Subscription CreatePlan on dedicated Devnet RPC (no submission)
+        env:
+          SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
+        run: npm run test:devnet-sim
 
       - name: Upload generated lockfile and runtime test evidence
         if: always()

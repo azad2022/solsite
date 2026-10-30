@@ -20,9 +20,12 @@ The harness is outside the root application package. It does not add SDK depende
 5. Compare Init Authority, Create Plan and Subscribe instruction bytes and account metas against independent golden fixtures transcribed from the pinned `program-v0.5.0` IDL; the fixture records the Program commit and IDL Git blob.
 6. Serialize and deserialize unsigned legacy and v0 web3.js transactions.
 7. Compile the typed adapter and SDK instruction-builder call sites with the repository-pinned TypeScript compiler.
-8. Start a local Cloudflare Pages Functions server with the pinned Wrangler CLI. The Pages Function imports the real SDK and adapter, exercises the SDK instruction builder and conversion in the local Workerd runtime, and verifies the Node compatibility imports required by the dependency graph (`node:events`, `node:path`, `node:fs/promises`, and `Buffer`).
+8. Start a local Cloudflare Pages Functions server with the pinned Wrangler CLI.
+9. Query the dedicated Devnet RPC, verify the Program account is executable, and simulate a synthetic CreatePlan instruction with signature verification disabled. This test does not submit or sign a transaction. The Pages Function imports the real SDK and adapter, exercises the SDK instruction builder and conversion in the local Workerd runtime, and verifies the Node compatibility imports required by the dependency graph (`node:events`, `node:path`, `node:fs/promises`, and `Buffer`).
 
 The Pages test uses only local synthetic addresses and a no-op test signer. It does not use RPC, secrets, private keys, customer data or a real wallet. It never signs or submits a transaction and does not deploy to Cloudflare.
+
+The Devnet simulation uses only the public key of the existing Devnet test fee payer and the dedicated `SOLANA_DEVNET_RPC_URL` GitHub secret. It never reads a private key, signs, submits, creates an on-chain Plan, or mutates Devnet. The RPC method allowlist excludes transaction submission methods.
 
 ## Reproduce
 
@@ -35,6 +38,7 @@ npm ci
 npm run typecheck
 npm test
 npm run test:workerd
+SOLANA_DEVNET_RPC_URL=https://your-dedicated-devnet-rpc npm run test:devnet-sim
 ```
 
 `npm run test:workerd` runs `wrangler pages dev` locally against this directory's isolated `wrangler.toml`. It does not use the root production configuration or change Cloudflare settings.
