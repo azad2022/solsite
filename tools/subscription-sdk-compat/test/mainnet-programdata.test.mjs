@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { inflateSync } from 'node:zlib';
 import { mkdir, writeFile } from 'node:fs/promises';
 import test from 'node:test';
 import { PublicKey } from '@solana/web3.js';
@@ -13,10 +14,16 @@ import {
   UPGRADEABLE_LOADER_PROGRAM_ID,
   SOLANA_MAINNET_GENESIS_HASH,
 } from '../src/upgradeable-loader.mjs';
+import {
+  deriveCanonicalMetadataAddress,
+  parseMetadataAccount,
+  PROGRAM_METADATA_PROGRAM_ID,
+} from '../src/program-metadata.mjs';
 
 const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const RPC_URL = process.env.SOLANA_RPC_URL?.trim() || '';
 const EXPECTED_PROGRAM_ELF_SHA256 = process.env.EXPECTED_PROGRAM_ELF_SHA256?.trim() || '';
+const EXPECTED_SUBSCRIPTION_IDL_SHA256 = process.env.EXPECTED_SUBSCRIPTION_IDL_SHA256?.trim() || '';
 const ALLOWED_RPC_METHODS = new Set(['getGenesisHash', 'getAccountInfo']);
 
 async function rpc(method, params = []) {
@@ -50,6 +57,7 @@ async function rpc(method, params = []) {
 test('Mainnet Subscription ProgramData identity is read-only and reproducible', { timeout: 120_000 }, async () => {
   assertApprovedMainnetRpcUrl(RPC_URL);
   assert.match(EXPECTED_PROGRAM_ELF_SHA256, /^[0-9a-f]{64}$/, 'reproducible source-build ELF SHA-256 is required');
+  assert.match(EXPECTED_SUBSCRIPTION_IDL_SHA256, /^[0-9a-f]{64}$/, 'pinned source IDL SHA-256 is required');
 
   const genesisHash = await rpc('getGenesisHash');
   assert.equal(genesisHash, SOLANA_MAINNET_GENESIS_HASH, 'configured endpoint must be Solana Mainnet');
@@ -83,6 +91,40 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
   const executableBytes = stripTrailingZeroBytes(parsed.elfBytes);
   const elfSha256 = createHash('sha256').update(executableBytes).digest('hex');
   assert.equal(elfSha256, EXPECTED_PROGRAM_ELF_SHA256, 'Mainnet deployed ELF must match the reproducible upstream source build');
+  const idlMetadataAddress = deriveCanonicalMetadataAddress(PROGRAM_ID, 'idl');
+  const idlMetadataAccount = await rpc('getAccountInfo', [
+    idlMetadataAddress,
+    { encoding: 'base64', commitment: 'finalized' },
+  ]);
+  assert.ok(idlMetadataAccount?.value, 'canonical IDL metadata account must exist on Mainnet');
+  assert.equal(
+    idlMetadataAccount.value.owner,
+    PROGRAM_METADATA_PROGRAM_ID,
+    'IDL metadata PDA must be owned by the canonical Program Metadata program',
+  );
+  assert.equal(idlMetadataAccount.value.executable, false, 'IDL metadata account must not be executable');
+
+  const idlMetadataBytes = decodeBase64AccountData(idlMetadataAccount.value.data, 'IDL_METADATA');
+  const idlMetadata = parseMetadataAccount(idlMetadataBytes);
+  assert.equal(idlMetadata.program, PROGRAM_ID, 'metadata account must reference the pinned Subscription Program');
+  assert.equal(idlMetadata.seed, 'idl', 'metadata account must use the canonical IDL seed');
+  assert.equal(idlMetadata.canonical, true, 'IDL metadata must be canonical, not third-party metadata');
+  assert.equal(idlMetadata.dataSource, 0, 'IDL metadata must store direct data in the metadata account');
+  assert.equal(idlMetadata.encoding, 1, 'IDL metadata must use UTF-8 encoding');
+  assert.equal(idlMetadata.compression, 2, 'IDL metadata must use zlib compression');
+  assert.equal(idlMetadata.format, 1, 'IDL metadata must declare JSON format');
+
+  const idlBytes = inflateSync(idlMetadata.data);
+  const idlSha256 = createHash('sha256').update(idlBytes).digest('hex');
+  assert.equal(
+    idlSha256,
+    EXPECTED_SUBSCRIPTION_IDL_SHA256,
+    'on-chain canonical IDL content must exactly match the pinned upstream source file',
+  );
+  const idl = JSON.parse(idlBytes.toString('utf8'));
+  assert.equal(idl?.program?.publicKey, PROGRAM_ID, 'on-chain IDL program key must match the deployed Program ID');
+  assert.equal(idl?.program?.name, 'subscriptions', 'on-chain IDL name must match the pinned Program');
+
   const evidence = {
     schemaVersion: 1,
     observedAt: new Date().toISOString(),
@@ -104,6 +146,25 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
     trailingZeroPaddingBytes: parsed.elfBytes.length - executableBytes.length,
     elfSha256,
     expectedSourceBuildElfSha256: EXPECTED_PROGRAM_ELF_SHA256,
+    idlMetadataAddress,
+    idlMetadataOwner: idlMetadataAccount.value.owner,
+    idlMetadataExecutable: idlMetadataAccount.value.executable,
+    idlMetadataAccountDataLength: idlMetadataBytes.length,
+    idlMetadataProgram: idlMetadata.program,
+    idlMetadataAuthority: idlMetadata.authority,
+    idlMetadataMutable: idlMetadata.mutable,
+    idlMetadataCanonical: idlMetadata.canonical,
+    idlMetadataSeed: idlMetadata.seed,
+    idlMetadataEncoding: 'utf8',
+    idlMetadataCompression: 'zlib',
+    idlMetadataFormat: 'json',
+    idlMetadataDataSource: 'direct',
+    idlMetadataDataLength: idlMetadata.dataLength,
+    onChainIdlSha256: idlSha256,
+    expectedSourceIdlSha256: EXPECTED_SUBSCRIPTION_IDL_SHA256,
+    onChainIdlName: idl.program.name,
+    onChainIdlProgramKey: idl.program.publicKey,
+    onChainIdlVersion: idl.program.version,
     commitment: 'finalized',
   };
 
