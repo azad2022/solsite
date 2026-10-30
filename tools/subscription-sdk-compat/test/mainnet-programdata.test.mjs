@@ -9,6 +9,7 @@ import {
   deriveProgramDataAddress,
   parseProgramDataAccount,
   readProgramDataAddress,
+  stripTrailingZeroBytes,
   UPGRADEABLE_LOADER_PROGRAM_ID,
 } from '../src/upgradeable-loader.mjs';
 
@@ -78,7 +79,9 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
 
   const programDataBytes = decodeBase64AccountData(programDataAccount.value.data, 'PROGRAM_DATA');
   const parsed = parseProgramDataAccount(programDataBytes);
-  const elfSha256 = createHash('sha256').update(parsed.elfBytes).digest('hex');
+  // Match solana-verify v0.5.2 get_binary_hash(): trailing zero padding is excluded before SHA-256.
+  const executableBytes = stripTrailingZeroBytes(parsed.elfBytes);
+  const elfSha256 = createHash('sha256').update(executableBytes).digest('hex');
   assert.equal(elfSha256, EXPECTED_PROGRAM_ELF_SHA256, 'Mainnet deployed ELF must match the reproducible upstream source build');
   const evidence = {
     schemaVersion: 1,
@@ -96,7 +99,9 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
     deploymentSlot: parsed.deploymentSlot,
     upgradeAuthority: parsed.upgradeAuthority,
     elfOffset: parsed.elfOffset,
-    elfLength: parsed.elfBytes.length,
+    programDataExecutableBytesLength: parsed.elfBytes.length,
+    elfLength: executableBytes.length,
+    trailingZeroPaddingBytes: parsed.elfBytes.length - executableBytes.length,
     elfSha256,
     expectedSourceBuildElfSha256: EXPECTED_PROGRAM_ELF_SHA256,
     commitment: 'finalized',
