@@ -3,6 +3,7 @@ import test from 'node:test';
 import { PublicKey } from '@solana/web3.js';
 import {
   assertApprovedMainnetRpcUrl,
+  SOLANA_MAINNET_GENESIS_HASH,
   parseProgramDataAccount,
   readProgramDataAddress,
   stripTrailingZeroBytes,
@@ -89,4 +90,8 @@ test('executable hash input strips trailing ProgramData zero padding', () => {
   assert.deepEqual(stripTrailingZeroBytes(padded), Buffer.from([0x7f, 0x45, 0x4c, 0x46]));
   assert.deepEqual(stripTrailingZeroBytes(Buffer.from([0x7f, 0x00, 0x01])), Buffer.from([0x7f, 0x00, 0x01]));
   assert.throws(() => stripTrailingZeroBytes(Buffer.alloc(4)), /PROGRAM_BYTES_EMPTY_AFTER_ZERO_PADDING/);
+});
+
+test('Mainnet genesis hash matches the canonical Solana mainnet value', () => {
+  assert.equal(SOLANA_MAINNET_GENESIS_HASH, '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d');
 });
