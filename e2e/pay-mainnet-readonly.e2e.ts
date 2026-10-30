@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createSolanaRpcProvider } from '../src/pay/services/solanaRpcProvider';
 
-const MAINNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim() || 'https://api.mainnet-beta.solana.com';
+const MAINNET_RPC_URL = process.env.SOLANA_RPC_URL?.trim() || '';
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';
 const RPC_TIMEOUT_MS = 15_000;
 
@@ -27,6 +27,8 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
 }
 
 test('SolMint Pay reads and normalizes a live finalized Mainnet transaction without mutating the chain', { timeout: 45_000 }, async () => {
+  assert.ok(MAINNET_RPC_URL, 'SOLANA_RPC_URL must be explicitly configured for the Mainnet read-only gate');
+  assert.match(MAINNET_RPC_URL, /^https:\\/\\//, 'Mainnet RPC endpoint must use HTTPS');
   assert.equal(MAINNET_RPC_URL.includes('mainnet'), true, 'read-only gate must target Mainnet');
 
   const provider = createSolanaRpcProvider({ SOLANA_RPC_URL: MAINNET_RPC_URL });
