@@ -2039,3 +2039,45 @@ Status: **RESOLVED for Cloudflare Workers Builds duplicate trigger; production r
 Issue [#355](https://github.com/azad2022/solsite/issues/355) remains **OPEN**. Supabase unified logs still show the linked internal runner cloning `main`, but a read-only query over 2026-10-28 17:00 UTC through 2026-10-29 17:00 UTC found no `Applying migration` event in that window. This is not proof that automatic Production deployment is disabled or that the historical provenance issue is resolved.
 
 The available Supabase connector does not expose the GitHub Integration dashboard setting. Per [Supabase's GitHub Integration documentation](https://supabase.com/docs/guides/deployment/branching/github-integration), the `Deploy to production` toggle is the provider-level control for automatic migration deployment. Do not close Issue #355 until that toggle is directly inspected, disabled if enabled with owner approval, and the state is verified. Both Payment Link Upgrade migrations were still applied through the documented, audited GitHub Actions `DRY_RUN` → approved `APPLY` path.
+
+
+## 2026-10-30 — Subscription Billing baseline discovery (documentation checkpoint)
+
+Status: **BASELINE AUDIT RECORDED — no Subscription implementation or release claimed.**
+
+### Repository and branch
+- Reviewed `main` baseline: `7b975d56860b6d937ad76ab2983c71937644dfa3`.
+- Latest main commit is documentation-only; it adds the Subscription Billing engineering Skill and updates Build Web Apps / Release Audit guidance.
+- Created `feat/pay-subscription-billing` from that exact main SHA.
+- Added `docs/solmint-pay-subscription-baseline-audit.md` in commit `eea8ddb0685c20d03fd317424d548ca736ea212f`.
+- No PR was opened. No source application code or dependency was changed.
+- Local Working Tree could not be inspected because direct Git access failed at DNS resolution; record local status as **UNKNOWN**.
+- No current-head CI statuses/workflow runs were returned for the documentation-only baseline; do not claim CI PASS.
+
+### Live Production discovery
+- Supabase project `nvopkbiedorfshwbmyhn` returned `ACTIVE_HEALTHY`.
+- Live Migration Ledger: 106 entries, latest `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- 33 `public.pay_*` tables exist; all 33 have RLS enabled. No Subscription, Billing Cycle, Consent, or Collector application tables or public routines were found. RLS FORCE is not enabled on these tables; this is an observation, not a standalone vulnerability finding.
+- The live `pay_apply_verified_observation` body confirms normal Pay requires the merchant and gateway transfers to share one `sourceAuthority`, requires that authority to equal transaction `fee_payer`, and rejects gas-sponsored payments. A delegated Subscription Authority PDA and Collector fee payer are distinct; ordinary reconciliation is therefore incompatible without a separate reviewed adapter. Do not weaken the normal verifier.
+
+### Existing implementation contracts inspected
+- Payment Intent creation/read routes, domain types, fee snapshot and asset policy were inspected. Existing payment creation is idempotent and server-mediated; no typed Subscription/Cycle/Consent relation exists in the live Payment Intent schema.
+- Asset policy supports SOL and configured USDC/USDT with the original SPL Token Program. Token-2022 remains intentionally unsupported in ordinary Pay.
+- Bulk Pay routes and builder were inspected: the Merchant source wallet signs the server-prepared transaction; the current transaction fee payer is that Merchant source wallet. This is not a Collector signing architecture.
+- Current `package.json` contains `@solana/web3.js@1.99.0` and `@solana/spl-token@0.4.15`; it does not declare `@solana/subscriptions`.
+
+### Blockers / unknowns carried forward
+- Subscription API/domain implementation and isolated Collector signer are not present in the inspected implementation.
+- Mainnet ProgramData/binary hash, on-chain IDL, release compatibility, complete Cantina PDF and audit delta were not verified: **UNKNOWN**.
+- Issue #355 remains open; historical external migration-runner provenance is **UNKNOWN**. Production DDL is not authorized by this checkpoint.
+- Issue #356 remains open for Bulk Pay database-boundary recipient/asset validation.
+- Issue #354 remains open for authenticated full-lifecycle Bulk Pay E2E. This is separate from Subscription.
+- No Production schema, secrets, runtime settings, on-chain Program, or funds were mutated.
+
+### Next sequence
+1. Complete a repository-wide route/domain inventory and external Program release/deployment/audit verification.
+2. Write and review Subscription domain/API/DB contracts before creating migrations or routes.
+3. Design the isolated Collector boundary and a dedicated Subscription verification/accounting adapter; preserve the current Pay verifier.
+4. Define durable unique billing cycles, atomic claims, attempts and timeout/restart reconciliation before any scheduler/charge flow.
+5. Implement and test only on `feat/pay-subscription-billing`, using disposable PostgreSQL and Devnet.
+6. Build UI only after real Backend contracts exist. Production Apply, signing-key creation, live Plan/consent and Mainnet transfers require separate explicit approval.
