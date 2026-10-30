@@ -67,3 +67,21 @@ export function deriveProgramDataAddress(programId) {
   const loader = new PublicKey(UPGRADEABLE_LOADER_PROGRAM_ID);
   return PublicKey.findProgramAddressSync([program.toBuffer()], loader)[0].toBase58();
 }
+
+export function assertApprovedMainnetRpcUrl(rpcUrl) {
+  if (typeof rpcUrl !== 'string' || rpcUrl.trim().length === 0) {
+    throw new Error('MAINNET_RPC_URL_MISSING');
+  }
+  let endpoint;
+  try {
+    endpoint = new URL(rpcUrl);
+  } catch {
+    throw new Error('MAINNET_RPC_URL_FORMAT_INVALID');
+  }
+  if (endpoint.protocol !== 'https:') throw new Error('MAINNET_RPC_HTTPS_REQUIRED');
+  const hostname = endpoint.hostname.toLowerCase();
+  if (hostname !== 'mainnet.helius-rpc.com' && !hostname.endsWith('.helius-rpc.com')) {
+    throw new Error('MAINNET_HELIUS_RPC_REQUIRED');
+  }
+  return true;
+}
