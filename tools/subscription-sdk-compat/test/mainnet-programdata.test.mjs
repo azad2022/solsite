@@ -11,9 +11,9 @@ import {
   readProgramDataAddress,
   stripTrailingZeroBytes,
   UPGRADEABLE_LOADER_PROGRAM_ID,
+  SOLANA_MAINNET_GENESIS_HASH,
 } from '../src/upgradeable-loader.mjs';
 
-const MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
 const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const RPC_URL = process.env.SOLANA_RPC_URL?.trim() || '';
 const EXPECTED_PROGRAM_ELF_SHA256 = process.env.EXPECTED_PROGRAM_ELF_SHA256?.trim() || '';
@@ -52,7 +52,7 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
   assert.match(EXPECTED_PROGRAM_ELF_SHA256, /^[0-9a-f]{64}$/, 'reproducible source-build ELF SHA-256 is required');
 
   const genesisHash = await rpc('getGenesisHash');
-  assert.equal(genesisHash, MAINNET_GENESIS_HASH, 'configured endpoint must be Solana Mainnet');
+  assert.equal(genesisHash, SOLANA_MAINNET_GENESIS_HASH, 'configured endpoint must be Solana Mainnet');
 
   const program = new PublicKey(PROGRAM_ID);
   const loaderId = new PublicKey(UPGRADEABLE_LOADER_PROGRAM_ID);
