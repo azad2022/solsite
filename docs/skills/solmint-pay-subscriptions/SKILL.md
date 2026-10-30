@@ -17,8 +17,6 @@ Before each implementation or audit task, re-check the current HEAD, branch, wor
 
 Never work directly on main. Subscription feature work uses feat/pay-subscription-billing, created from the then-current verified main HEAD. Keep unrelated site changes out of scope.
 
-The previously requested attachment solmint-pay-subscription-billing-skill.md was not available in the inspected conversation files/Library. Do not claim this document was derived from it.
-
 ## 2. Current verified baseline — revalidate before use
 
 The audited repository baseline was azad2022/solsite, main, HEAD 688438b26ff846862d05d0dc1b914177b6ecf5ba (2026-10-30 audit). The live Supabase project had 106 recorded migrations and 33 pay_* tables, with RLS enabled on those tables. No Subscription tables or Subscription API family were found at that baseline. Existing Pay foundations include Payment Intent, transaction/transfer observations, reconciliation, merchant wallet challenge, Invoice/Customer, Bulk Pay, merchant/revenue/gas/referral ledgers, webhook delivery, merchant membership/RBAC, and Internal JWT. These are discovery findings, not a promise that every path is ready for Subscription reuse. Re-discover the current state before coding.
