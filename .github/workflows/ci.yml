@@ -49,3 +49,60 @@ jobs:
         run: |
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all)"
+
+  subscription-sdk-compat:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    defaults:
+      run:
+        working-directory: tools/subscription-sdk-compat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Record runtime and package-manager policy
+        run: |
+          node --version
+          npm --version
+          npm config set engine-strict false
+          npm config get engine-strict
+
+      - name: Resolve isolated lockfile
+        run: npm install --package-lock-only --no-audit --no-fund
+
+      - name: Install isolated dependency graph
+        run: npm ci --no-audit --no-fund
+
+      - name: Report installed dependency versions and engine requirements
+        run: |
+          npm ls --depth=0
+          node --input-type=module -e "import { createRequire } from 'node:module'; import { readFileSync } from 'node:fs'; import { dirname, join } from 'node:path'; const require = createRequire(import.meta.url); for (const name of ['@solana/subscriptions','@solana/kit','@solana-program/token','@solana-program/token-2022','@solana/web3.js']) { let path = require.resolve(name); while (true) { const candidate = join(dirname(path), 'package.json'); try { const pkg = JSON.parse(readFileSync(candidate, 'utf8')); if (pkg.name === name) { console.log(name + '@' + pkg.version + ' engines=' + JSON.stringify(pkg.engines ?? {})); break; } } catch {} const parent = dirname(dirname(path)); if (parent === dirname(path)) throw new Error('package.json not found: ' + name); path = parent; } }"
+
+      - name: Execute SDK / PDA / web3.js transaction compatibility tests
+        run: npm test
+
+      - name: Bundle using the Workerd export condition
+        run: npm run build:workerd
+
+      - name: Upload reproducibility and bundle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-subscription-sdk-compat-node-${{ matrix.node-version }}
+          path: |
+            tools/subscription-sdk-compat/package-lock.json
+            /tmp/solmint-subscription-sdk-workerd.mjs
+          if-no-files-found: warn
+          retention-days: 14
