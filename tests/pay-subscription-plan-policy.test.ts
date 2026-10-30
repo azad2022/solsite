@@ -127,7 +127,7 @@ test('rejects malformed, non-canonical and zero addresses', () => {
 
 test('rejects metadata URI that exceeds the Program byte limit, including UTF-8 multibyte text', () => {
   expectPolicyError({ metadataUri: 'x'.repeat(129) }, 'INVALID_METADATA_URI');
-  expectPolicyError({ metadataUri: 'م'.repeat(33) }, 'INVALID_METADATA_URI');
+  expectPolicyError({ metadataUri: 'م'.repeat(65) }, 'INVALID_METADATA_URI');
 });
 
 test('rejects invalid chain time and signed or non-canonical plan identifiers', () => {
