@@ -2181,3 +2181,52 @@ Status: **DOCUMENTATION / THREAT-MODEL CHECKPOINT COMPLETE — NO SUBSCRIPTION I
 - Production Build run `41036798997` for this documentation-only head completed with conclusion **success**.
 - CI run `41036798704` remained **in_progress** at the time of observation. No CI PASS is recorded here.
 - The Build result is not a test, Security, Devnet, Production smoke or Release Readiness result.
+
+
+## 2026-10-30 — Fresh Production/Repository revalidation and Subscription implementation plan
+
+Status: **READ-ONLY BASELINE REVALIDATED; IMPLEMENTATION PLAN COMMITTED; SUBSCRIPTION APPLICATION STILL NOT IMPLEMENTED.**
+
+### Repository / PR / CI
+- Revalidated `main` base at `7b975d56860b6d937ad76ab2983c71937644dfa3` and Subscription branch at `27001d3d9690c242115b87f41cb877e67dad6931` before this checkpoint.
+- PR #366 remains **OPEN / DRAFT / NOT MERGED**.
+- Prior head `27001d3` had CI and Production Build success; Supabase Preview was skipped. These are documentation-only checks, not Subscription validation.
+- Added `docs/solmint-pay-subscription-implementation-plan.md` in commit `aca3e22fffb85f82a3eb1f27ea40cbabec68c913`, parent `27001d3`. The new commit's CI, Production Build and Cloudflare Pages checks were **IN PROGRESS** at this observation; Supabase Preview was skipped. Do not report this new head as green until terminal checks are read.
+- New document records verified baseline, bounded-context separation, v1 constraints, merchant/customer consent, billing/Collector/reconciliation flow, accounting constraints, SDK/RPC gates and release sequence. It deliberately does not create API routes, SQL objects, or invented schema names.
+
+### Current live Supabase read-only evidence
+Project `nvopkbiedorfshwbmyhn` was reachable and healthy; PostgreSQL version reported as `17.6.1.147`.
+- Exactly 33 `public.pay_*` base tables; RLS enabled on all 33; FORCE RLS on 0.
+- `authenticated` has direct SELECT on 20 Pay tables; `anon` has direct SELECT on 0; `service_role` has INSERT/UPDATE/DELETE privileges on all 33.
+- Production migration ledger contains 106 versions; latest is `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- Read-only table/routine discovery found no Subscription, Consent, Billing Cycle, or Collector application tables/routines.
+- Relevant existing identity helpers use the internal JWT claim `solmint_user_id`; `pay_request_user_id` and `pay_has_merchant_access` are SECURITY DEFINER with empty search_path. This is a foundation to reuse only through the existing trusted server-mediated boundary, not permission to expose service-role writes to clients.
+- Existing ordinary Pay verifier/accounting routine `pay_apply_verified_observation` has a different payer/source-authority contract from Subscription; keep it unchanged and design a separate Subscription adapter.
+- All these DB operations were SELECT/introspection only. No row, schema, grant, policy, migration, or provider setting was changed.
+
+### Source and external behavior
+- Reconfirmed the upstream v0.5.0 Subscription source behavior relevant to Plan destination allowlists, implicit Plan Owner Pull rights, one-destination TransferSubscription instructions, per-period cumulative allowance, and token-account owner validation.
+- Multiple pulls are covered by upstream tests as separate submissions; no reviewed upstream test established the exact same-transaction principal+fee multi-instruction case for SolMint. Split fee remains **BLOCKED** pending dedicated LiteSVM and Devnet proof.
+- V1 remains restricted to configured original SPL Token assets (currently USDC/USDT); no native SOL or Token-2022 expansion.
+- The current generic Mainnet read-only workflow uses the public Solana RPC endpoint. Do not treat it as the configured production RPC, a production fallback, or proof of the deployed Program identity.
+- Full Cantina PDF remains **NOT REVIEWED**. Mainnet ProgramData, binary/source hash, upgrade authority, deployment slot, exact on-chain IDL, production RPC evidence and SDK Kit-v7/web3.js compatibility remain **UNKNOWN**.
+
+### Open independent blockers
+- Issue #355 is still **OPEN**. Migration-runner provenance and trigger remain **UNKNOWN**; Production DDL is blocked.
+- Issues #354 and #356 remain open Bulk Pay gates and are unrelated to Subscription completion.
+- Subscription API/domain/schema/migrations, Billing Engine, Collector signer, dedicated verifier/accounting adapter, adversarial tests, Devnet E2E and frontend are **NOT IMPLEMENTED**.
+
+### Validation / mutation statement
+- Read-only Repository, GitHub Actions and Production Supabase metadata/schema/privilege/function introspection performed.
+- No application tests, Subscription integration tests, Devnet transactions, Mainnet transactions, Production DDL, deployment, secret/key changes or user funds movement occurred.
+- Local Git Working Tree remains **UNKNOWN**; direct local Git access was unavailable. GitHub branch state and commit were verified via connector.
+- No Production schema, RLS, grants, environment, secrets, signer, Program state, or funds changed.
+
+### Next engineering sequence
+1. Retrieve/render/read every page of the Cantina PDF and review the full post-remediation source/IDL/SDK delta.
+2. Establish read-only Mainnet ProgramData/binary/upgrade-authority/IDL evidence through an approved non-public Mainnet RPC path.
+3. Resolve and test the Kit-v7 SDK/web3.js 1.x adapter.
+4. Produce reviewed Domain/API/Database/authorization/consent/state-transition contracts and exact fee/accounting model before adding migrations or routes.
+5. Build isolated Collector signing, external-Puller discovery, dedicated verification, atomic billing cycles/attempts/accounting, with disposable DB/RLS adversarial tests.
+6. Complete LiteSVM multi-leg and delayed-signature tests, then Devnet E2E; build UI only after backend gates.
+7. Resolve Issue #355 and obtain explicit approval before any Production migration APPLY, signing key creation/rotation, live customer consent, or Mainnet transaction.
