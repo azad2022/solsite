@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { PublicKey } from '@solana/web3.js';
 
 export const UPGRADEABLE_LOADER_PROGRAM_ID = 'BPFLoaderUpgradeab1e11111111111111111111111';
