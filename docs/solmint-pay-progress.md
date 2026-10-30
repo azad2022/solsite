@@ -2343,3 +2343,32 @@ PR: [#366](https://github.com/azad2022/solsite/pull/366), OPEN / DRAFT / NOT MER
 5. **Controlled production release** — resolve Issue #355, controlled migration DRY_RUN and separately authorized APPLY, isolated signer/key lifecycle approval, exact deployment SHA, Pages deployment smoke, runtime verification, rollback and final Release Audit.
 
 Next checkpoint: Stage 2. Do not begin Production migrations, create Collector signing material, or enable live billing while any relevant gate above remains BLOCKED/UNKNOWN.
+
+
+## 2026-10-30 — Subscription Phase 2 Program assurance investigation
+
+Repository: `azad2022/solsite`  
+Branch: `feat/pay-subscription-billing`  
+Reviewed HEAD: `2a043a010cbb8d5d01d38f529760c5b247fbd6d3`  
+PR #366: OPEN / DRAFT / NOT MERGED.
+
+### Evidence gathered
+- Re-read project instructions, Master Specification, Subscription Skill, Build Web Apps Skill and Release Audit Skill from this exact branch HEAD.
+- Revalidated the Program tag `program-v0.5.0` at `364a41976c33347d092902443bbec2def9227e75`, SDK tag `ts-client-v0.5.0` at `5a347ffaa969036061d274d3c91e0277962e2b51`, Program ID and upstream audit-status file.
+- The upstream audit baseline-to-release compare is 15 commits and includes program source/instruction changes. The post-remediation-to-release compare is 8 commits / 21 paths and contains no `program/src/**` paths, but does include SDK/IDL/lockfile/release workflow/demo app changes. This distinction is now recorded in the implementation plan.
+- Read the pinned Program's `TransferSubscription`, `Subscribe`, `CreatePlan` source, IDL, README Security Considerations, SDK package manifest/plugin, SDK changelog and release workflow/upgrade ADR.
+- Confirmed the SDK is a Kit plugin requiring `@solana/kit ^7`; SolMint's app package uses `@solana/web3.js 1.99.0` and has no direct Kit dependency. No SDK was installed.
+- Confirmed exact-head CI on `2a043a0`: CI, Database Security, existing Pay Devnet E2E, Production Build and Mainnet Read-only all completed SUCCESS. These do not prove Subscription behavior or deployed ProgramData.
+- Cantina PDF was retrieved as base64 from GitHub (blob SHA `876a71e6fce36f54d76cfbcf1452f68fdb9a252b`), but neither connector nor web PDF reader exposed its text; the local runtime has no network access for retrieval/conversion. Findings remain NOT REVIEWED.
+- No approved read-only production RPC/ProgramData access is available through the connected tools. Mainnet workflow smoke uses a public RPC and does not inspect ProgramData; deployed binary hash, slot, upgrade authority and on-chain IDL remain UNKNOWN.
+
+### Stage 2 status
+- **PASS (limited source review):** pinned Program/SDK references, source-level instruction constraints, post-remediation file delta, Kit/Web3 dependency mismatch and upstream documented security edge inventory.
+- **BLOCKED:** full Cantina finding-by-finding review; independent live ProgramData/binary/upgrade-authority/slot/on-chain-IDL verification; final contract freeze dependent on those findings.
+- **UNKNOWN:** actual deployed binary/source correspondence and the exact on-chain metadata/IDL.
+- **NOT IMPLEMENTED:** isolated SDK compatibility adapter; no SDK/dependency/runtime changes were made.
+
+### Explicit stop condition
+**Stage 2 is NOT COMPLETE. Do not start Stage 3 backend/schema/API work, Stage 4 UI/adversarial implementation, or Stage 5 deployment/release.** Resume only after the Cantina PDF is readable and approved Mainnet ProgramData evidence is available; then finish the finding matrix, adapter proof and contract freeze.
+
+No Production database, runtime configuration, secret/key, on-chain Program state, Mainnet funds, Devnet Subscription state, or customer consent was changed.
