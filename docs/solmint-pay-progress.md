@@ -2454,3 +2454,34 @@ Status: **BLOCKED — real Pages Workerd runtime test added; execution evidence 
 - This is only a test-method correction and an isolated harness change. The original esbuild bundle failure remains documented as historical evidence; it is not reclassified as a passing runtime check. Workerd status remains pending until the Pages runtime test actually passes in CI.
 - No root runtime configuration, existing Pay route, SDK production dependency, API contract, database schema, secret, signer, Production, Mainnet or Devnet state was changed. No chain interaction occurred.
 - Still BLOCKED after this checkpoint: committed deterministic npm lockfile; TypeScript adapter compile; independent pinned-IDL golden instruction/account-meta fixtures; real adapter/backend integration boundary; approved non-mutating RPC/simulation proof; actual exact-head CI success for the new runtime harness. Part 2.2 remains prohibited.
+
+## 2026-10-30 — Part 2.1 local Pages / Workerd runtime proof
+
+Status: **PARTIAL PASS — Workerd runtime compatibility proven for the isolated SDK fixture; Part 2.1 remains BLOCKED.**
+
+- Tested feature HEAD: `9e3c564e82a51427f185b71a62f19236c565f527`; main remained `7b975d56860b6d937ad76ab2983c71937644dfa3`; PR #366 remained OPEN / DRAFT / NOT MERGED.
+- Exact-head checkout is proven by the compatibility job: expected PR head and actual `git rev-parse HEAD` both equal `9e3c564e82a51427f185b71a62f19236c565f527`.
+- GitHub Actions CI run `41083695595`: `subscription-sdk-compat (24)` SUCCESS and `quality` SUCCESS. Compatibility execution used Node `v24.22.1`, npm `11.19.1`, and `engine-strict=true`; installed SDK graph includes `@solana/subscriptions@0.5.0`, `@solana/kit@7.0.0`, `@solana/web3.js@1.99.0`, Token `0.15.0`, Token-2022 `0.14.0`, Wrangler `4.156.0`. Token packages declare Node >=24, so Node 22 is no longer treated as a supported host for this harness.
+- Six Node SDK / PDA / instruction conversion / unsigned transaction serialization tests passed (6/6).
+- The new `npm run test:workerd` starts `wrangler pages dev` against the isolated Pages harness and calls its local HTTP Function. The real local Workerd execution passed (1/1; request completed in approximately 1.6 seconds). It imported `node:events`, `node:path`, `node:fs/promises`, used `Buffer`, imported the upstream Subscription SDK, built a synthetic CreatePlan instruction and converted it through the Kit→web3 adapter. The response asserted the expected Subscription Program ID and non-empty instruction metadata. This supersedes the earlier esbuild `--platform=browser` bundle check as the relevant local runtime test; the old esbuild resolution failure is historical and was not itself proof of Workerd incompatibility.
+- Generated npm lockfile artifact: workflow artifact `12991410620`, `package-lock.json` lockfileVersion 3, 216 package records, SHA-256 `d2dcca34fe5e8cc1c9e49c4bf495e69c3214473fd3b54b3c6f3d1e7d59dc35bd`. `npm ci` consumed that generated lock successfully. **The lockfile is still not committed to the repository**, so deterministic, source-controlled dependency resolution remains BLOCKED.
+- Existing six Node tests continue to prove only three PDA derivations and the current fixture builders. Independent pinned-IDL golden instruction-byte fixtures and independently authored expected account-meta fixtures are still absent. The adapter remains JavaScript (`.mjs`); a TypeScript compile of the adapter is NOT IMPLEMENTED.
+- The Workerd route is test-only and isolated beneath `tools/subscription-sdk-compat/`. It uses synthetic addresses and a no-op signer. No SDK production dependency, existing Pay Function, API contract, backend signer, Collector, verifier, accounting code, Production configuration or database was changed. The local runtime probe made no RPC call and sent no Subscription transaction.
+- Other checks for this exact feature HEAD: CI quality SUCCESS; Pay Database Security run `41083695604` SUCCESS; Pay Mainnet Read-only run `41083695601` SUCCESS; Production Build run `41083695686` SUCCESS.
+- **Important existing workflow side effect:** the PR path filter also ran the existing funded Pay Devnet E2E workflow `41083695724` SUCCESS. Its logs show real Devnet SOL payment, hosted transaction-builder and Bulk Pay test scenarios, followed by Payment Intent reconciliation reusing the existing real transaction. This is existing Pay coverage, not Subscription E2E. The workflow used the preconfigured GitHub Devnet RPC/funder secrets (values remained masked); no secret/key was read or changed by this task. This is a Devnet test, not Mainnet or Production activity.
+- No Mainnet transaction, Production DDL, Production secret/key/configuration change, live Subscription consent, Collector signing, or Subscription Program state mutation occurred. Mainnet job was read-only. The only chain activity observed was the pre-existing Pay Devnet test workflow described above.
+- Local Working Tree remains UNKNOWN because no local clone was available; the attempted network clone could not resolve github.com. The GitHub branch commit history is verified.
+- Gate matrix after this checkpoint:
+  - Dependency resolution and `npm ci` under supported Node 24: **PASS**.
+  - Node runtime SDK tests: **PASS** (six fixture tests).
+  - Local Pages / Workerd SDK import + builder + adapter execution: **PASS** (one local HTTP runtime test).
+  - Exact PR-head checkout for compatibility job: **PASS**.
+  - Program ID assertions: **PASS**, limited to tested builders/fixture.
+  - PDA derivation: **PASS**, limited to Plan, SubscriptionAuthority and Subscription seeds covered by tests.
+  - Committed lockfile / deterministic repository dependency graph: **BLOCKED** (CI artifact generated, file not committed).
+  - TypeScript adapter compile: **NOT IMPLEMENTED**.
+  - Complete IDL consistency and independent instruction/account-meta golden fixtures: **BLOCKED**.
+  - Backend/signer/Collector integration: **NOT IMPLEMENTED**.
+  - Subscription RPC / simulation evidence: **NOT IMPLEMENTED**.
+  - Subscription Devnet E2E / adversarial verification and accounting: **NOT IMPLEMENTED**.
+- **Overall Part 2.1: BLOCKED.** Do not start Part 2.2 until the remaining gates are independently evidenced as PASS.
