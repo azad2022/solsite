@@ -73,7 +73,7 @@ jobs:
           EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           actual="$(git rev-parse HEAD)"
-          printf 'EXPECTED_PR_HEAD=%s\\nACTUAL_CHECKOUT_HEAD=%s\\n' "$EXPECTED_PR_HEAD" "$actual"
+          printf 'EXPECTED_PR_HEAD=%s\nACTUAL_CHECKOUT_HEAD=%s\n' "$EXPECTED_PR_HEAD" "$actual"
           test "$actual" = "$EXPECTED_PR_HEAD"
 
       - name: Setup Node.js
