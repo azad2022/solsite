@@ -6,7 +6,7 @@ type KitAccountRole = Parameters<typeof isSignerRole>[0];
 
 export interface KitInstructionLike {
   readonly programAddress: string;
-  readonly data?: Uint8Array;
+  readonly data?: ArrayLike<number>;
   readonly accounts?: readonly {
     readonly address: string;
     readonly role: KitAccountRole;
