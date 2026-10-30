@@ -4,7 +4,7 @@ Date: 2026-10-30
 Repository: `azad2022/solsite`  
 Working branch: `feat/pay-subscription-billing`  
 Base main SHA: `7b975d56860b6d937ad76ab2983c71937644dfa3`  
-Reviewed branch SHA: `27001d3d9690c242115b87f41cb877e67dad6931`  
+Reviewed branch SHA: `2a043a010cbb8d5d01d38f529760c5b247fbd6d3`  
 Status: **Architecture discovery checkpoint; feature NOT IMPLEMENTED.**  
 This is an implementation plan and a set of gates, not an API/schema contract, security approval, or release authorization.
 
