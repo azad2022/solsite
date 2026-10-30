@@ -15,6 +15,7 @@ import {
 const MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
 const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const RPC_URL = process.env.SOLANA_RPC_URL?.trim() || '';
+const EXPECTED_PROGRAM_ELF_SHA256 = process.env.EXPECTED_PROGRAM_ELF_SHA256?.trim() || '';
 const ALLOWED_RPC_METHODS = new Set(['getGenesisHash', 'getAccountInfo']);
 
 async function rpc(method, params = []) {
@@ -47,6 +48,7 @@ async function rpc(method, params = []) {
 
 test('Mainnet Subscription ProgramData identity is read-only and reproducible', { timeout: 120_000 }, async () => {
   assertApprovedMainnetRpcUrl(RPC_URL);
+  assert.match(EXPECTED_PROGRAM_ELF_SHA256, /^[0-9a-f]{64}$/, 'reproducible source-build ELF SHA-256 is required');
 
   const genesisHash = await rpc('getGenesisHash');
   assert.equal(genesisHash, MAINNET_GENESIS_HASH, 'configured endpoint must be Solana Mainnet');
@@ -77,6 +79,7 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
   const programDataBytes = decodeBase64AccountData(programDataAccount.value.data, 'PROGRAM_DATA');
   const parsed = parseProgramDataAccount(programDataBytes);
   const elfSha256 = createHash('sha256').update(parsed.elfBytes).digest('hex');
+  assert.equal(elfSha256, EXPECTED_PROGRAM_ELF_SHA256, 'Mainnet deployed ELF must match the reproducible upstream source build');
   const evidence = {
     schemaVersion: 1,
     observedAt: new Date().toISOString(),
@@ -95,6 +98,7 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
     elfOffset: parsed.elfOffset,
     elfLength: parsed.elfBytes.length,
     elfSha256,
+    expectedSourceBuildElfSha256: EXPECTED_PROGRAM_ELF_SHA256,
     commitment: 'finalized',
   };
 
