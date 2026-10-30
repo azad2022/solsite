@@ -31,7 +31,7 @@ The pinned research target is upstream Program tag `program-v0.5.0` and SDK tag 
 - The Cantina audit baseline is `d6b3a5dc7ab18c4168441af733c81ab0a599d414`; fixes are stated upstream through `debb4f75ff7571218b39de3b633074dd843e70db`. Release commit `364a41976c33347d092902443bbec2def9227e75` is eight commits later. Full release delta audit coverage is not established.
 - Upstream Changelog reports target Mainnet deployment 2026-08-10 and labels the deployed binary/IDL `0.5.0-beta.1` from release commit `364a419`. This is an upstream statement, not independent live ProgramData evidence.
 - SDK `@solana/subscriptions@0.5.0` peers on `@solana/kit ^7.0.0`; current SolMint uses `@solana/web3.js@1.99.0` and has no Kit/Subscriptions SDK dependency. A deliberate adapter and bundle/runtime compatibility test are required.
-- Cantina PDF is identified but has **NOT BEEN READ**. ProgramData, actual deployed binary hash/source match, upgrade authority, deployment slot, cluster, and exact on-chain IDL remain **UNKNOWN**.
+- Cantina PDF has now been fully reviewed; see the `Full Cantina report and SDK review follow-up` section below for the complete finding matrix and residual-risk decisions. ProgramData, actual deployed binary hash/source match, upgrade authority, deployment slot, cluster, and exact live on-chain IDL remain **UNKNOWN**.
 
 ## 2. V1 safety profile
 
@@ -118,7 +118,7 @@ Status: **BLOCKED — investigation checkpoint only; Stage 2 is not complete. No
 - Program ID in source: `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`.
 - Upstream audit status identifies Cantina baseline `d6b3a5dc7ab18c4168441af733c81ab0a599d414` and remediation verified through `debb4f75ff7571218b39de3b633074dd843e70db`.
 - Baseline-to-release comparison is 15 commits and includes Rust program source/instruction changes, IDL, SDK and tests. The narrower post-remediation comparison is 8 commits / 21 paths and contains release workflow/toolchain, dependency/lockfile, README/changelog/audit-status, the Cantina PDF, SDK package/changelogs/tests, IDL and demo webapp changes; it does **not** list `program/src/**` paths. This supports only a file-level statement about the post-remediation delta; it does not prove the report's findings were fully resolved or that the deployed binary matches the tag.
-- The full Cantina PDF was fetched from the upstream repository as base64 (blob SHA `876a71e6fce36f54d76cfbcf1452f68fdb9a252b`, 674,067 encoded characters), but the available GitHub connector exposes no PDF text extraction and the web/PDF reader could not open it. Findings, severity, remediation evidence and residual risk are therefore **NOT REVIEWED**. Do not mark this audit gate PASS.
+- Historical note: during the initial source-only checkpoint the PDF text was not available through GitHub/web readers. That limitation was resolved after the user added the PDF to Project resources; the full report has now been read and its findings/remediation/residual risk are mapped in the `Full Cantina report and SDK review follow-up` section below. This supersedes the earlier **NOT REVIEWED** status.
 
 ### Program source facts verified at the pinned tag
 - `TransferSubscription` discriminator 10 requires the transaction caller to sign, checks `Plan::can_pull` (Plan Owner or one of the additional Pullers), checks the receiver token-account owner against the Plan destination allowlist, validates the subscription terms and period limit, then performs the delegate transfer and emits an event.
@@ -126,7 +126,7 @@ Status: **BLOCKED — investigation checkpoint only; Stage 2 is not complete. No
 - Plan periods are whole hours, 1–8760; Plan terms snapshot amount/period/created_at into SubscriptionDelegation.
 - `Subscribe` binds the signed request to expected Mint, amount, period, Plan created_at and SubscriptionAuthority `init_id`; it verifies the PDA and rejects an existing Subscription.
 - Program source supports SPL Token and Token-2022. SolMint's proposed V1 restriction to server-configured original SPL USDC/USDT is a deliberate narrower product policy, not an upstream Program limitation.
-- Upstream README documents unresolved signed-transaction hazards: held Init+Subscribe using `UNKNOWN_INIT_ID`, pending durable-nonce or smart-wallet proposals, held authority-control transactions, same-period Resume replay, second-granular immediate-cancel replay, UpdatePlan ABA, and full-period charge near finite Plan expiry. These are threat-model inputs; the PDF still must be read to map each finding to the audit report and remediation.
+- Upstream README documents unresolved signed-transaction hazards: held Init+Subscribe using `UNKNOWN_INIT_ID`, pending durable-nonce or smart-wallet proposals, held authority-control transactions, same-period Resume replay, second-granular immediate-cancel replay, UpdatePlan ABA, and full-period charge near finite Plan expiry. These risks have now been mapped to Cantina findings and remediation commits in the `Full Cantina report and SDK review follow-up` section below.
 
 ### SDK compatibility finding
 - SDK package `@solana/subscriptions@0.5.0` is an `@solana/kit` plugin and has peer dependency `@solana/kit ^7.0.0`; it depends on Kit program-client/token packages.
@@ -144,7 +144,7 @@ Status: **BLOCKED — investigation checkpoint only; Stage 2 is not complete. No
 8. V1 remains original SPL Token only with server-configured supported mints, non-empty destination owner allowlist and no TransferHook/Token-2022/MemoTransfer support unless separately reviewed.
 
 ### Remaining Stage 2 gates
-- Read the complete Cantina PDF and produce a finding-by-finding matrix: finding ID/severity, affected code, remediation commit, test evidence, post-fix residual risk, applicability to pinned Program tag.
+- **Completed:** read the complete Cantina PDF and recorded a finding-by-finding matrix including finding ID/severity, disposition, source/remediation commit, available test evidence, residual risk and V1 controls. The high-severity delayed signed-create issue remains an accepted protocol risk requiring operational restrictions.
 - Obtain approved read-only Mainnet RPC evidence for Program account and ProgramData: cluster, executable flag, ProgramData address, deployment slot, upgrade authority, deployed bytecode hash, verified-build/source commit and on-chain IDL bytes/hash. Upstream Changelog's 2026-08-10 deployment statement and public explorer page are not sufficient evidence.
 - Reconcile deployed `0.5.0-beta.1` label with Program tag `0.5.0`, release commit `364a419...`, and the on-chain IDL.
 - Prove SDK integration strategy with a disposable local/devnet adapter spike and compatibility tests; do not merge production integration yet.
