@@ -28,7 +28,7 @@ The Pages test uses only local synthetic addresses and a no-op test signer. It d
 
 The Devnet simulation uses only the public key of the existing Devnet test fee payer and the dedicated `SOLANA_DEVNET_RPC_URL` GitHub secret. It never reads a private key, signs, submits, creates an on-chain Plan, or mutates Devnet. The RPC method allowlist excludes transaction submission methods.
 
-The Mainnet ProgramData probe uses only `getGenesisHash` and `getAccountInfo` against the dedicated `SOLANA_RPC_URL` GitHub Actions secret. It rejects the default public Solana RPC endpoint, validates the Mainnet genesis hash and loader account layout, and writes a metadata-only evidence artifact containing ProgramData address, deployment slot, upgrade authority and ELF SHA-256. It excludes the RPC URL/API key and raw executable bytes. This Mainnet proof is separate from the isolated SDK compatibility PASS and remains BLOCKED if the GitHub secret is unavailable.
+The Mainnet ProgramData probe uses only `getGenesisHash` and `getAccountInfo` against the dedicated `SOLANA_RPC_URL` GitHub Actions secret. It requires an HTTPS Helius RPC hostname (no public RPC fallback), validates the Mainnet genesis hash and loader account layout, and writes a metadata-only evidence artifact containing ProgramData address, deployment slot, upgrade authority and ELF SHA-256. It excludes the RPC URL/API key and raw executable bytes. This Mainnet proof is separate from the isolated SDK compatibility PASS and remains BLOCKED if the GitHub secret is unavailable.
 
 ## Reproduce
 
