@@ -108,6 +108,51 @@ The upstream `TransferSubscription` instruction has one destination and one amou
 
 Do not repurpose the existing one-off `pay_revenue_ledger` / `pay_merchant_ledger` by fabricating payment IDs. Design a typed Subscription/Cycle source and atomic accounting relation after reviewing the full existing schema, constraints, triggers, referral logic and event delivery model.
 
+## Phase 2 — Program assurance and contract freeze review (2026-10-30)
+
+Status: **BLOCKED — investigation checkpoint only; Stage 2 is not complete. No Stage 3/4/5 work authorized.**
+
+### Exact upstream pins and audit delta
+- Program tag `program-v0.5.0` resolves to commit `364a41976c33347d092902443bbec2def9227e75`.
+- SDK tag `ts-client-v0.5.0` resolves to commit `5a347ffaa969036061d274d3c91e0277962e2b51`; it is not the same commit as the Program tag.
+- Program ID in source: `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`.
+- Upstream audit status identifies Cantina baseline `d6b3a5dc7ab18c4168441af733c81ab0a599d414` and remediation verified through `debb4f75ff7571218b39de3b633074dd843e70db`.
+- Baseline-to-release comparison is 15 commits and includes Rust program source/instruction changes, IDL, SDK and tests. The narrower post-remediation comparison is 8 commits / 21 paths and contains release workflow/toolchain, dependency/lockfile, README/changelog/audit-status, the Cantina PDF, SDK package/changelogs/tests, IDL and demo webapp changes; it does **not** list `program/src/**` paths. This supports only a file-level statement about the post-remediation delta; it does not prove the report's findings were fully resolved or that the deployed binary matches the tag.
+- The full Cantina PDF was fetched from the upstream repository as base64 (blob SHA `876a71e6fce36f54d76cfbcf1452f68fdb9a252b`, 674,067 encoded characters), but the available GitHub connector exposes no PDF text extraction and the web/PDF reader could not open it. Findings, severity, remediation evidence and residual risk are therefore **NOT REVIEWED**. Do not mark this audit gate PASS.
+
+### Program source facts verified at the pinned tag
+- `TransferSubscription` discriminator 10 requires the transaction caller to sign, checks `Plan::can_pull` (Plan Owner or one of the additional Pullers), checks the receiver token-account owner against the Plan destination allowlist, validates the subscription terms and period limit, then performs the delegate transfer and emits an event.
+- Plan capacity is four destination owners and four additional Pullers; Plan Owner is implicitly allowed. An all-zero destination list is open to any receiver, so SolMint must continue requiring a non-empty allowlist.
+- Plan periods are whole hours, 1–8760; Plan terms snapshot amount/period/created_at into SubscriptionDelegation.
+- `Subscribe` binds the signed request to expected Mint, amount, period, Plan created_at and SubscriptionAuthority `init_id`; it verifies the PDA and rejects an existing Subscription.
+- Program source supports SPL Token and Token-2022. SolMint's proposed V1 restriction to server-configured original SPL USDC/USDT is a deliberate narrower product policy, not an upstream Program limitation.
+- Upstream README documents unresolved signed-transaction hazards: held Init+Subscribe using `UNKNOWN_INIT_ID`, pending durable-nonce or smart-wallet proposals, held authority-control transactions, same-period Resume replay, second-granular immediate-cancel replay, UpdatePlan ABA, and full-period charge near finite Plan expiry. These are threat-model inputs; the PDF still must be read to map each finding to the audit report and remediation.
+
+### SDK compatibility finding
+- SDK package `@solana/subscriptions@0.5.0` is an `@solana/kit` plugin and has peer dependency `@solana/kit ^7.0.0`; it depends on Kit program-client/token packages.
+- SolMint's pinned package manifest has `@solana/web3.js@1.99.0` and no direct `@solana/kit` or Subscriptions SDK dependency.
+- **Decision: do not install the SDK into the existing web application or assume Web3.js compatibility.** Preferred candidate for evaluation is an isolated server-side Subscription adapter/worker using the pinned Kit SDK and its own compatible RPC/signer boundary, with no Kit dependency in the browser bundle. This is only a candidate architecture: bundle/runtime, Helius RPC, commitment, signer, transaction conversion and end-to-end compatibility have not been tested. No adapter is approved or implemented.
+
+### Proposed contract invariants (design constraints, not API/schema contracts)
+1. Separate Plan definition/version, immutable on-chain terms snapshot, customer consent evidence, commercial Subscription, on-chain PDAs/token delegate, Billing Cycle, Attempt, Collector authorization/signing, chain verification, accounting and entitlement.
+2. Plan Owner remains an implicit Puller. Collector must be a separate, explicitly allowed Puller and fee payer; never impersonate Plan Owner.
+3. Init Authority and Subscribe are separate recent-blockhash wallet transactions. Reconcile Init, read actual on-chain `init_id`, then sign Subscribe with that value. Reject `UNKNOWN_INIT_ID` and unresolved durable-nonce/smart-wallet proposals for V1.
+4. Cycle identity uses live on-chain `current_period_start_ts` and cumulative usage, not calendar-month math or scheduler time. Unique DB cycle identity and atomic claim remain mandatory.
+5. Active on-chain state does not grant entitlement. Require live collectability and finalized transfer verification followed by atomic accounting commit.
+6. Ordinary `pay_apply_verified_observation` remains unchanged. Subscription requires a dedicated verifier/accounting boundary for PDA source authority and separate Collector fee payer.
+7. Split principal + gateway fee remains BLOCKED until same-transaction cumulative allowance, rollback, duplicate/extra instruction rejection, dedicated verification/accounting and Devnet behavior are proven.
+8. V1 remains original SPL Token only with server-configured supported mints, non-empty destination owner allowlist and no TransferHook/Token-2022/MemoTransfer support unless separately reviewed.
+
+### Remaining Stage 2 gates
+- Read the complete Cantina PDF and produce a finding-by-finding matrix: finding ID/severity, affected code, remediation commit, test evidence, post-fix residual risk, applicability to pinned Program tag.
+- Obtain approved read-only Mainnet RPC evidence for Program account and ProgramData: cluster, executable flag, ProgramData address, deployment slot, upgrade authority, deployed bytecode hash, verified-build/source commit and on-chain IDL bytes/hash. Upstream Changelog's 2026-08-10 deployment statement and public explorer page are not sufficient evidence.
+- Reconcile deployed `0.5.0-beta.1` label with Program tag `0.5.0`, release commit `364a419...`, and the on-chain IDL.
+- Prove SDK integration strategy with a disposable local/devnet adapter spike and compatibility tests; do not merge production integration yet.
+- Complete typed lifecycle transition table and freeze the API/DB/RBAC/Consent/Accounting contracts only after the report and deployed Program identity are confirmed.
+- Resolve any report finding or deployed-version mismatch that changes the threat model before Stage 2 can pass.
+
+No Production RPC configuration, Program state, database schema, secret/key, SDK dependency, API, migration, Collector or customer consent was changed in this review.
+
 ## 6. SDK, RPC and environment requirements
 
 - Pin exact Program source/tag, IDL, SDK, toolchain, lockfile and transitive dependencies. Never follow upstream main.
