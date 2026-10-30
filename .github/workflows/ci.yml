@@ -124,3 +124,58 @@ jobs:
           SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
         run: npm run test:devnet-sim
 
+  subscription-mainnet-programdata:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/subscription-sdk-compat
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact PR head checkout
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_PR_HEAD"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Require dedicated Mainnet RPC secret without displaying it
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+        run: |
+          if [ -z "$SOLANA_RPC_URL" ]; then
+            echo "::error::Repository secret SOLANA_RPC_URL is required for read-only Mainnet ProgramData verification; no public RPC fallback is permitted."
+            exit 1
+          fi
+          case "$SOLANA_RPC_URL" in
+            https://*) ;;
+            *) echo "::error::SOLANA_RPC_URL must use HTTPS."; exit 1 ;;
+          esac
+
+      - name: Install isolated SDK dependency graph
+        run: npm ci --no-audit --no-fund
+
+      - name: Read Mainnet Program and ProgramData metadata
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+        run: npm run test:mainnet-programdata
+
+      - name: Upload sanitized ProgramData evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-subscription-mainnet-programdata
+          path: tools/subscription-sdk-compat/artifacts/subscription-mainnet-programdata.json
+          if-no-files-found: error
+          retention-days: 30
