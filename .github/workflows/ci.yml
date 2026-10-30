@@ -130,6 +130,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       elf_sha256: ${{ steps.hash.outputs.elf_sha256 }}
+      idl_sha256: ${{ steps.hash.outputs.idl_sha256 }}
     steps:
       - name: Checkout pinned upstream Program source
         uses: actions/checkout@v5
@@ -248,6 +249,7 @@ jobs:
         env:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
           EXPECTED_PROGRAM_ELF_SHA256: ${{ needs.subscription-reproducible-build.outputs.elf_sha256 }}
+          EXPECTED_SUBSCRIPTION_IDL_SHA256: ${{ needs.subscription-reproducible-build.outputs.idl_sha256 }}
         run: npm run test:mainnet-programdata
 
       - name: Upload sanitized ProgramData evidence
