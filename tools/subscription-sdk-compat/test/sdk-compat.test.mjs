@@ -22,7 +22,7 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
-import { kitInstructionToWeb3 } from '../src/kit-to-web3.mjs';
+import { kitInstructionToWeb3 } from '../dist/kit-to-web3.js';
 
 const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const SYSTEM_PROGRAM = '11111111111111111111111111111111';

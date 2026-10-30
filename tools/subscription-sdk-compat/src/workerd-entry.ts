@@ -1,10 +1,8 @@
 import { address, createNoopSigner } from '@solana/kit';
 import { getCreatePlanOverlayInstructionAsync } from '@solana/subscriptions';
-import { kitInstructionToWeb3 } from './kit-to-web3.mjs';
+import { kitInstructionToWeb3 } from './kit-to-web3.js';
 
-// Bundle entry used only to validate that the pinned SDK + conversion adapter
-// can be resolved under the Cloudflare Workerd export condition. It performs
-// no RPC, signing, transaction submission, or chain mutation.
+// Synthetic fixture only: no RPC, signing, submission or chain mutation.
 export async function buildSubscriptionPlanInstructionFixture() {
   const instruction = await getCreatePlanOverlayInstructionAsync({
     owner: createNoopSigner(address('SysvarRent111111111111111111111111111111111')),

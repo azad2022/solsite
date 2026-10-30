@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import * as fsPromises from 'node:fs/promises';
 import { basename } from 'node:path';
-import { buildSubscriptionPlanInstructionFixture } from '../../src/workerd-entry.mjs';
+import { buildSubscriptionPlanInstructionFixture } from '../../src/workerd-entry.js';
 
 const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 

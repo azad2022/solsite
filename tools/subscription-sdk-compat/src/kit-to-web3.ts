@@ -1,15 +1,26 @@
 import { isSignerRole, isWritableRole } from '@solana/kit';
+import { Buffer } from 'buffer';
 import { PublicKey, TransactionInstruction } from '@solana/web3.js';
 
+type KitAccountRole = Parameters<typeof isSignerRole>[0];
+
+export interface KitInstructionLike {
+  readonly programAddress: string;
+  readonly data?: Uint8Array;
+  readonly accounts?: readonly {
+    readonly address: string;
+    readonly role: KitAccountRole;
+  }[];
+}
+
 /**
- * Converts one Codama/@solana/kit Instruction into a legacy web3.js
- * TransactionInstruction. The mapping is intentionally narrow and fail-closed:
- * no unknown account roles, missing addresses, or arbitrary object coercion.
- *
- * This adapter converts instruction data/account metas only. It does not sign,
- * send, simulate, fetch RPC state, or establish payment/consent validity.
+ * Converts a narrow Kit instruction into a legacy web3.js instruction.
+ * It copies the Program ID, bytes and account metas only. It does not sign,
+ * submit, simulate, query RPC state, verify consent or establish payment.
  */
-export function kitInstructionToWeb3(instruction) {
+export function kitInstructionToWeb3(
+  instruction: KitInstructionLike,
+): TransactionInstruction {
   if (!instruction || typeof instruction !== 'object') {
     throw new TypeError('Kit instruction must be an object.');
   }
@@ -33,14 +44,14 @@ export function kitInstructionToWeb3(instruction) {
     if (!account || typeof account.address !== 'string' || account.address.length === 0) {
       throw new TypeError(`Kit account[${index}] is missing its address.`);
     }
-    if (!Number.isInteger(account.role) || account.role < 0 || account.role > 3) {
+    const role = account.role;
+    if (role !== 0 && role !== 1 && role !== 2 && role !== 3) {
       throw new RangeError(`Kit account[${index}] has an unsupported role.`);
     }
-
     return {
       pubkey: new PublicKey(account.address),
-      isSigner: isSignerRole(account.role),
-      isWritable: isWritableRole(account.role),
+      isSigner: isSignerRole(role),
+      isWritable: isWritableRole(role),
     };
   });
 
