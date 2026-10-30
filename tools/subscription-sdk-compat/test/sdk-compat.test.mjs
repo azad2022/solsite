@@ -74,6 +74,18 @@ function assertInstructionParity(kitInstruction, web3Instruction) {
 
 function assertLegacyAndVersionedSerialization(web3Instruction, feePayer, expectedSignerCount) {
   const payer = new PublicKey(feePayer);
+  // Solana message compilation always promotes the fee payer to writable signer,
+  // even when that address was already present as a non-signer instruction meta.
+  // Compare the serialized transaction against the effective compiled privileges,
+  // while the separate parity assertion still checks exact pre-compile Kit metas.
+  const effectiveKeys = web3Instruction.keys.map((key) => {
+    const isFeePayer = key.pubkey.equals(payer);
+    return {
+      pubkey: key.pubkey.toBase58(),
+      isSigner: key.isSigner || isFeePayer,
+      isWritable: key.isWritable || isFeePayer,
+    };
+  });
 
   const legacy = new Transaction({
     feePayer: payer,
@@ -95,11 +107,7 @@ function assertLegacyAndVersionedSerialization(web3Instruction, feePayer, expect
       isSigner: key.isSigner,
       isWritable: key.isWritable,
     })),
-    web3Instruction.keys.map((key) => ({
-      pubkey: key.pubkey.toBase58(),
-      isSigner: key.isSigner,
-      isWritable: key.isWritable,
-    })),
+    effectiveKeys,
   );
 
   const message = new TransactionMessage({
@@ -121,8 +129,24 @@ function assertLegacyAndVersionedSerialization(web3Instruction, feePayer, expect
   );
   assert.deepEqual(
     compiledAccounts,
-    web3Instruction.keys.map((key) => key.pubkey.toBase58()),
+    effectiveKeys.map((key) => key.pubkey),
     'v0 message compilation must preserve instruction account order',
+  );
+  assert.deepEqual(
+    Array.from(compiled.accountKeyIndexes, (keyIndex) => {
+      const key = versionedParsed.message.staticAccountKeys[keyIndex];
+      const expected = effectiveKeys.find((entry) => entry.pubkey === key.toBase58());
+      return {
+        pubkey: key.toBase58(),
+        isSigner: keyIndex < versionedParsed.message.header.numRequiredSignatures,
+        isWritable: keyIndex < versionedParsed.message.header.numRequiredSignatures
+          ? keyIndex < versionedParsed.message.header.numRequiredSignatures - versionedParsed.message.header.numReadonlySignedAccounts
+          : keyIndex < versionedParsed.message.staticAccountKeys.length - versionedParsed.message.header.numReadonlyUnsignedAccounts,
+        expected,
+      };
+    }).map(({ pubkey, isSigner, isWritable }) => ({ pubkey, isSigner, isWritable })),
+    effectiveKeys,
+    'v0 compiled privileges must match Solana fee-payer promotion and preserve account order',
   );
 }
 
