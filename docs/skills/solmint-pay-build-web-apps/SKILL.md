@@ -25,3 +25,12 @@ Use the Build Web Apps testing workflow for meaningful frontend changes. Importa
 
 ## Release discipline
 A successful build alone never proves production readiness. Validate the relevant backend contract, database/RLS boundary, security controls, runtime configuration, tests, production deployment, and post-deployment smoke evidence. Recovery must remain source-controlled and use the normal deployment path. Manual GitHub Ruleset/Branch Protection setup, Cloudflare dashboard changes, Cloudflare API tokens, or other provider-management secrets are not implementation prerequisites for Pay release and must not be assigned to the project owner as a required step. Missing evidence for a critical technical gate is `UNKNOWN` or `BLOCKED`, never an assumption.
+
+## Subscription Billing boundary
+For any Subscription/Recurring Billing UI, read docs/skills/solmint-pay-subscriptions/SKILL.md before changing code. A Skill or roadmap entry does not prove the feature, API, schema, or on-chain integration exists. Re-discover the actual Backend contract and schema first.
+
+Treat Subscription Plans, Subscriptions, Consent, on-chain delegation, Billing Cycles/Attempts, Payment Intents, Verification and Accounting as separate domain states. Frontend only presents and interacts with backend-authoritative data; never schedule billing, calculate financial truth, retry a charge, sign a Collector transaction, or infer success from submitted Signature, Program event alone, Reference, or Webhook.
+
+Customer consent UI must display the exact immutable terms snapshot returned by the Backend, including amount, fixed-hours/calendar period distinction, mint/network, fee/payer, destination, first/next charge, cancellation/revocation semantics and the actual token-delegation scope. The official program's Token Delegate approval is u64::MAX; Plan/Subscription rules enforce effective per-period limits. Never describe this as a wallet-level exact-amount/one-period allowance. Do not display unsupported promises such as calendar-month billing, trial, proration, or maximum total charge count.
+
+Keep Subscription lifecycle, on-chain authority state, Billing Attempt, Payment Intent and financial outcome distinct. Preserve loading, empty, error, unauthorized, forbidden, stale and retryable states; support fa-IR/en-US/ar/ru with real RTL/LTR. Sensitive operations stay server-mediated.

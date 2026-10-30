@@ -43,3 +43,16 @@ Production recovery uses the source-controlled redeploy path: identify the last 
 
 ## Production decision
 `PASS` requires positive evidence for all applicable repository/backend/database/security/test/deployment/runtime gates. `BLOCKED` applies to unresolved security, contract, database/RLS, test, deployment, or runtime-critical issues. `UNKNOWN` applies where evidence cannot be obtained. External provider governance controls that are not required for the actual deployment path do not block release. Never label the system production-ready when critical runtime evidence is unavailable.
+
+## Subscription Billing release gates
+For every Subscription Billing audit or release, read docs/skills/solmint-pay-subscriptions/SKILL.md and revalidate its facts against the exact Program release, IDL, SDK, current repository, live schema and cluster. Do not assume a roadmap, Skill, SDK tag, upstream main, or vendor deployment announcement proves the deployed Mainnet binary.
+
+Verify the actual Program ID/cluster/ProgramData and deployed binary/source/IDL/SDK compatibility. Review the complete external audit report and commit-level delta from the audited baseline and remediation commit; do not call later source or deployment "audited" without evidence. Treat the v0.5.0 vs deployed 0.5.0-beta.1 label difference as a version-verification item.
+
+Review the customer's signed consent and the broad u64::MAX Token Delegate approval, Plan/Subscription limits, explicit destination allowlist, implicit Plan Owner pull authority, Puller membership, Token Account/Mint/Program, fixed-hours period, cancellation/resume/revoke lifecycle and stale-approval protections.
+
+Collector signing is a separate security boundary: verify isolated key custody, narrow Puller permissions, exact decoded instruction/account allowlist, per-cycle policy, simulation, anti-replay, idempotency, rate limiting, signer audit, rotation and compromise recovery. Cloudflare runtime secrets are not an HSM. Public endpoints must never sign arbitrary customer-supplied transaction bytes.
+
+Critical compatibility gate: the inspected normal Pay reconciliation requires merchant/fee transfer source authority to equal transaction fee payer and rejects gas-sponsored observations. Subscription Authority PDA and Collector fee payer are different principals. Do not weaken the current verifier or bypass fee/accounting checks. Require a dedicated Subscription verification/database adapter, exact on-chain evidence and atomic ledger handling before enabling charges.
+
+Billing retry must distinguish rejected, retryable, submitted-unknown and verified outcomes. On RPC timeout or process restart, reconcile the existing transaction before another debit. Verify database-enforced unique cycle/attempt identity, atomic claims, cross-merchant/customer RLS, grants/revokes, append-only accounting, webhook outbox, Devnet E2E and adversarial tests. Webhook delivery is notification, never financial proof.
