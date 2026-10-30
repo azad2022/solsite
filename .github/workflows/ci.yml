@@ -124,7 +124,7 @@ jobs:
           SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
         run: npm run test:devnet-sim
 
-  subscription-verified-build:
+  subscription-reproducible-build:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -202,7 +202,7 @@ jobs:
           retention-days: 30
 
   subscription-mainnet-programdata:
-    needs: subscription-verified-build
+    needs: subscription-reproducible-build
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -247,7 +247,7 @@ jobs:
       - name: Read Mainnet Program and ProgramData metadata
         env:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
-          EXPECTED_PROGRAM_ELF_SHA256: ${{ needs.subscription-verified-build.outputs.elf_sha256 }}
+          EXPECTED_PROGRAM_ELF_SHA256: ${{ needs.subscription-reproducible-build.outputs.elf_sha256 }}
         run: npm run test:mainnet-programdata
 
       - name: Upload sanitized ProgramData evidence
