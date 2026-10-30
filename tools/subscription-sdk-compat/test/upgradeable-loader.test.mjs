@@ -5,6 +5,7 @@ import {
   assertApprovedMainnetRpcUrl,
   parseProgramDataAccount,
   readProgramDataAddress,
+  stripTrailingZeroBytes,
 } from '../src/upgradeable-loader.mjs';
 
 function programDataFixture({ authority = null, elf = Buffer.from([0x7f, 0x45, 0x4c, 0x46]) } = {}) {
@@ -81,4 +82,11 @@ test('Mainnet RPC policy accepts HTTPS Helius and rejects public or insecure end
   assert.throws(() => assertApprovedMainnetRpcUrl('http://mainnet.helius-rpc.com'), /MAINNET_RPC_HTTPS_REQUIRED/);
   assert.throws(() => assertApprovedMainnetRpcUrl('not-a-url'), /MAINNET_RPC_URL_FORMAT_INVALID/);
   assert.throws(() => assertApprovedMainnetRpcUrl(''), /MAINNET_RPC_URL_MISSING/);
+});
+
+test('executable hash input strips trailing ProgramData zero padding', () => {
+  const padded = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x00, 0x00]);
+  assert.deepEqual(stripTrailingZeroBytes(padded), Buffer.from([0x7f, 0x45, 0x4c, 0x46]));
+  assert.deepEqual(stripTrailingZeroBytes(Buffer.from([0x7f, 0x00, 0x01])), Buffer.from([0x7f, 0x00, 0x01]));
+  assert.throws(() => stripTrailingZeroBytes(Buffer.alloc(4)), /PROGRAM_BYTES_EMPTY_AFTER_ZERO_PADDING/);
 });
