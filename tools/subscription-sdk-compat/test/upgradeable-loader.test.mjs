@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PublicKey } from '@solana/web3.js';
 import {
+  assertApprovedMainnetRpcUrl,
   parseProgramDataAccount,
   readProgramDataAddress,
 } from '../src/upgradeable-loader.mjs';
@@ -71,4 +72,13 @@ test('ProgramData rejects malformed state, authority option and truncated ELF', 
   noElf.writeBigUInt64LE(1n, 4);
   noElf[12] = 0;
   assert.throws(() => parseProgramDataAccount(noElf), /PROGRAM_DATA_LENGTH_INVALID/);
+});
+
+test('Mainnet RPC policy accepts HTTPS Helius and rejects public or insecure endpoints', () => {
+  assert.equal(assertApprovedMainnetRpcUrl('https://mainnet.helius-rpc.com/'), true);
+  assert.equal(assertApprovedMainnetRpcUrl('https://tenant.helius-rpc.com/rpc'), true);
+  assert.throws(() => assertApprovedMainnetRpcUrl('https://api.mainnet-beta.solana.com'), /MAINNET_HELIUS_RPC_REQUIRED/);
+  assert.throws(() => assertApprovedMainnetRpcUrl('http://mainnet.helius-rpc.com'), /MAINNET_RPC_HTTPS_REQUIRED/);
+  assert.throws(() => assertApprovedMainnetRpcUrl('not-a-url'), /MAINNET_RPC_URL_FORMAT_INVALID/);
+  assert.throws(() => assertApprovedMainnetRpcUrl(''), /MAINNET_RPC_URL_MISSING/);
 });
