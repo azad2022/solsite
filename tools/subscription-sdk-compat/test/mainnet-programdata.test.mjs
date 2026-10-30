@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import test from 'node:test';
 import { PublicKey } from '@solana/web3.js';
 import {
+  assertApprovedMainnetRpcUrl,
   decodeBase64AccountData,
   deriveProgramDataAddress,
   parseProgramDataAccount,
@@ -45,15 +46,7 @@ async function rpc(method, params = []) {
 }
 
 test('Mainnet Subscription ProgramData identity is read-only and reproducible', { timeout: 120_000 }, async () => {
-  assert.ok(RPC_URL, 'GitHub Actions secret SOLANA_RPC_URL is required; no public RPC fallback is permitted.');
-  let endpoint;
-  try { endpoint = new URL(RPC_URL); } catch { throw new Error('SOLANA_RPC_URL_FORMAT_INVALID'); }
-  assert.equal(endpoint.protocol, 'https:', 'Mainnet RPC must use HTTPS.');
-  const hostname = endpoint.hostname.toLowerCase();
-  assert.ok(
-    hostname === 'mainnet.helius-rpc.com' || hostname.endsWith('.helius-rpc.com'),
-    'A dedicated Helius Mainnet endpoint is required; public RPC fallback is prohibited.',
-  );
+  assertApprovedMainnetRpcUrl(RPC_URL);
 
   const genesisHash = await rpc('getGenesisHash');
   assert.equal(genesisHash, MAINNET_GENESIS_HASH, 'configured endpoint must be Solana Mainnet');
