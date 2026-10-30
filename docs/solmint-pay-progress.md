@@ -2113,3 +2113,55 @@ Status: **ON-CHAIN RULES SPOT-CHECKED; FULL RELEASE SECURITY REVIEW / LIVE DEPLO
 - This is a focused source spot-check, not a complete review of the 8-commit audit delta or Cantina PDF. Live ProgramData, deployed binary hash, upgrade authority, deployment slot, and exact live IDL remain **UNKNOWN**.
 - No implementation, dependency, lockfile, schema, runtime config, signer, chain transaction or funds were changed.
 
+
+
+## 2026-10-30 — Persistent Subscription Billing project instructions and security-skill hardening
+
+Status: **DOCUMENTATION / THREAT-MODEL CHECKPOINT COMPLETE — NO SUBSCRIPTION IMPLEMENTATION OR RELEASE CLAIMED.**
+
+### Repository and branch
+- Revalidated `main` HEAD: `7b975d56860b6d937ad76ab2983c71937644dfa3`; the latest Main commit remains documentation-only.
+- Work remains isolated on `feat/pay-subscription-billing`, based on that exact Main SHA. No PR is open for this branch.
+- Created `docs/solmint-pay-project-instructions.md` (4,354 words, 332 lines) to be copied into ChatGPT Project Instructions. It consolidates stable engineering rules, task discovery, branch discipline, context efficiency, Subscription security, backend/DB boundaries, testing and Production gates.
+- Updated `docs/skills/solmint-pay-subscriptions/SKILL.md`: corrected the dated baseline and added delayed signed transaction, sentinel `UNKNOWN_INIT_ID`, Durable Nonce, smart-wallet proposal, authority lifecycle, stale approval, Plan Owner external pulls, on-chain period, destination-owner, multi-leg fee, collectability and v1 safety controls.
+- Updated `docs/skills/solmint-pay-build-web-apps/SKILL.md` with consent, collectability, delegated authority, pending approval, Plan Owner and UI truth constraints.
+- Updated `docs/skills/solmint-pay-release-audit/SKILL.md` with adversarial release gates for delayed signatures, all Pullers, period accounting, multi-leg transfers, ProgramData/Audit and issue #355.
+- Added the persistent instructions pointer to `docs/solmint-pay-frontend-master-instruction.md`.
+- Extended `docs/solmint-pay-subscription-baseline-audit.md` with the additional official upstream residual-risk review.
+- No source application code, package, lockfile, migration, live schema, RLS, grants, runtime bindings, secrets, signer, on-chain Program or funds were changed.
+
+### New upstream security findings now made durable
+- `init_id` is slot-granular, not a global generation. Same-slot close/re-init may preserve it.
+- A held Init+Subscribe bundle using `UNKNOWN_INIT_ID` can recreate a revoked shared authority and establish a spendable subscription later without a new signature at landing. V1 therefore requires separate customer-signed Init and Subscribe using the actual observed `init_id`.
+- Durable Nonce and pending smart-wallet/multisig proposals can outlive the normal recent-blockhash window. V1 defers these consent/control paths until pending transaction cancellation and recovery are proven.
+- Same-period Resume replay, second-granular immediate-cancel replay and UpdatePlan ABA are explicit adversarial cases.
+- The shared User+Mint authority has cross-subscription blast radius; token delegate initialization can replace an existing Delegate.
+- Plan Owner is always an authorized Puller and can collect outside SolMint's Collector. Reconciliation must observe every authorized Puller and the cumulative on-chain Period state.
+- Destination validation checks token-account owner; an empty destination list means any destination.
+- A TransferSubscription instruction carries one receiver/amount. Principal+Gateway fee split is blocked until two-leg atomicity, cumulative period budget, verifier and accounting are proven by LiteSVM and Devnet tests.
+- Active On-chain state does not prove collectability or service entitlement. The backend must inspect delegate/ATA/mint/amount preconditions and grant service only under a verified financial policy.
+- These are upstream source/README facts and recommended v1 controls; they do not imply the repository has implemented those controls.
+
+### External evidence and limitations
+- Solana official documentation confirms durable nonces remove the normal 150-slot recent-blockhash expiry and allow delayed submission; official verified-build docs distinguish source/binary matching from code security or audit. References: Solana Durable Nonces and Verifying Programs documentation.
+- The official upstream README Security Considerations is the source for the residual-risk review. The complete Cantina PDF was located and its GitHub blob SHA recorded, but it could not be decoded/rendered/read in this environment. PDF status remains **NOT REVIEWED**.
+- The eight-commit post-remediation release delta remains incompletely audited; live ProgramData, binary hash, upgrade authority, deployment slot, exact live IDL and runtime SDK compatibility remain **UNKNOWN**.
+- Issue #355 remains open; Production DDL remains blocked pending verified migration-runner provenance and the documented controlled workflow.
+- Issue #354 and #356 remain separate open Bulk Pay gates; they are not represented as solved by this Subscription documentation work.
+- Local Working Tree remains **UNKNOWN** because direct Git access failed in this session. GitHub connector confirms the changed branch files. Combined CI status for documentation-only commits returned no statuses; CI is **NOT RUN / NO EVIDENCE**, not PASS.
+
+### Validation performed
+- Re-read all updated Skill/spec/audit/progress files from `feat/pay-subscription-billing`.
+- Confirmed the project instruction is 4,354 words, below the 7,700-word limit.
+- Compared the feature branch against `main`; changes are confined to documentation paths for this checkpoint.
+- No application tests were run because no application code changed. No CI, Devnet mutation or Production smoke was claimed.
+- No PR opened; no merge or release performed.
+
+### Next engineering sequence
+1. Obtain and review the full Cantina PDF and eight-commit code/IDL/SDK delta.
+2. Verify Mainnet ProgramData, Program binary hash/source, upgrade authority, deployment slot and on-chain IDL through read-only RPC/verified-build evidence.
+3. Resolve the SDK Kit-v7 versus current web3.js 1.x integration strategy and pin the exact dependency/toolchain.
+4. Design Subscription Domain/API/DB contracts, consent state/transition model, cycle identity, Collector trust boundary and dedicated verification/accounting adapter.
+5. Decide and test the exact fee/transfer-leg model; no split-fee charging until atomic same-transaction tests pass.
+6. Implement incrementally on this feature branch with isolated PostgreSQL, RLS/RBAC adversarial tests and Devnet E2E.
+7. Keep Production migration, Collector key creation, live customer consent and Mainnet transaction disabled until all gates and explicit authorization are satisfied.
