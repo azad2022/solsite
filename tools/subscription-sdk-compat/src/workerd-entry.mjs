@@ -1,4 +1,4 @@
-import { address } from '@solana/kit';
+import { address, createNoopSigner } from '@solana/kit';
 import { getCreatePlanOverlayInstructionAsync } from '@solana/subscriptions';
 import { kitInstructionToWeb3 } from './kit-to-web3.mjs';
 
@@ -7,7 +7,7 @@ import { kitInstructionToWeb3 } from './kit-to-web3.mjs';
 // no RPC, signing, transaction submission, or chain mutation.
 export async function buildSubscriptionPlanInstructionFixture() {
   const instruction = await getCreatePlanOverlayInstructionAsync({
-    owner: { address: address('SysvarRent111111111111111111111111111111111') },
+    owner: createNoopSigner(address('SysvarRent111111111111111111111111111111111')),
     planId: 17n,
     mint: address('So11111111111111111111111111111111111111112'),
     amount: 1_250_000n,
