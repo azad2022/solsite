@@ -12,7 +12,7 @@ import {
   UPGRADEABLE_LOADER_PROGRAM_ID,
 } from '../src/upgradeable-loader.mjs';
 
-const MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+const MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
 const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const RPC_URL = process.env.SOLANA_RPC_URL?.trim() || '';
 const ALLOWED_RPC_METHODS = new Set(['getGenesisHash', 'getAccountInfo']);
