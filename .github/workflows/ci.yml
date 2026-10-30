@@ -22,7 +22,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -67,6 +66,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -97,13 +97,12 @@ jobs:
       - name: Execute SDK integration in local Cloudflare Pages Workerd runtime
         run: npm run test:workerd
 
-      - name: Upload reproducibility and bundle evidence
+      - name: Upload generated lockfile and runtime test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: solmint-subscription-sdk-compat-node-${{ matrix.node-version }}
           path: |
             tools/subscription-sdk-compat/package-lock.json
-            /tmp/solmint-subscription-sdk-workerd.mjs
           if-no-files-found: warn
           retention-days: 14
