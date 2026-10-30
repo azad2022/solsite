@@ -2501,3 +2501,38 @@ Status: **PARTIAL PASS — Pages Functions is the selected runtime target for th
 - No source code, production runtime configuration, database, secret, key, Collector signer, verifier, accounting, Mainnet or Devnet state was changed by this checkpoint. Existing Devnet E2E ran as a separate CI workflow for ordinary Pay flows; it is not Subscription E2E.
 - Local Working Tree remains **UNKNOWN** because no local clone/status is available through the GitHub connector.
 - Next Part 2.1 work: make the isolated dependency graph reproducible with a committed lockfile; add TypeScript compile coverage for the adapter; add independent fixtures derived from the pinned release IDL/source for instruction bytes and account metas. Keep Part 2.2 blocked until every Part 2.1 gate is PASS.
+
+## 2026-10-30 — Part 2.1 typed adapter and independent IDL golden checkpoint
+
+Status: **PARTIAL PASS — typed adapter, pinned-IDL instruction fixtures and exact-head runtime CI passed; Part 2.1 remains BLOCKED.**
+
+- Repository/PR revalidation: main `7b975d56860b6d937ad76ab2983c71937644dfa3`; feature HEAD tested `da1e34431f8167f3ebf54e6f320ca88e32698505`; PR #366 OPEN / DRAFT / NOT MERGED. The compatibility CI job verified expected PR HEAD equals actual checkout HEAD.
+- Replaced the JavaScript Kit→web3 adapter with a typed TypeScript adapter under `tools/subscription-sdk-compat/src/kit-to-web3.ts`. It validates the Program address, data type and account roles and maps account order, signer and writable flags. The adapter only converts instructions; it does not sign, submit, simulate or perform RPC/payment verification.
+- Added a TypeScript compile target for the adapter and SDK instruction-builder call sites, using the repository-pinned TypeScript 5.9.3 from the root Bun lockfile. The isolated SDK package remains pinned to Node 24 because its Token packages declare Node >=24.
+- Added independent golden fixtures for `initSubscriptionAuthority`, `createPlan` and `subscribe`, derived from upstream Program tag `program-v0.5.0` / commit `364a41976c33347d092902443bbec2def9227e75`, IDL `idl/subscriptions.json` Git blob `208718e90bf9f8e7f42271b6e93284109b118172`, SDK tag `ts-client-v0.5.0` / commit `5a347ffaa969036061d274d3c91e0277962e2b51`. The tests independently encode u8/u64/i64/PublicKey/fixed UTF-8 data layouts and assert exact instruction bytes, Program ID, PDA-derived accounts, account order and signer/writable roles before and after adapter conversion.
+- Added `tools/subscription-sdk-compat/**` to `tsconfig.ci.json` exclusions because this isolated harness owns a separate dependency graph; its TypeScript files are checked by the dedicated compatibility job. This avoids the main app compiler trying to resolve Kit packages from the root node_modules. No production route or application payment logic was added.
+
+### Exact-head evidence — CI run `41088541644`
+
+- `subscription-sdk-compat (24)`: **SUCCESS**. Exact-head SHA check passed; Node `v24.22.1`, npm `11.19.1`, `engine-strict=true`; dependency lock resolution and `npm ci` passed; dedicated adapter TypeScript compile passed; SDK + PDA + IDL golden suite passed **10/10**; local Pages/Workerd runtime test passed **1/1**.
+- `quality`: **SUCCESS**. Root production TypeScript check and Production Build passed; unit tests reported 424 tests, 422 passed, 0 failed (the remaining tests were skipped); source tree unchanged check passed.
+- `SolMint Pay Database Security` run `41088541693`: **SUCCESS** (existing ordinary Pay security suite; no Subscription schema/RLS exists yet).
+- `Production Build` run `41088541707`: **SUCCESS**.
+- `SolMint Pay Mainnet Read-only` run `41088541654`: **SUCCESS**, read-only provider/transaction smoke only; not ProgramData/deployed binary/IDL verification.
+- Existing funded ordinary Pay `SolMint Pay Devnet E2E` run `41088541647`: **SUCCESS**. Its four scenarios covered ordinary Pay SOL verification, hosted transaction builder, Bulk Pay and Payment Intent reconciliation/replay. This workflow used the existing Devnet CI configuration and performed ordinary Pay Devnet transactions; it is **not Subscription E2E** and does not verify Subscription pulls or accounting.
+
+### Remaining Part 2.1 gates
+
+- Dependency graph resolves and CI `npm ci` passes, but the lockfile is still generated at workflow time rather than committed. Artifact `12993165867` contains lockfileVersion 3 with 216 package records. Raw `package-lock.json` SHA-256: `d2dcca34fe5e8cc1c9e49c4bf495e69c3214473fd3b54b3c6f3d1e7d59dc35bd`; artifact ZIP SHA-256: `fcbed084a2224c5ad1c03f56f67ad51ca609b1a1067cc9da7dfc925187cbf928`. **Committed lockfile remains BLOCKED**; artifact presence is not source-controlled reproducibility.
+- Typed adapter compile: **PASS** in the isolated harness; this does not mean the adapter is integrated into a production Subscription API.
+- Independent instruction byte/account-meta fixtures: **PASS**, limited to the three tested instructions and the pinned source IDL. Live deployed on-chain IDL has not been independently fetched/hashed.
+- Local Pages/Workerd SDK import + instruction build + conversion: **PASS** for the synthetic fixture and configured compatibility date; not a deployed Production runtime test.
+- Subscription Backend/API adapter integration: **NOT IMPLEMENTED**; current repository/Production baseline has no Subscription routes/domain/schema/Collector/verifier/accounting lifecycle. Do not add an imagined endpoint or reuse/relax the ordinary Pay verifier.
+- Approved Subscription RPC read/simulation evidence: **NOT IMPLEMENTED**. No Subscription RPC request, transaction simulation, signing, submission or Subscription chain mutation was made by this compatibility harness.
+- Production ProgramData, deployment slot, upgrade authority, binary hash/source match and live on-chain IDL: **UNKNOWN**.
+- Local Working Tree: **UNKNOWN**; the GitHub connector verifies remote branch commits but cannot inspect a local clone.
+
+### Security and next decision
+
+- The ordinary Pay verifier and Accounting implementation were not changed. No Production DDL, Production runtime setting, secret, key, Collector signer, customer consent or funds were changed. No Mainnet transaction was sent. The only observed chain mutations were the existing ordinary Pay Devnet CI scenarios identified above.
+- Overall **Part 2.1 remains BLOCKED** until the deterministic lockfile is committed and the remaining approved RPC/simulation and applicable adapter-boundary evidence is resolved. Part 2.2 remains prohibited. Subscription Backend, Collector, verifier/accounting, schema and UI work must not be represented as implemented or production-ready.
