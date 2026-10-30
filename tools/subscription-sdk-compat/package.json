@@ -1,0 +1,25 @@
+{
+  "name": "solmint-subscription-sdk-compat-spike",
+  "private": true,
+  "type": "module",
+  "description": "Isolated compatibility proof for the pinned Solana Subscriptions SDK and SolMint's web3.js transaction boundary.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build:workerd": "esbuild src/workerd-entry.mjs --bundle --platform=browser --format=esm --target=es2022 --conditions=workerd --outfile=/tmp/solmint-subscription-sdk-workerd.mjs",
+    "versions": "npm ls --depth=0"
+  },
+  "dependencies": {
+    "@solana-program/token": "0.15.0",
+    "@solana-program/token-2022": "0.14.0",
+    "@solana/kit": "7.0.0",
+    "@solana/kit-plugin-rpc": "0.15.0",
+    "@solana/kit-plugin-signer": "0.13.0",
+    "@solana/program-client-core": "7.0.0",
+    "@solana/subscriptions": "0.5.0",
+    "@solana/web3.js": "1.99.0",
+    "esbuild": "0.28.2"
+  }
+}
