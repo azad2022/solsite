@@ -140,3 +140,36 @@ Do not advertise calendar-month billing, Trial, proration, maximum lifetime char
 8. Use the controlled Production migration workflow only after issue #355 is resolved and the user explicitly authorizes the production Apply sequence.
 
 **Checkpoint result:** baseline discovery is recorded. No Subscription implementation or Production release is claimed.
+
+
+## 2026-10-30 follow-up — pinned upstream release and audit delta
+
+The upstream repository was inspected at the pinned release tags and the audit-status document was checked.
+
+### Release and audit lineage
+
+- Upstream `audits/AUDIT_STATUS.md` identifies Cantina's current audit baseline as `d6b3a5dc7ab18c4168441af733c81ab0a599d414`, with remediation implemented/verified through `debb4f75ff7571218b39de3b633074dd843e70db`.
+- GitHub compare confirms the `program-v0.5.0` release commit `364a41976c33347d092902443bbec2def9227e75e` is **8 commits ahead** of the stated remediation commit. The intervening diff is not documentation-only: it includes Rust program instructions/state/transfer helpers, generated IDL, TypeScript/Rust clients and integration tests. It therefore requires a separate security delta review; “audit fixes implemented” does not mean the release binary is wholly covered by the same audit.
+- Upstream `main` is 31 commits ahead of the remediation commit. Do not pin upstream `main` for production.
+- The current upstream changelog states that v0.5.0 targeted Mainnet on 2026-08-10 and was built reproducibly with `solana-verify`; it also states that the deployed binary and on-chain IDL report `0.5.0-beta.1`, built at release commit `364a419` before the version bump. This is an upstream declaration, not an independent verification of the currently deployed ProgramData bytes.
+- The TypeScript SDK tag `ts-client-v0.5.0` declares package version `0.5.0` and peer dependency `@solana/kit ^7.0.0`. SolMint's current runtime is based on `@solana/web3.js 1.99.0` and does not include `@solana/kit`; SDK integration therefore needs an explicit adapter and dependency/lockfile review, not an assumed drop-in install.
+- The upstream Cantina PDF is identified by `audits/AUDIT_STATUS.md`, but it could not be read in this session: GitHub file decoding failed for the binary PDF and the web PDF fetch did not return a document. The report contents are **NOT REVIEWED** here.
+
+### Additional upstream security constraints
+
+The official upstream README and v0.5.0 changelog call out risks that must shape the SolMint design and consent UX:
+
+- Token approval to the shared `SubscriptionAuthority` is `u64::MAX`; effective restrictions are in the Plan/Subscription program state, not in a per-cycle Token Delegate allowance. The user-facing consent summary must explain this accurately.
+- An on-chain Subscription showing as active is not proof that a pull can succeed. A user may revoke the ATA delegate, freeze/empty/close the token account, or otherwise make the authority uncollectable; the program has no delinquency state. Backend service entitlement must not be granted or renewed based only on the on-chain active flag or an emitted event.
+- `init_id` is slot-granular. The upstream security notes describe held signed initialization/subscribe bundles and authority-control transactions that may execute later than the user expected; recent blockhashes expire, but durable-nonce or pending smart-wallet proposals can persist. A revoke operation is not a universal guarantee that every held signed transaction has become impossible to execute.
+- `ResumeSubscription` and `UpdatePlan` have explicit stale-state arguments in v0.5.0, but other operations have different replay/freshness properties. SolMint must preserve the exact SDK/IDL instruction arguments and cannot treat all approvals as having the same freshness guarantee.
+- Immediate cancellation requires both subscriber and current plan owner signatures; ordinary cancellation can leave the existing period collectable. Revoking the shared Subscription Authority is broader than revoking one subscription and can affect other subscriptions for the same user and mint.
+- Token-2022 support in the upstream Program does not automatically authorize Token-2022 in SolMint. The existing SolMint Pay asset policy only accepts its configured original SPL Token Program stablecoin path. Any Token-2022 support needs an independent mint/extension/transfer-hook and destination-account security review.
+
+### Updated implementation/release classification
+
+- Pinned upstream source tag and SDK tag identified: **CONFIRMED**.
+- Upstream declared version / deployed IDL version discrepancy: **CONFIRMED IN UPSTREAM RELEASE NOTES**; live ProgramData/IDL match: **UNKNOWN**.
+- Audit coverage of deployed release: **NOT FULLY ESTABLISHED**; eight commits exist after remediation through the release commit, and the Cantina PDF was not read in this session.
+- Mainnet ProgramData address, deployed binary hash, upgrade authority, deployment slot, and `solana-verify` reproduction against live bytes: **UNKNOWN**.
+- Subscription SDK can be integrated into the current runtime without a Kit adapter: **NOT CONFIRMED**; dependency architecture differs.
