@@ -4,14 +4,14 @@ Date: 2026-10-30
 Repository: `azad2022/solsite`  
 Working branch: `feat/pay-subscription-billing`  
 Base main SHA: `7b975d56860b6d937ad76ab2983c71937644dfa3`  
-Reviewed source branch SHA: `c11acab73c92ed3a8341d35b2549cd56e264cb89` (docs-only follow-up commits are recorded in progress ledger)  
-Status: **Architecture discovery checkpoint; feature NOT IMPLEMENTED.**  
+Reviewed source branch SHA: `c0627f609ebf4c41bc197b1b5856b1487e09f69e`  
+Status: **Stage 2 remains BLOCKED; isolated SDK runtime compatibility subgate PASS. Subscription product/backend lifecycle is NOT IMPLEMENTED.**  
 This is an implementation plan and a set of gates, not an API/schema contract, security approval, or release authorization.
 
 ## 1. Current verified baseline
 
 ### Repository
-- The reviewed feature branch contains Subscription engineering documentation and Skills, but no Subscription application route, Domain Type, migration, billing worker, Collector implementation, verifier adapter, test, package, or UI.
+- The current feature branch contains a server-side Plan policy helper with unit tests and an isolated SDK compatibility harness (pinned SDK package, typed Kit→web3 adapter, pinned-IDL golden fixtures, local Pages/Workerd runtime test and non-mutating Devnet simulation). It still has no Subscription API route/domain lifecycle, migration/schema, billing worker, Collector implementation, dedicated verifier/accounting adapter, or UI. The root application package remains without direct `@solana/kit` or `@solana/subscriptions` dependencies.
 - Existing foundations include Pay merchant identity/RBAC, verified merchant wallets, Payment Intent creation, fee snapshots, ordinary payment reconciliation, token asset policy, transaction/transfer observations, accounting, webhook delivery, idempotency, and Devnet E2E.
 - The normal payment verifier is not a Subscription verifier. Keep it unchanged.
 
@@ -110,7 +110,7 @@ Do not repurpose the existing one-off `pay_revenue_ledger` / `pay_merchant_ledge
 
 ## Phase 2 — Program assurance and contract freeze review (2026-10-30)
 
-Status: **BLOCKED — investigation checkpoint only; Stage 2 is not complete. No Stage 3/4/5 work authorized.**
+Status: **BLOCKED — isolated SDK runtime compatibility is PASS; Stage 2 remains open on Mainnet ProgramData assurance and API/DB/RBAC/Consent/Accounting contract freeze. No Production DDL or customer-facing Subscription enablement is authorized.**
 
 ### Exact upstream pins and audit delta
 - Program tag `program-v0.5.0` resolves to commit `364a41976c33347d092902443bbec2def9227e75`.
@@ -129,9 +129,13 @@ Status: **BLOCKED — investigation checkpoint only; Stage 2 is not complete. No
 - Upstream README documents unresolved signed-transaction hazards: held Init+Subscribe using `UNKNOWN_INIT_ID`, pending durable-nonce or smart-wallet proposals, held authority-control transactions, same-period Resume replay, second-granular immediate-cancel replay, UpdatePlan ABA, and full-period charge near finite Plan expiry. These risks have now been mapped to Cantina findings and remediation commits in the `Full Cantina report and SDK review follow-up` section below.
 
 ### SDK compatibility finding
-- SDK package `@solana/subscriptions@0.5.0` is an `@solana/kit` plugin and has peer dependency `@solana/kit ^7.0.0`; it depends on Kit program-client/token packages.
-- SolMint's pinned package manifest has `@solana/web3.js@1.99.0` and no direct `@solana/kit` or Subscriptions SDK dependency.
-- **Decision: do not install the SDK into the existing web application or assume Web3.js compatibility.** Preferred candidate for evaluation is an isolated server-side Subscription adapter/worker using the pinned Kit SDK and its own compatible RPC/signer boundary, with no Kit dependency in the browser bundle. This is only a candidate architecture: bundle/runtime, Helius RPC, commitment, signer, transaction conversion and end-to-end compatibility have not been tested. No adapter is approved or implemented.
+
+- SDK package `@solana/subscriptions@0.5.0` is a Kit-v7 plugin with peer dependency `@solana/kit ^7.0.0`; SolMint's production application continues to use `@solana/web3.js@1.99.0`.
+- The isolated harness pins SDK `0.5.0`, Kit `7.0.0`, web3.js `1.99.0`, Node `24`, Wrangler `4.156.0`, and a committed npm lockfile. It does not add Kit/Subscriptions dependencies to the root browser dependency graph.
+- Exact feature HEAD `c0627f609ebf4c41bc197b1b5856b1487e09f69e`, PR #366, CI run `41092369405`: exact-head checkout, committed-lockfile reproducibility, `npm ci`, TypeScript adapter compile, SDK/PDA/IDL golden tests (10/10), local Pages/Workerd execution (1/1), and dedicated Devnet non-mutating CreatePlan simulation (1/1) all passed. Root quality, Database Security, Mainnet-read-only provider smoke, Devnet ordinary Pay E2E and Production Build workflows also passed on this SHA; ordinary Pay Devnet E2E is separate from Subscription simulation.
+- The golden fixture provenance was independently checked against upstream `program-v0.5.0` commit `364a41976c33347d092902443bbec2def9227e75`; its IDL blob SHA `208718e90bf9f8e7f42271b6e93284109b118172`, Program ID and version `0.5.0-beta.1` match the fixture. The tested instruction scope is InitSubscriptionAuthority, CreatePlan and Subscribe; tested PDA scope is Plan, SubscriptionAuthority and Subscription.
+- **Decision: PASS for bounded SDK/runtime compatibility.** Kit instruction builders convert to web3.js with byte/account-meta parity; Node 24 and local Pages/Workerd execute the tested fixture; Devnet simulation validates the pinned Program is executable on Devnet and accepts the synthetic CreatePlan instruction without signing or submitting. This is not proof of the Mainnet deployed binary, all SDK instructions, production Backend integration, wallet signing, Collector custody, verification, accounting or full Subscription lifecycle.
+- Keep the adapter isolated until the Subscription API/DB contract and deployment boundary are approved. Do not add Kit dependencies to the browser bundle. The ordinary Pay verifier remains unchanged.
 
 ### Proposed contract invariants (design constraints, not API/schema contracts)
 1. Separate Plan definition/version, immutable on-chain terms snapshot, customer consent evidence, commercial Subscription, on-chain PDAs/token delegate, Billing Cycle, Attempt, Collector authorization/signing, chain verification, accounting and entitlement.
@@ -144,25 +148,26 @@ Status: **BLOCKED — investigation checkpoint only; Stage 2 is not complete. No
 8. V1 remains original SPL Token only with server-configured supported mints, non-empty destination owner allowlist and no TransferHook/Token-2022/MemoTransfer support unless separately reviewed.
 
 ### Remaining Stage 2 gates
-- **Completed:** read the complete Cantina PDF and recorded a finding-by-finding matrix including finding ID/severity, disposition, source/remediation commit, available test evidence, residual risk and V1 controls. The high-severity delayed signed-create issue remains an accepted protocol risk requiring operational restrictions.
-- Obtain approved read-only Mainnet RPC evidence for Program account and ProgramData: cluster, executable flag, ProgramData address, deployment slot, upgrade authority, deployed bytecode hash, verified-build/source commit and on-chain IDL bytes/hash. Upstream Changelog's 2026-08-10 deployment statement and public explorer page are not sufficient evidence.
-- Reconcile deployed `0.5.0-beta.1` label with Program tag `0.5.0`, release commit `364a419...`, and the on-chain IDL.
-- Prove SDK integration strategy with a disposable local/devnet adapter spike and compatibility tests; do not merge production integration yet.
-- Complete typed lifecycle transition table and freeze the API/DB/RBAC/Consent/Accounting contracts only after the report and deployed Program identity are confirmed.
-- Resolve any report finding or deployed-version mismatch that changes the threat model before Stage 2 can pass.
+
+- **PASS:** full Cantina PDF review and finding-by-finding residual-risk mapping; pinned Program/SDK source and release-delta review; bounded SDK runtime compatibility on exact feature HEAD (Node 24, TypeScript adapter, lockfile, IDL golden fixtures, Workerd and non-mutating Devnet simulation).
+- **BLOCKED / UNKNOWN:** approved read-only Mainnet RPC evidence for Program account and ProgramData: cluster, executable flag, ProgramData address, deployment slot, upgrade authority, deployed bytecode hash, verified-build/source commit and on-chain IDL bytes/hash. The existing Mainnet-read-only workflow is only an ordinary Pay provider/parser smoke and hard-codes the public Solana endpoint; it is not ProgramData proof or an approved Production RPC fallback.
+- Reconcile the deployed `0.5.0-beta.1` label with Program tag `0.5.0`, release commit `364a419...`, and exact live on-chain IDL after ProgramData evidence is available.
+- Complete typed lifecycle transition table and freeze API/DB/RBAC/Consent/Accounting contracts only after deployed Program identity is confirmed and the current schema/migration/RLS/grant baseline is revalidated.
+- Actual production Backend adapter integration, Subscription domain/API/schema, dedicated verifier/accounting, Collector signer boundary and Subscription lifecycle E2E remain **NOT IMPLEMENTED**; they are downstream implementation work, not established by the isolated compatibility harness.
+- Resolve any deployed-version mismatch or report finding that changes the threat model before Stage 2 can pass.
 
 No Production RPC configuration, Program state, database schema, secret/key, SDK dependency, API, migration, Collector or customer consent was changed in this review.
 
 ## 6. SDK, RPC and environment requirements
 
 - Pin exact Program source/tag, IDL, SDK, toolchain, lockfile and transitive dependencies. Never follow upstream main.
-- Evaluate the official Kit-v7 SDK versus SolMint web3.js 1.x boundary. Prefer the upstream-generated builders/decoders through a small, tested adapter; do not hand-invent instruction discriminators or PDA codecs.
+- **Completed bounded evaluation:** official Kit-v7 SDK builders and typed Kit→web3.js adapter are tested in the isolated harness. Keep generated builders/decoders and exact IDL fixtures pinned; production integration still requires the approved Backend/DB contract and must not enter the browser bundle.
 - Production Mainnet and Devnet RPC must be explicitly separate. No public-RPC fallback in production. The existing generic Mainnet-read-only workflow currently points to the public Solana endpoint; it is not proof of configured production RPC/Program deployment and must not be repurposed as a fallback.
 - Read-only Mainnet inspection must establish cluster/genesis identity, Program account and ProgramData, deployed executable hash, upgrade authority, deployment slot, on-chain IDL/version, and reproducible source match. No Mainnet transaction or mutation is part of validation.
 
 ## 7. Implementation sequence and acceptance gates
 
-1. **Close research blockers:** read/render all pages of the Cantina PDF; review the full eight-commit source/IDL/SDK delta; independently verify Mainnet ProgramData and SDK compatibility.
+1. **Close research blockers:** read/render all pages of the Cantina PDF; review the full source/IDL/SDK delta; SDK runtime compatibility is now PASS; independently verify Mainnet ProgramData and deployed IDL.
 2. **Contract design:** domain lifecycle/state-transition table; merchant/customer authorization; wallet consent; Plan/Subscription read models; idempotency, cycle identity, claim/lease and Attempt recovery; event/outbox; fee and ledger mapping. Review against current schema before naming/creating tables or routes.
 3. **Database/API foundation:** source-controlled migration, exact constraints/indexes, RLS and Grants; server-mediated APIs; no customer or Collector privilege escalation; disposable PostgreSQL tests including cross-merchant/customer adversarial cases. Production DDL is prohibited until issue #355 provenance is resolved and an explicit APPLY authorization is given.
 4. **Program adapter:** pinned SDK/client and web3.js conversion; exact PDA/IDL validation; separate Init/Subscribe; Plan lifecycle; transaction construction and read-only parser tests.
@@ -173,14 +178,15 @@ No Production RPC configuration, Program state, database schema, secret/key, SDK
 
 ## 8. Current blocking decision
 
-- **NOT IMPLEMENTED:** Subscription routes, domain, DB contract/migrations, Billing Engine, Collector signer, verifier/accounting adapter, tests and UI.
+- **PASS (bounded):** pinned SDK/runtime compatibility proof on exact feature HEAD, including deterministic lockfile, TypeScript Kit→web3 adapter compile, 10/10 SDK/PDA/IDL tests, local Pages/Workerd execution and non-mutating Devnet CreatePlan simulation.
+- **BLOCKED:** Stage 2 overall until approved Mainnet ProgramData/deployed binary/upgrade authority/deployment slot/on-chain IDL evidence and the typed API/DB/RBAC/Consent/Accounting contract freeze are complete.
+- **NOT IMPLEMENTED:** production Subscription routes/domain/schema/migrations, Billing Engine, isolated Collector signer, dedicated verifier/accounting adapter, adversarial lifecycle tests and UI.
 - **BLOCKED:** Production DDL until issue #355 migration-runner provenance is resolved and explicit APPLY is authorized.
 - **BLOCKED:** split-fee billing until LiteSVM/Devnet atomic multi-leg proof and dedicated accounting/verifier tests pass.
-- **UNKNOWN:** full Cantina report, release delta audit, Mainnet ProgramData/binary/authority/slot/on-chain IDL, production RPC endpoint evidence, SDK compatibility and Collector key custody.
-- **PASS (limited scope):** current Pay database identity/RLS/grant foundation and normal one-off Payment Intent path are available as foundations; this does not certify Subscription.
-- Last read-only verification: 2026-10-30. Revalidate every fact against the current HEAD/environment before relying on it.
+- **UNKNOWN:** live Mainnet ProgramData, binary/source match, upgrade authority, deployment slot, on-chain IDL identity, approved Mainnet RPC availability and local Working Tree state.
+- The isolated SDK harness does not certify production readiness and does not authorize live customer consent, Collector signing, Mainnet mutation, or Production schema changes.
 
-No Production schema, secret, key, runtime setting, Program state, Mainnet/Devnet transaction, merchant money or customer consent was changed by this checkpoint.
+No Production schema, secret, key, runtime setting, Program state, Mainnet/Devnet Subscription transaction, merchant money or customer consent was changed by this checkpoint.
 
 ## 2026-10-30 — Full Cantina report and SDK review follow-up
 
@@ -217,10 +223,10 @@ Reviewed the complete 12-page file `report-cli-cantina-a1f6fc40-7817-446d-bb88-a
 
 ### SDK tag and compatibility review
 
-- `ts-client-v0.5.0` resolves to `5a347ffaa969036061d274d3c91e0277962e2b51`, three commits after Program tag commit `364a419...`. The compare lists 10 changed release/metadata paths (changelogs, Cargo/package manifests and locks, IDL version, demo webapp network config); no `program/src/**` or TypeScript plugin source path changed in this three-commit SDK release delta.
-- Program tag's workspace/IDL version is `0.5.0-beta.1`; SDK tag package and IDL version are `0.5.0`. The two IDL JSON files are byte-equivalent after replacing only the program `version` string (`0.5.0-beta.1` → `0.5.0`); instruction/account schema is otherwise identical. SDK changelog explicitly says SDK `0.5.0` matches `program-v0.5.0` and that the deployed binary/IDL reports `0.5.0-beta.1`. The Program/SDK tag distinction is therefore a release-version boundary, not evidence of an instruction-schema delta. It remains to reconcile against live ProgramData.
-- SDK `@solana/subscriptions@0.5.0` is a `@solana/kit` plugin with peer dependency `@solana/kit ^7.0.0`; high-level methods use Kit client/RPC/signer and custom overlays return Kit `Instruction`. SolMint's root package and `bun.lock` contain `@solana/web3.js@1.99.0` and no direct Kit or Subscriptions SDK dependency. The SDK's `web3.js` occurrence is a development dependency for its tests, not a production compatibility contract.
-- **Compatibility result: BLOCKED / NOT IMPLEMENTED.** No dependency was installed and no runtime conversion/spike was executed. Do not add the Kit SDK to the current browser bundle. A separate server-side adapter/worker is only a candidate; it requires build/runtime proof, RPC/commitment checks, exact instruction/account-meta/data parity against the pinned IDL, Kit ↔ web3.js instruction conversion tests, wallet-signing tests and isolated Collector signer tests before adoption.
+- `ts-client-v0.5.0` resolves to `5a347ffaa969036061d274d3c91e0277962e2b51`, three commits after Program tag commit `364a419...`. The compare lists 10 changed release/metadata paths; no `program/src/**` or TypeScript plugin source path changed in this three-commit SDK release delta.
+- Program tag's workspace/IDL version is `0.5.0-beta.1`; SDK tag package and IDL version are `0.5.0`. The two IDL JSON files are byte-equivalent after replacing only the program `version` string; instruction/account schema is otherwise identical. SDK changelog states that SDK `0.5.0` matches `program-v0.5.0`; this remains to be reconciled against live ProgramData.
+- Exact compatibility proof is recorded in the earlier `SDK compatibility finding` section and the progress ledger: pinned package graph, committed lockfile, Node 24, TypeScript adapter compile, SDK/PDA/IDL golden tests, Pages/Workerd and non-mutating Devnet simulation all passed on exact feature HEAD.
+- **Compatibility result: PASS (bounded test scope).** The tested adapter is isolated and is not a production Backend route or Collector signer. No root Kit/Subscriptions dependency was added to the browser application. Mainnet ProgramData, live on-chain IDL and production Backend integration remain separate open gates.
 
 ### ProgramData proof and Mainnet workflow finding
 
@@ -236,9 +242,10 @@ Reviewed the complete 12-page file `report-cli-cantina-a1f6fc40-7817-446d-bb88-a
 
 ### Stage 2 gate status
 
-- **PASS:** full Cantina PDF read and finding-by-finding mapping; pinned Program/SDK source and release delta review; static SDK interface/dependency compatibility assessment; architecture-level safety invariants recorded.
-- **BLOCKED:** final SDK runtime compatibility proof; live ProgramData/deployed binary/upgrade authority/deployment slot/on-chain IDL proof; final API/DB/RBAC/Consent/Accounting schema freeze.
-- **UNKNOWN:** actual deployed ProgramData/binary/source match and upgrade authority; exact Mainnet on-chain IDL bytes/hash; current local Git Working Tree (remote GitHub branch only was checked).
-- **NOT IMPLEMENTED:** isolated Kit adapter, Subscription domain/schema/API/Collector/verifier/accounting lifecycle and Subscription-specific E2E.
+- **PASS:** full Cantina PDF read and finding-by-finding mapping; pinned Program/SDK source and release delta review; bounded SDK runtime compatibility on exact feature HEAD (Node 24, lockfile, TypeScript adapter, IDL golden fixtures, Workerd and non-mutating Devnet simulation).
+- **BLOCKED:** approved Mainnet ProgramData/deployed binary/upgrade authority/deployment slot/on-chain IDL proof; API/DB/RBAC/Consent/Accounting contract freeze; issue #355 Production migration-runner provenance for any future Production DDL.
+- **UNKNOWN:** actual Mainnet ProgramData/binary/source match and upgrade authority; exact Mainnet on-chain IDL bytes/hash; approved Mainnet RPC secret availability; current local Git Working Tree.
+- **NOT IMPLEMENTED:** production Subscription domain/schema/API/Collector/verifier/accounting lifecycle and Subscription transaction E2E.
+
 
 No Production database/schema, runtime secret/key, Program state, Mainnet or Devnet Subscription transaction, funds, Collector signer or customer consent was changed in this review. Stage 3/4/5 remain prohibited until every Stage 2 gate is closed.
