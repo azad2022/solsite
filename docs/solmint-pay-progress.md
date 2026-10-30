@@ -2241,7 +2241,7 @@ PR #366: OPEN / DRAFT / NOT MERGED.
 
 ### Code added
 - `src/pay/services/subscriptionPlanPolicy.ts`: fail-closed pure server-side policy for pinned upstream v0.5.0 Plan input. It validates canonical u64 strings, non-zero amount, whole-hour period 1..8760, i64 end timestamp and one-period minimum finite Plan end using caller-supplied cluster time, canonical non-zero Solana addresses, explicit non-empty unique destination-owner allowlist (maximum 4), unique additional Pullers (maximum 4), UTF-8 metadata <=128 bytes, and server-resolved USDC/USDT on original SPL Token Program only.
-- `tests/pay-subscription-plan-policy.test.ts`: 15 unit cases for valid input, maximum period and exact end boundary, too-near end, invalid amount/period/u64 representations, asset restrictions, empty/zero/oversized/duplicate destination list, Puller capacity/duplicates, address validation, UTF-8 metadata boundary and chain time/Plan ID.
+- `tests/pay-subscription-plan-policy.test.ts`: 14 unit cases for valid input, maximum period and exact end boundary, too-near end, invalid amount/period/u64 representations, asset restrictions, empty/zero/oversized/duplicate destination list, Puller capacity/duplicates, address validation, UTF-8 metadata boundary and chain time/Plan ID.
 - The module does not authorize a merchant, resolve a wallet, construct/sign a blockchain transaction, persist a Plan, or claim consent. Those remain separate contracts.
 
 ### Mainnet read-only workflow defect corrected
@@ -2271,3 +2271,37 @@ PR #366: OPEN / DRAFT / NOT MERGED.
 - Production Supabase operations were read-only introspection. No DDL, grants, RLS, provider settings, runtime secrets, key material, live Plan, user consent or funds were changed.
 - Mainnet E2E was read-only. Existing Devnet E2E submitted only its established isolated ordinary-Pay test transactions; no Subscription transaction was built or submitted.
 - Local Git Working Tree remains UNKNOWN because local repository access was unavailable; remote branch and commit were verified via GitHub.
+
+
+## 2026-10-30 — Mainnet read-only smoke now executes a compatible finalized transaction
+
+Branch: `feat/pay-subscription-billing`  
+Validated code HEAD: `cca17dfb3e4a6d89a2f87e81fca9fda7df35854f`  
+Base main: `7b975d56860b6d937ad76ab2983c71937644dfa3`  
+PR #366: OPEN / DRAFT / NOT MERGED.
+
+### Additional Mainnet E2E correction
+- With the false-success command fixed, the read-only test revealed that the first System Program signature can be transaction version 1, while the current Pay parser explicitly sends `maxSupportedTransactionVersion: 0`.
+- The test now checks a bounded list of finalized signatures and selects the first transaction the existing parser can actually decode. It skips only the explicit unsupported-version response; all other RPC/parse errors still fail the test.
+- This change does not expand the parser's claimed transaction-version support and does not alter the ordinary verifier.
+- The corrected test completed successfully on run `41051316560`; TAP proves one real Mainnet read-only test passed. It used the workflow's hard-coded public Solana Mainnet RPC; this is not the configured production Helius endpoint or a production RPC fallback.
+
+### Exact-HEAD validation on `cca17df...`
+- CI run `41051316556`: **SUCCESS**.
+- Production Build run `41051316512`: **SUCCESS**.
+- SolMint Pay Database Security run `41051316589`: **SUCCESS**.
+- SolMint Pay Devnet E2E run `41051316592`: **SUCCESS**.
+- SolMint Pay Mainnet Read-only run `41051316560`: **SUCCESS**, one actual finalized transaction parsed.
+- The 14 Subscription Plan policy unit tests are included in general CI and all passed on the previous validated code SHA `157b594...`; the source/test files are unchanged on `cca17df...`. The new general CI run also passed, covering the same code plus E2E test changes.
+- Supabase Preview remains skipped; no Subscription migration or preview database was created.
+
+### Correction to the previous Progress entry
+- The Plan policy test file contains **14** distinct `test()` cases, not 15. The count above supersedes the prior count wording.
+
+### Current feature decision remains unchanged
+- **PASS:** fail-closed Plan input policy, general CI, Production Build, existing Pay disposable DB security, existing ordinary Pay Devnet E2E, and one actual read-only Mainnet provider smoke.
+- **NOT IMPLEMENTED:** all persisted Subscription domain/API/schema, wallet consent, Collector, Billing Engine, dedicated verifier/accounting, Subscription-specific recovery/tests, and UI.
+- **BLOCKED:** Production DDL pending issue #355 provenance resolution and explicit APPLY; split fee pending dedicated same-transaction LiteSVM/Devnet and accounting/verifier proof.
+- **UNKNOWN:** Cantina PDF review, release delta audit, deployed ProgramData/binary/source match/upgrade authority/slot/IDL, approved production Mainnet RPC evidence, SDK compatibility and Collector key custody.
+
+No Production database/schema/grant/RLS, runtime setting, secret/key, Mainnet transaction, live Plan, customer consent or funds were changed. Existing Devnet E2E remained limited to the pre-existing ordinary Pay test flows; no Subscription transaction was submitted. Local Git Working Tree remains UNKNOWN; remote branch state was verified through GitHub.
