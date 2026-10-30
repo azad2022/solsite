@@ -2165,3 +2165,11 @@ Status: **DOCUMENTATION / THREAT-MODEL CHECKPOINT COMPLETE — NO SUBSCRIPTION I
 5. Decide and test the exact fee/transfer-leg model; no split-fee charging until atomic same-transaction tests pass.
 6. Implement incrementally on this feature branch with isolated PostgreSQL, RLS/RBAC adversarial tests and Devnet E2E.
 7. Keep Production migration, Collector key creation, live customer consent and Mainnet transaction disabled until all gates and explicit authorization are satisfied.
+
+
+## 2026-10-30 — Draft documentation PR opened
+
+- Opened Draft PR [#366](https://github.com/azad2022/solsite/pull/366), base `main` at `7b975d56860b6d937ad76ab2983c71937644dfa3`, head `feat/pay-subscription-billing` at `502aca934be7f2c934d4970c2fca89d827483048`.
+- PR scope is documentation only: seven files, 830 additions and 6 deletions. It contains the project instruction, Subscription/Build Apps/Release Audit Skill updates, Master Specification pointer, baseline audit and this Progress update.
+- PR #366 is **OPEN / DRAFT / NOT MERGED**. GitHub returned no status checks/workflow runs in the evidence fetched for this documentation checkpoint; do not describe CI as passed.
+- No code, migrations, DB, runtime, secrets, signer, on-chain Program or funds were changed.
