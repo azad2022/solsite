@@ -4,8 +4,8 @@ Date: 2026-10-30
 Repository: `azad2022/solsite`  
 Working branch: `feat/pay-subscription-billing`  
 Base main SHA: `7b975d56860b6d937ad76ab2983c71937644dfa3`  
-Reviewed source branch SHA: `c0627f609ebf4c41bc197b1b5856b1487e09f69e`  
-Status: **Stage 2 remains BLOCKED; isolated SDK runtime compatibility subgate PASS. Subscription product/backend lifecycle is NOT IMPLEMENTED.**  
+Reviewed source branch SHA: `602c1f4a1c0b892274507645065208346b3a387a`  
+Status: **Part 2.1 SDK/runtime compatibility PASS; Stage 2 remains BLOCKED on Mainnet ProgramData evidence and contract freeze. Subscription product/backend lifecycle is NOT IMPLEMENTED.**  
 This is an implementation plan and a set of gates, not an API/schema contract, security approval, or release authorization.
 
 ## 1. Current verified baseline
@@ -149,12 +149,13 @@ Status: **BLOCKED — isolated SDK runtime compatibility is PASS; Stage 2 remain
 
 ### Remaining Stage 2 gates
 
-- **PASS:** full Cantina PDF review and finding-by-finding residual-risk mapping; pinned Program/SDK source and release-delta review; bounded SDK runtime compatibility on exact feature HEAD (Node 24, TypeScript adapter, lockfile, IDL golden fixtures, Workerd and non-mutating Devnet simulation).
-- **BLOCKED / UNKNOWN:** approved read-only Mainnet RPC evidence for Program account and ProgramData: cluster, executable flag, ProgramData address, deployment slot, upgrade authority, deployed bytecode hash, verified-build/source commit and on-chain IDL bytes/hash. The existing Mainnet-read-only workflow is only an ordinary Pay provider/parser smoke and hard-codes the public Solana endpoint; it is not ProgramData proof or an approved Production RPC fallback.
-- Reconcile the deployed `0.5.0-beta.1` label with Program tag `0.5.0`, release commit `364a419...`, and exact live on-chain IDL after ProgramData evidence is available.
+- **PASS:** full Cantina PDF review and finding-by-finding residual-risk mapping; pinned Program/SDK source and release-delta review; bounded SDK runtime compatibility on exact feature HEAD (Node 24, committed lockfile, TypeScript adapter, 15 SDK/PDA/IDL/loader-parser tests, Pages/Workerd and non-mutating Devnet CreatePlan simulation).
+- **BLOCKED:** approved read-only Mainnet Program/ProgramData evidence. A dedicated probe and CI job now exist, but the exact-head CI run failed at the secret preflight because GitHub Actions did not receive `secrets.SOLANA_RPC_URL`; no Mainnet RPC request was made. Cloudflare Pages project `solsite` Production environment reports `SOLANA_RPC_URL` as `secret_text`, but its value was not read or exposed. Add the same approved endpoint as a GitHub Actions repository secret named `SOLANA_RPC_URL`, or provide another approved execution path without sharing the value in chat.
+- The existing `solmint-pay-mainnet-readonly` workflow still hard-codes the public Mainnet RPC and is only an ordinary Pay parser/provider smoke. It is not ProgramData evidence and must not be repurposed as a Production RPC fallback.
+- The official upstream Program is Pinocchio/Codama-based. The inspected `runbooks/deployment/main.tx` deploys the program binary; `.github/workflows/idl-check.yml` checks generated IDL files. No explicit on-chain IDL publication step was found in those inspected paths. Do not assume an Anchor IDL PDA exists; actual on-chain IDL publication/identity remains **UNKNOWN** until independently established.
+- Reconcile the deployed `0.5.0-beta.1` label with Program tag `0.5.0`, release commit `364a419...`, and exact live ProgramData/binary evidence.
 - Complete typed lifecycle transition table and freeze API/DB/RBAC/Consent/Accounting contracts only after deployed Program identity is confirmed and the current schema/migration/RLS/grant baseline is revalidated.
 - Actual production Backend adapter integration, Subscription domain/API/schema, dedicated verifier/accounting, Collector signer boundary and Subscription lifecycle E2E remain **NOT IMPLEMENTED**; they are downstream implementation work, not established by the isolated compatibility harness.
-- Resolve any deployed-version mismatch or report finding that changes the threat model before Stage 2 can pass.
 
 No Production RPC configuration, Program state, database schema, secret/key, SDK dependency, API, migration, Collector or customer consent was changed in this review.
 
@@ -230,9 +231,13 @@ Reviewed the complete 12-page file `report-cli-cantina-a1f6fc40-7817-446d-bb88-a
 
 ### ProgramData proof and Mainnet workflow finding
 
-- The current `.github/workflows/solmint-pay-mainnet-readonly.yml` hard-codes `https://api.mainnet-beta.solana.com`; `e2e/pay-mainnet-readonly.e2e.ts` reads recent finalized System Program transactions and runs the existing Pay parser. It does not query the Subscriptions Program account, ProgramData account, deployment slot, upgrade authority, executable bytes, verified source or on-chain IDL. Its successful run is only a public-RPC provider smoke test.
-- Explorer page inspection returned the account panel in `Loading` state and no usable ProgramData fields. No connected approved read-only tool can access the production Helius endpoint. Therefore Program account executable/loader owner, ProgramData address, deployment slot, upgrade authority, deployed ELF SHA-256, `solana-verify` source match and on-chain IDL bytes/hash remain **UNKNOWN**. Do not substitute public RPC smoke or upstream Changelog for this proof.
-- Required artifact from an approved read-only Mainnet run: cluster/genesis identity; Program ID and owner/loader; executable flag; ProgramData address; deployed slot; upgrade authority or null; ELF byte length and SHA-256; reproducible `solana-verify` match to the exact upstream commit/toolchain; on-chain IDL bytes/hash compared structurally with the pinned Codama IDL. The RPC URL/key must never appear in logs or uploaded artifacts.
+- The existing `.github/workflows/solmint-pay-mainnet-readonly.yml` hard-codes `https://api.mainnet-beta.solana.com`; its test reads ordinary finalized System Program transactions and exercises the existing Pay parser. It does not query the Subscription Program account, ProgramData account, deployment slot, upgrade authority, executable bytes, verified source or on-chain IDL. It is only a public-RPC Pay provider smoke.
+- Cloudflare Pages project `solsite` Production environment metadata confirms a variable named `SOLANA_RPC_URL` with type `secret_text`. Only its name/type were inspected; the secret value was not retrieved, logged or changed.
+- A dedicated read-only Mainnet ProgramData probe now exists under `tools/subscription-sdk-compat/test/mainnet-programdata.test.mjs`, with a pure Upgradeable Loader parser and unit tests. It allows only `getGenesisHash` and `getAccountInfo`, verifies Mainnet genesis, Program executable/loader owner, loader-derived ProgramData PDA, ProgramData owner, deployment slot, upgrade authority and ELF SHA-256. It writes sanitized metadata only; it never logs the RPC URL/API key or raw ProgramData bytes.
+- Exact-head CI run `41094085655` on `602c1f4a1c0b892274507645065208346b3a387a`: SDK compatibility job **SUCCESS** (Node 24, lockfile, npm ci, TypeScript, 15 offline SDK/PDA/IDL/loader parser tests, Workerd and Devnet simulation); root quality **SUCCESS**. The separate `subscription-mainnet-programdata` job failed at the preflight because GitHub Actions did not provide `secrets.SOLANA_RPC_URL`; the install and RPC probe steps were skipped. Therefore **no Mainnet ProgramData query occurred**, and the deployed Program account/ProgramData, slot, upgrade authority, ELF SHA-256 and Mainnet cluster identity remain **UNKNOWN**.
+- The same exact-head workflow set also completed Database Security, ordinary Pay Devnet E2E, ordinary Pay Mainnet-read-only smoke and Production Build successfully. The ordinary Pay Devnet workflow is a separate funded mutating test of existing Pay flows; it is not Subscription E2E. The Subscription Devnet simulation is non-mutating.
+- Upstream Program source identifies Pinocchio and Codama IDL generation. The inspected deployment runbook `runbooks/deployment/main.tx` deploys the binary; the inspected `.github/workflows/idl-check.yml` checks generated files. No explicit on-chain IDL publish operation was found in those paths. Do not assume Anchor IDL storage; whether an on-chain IDL is published remains **UNKNOWN**.
+- Required sanitized artifact after an approved Mainnet read-only run: cluster/genesis identity; Program ID and owner/loader; executable flag; ProgramData address; deployed slot; upgrade authority or null; ELF byte length and SHA-256; reproducible `solana-verify` match to the exact upstream commit/toolchain; and a documented determination of whether an on-chain IDL exists and, if so, its bytes/hash. The RPC URL/key must never appear in logs or uploaded artifacts.
 
 ### Contract freeze decision
 
@@ -242,10 +247,9 @@ Reviewed the complete 12-page file `report-cli-cantina-a1f6fc40-7817-446d-bb88-a
 
 ### Stage 2 gate status
 
-- **PASS:** full Cantina PDF read and finding-by-finding mapping; pinned Program/SDK source and release delta review; bounded SDK runtime compatibility on exact feature HEAD (Node 24, lockfile, TypeScript adapter, IDL golden fixtures, Workerd and non-mutating Devnet simulation).
-- **BLOCKED:** approved Mainnet ProgramData/deployed binary/upgrade authority/deployment slot/on-chain IDL proof; API/DB/RBAC/Consent/Accounting contract freeze; issue #355 Production migration-runner provenance for any future Production DDL.
-- **UNKNOWN:** actual Mainnet ProgramData/binary/source match and upgrade authority; exact Mainnet on-chain IDL bytes/hash; approved Mainnet RPC secret availability; current local Git Working Tree.
+- **PASS:** full Cantina PDF read and finding-by-finding mapping; pinned Program/SDK source and release delta review; bounded SDK runtime compatibility on exact feature HEAD (Node 24, committed lockfile, TypeScript adapter, IDL golden fixtures, Workerd and non-mutating Devnet simulation).
+- **BLOCKED:** Mainnet ProgramData/deployed binary/upgrade authority/deployment slot/source-match evidence because the GitHub Actions Mainnet secret is unavailable; API/DB/RBAC/Consent/Accounting contract freeze; issue #355 Production migration-runner provenance for any future Production DDL.
+- **UNKNOWN:** Mainnet ProgramData/binary/source match and upgrade authority; exact Mainnet on-chain IDL presence/bytes/hash; actual value/cluster of the Cloudflare `SOLANA_RPC_URL` secret (value intentionally not accessed); current local Git Working Tree.
 - **NOT IMPLEMENTED:** production Subscription domain/schema/API/Collector/verifier/accounting lifecycle and Subscription transaction E2E.
-
 
 No Production database/schema, runtime secret/key, Program state, Mainnet or Devnet Subscription transaction, funds, Collector signer or customer consent was changed in this review. Stage 3/4/5 remain prohibited until every Stage 2 gate is closed.
