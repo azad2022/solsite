@@ -157,18 +157,29 @@ jobs:
           ./solana-verify --version
 
       - name: Build pinned source in deterministic Solana Docker image (no RPC)
+        id: build
         working-directory: upstream-subscriptions
-        run: ../solana-verify build . --workspace-path . --library-name subscriptions_program
+        run: |
+          set -o pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/upstream-subscriptions" --workspace-path "$GITHUB_WORKSPACE/upstream-subscriptions" --library-name subscriptions_program 2>&1 | tee "$RUNNER_TEMP/subscription-build.log"
+          container_rust_toolchain="$(sed -n 's/^Using container Rust toolchain: //p' "$RUNNER_TEMP/subscription-build.log" | tail -n 1)"
+          if [ -z "$container_rust_toolchain" ]; then
+            echo "::error::Could not capture the actual Solana build container Rust toolchain"
+            exit 1
+          fi
+          echo "container_rust_toolchain=$container_rust_toolchain" >> "$GITHUB_OUTPUT"
 
       - name: Compute reproducible executable hash
         id: hash
         working-directory: upstream-subscriptions
+        env:
+          CONTAINER_RUST_TOOLCHAIN: ${{ steps.build.outputs.container_rust_toolchain }}
         run: |
           set -euo pipefail
-          binary="$(find . -path '*/target/deploy/subscriptions_program.so' -type f -print -quit)"
+          binary="$(find "$GITHUB_WORKSPACE/upstream-subscriptions/target/deploy" -name 'subscriptions_program.so' -type f -print -quit)"
           if [ -z "$binary" ]; then
             echo "::error::Pinned verified build did not produce subscriptions_program.so"
-            find . -name '*.so' -type f -print
+            find "$GITHUB_WORKSPACE/upstream-subscriptions" -name '*.so' -type f -print
             exit 1
           fi
           hash="$(../solana-verify get-executable-hash "$binary")"
@@ -177,16 +188,16 @@ jobs:
             exit 1
           fi
           echo "elf_sha256=$hash" >> "$GITHUB_OUTPUT"
-          mkdir -p ../artifacts
-          printf '{"source_commit":"364a41976c33347d092902443bbec2def9227e75","solana_verify_version":"0.5.2","solana_cli_build_version":"3.1.10","rust_toolchain":"1.92","docker_image_digest":"sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3","elf_sha256":"%s"}\n' "$hash" > ../artifacts/subscription-program-verified-build.json
-          printf 'Pinned source commit: 364a41976c33347d092902443bbec2def9227e75\nVerified build ELF SHA-256: %s\n' "$hash"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          printf '{"source_commit":"364a41976c33347d092902443bbec2def9227e75","solana_verify_version":"0.5.2","solana_cli_build_version":"3.1.10","rust_toolchain_file":"1.92","build_container_rust_toolchain":"%s","docker_image_digest":"sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3","elf_sha256":"%s"}\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" > "$GITHUB_WORKSPACE/artifacts/subscription-program-reproducible-build.json"
+          printf 'Pinned source commit: 364a41976c33347d092902443bbec2def9227e75\nBuild container Rust toolchain: %s\nReproducible ELF SHA-256: %s\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash"
 
       - name: Upload sanitized reproducible build evidence
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: solmint-subscription-verified-build
-          path: artifacts/subscription-program-verified-build.json
+          name: solmint-subscription-reproducible-build
+          path: artifacts/subscription-program-reproducible-build.json
           if-no-files-found: error
           retention-days: 30
 
