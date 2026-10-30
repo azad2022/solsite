@@ -56,7 +56,7 @@ test('SolMint Pay reads and normalizes a live finalized Mainnet transaction with
         break;
       }
     } catch (error) {
-      if (error instanceof Error && /Transaction version \\([0-9]+\\) is not supported by the requesting client/i.test(error.message)) {
+      if (error instanceof Error && /Transaction version \([0-9]+\) is not supported by the requesting client/i.test(error.message)) {
         unsupportedVersionCount += 1;
         continue;
       }
