@@ -2372,3 +2372,11 @@ PR #366: OPEN / DRAFT / NOT MERGED.
 **Stage 2 is NOT COMPLETE. Do not start Stage 3 backend/schema/API work, Stage 4 UI/adversarial implementation, or Stage 5 deployment/release.** Resume only after the Cantina PDF is readable and approved Mainnet ProgramData evidence is available; then finish the finding matrix, adapter proof and contract freeze.
 
 No Production database, runtime configuration, secret/key, on-chain Program state, Mainnet funds, Devnet Subscription state, or customer consent was changed.
+
+
+### Follow-up — Phase 2 implementation-plan record
+
+- Added the detailed Stage 2 source/audit/SDK findings and explicit stop gates to `docs/solmint-pay-subscription-implementation-plan.md` in commit `e55292e1e40621aca5c0772e4b4c8792dfc23eff`.
+- Correctly separated the 15-commit audited-baseline-to-release delta (which includes Rust program source changes) from the 8-commit post-remediation-to-release delta (21 paths, no `program/src/**` entries).
+- Stage 2 remains **BLOCKED**, not complete: Cantina PDF text was not extractable in this environment and live Mainnet ProgramData/binary/upgrade authority/slot/on-chain IDL evidence is unavailable. SDK adapter and final API/DB contract freeze are not approved.
+- Latest source-reviewed application HEAD remains `2a043a010cbb8d5d01d38f529760c5b247fbd6d3`; subsequent commits are documentation-only. PR #366 remains OPEN / DRAFT / NOT MERGED.
