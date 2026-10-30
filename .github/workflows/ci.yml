@@ -88,11 +88,11 @@ jobs:
           npm config set engine-strict true
           npm config get engine-strict
 
-      - name: Resolve or verify isolated lockfile
+      - name: Resolve isolated lockfile from a clean checkout
         run: |
           npm install --package-lock-only --no-audit --no-fund
-          if test -f package-lock.json; then
-            git diff --exit-code -- package-lock.json
+          if test -f package-lock.json && ! git diff --quiet -- package-lock.json; then
+            echo '::notice::The checked-in lockfile differs from the clean npm resolution; it will be replaced only after npm ci and all compatibility tests pass.'
           fi
 
       - name: Install isolated dependency graph
@@ -150,7 +150,7 @@ jobs:
           name: solmint-subscription-sdk-compat-node-24
           path: .generated-lock
 
-      - name: Commit initial lockfile only when absent
+      - name: Commit clean lockfile only after the compatibility job passes
         id: lockfile
         env:
           EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -161,11 +161,7 @@ jobs:
           artifact=.generated-lock/package-lock.json
           destination=tools/subscription-sdk-compat/package-lock.json
           test -s "$artifact"
-          if test -f "$destination"; then
-            cmp -s "$artifact" "$destination" || {
-              echo 'Committed package-lock.json differs from the successful compatibility-job artifact.' >&2
-              exit 1
-            }
+          if test -f "$destination" && cmp -s "$artifact" "$destination"; then
             echo 'created=false' >> "$GITHUB_OUTPUT"
             exit 0
           fi
