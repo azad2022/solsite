@@ -234,3 +234,13 @@ This section records the additional security considerations found in the officia
 - Durable-nonce and pending-proposal restrictions, two-step init/subscribe, explicit non-empty destinations, no near-end enrollment and no split-fee charging before atomic tests are v1 safety decisions; they are not claims that current code already enforces them.
 - The Cantina PDF still has **NOT REVIEWED** status; the eight-commit release delta, deployed ProgramData/binary/upgrade authority/live IDL and SDK compatibility remain **UNKNOWN**.
 - No runtime, DB schema, secrets, signer, ProgramData or on-chain state was changed. No transaction was sent.
+
+
+## 2026-10-30 — Cantina PDF and SDK follow-up (supersedes prior NOT REVIEWED status)
+
+- Full 12-page Cantina PDF was reviewed at project upload. Summary: 9 findings (High 1, Medium 5, Low 2, Informational 1; no Critical/Gas); 4 Fixed and 5 Acknowledged. Cantina's follow-up at `debb4f75...` states all findings addressed/no new issues, but five accepted risks remain documented rather than coded out.
+- Full item-level mapping is in `docs/solmint-pay-subscription-implementation-plan.md`. High 3.1.1 is a remaining delayed-signed-create protocol risk. Medium residuals include same-second CancelNow, same-period Resume replay, authority-control replay, finite-plan near-end full charge, and UpdatePlan ABA. Rent sponsorship remains a documented low risk. v1 restrictions are control measures, not claims of upstream code fixes.
+- Program tag `program-v0.5.0` (`364a419...`) and SDK tag `ts-client-v0.5.0` (`5a347...`) differ by 3 release metadata/dependency commits. Their IDLs are structurally identical apart from version string (`0.5.0-beta.1` vs `0.5.0`).
+- SDK static shape is incompatible with direct drop-in use in the current app: it is a Kit v7 plugin, while SolMint has web3.js 1.99.0 and no Kit dependency. Actual adapter/worker runtime proof was not performed.
+- ProgramData remains UNKNOWN; existing Mainnet CI only checks a public RPC provider smoke and does not query Program account/ProgramData or IDL. Need approved read-only evidence from production RPC for program/ProgramData, slot, upgrade authority, ELF hash, verified source match and on-chain IDL hash.
+- **Phase 2 remains BLOCKED.** Architecture-level security invariants can be treated as provisionally frozen, but no concrete API/DB/RBAC/fee/Collector contracts are frozen. No Stage 3/4/5 work.
