@@ -172,7 +172,7 @@ SDK هدف: @solana/subscriptions@0.5.0، Tag ts-client-v0.5.0.
 - End Time Plan در Source برای Pull مرز خاص خود را دارد؛ در مرز دقیق، به‌جای محاسبه UI، منطق pinned Program و تست‌های boundary را ملاک بگیر.
 - On-chain Active به معنی Collectable نیست. Delegate ممکن است Revoked، ATA خالی/بسته/Freeze، Mint/Program نامعتبر یا Transfer ناممکن باشد. Program Delinquency/Grace state ندارد. Collectability را در Backend از وضعیت واقعی بررسی کن.
 - در Program v0.5.0، Subscribe فقط `current_ts > end_ts` را رد می‌کند و در مرز مساوی هم پذیرفته می‌شود؛ `SubscribeData` نیز `end_ts` مورد رضایت را bind نمی‌کند. Transfer می‌تواند full period amount را برای پنجره ناقص/صفرطول مجاز بداند و آن را بر اساس ثانیه‌های باقی‌مانده prorate نمی‌کند. کنترل `now + period <= end_ts` در زمان Plan creation یا UpdatePlan race بعدی را نمی‌بندد. سیاست v1: تمام finite Planها را از Enrollment اشتراک حذف کن و فقط representation دائمیِ تأییدشده (`end_ts=0`) را بپذیر تا Program به‌طور اتمیک expected end، یک دوره کامل و قاعده دوره پایانی را enforce کند.
-- Rent payer و transaction fee payer دو نقش مستقل‌اند. در SDK v0.5.0، اگر `client.payer` از `client.identity` متفاوت باشد، plugin ممکن است آن را خودکار به‌عنوان payer حساب‌های Authority/Delegation/Subscription/Plan اضافه کند؛ این sponsorship است، نه صرفاً gas fee. در v1 هیچ rent sponsorship از طرف Collector/Relayer نداریم: Customer حساب‌های Authority/Subscription خود را تأمین می‌کند، Merchant هزینه Rent Plan را می‌پردازد و Collector فقط network fee را می‌دهد. `payer` هر instruction را صریحاً به مالک حساب تنظیم کن؛ Plan rent هنگام DeletePlan به Merchant می‌رسد، نه sponsor، و Plan دائمی مسیر Delete ندارد.
+- Rent payer و transaction fee payer دو نقش مستقل‌اند. در SDK v0.5.0، اگر `client.payer` از `client.identity` متفاوت باشد، plugin ممکن است آن را خودکار به‌عنوان payer حساب‌های Authority/Delegation/Subscription/Plan اضافه کند؛ این sponsorship است، نه صرفاً gas fee. در v1 نه Rent و نه network fee از سرمایه SolMint/Collector پرداخت نمی‌شود: Customer، Rent و network fee عملیات Authority/Subscription/Delegation خودش را می‌پردازد؛ Merchant، Rent و network fee عملیات Plan را می‌پردازد؛ network fee برداشت‌های دوره‌ای Subscription نیز باید از signer تحت مالکیت یا تأمین مالی Merchant پرداخت شود. Collector فقط می‌تواند Puller مجاز و امضاکننده Instruction باشد، نه Fee Payer با SOL متعلق به SolMint. `payer` هر instruction را صریحاً به مالک حساب تنظیم کن؛ Plan rent هنگام DeletePlan به Merchant می‌رسد، نه sponsor، و Plan دائمی مسیر Delete ندارد.
 
 ## 9. Collector: مرز اعتماد مستقل
 
@@ -184,7 +184,7 @@ Collector باید Puller مجاز Plan باشد، نه Plan Owner و نه Signe
 - داخل مرز امضا، Cluster، Program ID، Instruction Discriminator/Layout، PDA derivation، Subscription/Plan/Subscriber، Puller، Mint/Program/Decimals، Source ATA/Delegate، Destination owner/ATA، مبلغ باقیمانده Period، Fee Legها، Blockhash/Last Valid Height، Simulation و نبود Instruction/CPI/Transfer اضافی بررسی شود.
 - Transaction hash، Attempt/Cycle ID، Plan/Subscription، Signer key version، Simulation، Signature و نتیجه ثبت شوند؛ Secret هیچ‌وقت Log نشود.
 - Emergency disable، Rotation، Revoke/Replace Puller، incident response و compromise recovery باید مستند و آزمایش شوند.
-- Fee Payer تراکنش می‌تواند Collector باشد؛ Source Token Authority برابر SubscriptionAuthority PDA است. این دو را در Schema/Verifier/Accounting یکی فرض نکن.
+- Fee Payer تراکنش باید از سرمایه Customer یا Merchant تأمین شود؛ Collector ممکن است Puller signer باشد اما نباید هزینه شبکه را از خزانه SolMint بپردازد. Source Token Authority برابر SubscriptionAuthority PDA است. Fee Payer، Puller و Source Authority را در Schema/Verifier/Accounting یکی فرض نکن.
 
 ## 10. Billing Engine، Cycle و Idempotency
 
@@ -202,7 +202,7 @@ Scheduler فقط Wake-up است؛ نه Lock، نه Idempotency و نه Truth.
 
 ## 11. Verification و Accounting اشتراک
 
-Verifier فعلی Pay را تغییر نده تا Subscription را قبول کند. pay_apply_verified_observation در Baseline شرط Source Authority یکسان و برابر با Fee Payer دارد و Gas Sponsored را رد می‌کند. Subscription Authority PDA و Collector Fee Payer دو Principal متفاوت‌اند.
+Verifier فعلی Pay را تغییر نده تا Subscription را قبول کند. pay_apply_verified_observation در Baseline شرط Source Authority یکسان و برابر با Fee Payer دارد و Gas Sponsored را رد می‌کند. Subscription Authority PDA و Customer/Merchant-funded Fee Payer دو Principal متفاوت‌اند؛ Collector ممکن است Puller signer باشد ولی SolMint نباید Gas را تأمین کند.
 
 Adapter مستقل باید حداقل این موارد را از Transaction واقعی بررسی کند:
 - Cluster و Program ID دقیق، Instruction Discriminator/Layout و Accountها.
