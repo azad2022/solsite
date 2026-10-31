@@ -3193,3 +3193,18 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - Threat Model TM-06 updated to distinguish actual executed evidence from prior source-only review and to record this precise limitation. No code/test files were edited; no test workflow was triggered or rerun by us.
 - SolMint repository remains `azad2022/solsite`, `feat/pay-subscription-billing`; PR #366 OPEN / DRAFT / NOT MERGED. No Production DDL/data, provider configuration, Secret/Key, signer, Mainnet/Devnet transaction, Program upgrade, customer consent or cost-bearing external service was used in this follow-up.
 - Status: upstream Rent Sponsor Rust integration tests at the pinned source commit **PASS**; local rerun in this container **BLOCKED** by unavailable Rust toolchain/network; direct combined sponsored-Plan-create→delete refund test upstream **NOT IMPLEMENTED**; SolMint v1 rent sponsorship remains prohibited by policy.
+
+
+## 2026-10-31 — TM-06 cost-responsibility correction: no platform-funded Rent or network fees
+
+- Owner decision: SolMint is an intermediary gateway; all on-chain Rent and transaction network fees attributable to Subscription operations must be paid by the Customer or Merchant. SolMint revenue is limited to the already-approved gateway commission. No new commission rate, fee formula, pass-through markup, API field or accounting rule is invented here.
+- Corrected the earlier TM-06 wording that allowed Collector/Relayer to pay network fees. That would have left a cost on SolMint and conflicted with the owner decision.
+- V1 cost allocation recorded:
+  - Customer funds their own `SubscriptionAuthority` and Subscription/delegation Rent, and pays network fees for customer-initiated setup/control operations.
+  - Merchant funds Plan Rent and network fees for Plan operations.
+  - Recurring `TransferSubscription` pulls are Merchant billing operations; their transaction fee payer must be a Merchant-owned or explicitly Merchant-funded signer.
+  - Collector may sign as a separately authorized Plan Puller but must not be the fee payer from SolMint-funded SOL. If the Merchant-funded fee payer is unavailable, do not submit the pull.
+- Rent payer, network fee payer, Puller and token source authority remain distinct principals. Never infer Rent sponsorship from `client.payer`; do not use a SolMint treasury/gas tank or platform-funded Collector balance. Any fee source must be demonstrably Customer/Merchant funded before submission.
+- Updated Threat Model, Subscription Skill, Build Web Apps Skill, Release Audit Skill, Project Instructions and Implementation Plan. This reconciles the TM-06 policy with the owner decision and replaces the earlier “Collector pays network fee” wording.
+- No runtime code, API, DB schema/migration, RLS/grants, signer, blockchain transaction or accounting implementation changed. Fee-payer enforcement remains **NOT IMPLEMENTED** because the production Subscription transaction/billing path does not exist; this is a mandatory v1 implementation gate, not a delivered capability.
+- Parent docs HEAD before this ledger entry: `c92de3aa1436a514e4eb6fdd18f2d719fa8c536b`. PR #366 remains OPEN / DRAFT / NOT MERGED; no merge or release action.
