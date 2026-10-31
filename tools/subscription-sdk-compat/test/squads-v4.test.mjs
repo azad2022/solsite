@@ -96,7 +96,7 @@ test('Squads v4 Borsh parser rejects invalid discriminator, permission, threshol
   assert.throws(() => parseSquadsV4MultisigAccount(wrongDiscriminator), /SQUADS_V4_MULTISIG_DISCRIMINATOR_INVALID/);
 
   const invalidPermission = accountFixture().data;
-  invalidPermission[invalidPermission.length - 1] = 8;
+  invalidPermission[invalidPermission.length - 33] = 8;
   assert.throws(() => parseSquadsV4MultisigAccount(invalidPermission), /SQUADS_V4_MEMBER_PERMISSION_MASK_INVALID/);
 
   assert.throws(() => parseSquadsV4MultisigAccount(accountFixture({ threshold: 4 }).data), /SQUADS_V4_THRESHOLD_INVALID/);
