@@ -329,3 +329,12 @@ Devnet mutating tests وMainnet read-only جدا باشند. Public RPC fallback
 - Cycle unique + atomic lock + durable attempt + reconciliation قبل از retry.
 - Production migration فقط Controlled Workflow و APPLY مجاز؛ #355 blocker جاری تا رفع Evidence.
 - Unknown را PASS نکن؛ Rollout را فقط با شواهد واقعی تأیید کن.
+
+ 
+## 2026-10-31 Subscription v1 Threat Model — mandatory security gate
+
+The detailed threat/control specification is `docs/solmint-pay-subscription-v1-threat-model.md`. Read it before Subscription design or implementation. It is a design document, not proof of implemented controls or Production approval. Stage 2 remains BLOCKED.
+
+**Cantina report count discrepancy:** the PDF page-3 summary says five Acknowledged findings (including three Medium), but its detailed finding pages mark four Medium findings Acknowledged (CancelNow, Resume, authority-control, Plan expiry), plus the High old-signed-create and Low rent-sponsorship findings: six detailed Acknowledged findings. The detailed pages also identify three Fixed findings, while the summary table reports four. This contradiction is unresolved. Until written clarification/corrected report is obtained, use the detailed pages and conservatively track six residual Acknowledged findings; do not silently repeat the summary count as reconciled fact.
+
+Off-chain SolMint restrictions do not repair upstream on-chain replay semantics. In particular, rejecting `UNKNOWN_INIT_ID` and Init+Subscribe bundles in SolMint builders is defense-in-depth, not proof that externally held signed transactions cannot execute. Reliable revocation requires protocol-enforced persistent generation/nonce/deadline controls and disabling legacy unbound instruction paths. Do not claim strong revocation while this remains unresolved.
