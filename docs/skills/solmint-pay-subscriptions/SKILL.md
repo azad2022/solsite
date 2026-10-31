@@ -235,3 +235,12 @@ This is a proposed engineering default, not a claim that the current repository 
 - Read Master Specification and relevant Skills from the same HEAD; load Supabase/Postgres or React guidance only when change touches those areas.
 - Every unknown must be recorded as UNKNOWN, not silently promoted to PASS. Distinguish repository fact, live provider fact, upstream claim, design proposal and unverified assumption.
 
+
+ 
+## 2026-10-31 Threat Model gate
+
+Before any Subscription implementation, read `docs/solmint-pay-subscription-v1-threat-model.md`. The document defines finding-specific attack paths, trust boundaries, off-chain defense-in-depth, protocol-level fixes, database invariants, recovery, adversarial tests and v1 capability exclusions. It is a design specification only; no control in it is implemented merely by being documented.
+
+**Audit report discrepancy:** page-3 summary counts five Acknowledged findings (three Medium), while detailed pages mark four Medium findings Acknowledged plus one High and one Low (six detailed Acknowledged overall). Detailed pages identify three Fixed findings, whereas the summary reports four. Treat all six detailed Acknowledged findings as residual risks until Cantina/Solana Foundation provides written clarification or a corrected report. Do not silently reconcile the PDF.
+
+Off-chain rejection of `UNKNOWN_INIT_ID`, durable nonce or pending proposals cannot invalidate a transaction already signed outside SolMint. The High old-signed-create issue remains BLOCKED for any strong revocation guarantee absent an upstream protocol fix. The v1 capability matrix is proposed and not yet approved.
