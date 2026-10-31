@@ -303,39 +303,54 @@ Authority reauthorization/Close/Revoke: **NOT IMPLEMENTED as a SolMint customer 
 
 ### TM-05 — Full-period charge near finite Plan expiry (Cantina Medium, Acknowledged)
 
+**Pinned Program behavior — `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75`**
+
+- `SubscribeData` binds `expected_mint`, `expected_amount`, `expected_period_hours`, `expected_created_at` and the Authority `init_id`; it has no `expected_end_ts` field.
+- `subscribe.rs` rejects an ended finite Plan only when `current_ts > end_ts`. Therefore `current_ts == end_ts` is accepted. It does not require `current_ts + period_length <= end_ts`.
+- A successful Subscribe starts a new fixed-length period at the current chain timestamp and initializes `amount_pulled_in_period = 0`. It does not prorate the period allowance to the remaining Plan lifetime.
+- `UpdatePlan` does protect its own approval with `expected_end_ts` and only allows a finite `end_ts` to be shortened. When the end is changed, `validate_plan_end_ts` rejects only if `current_ts + period_seconds > new_end_ts`; exact equality (one complete period remaining at update time) is accepted. That is a check at UpdatePlan execution, not a guarantee at a later Subscribe.
+- Consequently, an owner can validly shorten a finite Plan to exactly one period ahead. Time then elapses; a previously signed Subscribe can still land while `current_ts <= end_ts` with less than one period remaining because Subscribe neither binds the observed end timestamp nor repeats the full-period condition.
+- `TransferSubscription` also rejects only `current_ts > plan_end_ts`. It passes the configured per-period amount and the caller-requested transfer to `validate_recurring_transfer`, which enforces the cumulative period ceiling but has no time-based proration. The emitted `period_end_ts` is capped at `plan_end_ts`, so the recorded service window can be shorter than the fixed period while a full period amount remains permissible. At the exact Plan end boundary, the upstream helper test explicitly permits a transfer at `current_ts == expiry_ts`.
+- The upstream README describes this as a full `amount` charge for a partial or zero-length first window at the exact boundary, without proration. This is not an automatic debit on Subscribe: an authorized Plan Owner/Puller submits the Transfer and chooses the transfer amount, up to the full per-period allowance.
+
 **Attack / impact**
 
-The report says Subscribe accepts a finite Plan at the inclusive end boundary and does not bind customer consent to the Plan end timestamp or require one complete period remaining. Transfer may then collect a full period for a truncated or zero-length service window. A Plan Owner shortening the end time after the customer signs can also change the effective window because the signed Subscribe terms omit expected end time.
+A customer may sign Subscribe after viewing a finite Plan's end date, but the signed Subscribe message does not bind that end date. If the Plan Owner shortens `end_ts` before the signed transaction lands, the Program can accept the old consent against the shorter Plan lifetime. A near-expiry Subscribe can therefore create a full-period allowance even though the first service window is truncated or zero-length. A simple server-side preflight (`now + period <= end_ts`) cannot close this race because the Plan can change after the read and before execution.
 
-**Controls**
+**Existing source tests and uncovered cases**
 
-- Safest v1 profile: support only perpetual Plans (the exact on-chain perpetual representation must be verified against the pinned Program before coding). Do not assume a backend check can prevent a Plan Owner's direct on-chain update.
-- If finite Plans are later proposed, require a fresh finalized Plan read and exact immutable terms snapshot, verify `now + period_seconds <= end_ts` using checked integer arithmetic, and bind customer consent to the observed end timestamp. The upstream instruction must enforce the same expected end timestamp and full-period condition to close the race; the current Program behavior does not establish that.
-- Never use calendar-month math or floating point. Period and timestamps are integer seconds/hours derived from pinned Program semantics.
-- Do not allow a SolMint-controlled Plan update to shorten a finite Plan below a full remaining billing period while subscriptions exist, unless the complete effects and customer consent are separately modeled. This is an application policy, not a protocol guarantee against direct Plan Owner actions.
+- `test_subscribe.rs` covers a normal Plan with 30 days remaining and rejects a Plan after the clock has advanced three days beyond its end. It does not cover Subscribe exactly at `end_ts`, one second before it, or after an end-time shortening between consent and execution.
+- `common.rs` unit tests cover the `validate_plan_end_ts` threshold, including exact one-period equality and one second below. They test the Plan-update helper, not the Subscribe consent/expiry binding.
+- `test_update_plan.rs` proves a finite Plan may be shortened (30 days to 10 days for a 24-hour period); it does not test a valid one-period-remaining shortening followed by delayed Subscribe.
+- `transfer_validation.rs` includes `catch_up_at_exact_expiry_boundary_succeeds`, which allows a full per-period transfer at the exact expiry boundary. No inspected integration test proves that a partial final service window is prorated.
+- These source files were reviewed at the pinned commit; they were not executed in this checkpoint.
 
-**Database / backend invariants**
+**Current SolMint coverage**
 
-- Store exact Plan terms snapshot and on-chain Plan lifecycle/created time and end time as verified evidence.
-- Reject enrollment when full-period eligibility cannot be established from chain state.
-- Keep Plan sunset, end-time expiry, Subscription cancellation and actual pull collectability distinct.
-- Do not advertise trial, proration, calendar month or fixed charge count without a separate tested contract.
+`src/pay/services/subscriptionPlanPolicy.ts` uses integer `bigint` arithmetic and cluster-derived time to reject a finite Plan whose `endTs` is less than `chainTime + periodHours * 3600`; equality is accepted. This is Plan-input validation only. It neither binds `end_ts` into a signed Subscribe instruction nor provides an atomic guard against a later Plan update. At the current SolMint HEAD there is no production Subscription API, customer consent flow, Subscribe builder/submission path, Collector or Subscription verifier/accounting path. The helper must not be represented as an enforced enrollment control.
+
+**V1 decision and required future protocol behavior**
+
+- Exclude all finite Plans from SolMint Subscription v1; not merely Plans that are already within one period of expiry. The proposed v1 shape is `end_ts = 0` (perpetual), subject to the pinned Program's exact perpetual semantics. This is a design restriction, not an implemented product gate at the current HEAD.
+- A fresh finalized Plan read, exact consent snapshot, pre-sign/pre-submit time check and display of the end date are defense-in-depth only. They do not eliminate the race while `SubscribeData` omits `expected_end_ts`.
+- Before finite Plans can be enabled, an approved Program version must bind the exact expected Plan end into Subscribe and atomically enforce a full remaining first period with checked integer arithmetic. It must also specify and enforce the final-period charging rule (reject a truncated final period or apply an explicitly approved on-chain integer proration rule); merely capping the event's `period_end_ts` is not proration.
+- SolMint must not issue an owner-side end-time shortening that truncates a consented/active customer's billing period unless that lifecycle and customer-consent effect is explicitly modeled and protocol-enforced.
 
 **Recovery**
 
-If an enrollment or pull occurs near/after expiry, reconcile actual transfer and service period. Do not auto-refund or auto-extend based only on expected UI terms; any adjustment requires a verified accounting/reversal policy and authorized decision.
+If an enrollment or pull occurs near/after expiry, reconcile the finalized transfer, actual period start/end and accounting record. Do not auto-refund, prorate off-chain, or extend service based only on expected UI terms; any adjustment requires an approved, verified accounting/reversal policy.
 
 **Adversarial tests / PASS evidence**
 
-- Subscribe exactly at `end_ts`, one second before, and one full period before.
-- Shorten end time after consent is signed but before Subscribe is submitted.
-- Race Plan update with Subscribe.
-- Test perpetual Plan boundary and integer overflow/checked-add.
-- Confirm the service period and actual full-period debit are never misrepresented.
+- Subscribe exactly at `end_ts`, one second before, exactly one period before, and one second after the minimum-period boundary.
+- Shorten `end_ts` after customer consent is signed but before Subscribe lands; race UpdatePlan and Subscribe in both orderings.
+- Delay submission after a valid one-period-remaining UpdatePlan and prove Subscribe rejects once less than a full period remains.
+- Attempt a full amount transfer at the exact expiry and during a truncated final period; verify the selected full-charge/reject/proration rule atomically.
+- Verify event `period_end_ts`, actual service entitlement and ledger debit agree for every boundary case.
 
 **Gate**
 
-Finite Plan enrollment: **BLOCKED for v1** until Program-level end-time binding/full-period enforcement is available or the residual risk is explicitly accepted. Perpetual-only v1 remains a proposal pending verification of exact pinned Program semantics.
+Finite Plan enrollment: **BLOCKED for v1**. Current SolMint's Plan-input validator is insufficient to enforce the restriction end-to-end, and no production Subscription flow exists. Keep finite Plans disabled in any future v1 API/transaction builder. Finite support requires the Program-level consent binding, first-period guard, explicit final-period rule and adversarial evidence above. Perpetual-only v1 remains a design restriction, not a delivered feature.
 
 ### TM-06 — Automatic rent sponsorship can lock relayer funds (Cantina Low, Acknowledged)
 
