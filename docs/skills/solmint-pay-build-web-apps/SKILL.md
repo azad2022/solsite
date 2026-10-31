@@ -26,6 +26,10 @@ Use the Build Web Apps testing workflow for meaningful frontend changes. Importa
 ## Release discipline
 A successful build alone never proves production readiness. Validate the relevant backend contract, database/RLS boundary, security controls, runtime configuration, tests, production deployment, and post-deployment smoke evidence. Recovery must remain source-controlled and use the normal deployment path. Manual GitHub Ruleset/Branch Protection setup, Cloudflare dashboard changes, Cloudflare API tokens, or other provider-management secrets are not implementation prerequisites for Pay release and must not be assigned to the project owner as a required step. Missing evidence for a critical technical gate is `UNKNOWN` or `BLOCKED`, never an assumption.
 
+## Subscription rent-payer boundary
+- Do not assume the configured transaction `client.payer` pays only network fees. The pinned `@solana/subscriptions@0.5.0` plugin can also default a distinct payer into each creation instruction's rent payer.
+- SolMint v1 must not sponsor customer or Plan rent. Explicitly set the instruction-level payer to the account owner (customer for Authority/Subscribe/delegation; Merchant for Plan) while keeping the fee payer separate.
+- Do not expose a gasless/sponsored UI or claim sponsored rent is refundable. Authority, delegation, Subscription and Plan PDAs have different owner-controlled recovery rules; Plan rent can return to the Merchant rather than the sponsor.
 ## Subscription Billing boundary
 For any Subscription/Recurring Billing UI, read docs/skills/solmint-pay-subscriptions/SKILL.md before changing code. A Skill or roadmap entry does not prove the feature, API, schema, or on-chain integration exists. Re-discover the actual Backend contract and schema first.
 
