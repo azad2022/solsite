@@ -206,7 +206,7 @@ The official program-v0.5.0 README's Security Considerations and the Cantina rep
 - On-chain `expires_at_ts == 0` / active Subscription is not proof a token pull will succeed. A customer can revoke the delegate, freeze/empty/close the token account or otherwise make it uncollectable. The Program has no delinquency/grace state.
 - Before first activation and each renewal, Backend must inspect actual Plan, SubscriptionDelegation, SubscriptionAuthority, source ATA, mint/program, delegate and available token balance/transfer preconditions. This is a collectability observation, not a charge or payment result.
 - Grant/renew service only according to a documented entitlement policy whose paid state comes from independently verified finalized transfer evidence and atomically committed accounting. Do not grant paid service from Plan state, event, active badge, Collector submission or wallet signature.
-- Prefer a finite `end_ts` when sponsoring rent. A sponsor paying Plan rent does not become Plan Owner and does not recover that Plan rent on deletion; Plan Owner receives the rent. Default to Merchant-funded Plan rent unless a separately approved subsidy policy exists.
+- **V1: no relayer/Collector rent sponsorship.** Customer pays for their own `SubscriptionAuthority` and Subscription/delegation accounts; Merchant pays for its Plan PDA; Collector/Relayer pays transaction network fees only. In Program v0.5.0, Plan rent paid by a sponsor is returned to the Merchant on `DeletePlan` (and a perpetual `end_ts = 0` Plan cannot use that deletion path).
 
 ### 12.8 Token program and wallet compatibility
 
@@ -214,6 +214,16 @@ The official program-v0.5.0 README's Security Considerations and the Cantina rep
 - Keep v1 to the currently approved SPL Token asset policy unless a separate mint/extension/TransferHook risk review changes it. Never add Token-2022 just by installing the upstream SDK.
 - Upstream tests Squads/Swig program-controlled wallets, but native SPL Token multisig owner accounts are not supported for authority init/revoke. V1 wallet support must be explicitly tested against wallet type and exact instructions; do not infer compatibility from connection alone.
 
+### 12.9 Rent payer, sponsor and capital recovery
+
+- The pinned TypeScript plugin defaults a distinct `client.payer` into instruction-level rent `payer` for `initSubscriptionAuthority`, `createFixedDelegation`, `createRecurringDelegation`, `subscribe` and `createPlan`. This is rent sponsorship, not just transaction-fee payment. The README note does not remove this runtime default.
+- Never rely on that convenience behavior in SolMint. For user-owned Authority/Subscription/delegation accounts, explicitly set the instruction-level `payer` to the customer. For `CreatePlan`, set it to the Merchant. Keep network fee payer separate.
+- `SubscriptionAuthority` sponsor refund is user-initiated only: the user must close/revoke the shared Authority and the recorded sponsor must be supplied as the matching rent receiver. A sponsor cannot force-close a healthy Authority.
+- Fixed sponsor recovery is limited to expired or fully-spent (`amount == 0`) accounts; recurring sponsor recovery requires a finite elapsed expiry. Non-expiring accounts require the related Authority to become terminal before `RevokeAbandonedDelegation` can reclaim rent.
+- Subscription sponsor recovery requires cancellation expiry, Plan closure/end/terms mismatch, or terminal Authority via the abandoned path. An active Subscription on a perpetual Plan can lock sponsor rent indefinitely.
+- Plan rent is different: the Plan records the Merchant as owner, and `DeletePlan` returns lamports to that owner, not the sponsor. Do not sponsor Plan rent in v1.
+- Do not equate manual ATA delegate revoke with a terminal Authority: sponsor abandoned-account recovery checks Authority closure or `init_id` mismatch.
+- No sponsor ledger, sponsor quota, rent exposure limit or recovery worker is implemented or approved. Do not invent DB/API objects. Any future sponsorship requires explicit approval, atomic exposure quotas, recorded payer/account/refund facts, and tested enforceable recovery before the first sponsored transaction.
 ## 13. Subscription v1 safety profile
 
 Unless a later reviewed decision explicitly changes it, use this conservative v1 profile:
