@@ -19,14 +19,17 @@ Never work directly on main. Subscription feature work uses feat/pay-subscriptio
 
 ## 2. Current verified baseline — revalidate before use
 
-The audited repository baseline was azad2022/solsite, main, HEAD 688438b26ff846862d05d0dc1b914177b6ecf5ba (2026-10-30 audit). The live Supabase project had 106 recorded migrations and 33 pay_* tables, with RLS enabled on those tables. No Subscription tables or Subscription API family were found at that baseline. Existing Pay foundations include Payment Intent, transaction/transfer observations, reconciliation, merchant wallet challenge, Invoice/Customer, Bulk Pay, merchant/revenue/gas/referral ledgers, webhook delivery, merchant membership/RBAC, and Internal JWT. These are discovery findings, not a promise that every path is ready for Subscription reuse. Re-discover the current state before coding.
+Last revalidated baseline for this Skill revision: `azad2022/solsite`, `main`, HEAD `7b975d56860b6d937ad76ab2983c71937644dfa3` (2026-10-30). The live Supabase project `nvopkbiedorfshwbmyhn` returned `ACTIVE_HEALTHY`; 106 migration entries and 33 `public.pay_*` tables were observed, all 33 with RLS enabled (none with FORCE RLS). No Subscription, Billing Cycle, Consent, or Collector application tables or public routines were found. Local Working Tree was not readable in that audit and is **UNKNOWN**; no CI status was returned for the documentation-only HEAD. The feature branch `feat/pay-subscription-billing` was created from this exact main SHA. Revalidate every item before use; these are dated findings, not permanent truth.
 
-At that baseline:
+Existing Pay foundations include Payment Intent, transaction/transfer observations, reconciliation, merchant wallet challenge, Invoice/Customer, Bulk Pay, merchant/revenue/gas/referral ledgers, webhook delivery, merchant membership/RBAC, and Internal JWT. Existing features may be reused only after their exact contracts and invariants are inspected.
+
+At the audited baseline:
 - Payment Intent creation is idempotent and snapshots atomic amount, asset/mint/program/decimals, recipient/reference, fee payer, fee, customer total, merchant net/settlement, network, expiry and verification commitment.
-- pay_apply_verified_observation requires the merchant and fee transfers to share a source authority, requires that authority to equal the transaction fee payer, and rejects gas_sponsored payments. A delegated Subscription transfer normally has a different source authority (the Subscription Authority PDA) and transaction fee payer (Collector); it does not satisfy those invariants.
-- pay_payment_transfers has merchant settlement, gateway fee, refund and other roles. Authoritative merchant principal and gateway revenue are recorded through separate ledger paths; existing ledger protections and referral logic must be preserved.
-- The existing Pay asset policy deliberately rejects Token-2022 for ordinary Pay flows; it supports configured SPL Token USDC/USDT only. Do not silently broaden that policy because the Solana program supports more token programs.
-- Existing Solana RPC provider consumes SOLANA_RPC_URL. The Devnet CI workflow injects the dedicated SOLANA_DEVNET_RPC_URL into test SOLANA_RPC_URL. Production Cloudflare had separate secret names for mainnet/devnet; presence of names alone did not prove provider/cluster identity. Confirm network identity with non-mutating evidence. Never interchange mainnet and devnet.
+- `pay_apply_verified_observation` requires the merchant and fee transfers to share a source authority, requires that authority to equal the transaction fee payer, and rejects `gas_sponsored` payments. A delegated Subscription transfer normally has a different source authority (the Subscription Authority PDA) and transaction fee payer (Collector); it does not satisfy those invariants. Keep the existing verifier unchanged and build a separate adapter.
+- `pay_payment_transfers` has merchant settlement, gateway fee, refund and other roles. Authoritative Merchant principal and Gateway revenue are recorded through separate ledger paths; preserve all existing ledger protections and referral rules.
+- Existing Pay deliberately rejects Token-2022 for ordinary Pay flows; it supports configured SPL Token USDC/USDT. Do not broaden the supported asset policy because the external Program supports more token programs.
+- The existing RPC provider consumes `SOLANA_RPC_URL`; Devnet CI injects the dedicated `SOLANA_DEVNET_RPC_URL` into test runtime. Never interchange Mainnet and Devnet. Secret names alone do not establish cluster identity; use non-mutating evidence.
+- Issues #354, #355 and #356 were open at this baseline. #354 concerns authenticated full-lifecycle Bulk Pay E2E; #355 concerns Production migration-runner provenance and is a **Production DDL blocker** until resolved; #356 concerns Bulk Pay database-boundary canonical recipient/asset defense-in-depth. Re-check current issue/PR state before relying on this snapshot.
 
 ## 3. Official Solana Subscriptions program — pinned facts and gates
 
@@ -34,9 +37,9 @@ Official source: https://github.com/solana-foundation/subscriptions
 Program address stated by the project: De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44  
 Release under review: program tag program-v0.5.0; TypeScript SDK @solana/subscriptions@0.5.0, tag ts-client-v0.5.0.
 
-Do not track upstream main as a dependency. Pin the exact audited/released Program source, IDL, SDK and transitive dependency versions together. The v0.5.0 changelog says the release targets a 2026-08-10 mainnet deployment, while the deployed binary/on-chain IDL report 0.5.0-beta.1 built at release commit 364a41976c33347d092902443bbec2def9227e75. This is a version-label distinction, not independent proof that the live ProgramData binary matches the local source. Before production use, verify cluster, Program ID, ProgramData/deployment authority, deployed binary hash/reproducible build, on-chain IDL and SDK/source compatibility. Record the exact evidence and date.
+Do not track upstream main as a dependency. Pin the exact Program source, IDL, SDK and transitive dependency versions together. Program tag v0.5.0, Workspace/IDL 0.5.0-beta.1 and TypeScript SDK 0.5.0-beta.2 are distinct labels and must not be conflated. On 2026-10-31, finalized read-only Mainnet evidence verified Program ID De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44, ProgramData PDA HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg, deployment slot 438440823 and upgrade authority DXtFpbPjcn2hxPnw79x1Pfoj35vXh5AsWBkS37YnXMVv. The deployed ELF hash equals the reproducible pinned-source build hash (056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318). The canonical Program Metadata PDA CCG1hwKFk32h11yE2PRZeEmNAdZsMQrSuiEmqx5eEhWE exists and its on-chain IDL hash equals pinned source IDL hash (1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa). The ProgramData authority resolves to the live Squads v4 Vault/State pair; current threshold is 3-of-5 and timelock is zero seconds. Real-world member identity/custody remains UNKNOWN. These checks prove identity and byte/source correspondence, not Program security or resolution of accepted audit risks. See the dated progress checkpoint and Run 41172466490.
 
-Audit scope is commit-based. The official audits/AUDIT_STATUS.md identifies Cantina audited-through baseline d6b3a5dc7ab18c4168441af733c81ab0a599d414 and fixes implemented/verified through debb4f75ff7571218b39de3b633074dd843e70db. Do not describe all later upstream commits, the entire v0.5.0 release, or current upstream main as audited without a file/commit-level delta review. The official Cantina PDF must be read and every finding, severity, remediation and residual risk recorded before production approval. A repository status file is not a substitute for the report.
+Audit scope is commit-based. The official audits/AUDIT_STATUS.md identifies Cantina baseline d6b3a5dc7ab18c4168441af733c81ab0a599d414 and fixes implemented/verified through debb4f75ff7571218b39de3b633074dd843e70db. The eight-commit post-remediation delta to release commit 364a41976c33347d092902443bbec2def9227e75 was reviewed at file level; it contains no program/src/** changes, but does change release tooling, dependencies/lockfiles, IDL, SDK/client material and tests. Do not generalize the Cantina review to every later release artifact. The complete 12-page official Cantina PDF was reviewed on 2026-10-31: 9 findings (0 Critical; 1 High Acknowledged; 5 Medium, 2 Fixed and 3 Acknowledged; 2 Low, 1 Fixed and 1 Acknowledged; 1 Informational Fixed). Keep all five Acknowledged items as residual risks and require explicit v1 controls and adversarial tests before production approval.
 
 ### On-chain behavior that must shape product/security design
 
@@ -142,3 +145,102 @@ Read this skill together with:
 - docs/solmint-pay-frontend-master-instruction.md
 - docs/skills/solmint-pay-build-web-apps/SKILL.md
 - docs/skills/solmint-pay-release-audit/SKILL.md
+
+
+## 12. Critical upstream security findings — mandatory controls
+
+The official program-v0.5.0 README's Security Considerations and the Cantina report contain residual risks that must be treated as design constraints, not optional warnings. The complete 12-page Cantina PDF and eight-commit post-remediation release delta were reviewed on 2026-10-31. The five Acknowledged report items remain unresolved by code changes evidenced here; the report's review and ProgramData/source identity match do not eliminate them. See the finding matrix above and the 2026-10-31 progress checkpoint.
+
+### 12.1 Never use `UNKNOWN_INIT_ID` for production consent
+
+- `init_id` is slot-granular. Closing and recreating a SubscriptionAuthority in the same slot can reproduce the same `init_id`; idempotent initialization does not refresh it. It is not a globally unique generation counter.
+- A held, signed transaction containing both `InitSubscriptionAuthority` and `Subscribe` with `UNKNOWN_INIT_ID` can land later, recreate the shared authority, re-approve the `u64::MAX` delegate and create a spendable subscription without a new wallet signature at that later time—even after the customer attempted to revoke the authority.
+- **Production v1 rule:** do not co-bundle authority initialization and subscription creation. First initialize the authority in a separate customer-signed transaction; wait for the required on-chain commitment, fetch and validate the actual `init_id` from the derived authority PDA, and only then request a separately signed `Subscribe` instruction using that exact observed value. Reject the sentinel in production API/builders. Reinitialization must be interpreted from actual account/delegate state, not inferred from a prior action.
+- Record each wallet approval's message/transaction hash, recent blockhash, last-valid block height, signer, intended operation and submission/confirmation/reconciliation state. Re-check account state immediately before preparing the next consent operation.
+- Do not claim the user has revoked all permission while an earlier signed but unlanded instruction can still execute.
+
+### 12.2 Durable nonce and pending smart-wallet proposals
+
+- A recent-blockhash transaction has a finite validity window; a durable-nonce transaction does not have the same short slot expiry. A pending Squads/Swig or other smart-wallet proposal may also remain executable until explicitly cancelled or its nonce is advanced.
+- **Production v1 default:** use recent-blockhash consent/control transactions only. Do not accept durable-nonce transactions or pending multi-party proposals for Subscribe, Initialize, Cancel, Resume, Revoke or Plan administration until a versioned pending-approval lifecycle, expiry/cancellation verification and incident procedure are implemented and adversarially tested.
+- If a supported wallet can hold proposals, UI and Backend must distinguish proposed, approved, executable, submitted, confirmed, failed and cancelled using real provider/wallet evidence. Closing a modal or clicking Cancel is not cryptographic cancellation.
+- On expiry, do not reuse signed bytes. Re-read chain state, prepare a new message with fresh observed state and obtain a new signature.
+- A held `InitSubscriptionAuthority` can restore the `u64::MAX` delegate after the customer manually revoked the SPL approval. A held close/revoke instruction may act on the same PDA after later recreation and destroy the newer authority. Revocation is not described as permanent while pending signed authority-control transactions remain.
+
+### 12.3 Other stale-approval residuals
+
+- `CancelSubscriptionNow` binds to `current_period_start_ts`, which is second-granular; a withheld dual-signed approval has a narrow same-second replay case after re-subscription.
+- `ResumeSubscription` binds to `expected_expires_at_ts`; two cancellations within the same period can compute the same expiry. A held Resume can therefore clear a later same-period cancellation. Never leave signed Resume messages pending.
+- `UpdatePlan` checks observed values rather than a monotonic revision. An ABA change (change a value, then restore it) may make an old signed update match again. Use fresh state, short recent-blockhash windows and one outstanding administration proposal at a time; do not accept long-lived signed proposals in v1.
+- Subscribe binds mint, amount, period, plan creation timestamp and authority `init_id`, but not Plan `end_ts`. A Plan Owner can shorten a finite end after consent. A near-expiry subscription can be charged the full period amount for a partial first window, including a zero-length window at the exact boundary according to the upstream README. **V1 policy:** do not enroll when a finite Plan has less than one full period remaining; show exact end date and period boundary in consent. Any exception requires explicit product approval and tests.
+- Plan Sunset blocks new subscriptions but the v0.5.0 transfer path does not check Plan status before existing subscriptions pull. Sunset is not immediate cancellation or a stop-payment switch. Existing subscriptions remain subject to their stored terms, expiry, destination and authority state.
+
+### 12.4 Shared delegate and cross-subscription blast radius
+
+- SPL Token token accounts have one approved delegate slot. Initializing SolMint's SubscriptionAuthority can replace an existing delegate. Before asking the customer to sign, inspect the actual token account and disclose the replacement. Do not silently override another application's delegate.
+- SubscriptionAuthority is shared by a customer+mint pair, while each Plan subscription has its own SubscriptionDelegation PDA. Re-approving or revoking the shared authority affects every subscription for that customer+mint, not only the selected Plan.
+- Revoking the token delegate does not necessarily close/terminate each SubscriptionDelegation. Reinitialization may restore the delegate and therefore restore collectability. UI must distinguish per-subscription cancel/close from shared authority revocation and explain cross-subscription effects before a wallet signature.
+- `init_id` is not a per-subscription independent generation. Do not use it as the only off-chain consent ID or global revocation version.
+
+### 12.5 Pulls outside the Collector
+
+- Plan Owner is implicitly authorized to pull and cannot be removed from the on-chain authorization rule. Up to four additional Puller addresses may be listed. Merchant/Plan Owner can therefore perform pulls outside SolMint's Collector.
+- Reconcile **all** successful `TransferSubscription` instructions for each Subscription, including pulls signed by the Plan Owner or another authorized Puller. Never reconcile only Collector signatures.
+- Before a Collector pull, read live SubscriptionDelegation state and its current period start/cumulative `amount_pulled_in_period`; compute only remaining allowance. The Program is the final enforcement point, but Backend must not deliberately double-submit or misstate a cycle because another Puller already used the allowance.
+- The unique billing-period key must be anchored to actual on-chain period start and Subscription identity, not a calendar month or assumed scheduler timestamp. If periods were skipped, the upstream Program advances to the current aligned period and does not create automatic debt for every skipped period. Catch-up policy is a separate product decision.
+- Plan Owner is in addition to the four additional Pullers. Do not silently make Collector the Plan Owner merely to obtain signing authority.
+
+### 12.6 Destination, ownership and fee-leg constraints
+
+- The Program's destination allowlist checks the **owner address** stored in the receiving token account, not only the receiving ATA address. SolMint must derive/check the ATA for configured mint/token program, then verify its owner equals an explicitly allowed destination owner.
+- An all-zero Plan destination list permits any destination. SolMint must reject such a Plan for Production. If a fee leg is paid to a separate gateway wallet, both Merchant destination owner and fee-recipient owner must be explicitly allowed by the Plan.
+- A `TransferSubscription` instruction carries one transfer destination and one amount. Do not assume a single instruction distributes principal and fee to separate wallets. If the fee model requires two legs, construct a transaction with exact two allowed instructions and prove with pinned-program LiteSVM tests that both legs consume one shared cumulative period allowance; an invalid second leg rolls back the first; extra/duplicate legs are rejected by the backend verifier; and events/balance deltas reconcile exactly. Repeat on Devnet. Until this passes and accounting is approved, split-fee Subscription charging is **BLOCKED**.
+- Do not invent a zero-fee or alternate-fee Subscription model to bypass this constraint. Gateway fee, payer, network fee and Merchant settlement require an explicit product/accounting decision.
+
+### 12.7 Collectability and service entitlement
+
+- On-chain `expires_at_ts == 0` / active Subscription is not proof a token pull will succeed. A customer can revoke the delegate, freeze/empty/close the token account or otherwise make it uncollectable. The Program has no delinquency/grace state.
+- Before first activation and each renewal, Backend must inspect actual Plan, SubscriptionDelegation, SubscriptionAuthority, source ATA, mint/program, delegate and available token balance/transfer preconditions. This is a collectability observation, not a charge or payment result.
+- Grant/renew service only according to a documented entitlement policy whose paid state comes from independently verified finalized transfer evidence and atomically committed accounting. Do not grant paid service from Plan state, event, active badge, Collector submission or wallet signature.
+- Prefer a finite `end_ts` when sponsoring rent. A sponsor paying Plan rent does not become Plan Owner and does not recover that Plan rent on deletion; Plan Owner receives the rent. Default to Merchant-funded Plan rent unless a separately approved subsidy policy exists.
+
+### 12.8 Token program and wallet compatibility
+
+- Upstream Token-2022 support does not broaden SolMint's supported asset policy. v0.5.0 forwards caller-supplied TransferHook accounts; it does not validate arbitrary hook policy on SolMint's behalf. Inbound MemoTransfer-required destinations are unsupported and transfers fail atomically.
+- Keep v1 to the currently approved SPL Token asset policy unless a separate mint/extension/TransferHook risk review changes it. Never add Token-2022 just by installing the upstream SDK.
+- Upstream tests Squads/Swig program-controlled wallets, but native SPL Token multisig owner accounts are not supported for authority init/revoke. V1 wallet support must be explicitly tested against wallet type and exact instructions; do not infer compatibility from connection alone.
+
+## 13. Subscription v1 safety profile
+
+Unless a later reviewed decision explicitly changes it, use this conservative v1 profile:
+
+1. Standard wallet-signed, recent-blockhash transactions only for customer consent and authority lifecycle.
+2. Separate Authority initialization and Subscribe; use the fetched real `init_id`; reject `UNKNOWN_INIT_ID`.
+3. No durable nonce or unresolved smart-wallet/multisig proposals in the consent/control path.
+4. Original SPL Token assets only; use the existing backend asset allowlist and mint configuration. No Token-2022/TransferHook support.
+5. Plan destination list must be explicit and non-empty. No arbitrary-destination Plan.
+6. Plan Owner authority and all external Pullers are included in reconciliation and disclosed.
+7. No enrollment in a finite Plan with less than one full remaining billing period.
+8. No sponsored Plan creation by default.
+9. No split principal/fee transfer until two-leg same-transaction tests, dedicated verification and the fee/accounting model are approved.
+10. No entitlement/renewal until finalized on-chain transfer is independently verified and accounting commits atomically.
+
+This is a proposed engineering default, not a claim that the current repository enforces it. Implement the profile server-side and in on-chain transaction construction; UI wording alone is not enforcement.
+
+## 14. Evidence and context efficiency
+
+- Treat this Skill as workflow guidance, not a substitute for source verification. Revalidate current main/feature HEAD, actual branch, changed files, live schema and deployment evidence for every task.
+- Use `docs/solmint-pay-progress.md` as a chronological index. Do not reread its entire history on every request: inspect headings and the latest relevant checkpoint, then search/read only sections and files related to the task.
+- Keep the exact project instruction in `docs/solmint-pay-project-instructions.md`; ChatGPT Project Instructions should contain the stable operating rules and a pointer to that canonical file. Do not paste the entire Progress ledger into every context.
+- Read Master Specification and relevant Skills from the same HEAD; load Supabase/Postgres or React guidance only when change touches those areas.
+- Every unknown must be recorded as UNKNOWN, not silently promoted to PASS. Distinguish repository fact, live provider fact, upstream claim, design proposal and unverified assumption.
+
+
+ 
+## 2026-10-31 Threat Model gate
+
+Before any Subscription implementation, read `docs/solmint-pay-subscription-v1-threat-model.md`. The document defines finding-specific attack paths, trust boundaries, off-chain defense-in-depth, protocol-level fixes, database invariants, recovery, adversarial tests and v1 capability exclusions. It is a design specification only; no control in it is implemented merely by being documented.
+
+**Audit report discrepancy:** page-3 summary counts five Acknowledged findings (three Medium), while detailed pages mark four Medium findings Acknowledged plus one High and one Low (six detailed Acknowledged overall). Detailed pages identify three Fixed findings, whereas the summary reports four. Treat all six detailed Acknowledged findings as residual risks until Cantina/Solana Foundation provides written clarification or a corrected report. Do not silently reconcile the PDF.
+
+Off-chain rejection of `UNKNOWN_INIT_ID`, durable nonce or pending proposals cannot invalidate a transaction already signed outside SolMint. The High old-signed-create issue remains BLOCKED for any strong revocation guarantee absent an upstream protocol fix. The v1 capability matrix is proposed and not yet approved.

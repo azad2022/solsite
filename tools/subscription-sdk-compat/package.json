@@ -1,0 +1,31 @@
+{
+  "name": "solmint-subscription-sdk-compat-spike",
+  "private": true,
+  "type": "module",
+  "description": "Isolated compatibility proof for the pinned Solana Subscriptions SDK and SolMint's web3.js transaction boundary.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "npm run build:adapter && node --check test/mainnet-programdata.test.mjs && node --test test/sdk-compat.test.mjs test/idl-golden.test.mjs test/upgradeable-loader.test.mjs test/program-metadata.test.mjs test/squads-v4.test.mjs",
+    "test:workerd": "node --test test/workerd-pages.test.mjs",
+    "versions": "npm ls --depth=0",
+    "typecheck": "tsc --noEmit -p tsconfig.adapter.json",
+    "build:adapter": "tsc -p tsconfig.adapter.json",
+    "test:devnet-sim": "node --test test/devnet-sim.test.mjs",
+    "test:mainnet-programdata": "node --test test/mainnet-programdata.test.mjs"
+  },
+  "dependencies": {
+    "@solana-program/token": "0.15.0",
+    "@solana-program/token-2022": "0.14.0",
+    "@solana/kit": "7.0.0",
+    "@solana/kit-plugin-rpc": "0.15.0",
+    "@solana/kit-plugin-signer": "0.13.0",
+    "@solana/program-client-core": "7.0.0",
+    "@solana/subscriptions": "0.5.0",
+    "@solana/web3.js": "1.99.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
+  }
+}
