@@ -30,6 +30,7 @@ A successful build alone never proves production readiness. Validate the relevan
 - Do not assume the configured transaction `client.payer` pays only network fees. The pinned `@solana/subscriptions@0.5.0` plugin can also default a distinct payer into each creation instruction's rent payer.
 - SolMint v1 must not sponsor customer or Plan rent. Explicitly set the instruction-level payer to the account owner (customer for Authority/Subscribe/delegation; Merchant for Plan) while keeping the fee payer separate.
 - Do not expose a gasless/sponsored UI or claim sponsored rent is refundable. Authority, delegation, Subscription and Plan PDAs have different owner-controlled recovery rules; Plan rent can return to the Merchant rather than the sponsor.
+- SolMint must not front transaction network fees either. Customer setup/control transactions use a Customer-funded fee payer; Plan operations use a Merchant-funded fee payer; recurring Subscription pulls use a Merchant-funded fee-payer signer. Collector can sign as an authorized Puller but cannot be the platform-funded fee payer. If that fee payer is unavailable, block the pull rather than subsidizing it.
 ## Subscription Billing boundary
 For any Subscription/Recurring Billing UI, read docs/skills/solmint-pay-subscriptions/SKILL.md before changing code. A Skill or roadmap entry does not prove the feature, API, schema, or on-chain integration exists. Re-discover the actual Backend contract and schema first.
 
