@@ -195,79 +195,111 @@ Immediate cancellation: **BLOCKED for v1** until exact behavior and residual acc
 
 ### TM-03 — Stale Resume approval undoes a later cancellation (Cantina Medium, Acknowledged)
 
-**Attack / impact**
+**Pinned Program behavior verified**
 
-A retained, unexecuted Resume approval can clear a later cancellation if it still passes the Program's current checks. The report reproduced the sequence with a Durable Nonce transaction. This can restore future collection after the customer cancelled.
+At `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75`, `resume_subscription.rs` decodes only `expected_expires_at_ts` for this freshness check. It verifies:
+- the signed subscriber owns the Subscription PDA;
+- the Plan PDA matches and the Subscription is not currently active;
+- live `expires_at_ts == expected_expires_at_ts`;
+- Plan terms and current SubscriptionAuthority `init_id` still match;
+- the cancellation has not already expired.
 
-**Controls**
+If these checks pass, it sets `expires_at_ts = 0`. It does not compare a cancellation revision, action nonce or Subscription incarnation supplied by the signer.
 
-- No Durable Nonce or unresolved smart-wallet/multisig proposal in v1.
-- Serialize Resume/Cancel actions and do not create a new control approval while a prior action can still execute.
-- Use recent blockhash, short validity and fresh on-chain state for every action.
-- Until an on-chain cancellation revision/incarnation is available, disable Resume in v1 rather than representing it as a reliable reversible toggle.
-- A backend revision/row version is not a substitute for a Program-enforced revision; direct on-chain submission bypasses backend state.
+The pinned `cancel_subscription.rs` computes expiry from `current_period_start_ts` and the fixed period length. Two cancellations during the same billing period therefore compute the same expiry value. A concrete stale-approval path is:
+
+1. Customer signs Resume against expiry `E`, but withholds the signed transaction.
+2. Customer's first cancellation is active with `expires_at_ts = E`.
+3. A separate valid action clears that cancellation (for example, an earlier Resume executes), then the customer cancels again during the same period.
+4. The second cancellation again writes `expires_at_ts = E`.
+5. The old withheld Resume still matches `expected_expires_at_ts = E`; if its transaction remains executable and the Plan/Authority checks still pass, it clears the newer cancellation and restores future collection.
+
+The external audit report records a Durable Nonce reproduction. Recent-blockhash-only policy narrows the replay window but does not make the protocol check generation-safe.
+
+**SolMint v1 controls — mandatory exclusion**
+
+- Resume is excluded from v1. Do not expose a Resume button, route, API operation, job, SDK builder path or support workflow that constructs the instruction.
+- Cancellation in v1 is one-way within the SolMint product. Do not present it as a reversible toggle or promise in-app reactivation.
+- Do not accept Durable Nonce or unresolved smart-wallet/multisig proposals for any consent/control action.
+- Serialize any supported cancellation/control transaction, reconcile its exact signature and finalized state, and never issue a replacement while the original outcome or validity is unresolved.
+- A backend row version or single-flight lock is defense-in-depth only. A previously signed transaction can be submitted directly to Solana and bypass those controls.
+- Excluding Resume from SolMint does not disable the upstream Program instruction for other wallets/clients. Do not represent this UI/API exclusion as a global on-chain prohibition.
+
+**Protocol fix required before Resume can be enabled**
+
+The Program must bind Resume to a monotonically increasing cancellation/action revision that is advanced by every Cancel and Resume operation. The revision/incarnation must survive Subscription PDA close/recreate; a counter stored only in the closable Subscription account is insufficient. Resume must provide the exact expected revision and the Program must reject stale values. The Program must also disable the legacy revision-less Resume instruction; adding a V2 path while the old discriminator remains callable is not closure.
 
 **Database / backend invariants**
 
-- Conceptually maintain a monotonic control-action sequence and an atomic single-in-flight claim; exact table/column names remain undecided pending Contract Freeze.
-- Keep cancellation requested, submitted, unknown and finalized states distinct.
-- A previous Resume must not be interpreted as proof that a newer cancellation was reversed unless its own finalized transaction is verified.
+- If a backend representation is later designed, keep cancellation requested, signed, submitted, outcome-unknown and finalized as distinct states. Exact object/column names remain deferred to Contract Freeze.
+- No backend transition to active or restored collection state from a wallet response, event, webhook or submitted signature.
+- A previous Resume is not evidence that a later cancellation was reversed; only the final verified on-chain state is authoritative.
 
 **Recovery**
 
-Reconcile the exact Resume signature and live Subscription state. If the old Resume lands after a newer cancellation, record the actual on-chain state, alert the customer/merchant and require a fresh supported action. Never attempt compensating transactions automatically without a reviewed state transition.
+Reconcile the exact Resume signature and finalized Subscription state. If an old Resume lands after a newer cancellation, record the actual on-chain state and alert the customer/merchant. Do not silently restore entitlement or auto-submit compensating instructions.
 
 **Adversarial tests / PASS evidence**
 
-- Reproduce cancel → sign Resume and withhold → cancel again → submit old Resume.
-- Test same PDA close/recreate lifecycle where applicable.
-- Test builder rejection of Durable Nonce/proposals.
-- Test competing Resume/Cancel claims, timeout and recovery.
-- A protocol fix must enforce expected cancellation revision and persistent incarnation across close/recreate, with stale Resume rejection.
+- Reproduce Cancel → sign/withhold Resume → cancel again in the same period → submit old Resume; assert the current v0.5.0 Program behavior.
+- Repeat with a recent blockhash and a Durable Nonce; verify the SolMint builder rejects Durable Nonce.
+- Repeat across Subscription PDA close/recreate.
+- Test that all SolMint routes/builders reject Resume in v1 and no UI/API/job can submit its discriminator.
+- Test competing control actions, timeout, crash and reconciliation.
+- For a future protocol fix, demonstrate stale revision rejection, persistence across close/recreate and rejection of legacy Resume instructions.
 
 **Gate**
 
-Resume: **NOT IMPLEMENTED / BLOCKED for v1** until a reliable protocol-level binding exists or a formally approved residual-risk decision permits a narrower behavior.
+Resume: **NOT IMPLEMENTED and EXCLUDED from SolMint v1**. The upstream Program risk remains **BLOCKED** for reliable reversible cancellation until a protocol-enforced persistent revision/incarnation is deployed and adversarially verified.
 
 ### TM-04 — Stale authority-control approvals restore or destroy later authority state (Cantina Medium, Acknowledged)
 
-**Attack / impact**
+**Pinned Program behavior verified**
 
-The report identifies two directions:
-1. An old signed initialization can re-approve the shared delegate after a user directly revoked it while the Authority PDA remains open.
-2. Old signed Close/Revoke instructions can close or revoke a newer Authority generation at the same deterministic PDA because the signed action is not bound to the generation it inspected.
+At `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75`:
 
-**Controls**
+- `initialize_subscription_authority.rs` creates the Authority PDA and stores `Clock::slot` as `init_id` only when the account is absent. Whether or not it was just created, the instruction then invokes Token `Approve` for the same Authority PDA with `u64::MAX`. Therefore an old signed Init can re-approve the shared delegate after the customer manually revoked the SPL delegate while leaving the Authority PDA open.
+- `close_subscription_authority.rs` delegates to `close_authority`. That helper checks the stored owner and deterministic PDA derivation, but the signed Close instruction carries no expected `init_id`/generation and the helper does not compare one.
+- `revoke_subscription_authority.rs` likewise derives the expected PDA from customer+mint, revokes the matching delegate if present, and closes the currently open Authority PDA. It has no expected generation in its instruction data.
 
-- Do not treat repeated `InitSubscriptionAuthority` as harmless/idempotent reauthorization.
-- Do not automatically refresh `u64::MAX` delegate approval.
-- Reauthorization, if ever supported, must be an explicit customer action with clear delegate replacement disclosure and fresh observed delegate state.
-- Use recent blockhash only; no Durable Nonce or unresolved proposals.
-- Do not expose Close/Revoke/Init as independently retryable UI buttons; reconcile the previous action before another authority action.
-- A true fix requires Program-enforced expected epoch/action nonce/deadline and expected delegate state, with old unbound instructions disabled. Backend serialization cannot stop a previously signed transaction submitted directly to Solana.
+Thus a held Close/Revoke signed for an earlier Authority lifecycle can target the same deterministic PDA after close+reinitialize. The new account has the same user, mint and PDA; the stale instruction has no signed value that distinguishes its generation. A held Init can also re-approve the delegate without changing `init_id` when the Authority account already exists.
+
+**SolMint v1 controls — mandatory restrictions**
+
+- Never use an idempotent Init as a retry or repair mechanism when the Authority PDA already exists but the SPL delegate is absent/different. It is an explicit reapproval of `u64::MAX`, not a harmless no-op.
+- Do not automatically reinitialize/reapprove after a customer manually revokes the SPL delegate. Mark collectability unresolved and require a separately reviewed customer reauthorization flow; that flow is not enabled in v1.
+- Do not expose self-service Authority Close/Revoke as a guaranteed permanent revocation while pending signed authority-control transactions may still execute.
+- Use recent blockhash only and exclude Durable Nonce/pending wallet proposals; serialize authority actions and reconcile each exact signature before another. These measures reduce risk; they cannot invalidate external signed messages or remove the upstream replay condition.
+- Explain that the shared Authority affects all subscriptions for one customer+mint. Never silently restore the delegate.
+- A backend generation counter does not protect direct on-chain submissions.
+
+**Protocol fix required for reliable authority lifecycle**
+
+Bind Init, Close and Revoke to a persistent monotonic authority epoch/action nonce and the expected delegate state. The sequence must survive closing the Authority PDA; an epoch stored only inside that PDA would reset on recreation. Every successful control action must advance/consume the sequence. Disable the old unbound instruction formats after migration, including the current Init/Close/Revoke discriminators, or they remain an alternate path around the new checks.
 
 **Database / backend invariants**
 
-- Keep shared authority state scoped to customer+mint and enumerate all affected subscriptions before a revoke/close action.
-- Record which subscriptions may be affected by shared delegate replacement/revoke.
-- Require fresh wallet authentication and customer confirmation for explicit reauthorization.
-- Do not mark revoked or active from request submission; verify finalized token-account delegate and Authority PDA state.
+- Keep authority state separate from per-Subscription cancellation and from actual SPL delegate state.
+- Enumerate all subscriptions affected by shared customer+mint authority operations.
+- Do not mark authority active/revoked from request submission; verify finalized Authority PDA and token-account delegate state.
+- Do not infer absence of pending approvals from SolMint's own database; it cannot observe signatures/proposals created elsewhere.
 
 **Recovery**
 
-On ambiguous outcome, inspect the original transaction and finalized Authority PDA/token-account delegate. If the old init re-approves the delegate, surface the actual state and require a fresh customer-signed revoke/repair operation; do not hide the event. If a stale close/revoke destroys a new generation, require a fresh initialization/consent lifecycle, with the old signature state reconciled first.
+On an unknown outcome, reconcile the original transaction and finalized Authority/token-account state. If an old Init restores the delegate, surface the state and require a fresh customer-approved recovery decision. If a stale Close/Revoke destroys a newer Authority, do not silently create a replacement; require fresh initialization and consent after reconciling existing delegations and all affected subscriptions.
 
 **Adversarial tests / PASS evidence**
 
-- Old Init signed before direct delegate revoke, then submitted; reproduce whether delegate is re-approved.
-- Old Close/Revoke signed for generation g1, close g1, create g2, then submit stale action; reproduce impact.
-- Test explicit reauthorization, existing delegate replacement and shared-subscription impact.
-- Test concurrent Init/Revoke/Close attempts and timeout/restart.
-- Protocol fix must reject stale epoch/nonce/deadline and disable legacy unbound instructions.
+- Sign Init, revoke the delegate directly, then submit the held Init; verify delegate reapproval.
+- Sign Close/Revoke for generation g1, close g1, create g2 at the same PDA, then submit the old action; verify whether g2 is closed/revoked.
+- Test same-slot and later-slot close/recreate.
+- Test that the SolMint builder never retries Init on an existing Authority and rejects reauthorization in v1.
+- Test ambiguous submit, expired blockhash, external proposal exclusion, and cross-subscription impact.
+- For a future protocol fix, demonstrate stale epoch/nonce rejection, persistence across close/recreate, expected delegate-state checking and rejection of all legacy unbound instructions.
 
 **Gate**
 
-Authority-control lifecycle: **BLOCKED for reliable revocation/re-authorization semantics** until protocol-level generation binding exists or residual risk is explicitly accepted. No automatic reapproval in v1.
+Authority reauthorization/Close/Revoke: **NOT IMPLEMENTED as a SolMint customer flow and EXCLUDED from self-service v1 guarantees**. Strong permanent revocation and safe reauthorization remain **BLOCKED** until protocol-level persistent generation binding and legacy-instruction rejection are deployed and adversarially verified.
 
 ### TM-05 — Full-period charge near finite Plan expiry (Cantina Medium, Acknowledged)
 
