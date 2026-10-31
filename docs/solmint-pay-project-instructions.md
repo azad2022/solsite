@@ -171,7 +171,7 @@ SDK هدف: @solana/subscriptions@0.5.0، Tag ts-client-v0.5.0.
 - Cancel عادی می‌تواند اجازه Pull تا پایان Period جاری را باقی بگذارد؛ Cancel فوری نیازمند امضای Subscriber و Plan Owner است؛ Resume، Close یک Subscription، Revoke Shared Authority، Plan Sunset و Expiry جدا هستند.
 - End Time Plan در Source برای Pull مرز خاص خود را دارد؛ در مرز دقیق، به‌جای محاسبه UI، منطق pinned Program و تست‌های boundary را ملاک بگیر.
 - On-chain Active به معنی Collectable نیست. Delegate ممکن است Revoked، ATA خالی/بسته/Freeze، Mint/Program نامعتبر یا Transfer ناممکن باشد. Program Delinquency/Grace state ندارد. Collectability را در Backend از وضعیت واقعی بررسی کن.
-- Full period charge در نزدیک End Time ممکن است برای پنجره ناقص هم اعمال شود. سیاست v1: در Plan محدود با کمتر از یک Period کامل باقی‌مانده ثبت‌نام را رد کن.
+- در Program v0.5.0، Subscribe فقط `current_ts > end_ts` را رد می‌کند و در مرز مساوی هم پذیرفته می‌شود؛ `SubscribeData` نیز `end_ts` مورد رضایت را bind نمی‌کند. Transfer می‌تواند full period amount را برای پنجره ناقص/صفرطول مجاز بداند و آن را بر اساس ثانیه‌های باقی‌مانده prorate نمی‌کند. کنترل `now + period <= end_ts` در زمان Plan creation یا UpdatePlan race بعدی را نمی‌بندد. سیاست v1: تمام finite Planها را از Enrollment اشتراک حذف کن و فقط representation دائمیِ تأییدشده (`end_ts=0`) را بپذیر تا Program به‌طور اتمیک expected end، یک دوره کامل و قاعده دوره پایانی را enforce کند.
 - Plan sponsor rent لزوماً Plan Owner نیست و ممکن است Rent را پس نگیرد؛ پیش‌فرض نسخه اول Merchant-funded Plan rent.
 
 ## 9. Collector: مرز اعتماد مستقل
