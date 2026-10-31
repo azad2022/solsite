@@ -2793,3 +2793,107 @@ Status: **PASS — deployed Mainnet ELF and canonical on-chain IDL both match th
 - **NOT IMPLEMENTED:** production Subscription API/schema/Billing/Collector/verification/accounting/adversarial E2E/UI lifecycle.
 - Part 2.2 remains **NOT STARTED**. Do not start it until the remaining Stage 2 gates are closed with positive evidence and acknowledged upstream residual risks have an explicit, enforceable v1 threat model.
 - No Production DDL, Cloudflare/Supabase settings, secret values, private keys, Collector signer, Mainnet transfer, Mainnet Program mutation or real customer consent changed. The Mainnet probe was read-only. The separate existing ordinary Pay Devnet E2E performed its already-configured Pay test scenarios; the Subscription Devnet probe only simulated and did not submit.
+
+
+## 2026-10-31 — Exact-head Mainnet Squads v4 upgrade-authority governance verification
+
+Status: **PASS — Mainnet ProgramData, deployed ELF/source hash, canonical IDL/source hash and controlling Squads v4 vault/state relationship all verified read-only on exact feature code HEAD `40456d8cf3be34f3d9ecb30ec17d95111ee13be8`. CI, SDK compatibility, source build, Mainnet probe, Production Build and Database Security passed. The ordinary Pay Devnet E2E workflow was still in progress at the last check. Overall Stage 2 remains BLOCKED; Part 2.2 remains NOT STARTED.**
+
+### Repository and PR
+- Repository: `azad2022/solsite`.
+- Tested feature branch: `feat/pay-subscription-billing`, code HEAD `40456d8cf3be34f3d9ecb30ec17d95111ee13be8`.
+- PR #366: OPEN / DRAFT / NOT MERGED; base displayed by the PR API remains `7b975d56860b6d937ad76ab2983c71937644dfa3`.
+- The feature branch contains the Squads v4 verifier implementation and tests only in the isolated SDK compatibility harness; no existing Pay API, runtime production route, migration, ordinary Pay verifier or accounting implementation was altered by this checkpoint.
+- Required project instructions, Master Specification and Subscription / Build Web Apps / Release Audit Skills had been re-read from the same feature branch before the relevant code changes.
+
+### Exact-head CI / workflows
+- CI run `41172047279` on exact PR head `40456d8...`: **SUCCESS**. All jobs completed:
+  - `subscription-sdk-compat (24)`: **SUCCESS**. Committed lockfile check, `npm ci`, TypeScript adapter/SDK call-site typecheck, **27 Node tests (27 pass / 0 fail)**, local Pages/Workerd runtime test **1/1**, non-mutating Subscription CreatePlan Devnet simulation **1/1**.
+  - `quality`: **SUCCESS** (root production typecheck, build, unit tests and clean-source assertion).
+  - `subscription-reproducible-build`: **SUCCESS** (pinned upstream source/toolchain/image verification, pinned `solana-verify 0.5.2` checksum, reproducible source build and executable hash generation).
+  - `subscription-mainnet-programdata`: **SUCCESS** (exact PR-head checkout, Mainnet RPC secret presence preflight, finalized Program/ProgramData/IDL/Squads state read, all assertions and evidence upload).
+- Separate workflows on the same HEAD:
+  - Production Build run `41172047259`: **SUCCESS**.
+  - Database Security run `41172047377`: **SUCCESS**. This remains ordinary Pay and existing database security coverage; no Subscription schema/RLS was implemented or verified by this workflow.
+  - ordinary Pay Mainnet Read-only run `41172047271`: **SUCCESS**; not a substitute for the dedicated ProgramData/IDL/Squads probe.
+  - ordinary Pay funded/mutating Devnet E2E run `41172047275`: **IN_PROGRESS** at last observation. This is ordinary Pay test coverage, not Subscription E2E.
+  - Cloudflare Pages feature Preview for exact feature HEAD: **SUCCESS**, Preview environment only.
+  - Supabase Preview: **SKIPPED**.
+- Subscription Devnet test remains a non-mutating `simulateTransaction` probe. It did not sign or submit a Subscription transaction.
+- Mainnet probe method allowlist remains only `getGenesisHash` and `getAccountInfo`, at finalized commitment. No public RPC fallback is present.
+
+### Mainnet ProgramData / ELF / IDL (reconfirmed on 40456d8)
+- Cluster: Mainnet Beta; genesis hash `5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d`.
+- Subscription Program ID: `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`.
+- ProgramData PDA: `HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg`.
+- Deployment slot: `438440823`.
+- ProgramData Upgrade Authority: `DXtFpbPjcn2hxPnw79x1Pfoj35vXh5AsWBkS37YnXMVv`.
+- Deployed ELF SHA-256 and pinned reproducible source-build SHA-256 both equal `056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318`.
+- Canonical IDL Metadata PDA: `CCG1hwKFk32h11yE2PRZeEmNAdZsMQrSuiEmqx5eEhWE`; on-chain IDL SHA-256 and pinned source IDL SHA-256 both equal `1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa`. Canonical IDL account, owner, authority=null, seed, compression, encoding, format, source, Program key and name all pass.
+- No Mainnet write, signing, transfer or Subscription Program mutation was performed.
+
+### Squads v4 governance: controlling Vault/State pair verified on Mainnet
+- The ProgramData upgrade-authority key is the canonical Squads v4 vault PDA, not an unidentified standalone key.
+- Squads v4 Program ID: `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf`.
+- Mainnet Multisig State Account: `4CxQs26DewQ1KaCHfyyjktkYjndNdUqCJvVdygtJFwcJ`.
+- State account owner equals the Squads v4 Program ID; executable=false; finalized RPC context slot `463568515`.
+- Stored `create_key`: `9RSjrNGVWxPaiAr6JZ5oiNjLyWJenC5DTSpGVqRytPVw`.
+- State PDA independently re-derives from the stored create_key and the pinned Squads v4 seeds; stored bump = derived bump = `252`.
+- Vault PDA independently re-derives from the State Account using the Squads v4 v4 derivation and equals the deployed ProgramData Upgrade Authority exactly; vault bump = `254`.
+- Parsed live governance parameters:
+  - Threshold: **3 of 5**.
+  - Members: **5**.
+  - Voters / Initiators / Executors: **5 / 5 / 5**.
+  - Each of the five current member entries has permission mask `7` (Initiate + Vote + Execute).
+  - `config_authority`: default/zero key. In the pinned Squads v4 source, this means autonomous configuration; member/threshold changes use the normal multisig process rather than a separate config authority.
+  - Time lock: **0 seconds**; there is no enforced delay between proposal approval settlement and execution for this multisig state.
+  - transaction_index `11`, stale_transaction_index `0`, rent_collector `null`.
+- The five currently configured member public keys are preserved in the sanitized CI evidence artifact and can be read there; they are not asserted to be identifiable people or entities.
+- Governance conclusion: **PASS** for the on-chain ownership/authority chain and the parsed 3-of-5 current threshold/permission configuration. **UNKNOWN** for real-world identity, custody and operational security of the five member key holders. Do not attribute the keys to Foundation staff, a named company or individuals without independent proof.
+- Security note: zero-second timelock is a real configuration fact and should be included in the operational threat model; it is not a parser or CI failure.
+
+### Source basis for Squads v4 derivation/layout
+- Squads source reviewed at commit `af94153ff77a28b6effe46b9c94baaa93742b48c`, Program ID `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf`.
+- Main source evidence:
+  - `programs/squads_multisig_program/src/instructions/multisig_create.rs`: state PDA seeds `[b"multisig", b"multisig", create_key]`; default `config_authority` is the autonomous setting.
+  - `programs/squads_multisig_program/src/state/multisig.rs`: Borsh fields, member encoding, permission bits, quorum/invariant checks and three-month maximum timelock.
+  - `programs/squads_multisig_program/src/state/seeds.rs`: seed constants.
+- Independent corroborating reference is Solana Foundation Microscope commit `20a516b2066ec4f13e0b76926b11f666ffd0f49a`, which contains a known v4 state/vault pair test for these exact addresses and a v4 vault PDA derivation.
+
+### Squads v4 checker changes on the feature branch
+- Added isolated parser `tools/subscription-sdk-compat/src/squads-v4.mjs`.
+- Added unit tests `tools/subscription-sdk-compat/test/squads-v4.test.mjs`.
+- Updated `tools/subscription-sdk-compat/test/mainnet-programdata.test.mjs` to read the exact State Account using finalized `getAccountInfo`, validate owner/executable/discriminator/Borsh data, derive state and vault PDAs, compare with the ProgramData upgrade authority, and emit sanitized threshold/member/permission/timelock evidence.
+- Updated the compatibility test script in `tools/subscription-sdk-compat/package.json`.
+- Squads parser tests specifically cover known v4 vault derivation, state PDA derivation, Borsh member/config parsing, optional rent collector, invalid discriminator, malformed permission, invalid threshold and truncated data.
+- These are read-only/on-host parser and Mainnet account-read changes only. No Squads proposal was created, approved, signed, executed or altered.
+
+### Main-branch history incident — transparent record
+- During this checkpoint two isolated tooling files were unintentionally created on the repository default branch because the GitHub `create_file` action ignored its optional Branch argument:
+  1. Commit `88fff972940c4bc53527f8a2c2e5d1a95e6379f4` added only `tools/subscription-sdk-compat/src/squads-v4.mjs`.
+  2. Commit `6590dfdb72166cf1e6e7d82cd3cd90602f0a348a` added only `tools/subscription-sdk-compat/test/squads-v4.test.mjs`.
+- Both files were immediately removed from `main`:
+  3. `5d925adb555b7ceab99568b8199227042d46a4b9` deleted the parser file.
+  4. `4d9fa4c356f4619c5d7998e73a196a4a85d24c6f` deleted the test file.
+- Current `main` HEAD: `4d9fa4c356f4619c5d7998e73a196a4a85d24c6f`.
+- GitHub compare of current main against original baseline `7b975d56860b6d937ad76ab2983c71937644dfa3` reports **zero changed files**. The main tree is therefore restored to the same tracked file content as the baseline, but its history contains four extra add/delete commits. Never state that the main branch history was unchanged.
+- Cloudflare Pages API read-only deployment inventory confirms that commits `88fff972...`, `6590dfdb...`, `5d925adb...` and `4d9fa4c...` each produced deployments classified as environment `production` with successful deployment stage. The first three transient deployments had no custom-domain alias in the returned deployment records; the final recovered commit `4d9fa4c...` is the one whose deployment record carries alias `https://solmint.ir`. The latest `solmint.ir` alias therefore points to the restored file tree, not either transient helper commit.
+- These commits changed only the two isolated parser/test files and their deletes; no frontend/API/Pages Function/SQL/migration/runtime configuration/secret files were changed. The transient deployments were still real Pages production-environment build/deploy events and are recorded as such; do not describe the incident as "no production deployment."
+- Supabase Preview checks were also triggered on the temporary main commits; the successful checks observed were Preview checks only. No SQL migration file was present in any of the four commits. No Production DDL, Supabase runtime setting, secret, Key, on-chain state or customer data was changed by the incident.
+- Feature branch `feat/pay-subscription-billing` remained isolated from those temporary main commits. The code under test is committed to the feature branch using the Git Data tree/commit API and an expected-head ref lease. PR #366 continues to point at feature HEAD `40456d8...`, OPEN/DRAFT/NOT MERGED.
+
+### Remaining blockers and release decision
+- Issue #355 remains OPEN. Historical Supabase-linked main-branch migration runner activity is established, but exact actor/trigger and current provider integration deployment toggle remain UNKNOWN. Production DDL remains **BLOCKED**.
+- Cantina acknowledged residual High/Medium findings remain a release blocker until explicit, enforceable v1 controls and adversarial tests are approved and demonstrated. In particular `UNKNOWN_INIT_ID` and held init+Subscribe bundles must remain excluded; Durable Nonce and unresolved program-controlled-wallet proposals are out of v1; stale Resume/authority-control approvals and same-second cancellation replay require specific mitigations.
+- Backend/API/DB/RBAC/Consent/Accounting contract freeze remains **BLOCKED**.
+- Production Subscription API/domain/schema/migrations, Billing worker/lifecycle, isolated Collector signer, dedicated Subscription verifier/atomic accounting, adversarial lifecycle suite, real Subscription transaction E2E and UI remain **NOT IMPLEMENTED**.
+- Existing normal Pay verifier/accounting are unchanged.
+- Local Working Tree: **UNKNOWN** (remote GitHub connector only).
+- **Part 2.2 remains NOT STARTED.**
+
+### Safety / mutations
+- Mainnet: only `getGenesisHash` and `getAccountInfo` reads; no transactions, signatures, transfers or Program/Multisig writes.
+- Devnet Subscription test: simulation only, no signing/submission. Separate ordinary Pay Devnet E2E workflow run `41172047275` was still in progress at the last check and remains distinct from Subscription testing.
+- Production database: no DDL or data mutations.
+- Secrets: GitHub Action used existing Mainnet RPC Secret; its value was not read, copied or printed.
+- Cloudflare: Pages deployments occurred on temporary main commits and the recovery commit as described above; no Pages configuration, environment binding or Secret was changed.
