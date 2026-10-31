@@ -19,6 +19,14 @@ import {
   parseMetadataAccount,
   PROGRAM_METADATA_PROGRAM_ID,
 } from '../src/program-metadata.mjs';
+import {
+  deriveSquadsV4MultisigStateAddress,
+  deriveSquadsV4VaultAddress,
+  parseSquadsV4MultisigAccount,
+  SQUADS_V4_MULTISIG_STATE_ADDRESS,
+  SQUADS_V4_PROGRAM_ID,
+  SQUADS_V4_VAULT_ADDRESS,
+} from '../src/squads-v4.mjs';
 
 const PROGRAM_ID = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const RPC_URL = process.env.SOLANA_RPC_URL?.trim() || '';
@@ -126,6 +134,31 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
   assert.equal(idl?.program?.publicKey, PROGRAM_ID, 'on-chain IDL program key must match the deployed Program ID');
   assert.equal(idl?.program?.name, 'subscriptions', 'on-chain IDL name must match the pinned Program');
 
+  assert.equal(parsed.upgradeAuthority, SQUADS_V4_VAULT_ADDRESS, 'deployed Program upgrade authority must match the known Squads v4 vault');
+  const squadsStateAccount = await rpc('getAccountInfo', [
+    SQUADS_V4_MULTISIG_STATE_ADDRESS,
+    { encoding: 'base64', commitment: 'finalized' },
+  ]);
+  assert.ok(squadsStateAccount?.value, 'Squads v4 multisig state account must exist on Mainnet');
+  assert.equal(
+    squadsStateAccount.value.owner,
+    SQUADS_V4_PROGRAM_ID,
+    'Squads v4 multisig state account must be owned by the canonical Squads v4 program',
+  );
+  assert.equal(squadsStateAccount.value.executable, false, 'Squads v4 multisig state account must not be executable');
+
+  const squadsStateBytes = decodeBase64AccountData(squadsStateAccount.value.data, 'SQUADS_V4_MULTISIG');
+  const squadsMultisig = parseSquadsV4MultisigAccount(squadsStateBytes);
+  const derivedMultisigState = deriveSquadsV4MultisigStateAddress(squadsMultisig.createKey);
+  assert.equal(
+    derivedMultisigState.address,
+    SQUADS_V4_MULTISIG_STATE_ADDRESS,
+    'Squads v4 state address must derive from the stored create_key',
+  );
+  assert.equal(derivedMultisigState.bump, squadsMultisig.bump, 'Squads v4 state bump must match its stored bump');
+  const derivedSquadsVault = deriveSquadsV4VaultAddress(SQUADS_V4_MULTISIG_STATE_ADDRESS);
+  assert.equal(derivedSquadsVault.address, parsed.upgradeAuthority, 'Squads v4 vault PDA must equal the deployed Program upgrade authority');
+
   const evidence = {
     schemaVersion: 1,
     observedAt: new Date().toISOString(),
@@ -166,6 +199,29 @@ test('Mainnet Subscription ProgramData identity is read-only and reproducible', 
     onChainIdlName: idl.program.name,
     onChainIdlProgramKey: idl.program.publicKey,
     onChainIdlVersion: idl.program.version,
+    squadsV4ProgramId: SQUADS_V4_PROGRAM_ID,
+    squadsV4StateAddress: SQUADS_V4_MULTISIG_STATE_ADDRESS,
+    squadsV4StateOwner: squadsStateAccount.value.owner,
+    squadsV4StateExecutable: squadsStateAccount.value.executable,
+    squadsV4StateAccountDataLength: squadsStateBytes.length,
+    squadsV4StateRpcSlot: squadsStateAccount.context?.slot ?? null,
+    squadsV4CreateKey: squadsMultisig.createKey,
+    squadsV4ConfigAuthority: squadsMultisig.configAuthority,
+    squadsV4ConfigAuthorityIsDefault: squadsMultisig.configAuthorityIsDefault,
+    squadsV4Threshold: squadsMultisig.threshold,
+    squadsV4TimeLockSeconds: squadsMultisig.timeLockSeconds,
+    squadsV4TransactionIndex: squadsMultisig.transactionIndex,
+    squadsV4StaleTransactionIndex: squadsMultisig.staleTransactionIndex,
+    squadsV4RentCollector: squadsMultisig.rentCollector,
+    squadsV4MemberCount: squadsMultisig.memberCount,
+    squadsV4VoterCount: squadsMultisig.voterCount,
+    squadsV4ProposerCount: squadsMultisig.proposerCount,
+    squadsV4ExecutorCount: squadsMultisig.executorCount,
+    squadsV4Members: squadsMultisig.members,
+    squadsV4StoredStateBump: squadsMultisig.bump,
+    squadsV4DerivedStateBump: derivedMultisigState.bump,
+    squadsV4DerivedVaultAddress: derivedSquadsVault.address,
+    squadsV4DerivedVaultBump: derivedSquadsVault.bump,
     commitment: 'finalized',
   };
 
