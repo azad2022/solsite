@@ -2702,3 +2702,94 @@ Status: **Mainnet ProgramData / deployed ELF identity PASS on the exact tested c
 - **BLOCKED:** Stage 2 contract freeze and Production DDL/migration control.
 - **NOT IMPLEMENTED:** all production Subscription lifecycle/backend/Collector/verifier/accounting/UI capability listed above.
 - Part 2.2 remains prohibited until every Stage 2 gate closes with evidence. Next action is to finish the current exact-head CI/Mainnet read-only run, investigate any IDL assertion failure without weakening it, then address the remaining controller/toolchain/contract and migration-provenance blockers.
+
+
+## 2026-10-31 — Exact-head Mainnet ELF + canonical IDL verification; Cantina and build-toolchain re-audit
+
+Status: **PASS — deployed Mainnet ELF and canonical on-chain IDL both match the pinned upstream release source on exact feature HEAD `33fd4f066f6f4653851e7a2389e742febe25ee78`. SDK/CI/Production Build/DB Security/ordinary Pay Mainnet and Devnet workflows passed. Stage 2 overall remains BLOCKED by accepted upstream security residuals, upgrade-authority controller identity, backend contract freeze and Issue #355. Part 2.2 has not started.**
+
+### Repository / PR / required instructions
+- Repository: `azad2022/solsite`.
+- Feature branch: `feat/pay-subscription-billing`, exact PR HEAD `33fd4f066f6f4653851e7a2389e742febe25ee78`.
+- PR #366: OPEN / DRAFT / NOT MERGED; base `main` SHA `7b975d56860b6d937ad76ab2983c71937644dfa3`.
+- Main remains `7b975d56860b6d937ad76ab2983c71937644dfa3`; no direct main change.
+- Re-read from this current branch the project instructions, Frontend Master Specification, Subscription Skill, Build Web Apps Skill and Release Audit Skill. The relevant file blobs were unchanged at this HEAD.
+- The Cantina PDF supplied by the project owner was reviewed page-by-page (12 pages; rendered and visually inspected). Report scope is commit `d6b3a5dc7ab18c4168441af733c81ab0a599d414`; the report itself is dated 2026-07-30.
+
+### Exact-head CI and independent workflow evidence
+- CI run `41121500802` on exact head `33fd4f0...`: **SUCCESS**.
+  - `subscription-sdk-compat (24)`: **SUCCESS**; exact PR-head checkout verified; committed package lockfile check and `npm ci` passed; TypeScript adapter/SDK call-site typecheck passed; 22 Node tests passed (22 pass / 0 fail); local Pages/Workerd test passed 1/1; dedicated Subscription CreatePlan Devnet simulation passed 1/1 and did not submit a transaction.
+  - `quality`: **SUCCESS**; root production typecheck, Production build, unit tests and clean-source assertion passed.
+  - `subscription-reproducible-build`: **SUCCESS**; upstream source commit/toolchain/image pins verified; pinned `solana-verify 0.5.2` binary checksum verified; source build and executable hash generation passed.
+  - `subscription-mainnet-programdata`: **SUCCESS**; exact PR-head checkout, secret preflight, isolated install, finalized Mainnet Program/ProgramData/IDL read and sanitized evidence upload all passed.
+- Separate exact-head workflows:
+  - Production Build run `41121500465`: **SUCCESS**.
+  - Database Security run `41121500564`: **SUCCESS**. This is the existing ordinary Pay/database security suite; no Subscription schema/RLS was added or proved by it.
+  - ordinary Pay Mainnet Read-only run `41121500507`: **SUCCESS**. This is provider/transaction smoke and is separate from the Subscription ProgramData/IDL evidence.
+  - ordinary Pay funded/mutating Devnet E2E run `41121500440`: **SUCCESS**. It exercises existing Pay transactions and reconciliation, not Subscription transaction E2E.
+  - Cloudflare Pages feature-branch Preview check: **SUCCESS**. This was a preview deployment/check, not Production deployment.
+  - Supabase Preview: SKIPPED (as expected for the current configured workflow); no Production migration was applied.
+- Mainnet probe is fail-closed and permits only `getGenesisHash` and `getAccountInfo`; it has no public RPC fallback. The Subscription Devnet simulation permits only read/simulation RPC methods and does not sign or submit.
+
+### Finalized Mainnet Program / ProgramData / binary identity
+- Cluster: Mainnet Beta; genesis hash `5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d`.
+- Program ID: `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`.
+- Program and ProgramData owner: Upgradeable BPF Loader `BPFLoaderUpgradeab1e11111111111111111111111`; Program executable = true; ProgramData executable = false.
+- ProgramData PDA: `HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg`.
+- Deployment slot: `438440823`.
+- ProgramData upgrade authority: `DXtFpbPjcn2hxPnw79x1Pfoj35vXh5AsWBkS37YnXMVv`.
+- Deployed executable ELF SHA-256: `056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318`.
+- Reproducible source-build ELF SHA-256 from upstream commit `364a41976c33347d092902443bbec2def9227e75`: the exact same value. The assertion passed at `finalized` commitment.
+- The sanitized Mainnet evidence shows the same ProgramData account, deployment slot and upgrade authority as the prior successful checkpoint; no Mainnet state changed.
+
+### Canonical on-chain IDL — exact source content PASS
+- Canonical Program Metadata PDA for seed `idl`: `CCG1hwKFk32h11yE2PRZeEmNAdZsMQrSuiEmqx5eEhWE`.
+- Metadata account owner: Program Metadata Program `ProgM6JCCvbYkfKqJYHePx4xxSUSqJp7rh8Lyv7nk7S`; account executable = false.
+- Metadata references the deployed Subscription Program ID; discriminator and canonical metadata fields are valid; `authority = null`, `canonical = true`, seed `idl`, source `direct`, encoding UTF-8, compression zlib, format JSON.
+- On-chain IDL content SHA-256: `1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa`.
+- Exact pinned upstream source IDL SHA-256: same value. Decoded IDL declares name `subscriptions`, Program key matching the deployed Program ID, version `0.5.0-beta.1`.
+- Pinned IDL source: `solana-foundation/subscriptions/idl/subscriptions.json`, commit `364a41976c33347d092902443bbec2def9227e75`, Git blob `208718e90bf9f8e7f42271b6e93284109b118172`.
+- The initial IDL probe at older commit `30be0be` failed because the local PDA derivation incorrectly included a 32-byte zero-authority seed. The upstream Rust initializer and generated Codama PDA source were inspected. Canonical metadata uses exactly `[program, fixed_16_byte_seed]`; only non-canonical metadata includes an authority seed. This derivation was corrected, the parser/unit tests were updated and exact-head CI/Mainnet then passed. Do not reuse the failed derived address/result.
+- Sanitized ProgramData/IDL evidence artifact from run `41121500802`: ID `13008866738`, digest `ea0e8b5b4699cb007fb1c896418daf02b4945b5b8290cd51e18f40a5b38aed3f`. Reproducible build artifact ID `13007898762`, digest `4f6022cc37ca51434f7b4adc5b75f29d5bc6d14b8aeaf49f9896757a53cc8337`.
+
+### Build-toolchain discrepancy resolved
+- Subscription source `rust-toolchain.toml` says Rust `1.92`; the actual verified build log reports `1.86.0-x86_64-unknown-linux-gnu`.
+- This is explained by the pinned builder, not an arbitrary runner drift: upstream `solana-verify v0.5.2` source explicitly reads the active Rust toolchain in the selected Docker container and passes it as `RUSTUP_TOOLCHAIN` to the cargo build. The v0.5.2 image map pins Solana/Agave `3.1.10` to Docker digest `sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3`; its `docker/v3.1.10.Dockerfile` installs Agave `v3.1.10`. The upstream `anza-xyz/agave` tag `v3.1.10` itself pins Rust `1.86.0`. Thus the verified SBF build uses the selected Agave image/toolchain rather than the checkout's Rust 1.92 toolchain file.
+- The actual executable produced by that pinned container still hash-matches the deployed Mainnet ELF. Treat the builder's Docker digest and Agave v3.1.10 toolchain as the SBF build reproducibility pins. Do not state that Rust 1.92 compiled the deployed artifact.
+- Toolchain mismatch classification: **RESOLVED / PASS for the pinned verified-build path**. This does not certify unrelated local Rust builds with toolchain 1.92.
+
+### Cantina report matrix and source delta
+- Visually reviewed the full 12-page Cantina report. Its summary table records 9 issues: 0 Critical; 1 High (0 fixed, 1 acknowledged); 5 Medium (2 fixed, 3 acknowledged); 2 Low (1 fixed, 1 acknowledged); 1 Informational (fixed).
+- Finding status from report:
+  - High: `Old signed creates restore revoked permissions` — acknowledged, not fixed in Program code. The retained signed init+create/Subscribe path using `UNKNOWN_INIT_ID` can re-create the shared authority and restore the `u64::MAX` Token Delegate after revoke. The upstream release README continues to document this class of risk.
+  - Medium: stale `CancelSubscriptionNow` approval — mitigated by `expected_current_period_start_ts`; same-second recreation remains a documented replay edge.
+  - Medium: stale `update_plan` can restore removed pullers — fixed and Cantina-verified in commit `653dec58`.
+  - Medium: stale `ResumeSubscription` can undo a later cancellation — acknowledged/documented; it now binds expected expiry but remains in the report's acknowledged category.
+  - Medium: stale authority-control approvals can restore/destroy a later authority state — acknowledged/documented; no persistent epoch/nonce/deadline mechanism was added to Program by the remediation delta.
+  - Medium: a finite Plan near expiry can still be charged a full period — acknowledged/documented.
+  - Low: optional `CreatePlan` payer missing from IDL/generated clients — fixed and verified in commit `11173179`.
+  - Low: automatic rent sponsorship can lock relayer funds indefinitely — acknowledged/documented.
+  - Informational: IDL generation errors do not fail release/client-generation steps — fixed and verified in commit `1b6e98e`.
+- Upstream audit tracking file `audits/AUDIT_STATUS.md` records the audit baseline `d6b3a5dc...` and code-fix verification point `debb4f75ff7571218b39de3b633074dd843e70db`.
+- Exact source compare `d6b3a5dc...` → `debb4f75...` shows seven remediation commits, including Program instruction changes, integration tests, IDL/client fixes and a fuzz harness. The release delta `debb4f75...` → `364a419...` is eight commits and contains no `program/src/**` changes; it changes release workflow, client packages/lockfiles, IDL version/metadata and supporting docs. The same deployed Mainnet binary is exactly the Build hash from source commit `364a419...`.
+- Therefore the 0.5.0 release does not introduce additional Program Rust changes after the declared Cantina fix point, but the report's acknowledged findings remain real residual risk. An audited/fixed label is not equivalent to eliminating all accepted risks.
+
+### Upgrade authority and governance boundary
+- Mainnet ProgramData proves the upgrade authority address as `DXtFpbPjcn2hxPnw79x1Pfoj35vXh5AsWBkS37YnXMVv`.
+- This only identifies the on-chain authority public key. The controlling multisig/vault account, members/threshold, custody and release authorization procedure have not been proven by the retrieved ProgramData or repository runbook: **UNKNOWN**.
+- Do not label this key as Foundation-controlled or multisig-controlled without evidence. No authority ownership inference is made from the public key alone.
+
+### Open project blockers / implementation state
+- Issue #355 remains OPEN. Historical evidence establishes the Supabase-linked main-branch runner applied production migrations outside the documented manual path, but its exact actor/trigger and current provider integration toggle remain UNKNOWN. Keep Production DDL blocked; do not alter integration settings without explicit owner approval.
+- Typed API/DB/RBAC/Consent/Accounting contract freeze remains **BLOCKED** pending backend/data contract review.
+- Production Subscription API/domain/schema/migrations, billing lifecycle/worker, isolated Collector signer, dedicated Subscription verifier and atomic accounting, lifecycle adversarial tests, real Subscription Devnet transaction E2E and UI remain **NOT IMPLEMENTED**. Existing Pay CI and the non-mutating Subscription CreatePlan simulation are not substitutes.
+- Existing ordinary Pay verifier/accounting were not changed.
+- Local Working Tree: **UNKNOWN** (GitHub remote connector only; no local clone state was available).
+
+### Gate decision
+- **PASS:** exact-head SDK/runtime compatibility; committed lockfile and `npm ci`; TypeScript adapter typecheck; 22 SDK/PDA/IDL/metadata tests; local Workerd; non-mutating Subscription Devnet CreatePlan simulation; root quality; reproducible source build; Mainnet ProgramData ownership/PDA/deployment slot; deployed ELF/source build hash equality; canonical on-chain IDL account and content hash equality; separate Production Build, Database Security, ordinary Pay Mainnet Read-only and ordinary Pay Devnet E2E workflows.
+- **BLOCKED:** overall Stage 2 contract freeze; Production DDL/migration control due Issue #355; risk acceptance/mitigation design for acknowledged Cantina High/Medium findings before any Production Subscription release.
+- **UNKNOWN:** authority controller/multisig membership and custody; local Working Tree.
+- **NOT IMPLEMENTED:** production Subscription API/schema/Billing/Collector/verification/accounting/adversarial E2E/UI lifecycle.
+- Part 2.2 remains **NOT STARTED**. Do not start it until the remaining Stage 2 gates are closed with positive evidence and acknowledged upstream residual risks have an explicit, enforceable v1 threat model.
+- No Production DDL, Cloudflare/Supabase settings, secret values, private keys, Collector signer, Mainnet transfer, Mainnet Program mutation or real customer consent changed. The Mainnet probe was read-only. The separate existing ordinary Pay Devnet E2E performed its already-configured Pay test scenarios; the Subscription Devnet probe only simulated and did not submit.
