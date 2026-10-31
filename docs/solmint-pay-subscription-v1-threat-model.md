@@ -383,6 +383,16 @@ These rules mean rent sponsorship is **not a general refundable deposit**. Recov
 - The feature branch has a pure Plan-input policy helper and SDK compatibility harness, but no production Subscription transaction builder/API, Collector sponsorship path, rent-sponsorship ledger, per-user quota, aggregate quota, monitoring, or sponsor-recovery worker.
 - Therefore this is a confirmed upstream SDK/Program risk, not evidence that SolMint currently sponsors customer rent. The v1 application must not enable the SDK's implicit sponsorship path.
 
+**Existing upstream test coverage — inspected, not executed**
+
+- `tests/integration-tests/src/test_initialize_subscription_authority.rs`: sponsor-funded Authority initialization records the sponsor as payer; no sponsor preserves user payer; user remains the ATA approval authority; idempotent Init preserves the first recorded payer.
+- `tests/integration-tests/src/test_close_subscription_authority.rs`: the user can close and route rent to the recorded sponsor using the matching receiver; missing/wrong receiver is rejected; a second sponsor cannot replace the recorded first payer.
+- `tests/integration-tests/src/test_revoke_delegation.rs`: covers sponsor reclaim for expired fixed/recurring delegations, fully-spent fixed allowance, rejection for live/non-expired/no-expiry cases, active Subscription rejection, and sponsor reclaim after cancellation expiry or Plan terminality.
+- `tests/integration-tests/src/test_revoke_abandoned_delegation.rs`: covers no-expiry fixed/recurring sponsor recovery after Authority close or `init_id` rotation; rejects same-slot close/re-init, a still-live Authority, a non-sponsor and an unrelated Authority.
+- `tests/integration-tests/src/test_revoke_abandoned_subscription.rs`: covers sponsor reclaim after Authority rotation/closure; rejects same-slot recovery, live Authority, incorrect Authority and non-sponsor.
+- `tests/integration-tests/src/test_create_plan.rs`: covers sponsored Plan rent funding while Merchant remains Plan owner. `tests/integration-tests/src/test_delete_plan.rs` verifies the Plan owner receives rent on deletion. The source path confirms these are distinct payer/owner destinations; the inspected tests do not form a single explicit sponsored-create→delete refund-destination test.
+- The tests show that some terminal account classes have sponsor recovery routes; they do not create a global rent deadline, force-close a healthy Authority/Subscription, or implement quotas. The SDK's automatic payer default is visible in `clients/typescript/src/plugin.ts`; no SolMint-side builder regression test exists because no production Subscription builder exists.
+
 **V1 policy and implementation boundary**
 
 - **No SolMint-funded customer or merchant rent sponsorship in v1.** The customer funds their own `SubscriptionAuthority` and Subscription/delegation accounts; the Merchant funds its Plan PDA. The Collector/Relayer may pay the transaction network fee only.
