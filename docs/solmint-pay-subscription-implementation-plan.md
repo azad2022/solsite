@@ -270,3 +270,12 @@ This addendum supersedes the earlier ProgramData/ELF/upgrade-authority/on-chain-
 - Issue #355 remains OPEN. The latest issue evidence does not identify the precise migration-runner actor/trigger or current integration toggle. Production DDL remains BLOCKED.
 - Stage 2 remains BLOCKED on API/domain/DB/RLS/grants/RBAC/Consent/Billing/Collector/Verification/Accounting contract freeze and executable Cantina-risk controls with adversarial tests. Part 2.2 remains NOT STARTED. Subscription production lifecycle and real transaction E2E remain NOT IMPLEMENTED.
 - Local Working Tree remains UNKNOWN because this review used remote GitHub reads/writes without a local clone. No Production DDL/data mutation, provider configuration change, Secret/Key change, Mainnet write, Subscription Devnet submission, Collector signing or customer consent occurred.
+
+ 
+## 2026-10-31 — Threat model gate addendum
+
+The detailed finding/control matrix and proposed v1 exclusions are maintained in `docs/solmint-pay-subscription-v1-threat-model.md`. Read it before creating any API, DB object, instruction builder, signer, worker or UI.
+
+The official Cantina PDF has a material internal count discrepancy: the summary table reports five Acknowledged findings (High 1, Medium 3, Low 1), while the detailed pages label High old-signed-create, Medium CancelNow, Resume, authority-control and Plan-expiry, and Low rent-sponsorship as Acknowledged — six detailed Acknowledged findings. The detailed pages identify three Fixed items, not the four in the summary table. This remains UNKNOWN pending written clarification; use six detailed residual findings conservatively.
+
+The High old-signed-create risk cannot be fixed by backend policy alone. SolMint can refuse to construct `UNKNOWN_INIT_ID` or Init+Subscribe bundles and can reject Durable Nonce/pending proposals, but cannot invalidate a previously signed transaction created outside SolMint. Strong revocation requires upstream persistent consent epoch/action nonce/deadline enforcement and rejection of legacy unbound instruction formats. No such protocol fix is evidenced in the pinned deployed Program. Stage 2 remains BLOCKED.
