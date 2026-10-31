@@ -148,7 +148,7 @@ jobs:
         env:
           EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           test "$(git -C solmint-source rev-parse HEAD)" = "$EXPECTED_PR_HEAD"
           test "$(git -C upstream-subscriptions rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
           patch="tm06-sponsored-plan-refund.patch"
@@ -158,7 +158,7 @@ jobs:
           git -C upstream-subscriptions add -N tests/integration-tests/src/test_tm06_sponsored_plan_rent_refund.rs
           git -C upstream-subscriptions diff --check
           actual="$(git -C upstream-subscriptions diff --name-only | sort)"
-          expected="$(printf '%s\\n' \
+          expected="$(printf '%s\n' \
             tests/integration-tests/src/lib.rs \
             tests/integration-tests/src/test_tm06_sponsored_plan_rent_refund.rs | sort)"
           test "$actual" = "$expected"
