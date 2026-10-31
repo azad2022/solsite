@@ -3065,3 +3065,35 @@ No Production DDL or data mutation; no Cloudflare/Supabase configuration change;
 - No runtime code or tests changed/run in this checkpoint. Exact-head workflows listed above were revalidated as completed SUCCESS.
 - Scope decision per owner: Issue #355 is deferred from the active Subscription work sequence; it is not declared closed/resolved. No Production migration/DDL is part of this checkpoint.
 - Mutation boundary: no database or provider configuration change, no Secret/Key/signer change, no Devnet/Mainnet transaction, no Program upgrade, no customer consent. Only this Progress Ledger entry is being committed on the feature branch.
+
+
+## 2026-10-31 — TM-03 Resume replay and TM-04 Authority lifecycle review
+
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; parent HEAD: `4266760fcb854bb9a204a8b7f4f329cb984ac815`; PR #366 remains OPEN / DRAFT / NOT MERGED. Working Tree remains UNKNOWN through remote connector.
+- Pinned upstream source: `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75`. Read `resume_subscription.rs`, `cancel_subscription.rs`, `initialize_subscription_authority.rs`, `close_subscription_authority.rs`, `revoke_subscription_authority.rs` and the associated LiteSVM integration tests.
+
+### TM-03 — Resume replay
+- **Confirmed mechanism:** `ResumeData` carries only `expected_expires_at_ts`; Program verifies equality with current `expires_at_ts`, plan terms and shared Authority `init_id`, then clears expiry to zero. Cancel recomputes expiry from the current period start and fixed period length. Two cancellations within the same period can therefore produce the same expiry E.
+- **Attack sequence:** sign/withhold Resume for E; another action clears the first cancellation; cancel again in the same period (expiry remains E); submit old Resume while still executable. It can satisfy the equality and clear the newer cancellation, re-enabling future collection. Cantina's report records a Durable Nonce reproduction. Recent blockhash policy narrows but does not eliminate the Program-level replay condition.
+- Existing upstream `test_resume_subscription.rs` checks stale expiry after advancing beyond the prior period (e.g. two hours); it does not cover the same-period repeated-expiry replay. The source test was inspected, not executed in this checkpoint.
+- SolMint source search found no `resumeSubscription`, `ResumeSubscription`, `getResumeSubscriptionOverlayInstruction` or `resume_subscription` product API/builder surface on the default code branch; current feature code is documentation-only after the tested code baseline. No actual Resume UI/API/job exists in SolMint.
+- **Decision:** Resume is excluded entirely from SolMint v1 (no route/API/UI/job/builder; no reversible cancellation promise). This does not disable the upstream instruction for external clients. Strong protocol closure requires a monotonic cancellation/action revision plus persistent incarnation that survives Subscription PDA close/recreate, with legacy revision-less Resume disabled.
+
+### TM-04 — Authority Init/Close/Revoke replay
+- `InitSubscriptionAuthority` invokes Token `Approve(u64::MAX)` even if the Authority PDA already exists; a held old Init can therefore re-approve a delegate after manual SPL revoke.
+- Close/Revoke instructions do not carry or verify an expected authority generation. The shared helper checks owner and deterministic PDA, not a signed generation. An old Close/Revoke may therefore act on the same PDA after close/recreate and damage the newer Authority lifecycle.
+- Existing upstream Close/Revoke tests cover ordinary close, owner/payer checks, token delegate clearing and idempotent Init; they do not evidence replay rejection for held signed actions across generations. Source tests were inspected, not executed here.
+- **Decision:** no automatic Init retry/reapproval, no reauthorization repair when an existing Authority lacks its delegate, and no v1 self-service guarantee of permanent shared-authority revocation/re-authorization. Reconcile exact signatures and finalized Authority/ATA state. Protocol closure requires a persistent non-closable authority epoch/action nonce plus expected delegate-state checks and disabling all legacy unbound Init/Close/Revoke formats.
+
+### Documentation changes
+- Updated `docs/solmint-pay-subscription-v1-threat-model.md` with source-level mechanics, attack sequences, current test-coverage limitations, v1 exclusions, recovery and future protocol fix requirements.
+- Updated `docs/skills/solmint-pay-subscriptions/SKILL.md` with mandatory Resume and Authority lifecycle restrictions.
+- Threat Model commit: `4d2ba9797849dcd1c1ffe59b133af58c31bee463`.
+- Subscription Skill commit: `4266760fcb854bb9a204a8b7f4f329cb984ac815`.
+- No runtime code, API contract, database schema, migration, RLS/grant, signer or UI was changed. No test commands executed; upstream source/tests were read only.
+- Previous exact-head CI on parent `14e07352a67bfdce24afde1165c354785eb9cd54` passed all five workflows; this is not exact-head CI for the documentation commits in this checkpoint. Fresh CI must be checked on the final ledger commit.
+- Issue #355 remains deferred from the active Subscription task sequence per owner direction; not declared closed or resolved.
+- Stage 2 remains **BLOCKED**. Part 2.2 remains **NOT STARTED**. TM-03 and TM-04 have design-level v1 exclusions recorded, not protocol fixes.
+
+### Mutation boundary
+No Production DDL/data mutation, no provider/configuration change, no Secret/Key/signer change, no Devnet/Mainnet transaction, no Program upgrade or customer consent. Only Threat Model, Subscription Skill and Progress Ledger documentation were changed on `feat/pay-subscription-billing`.
