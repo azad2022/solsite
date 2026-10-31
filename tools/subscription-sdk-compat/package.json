@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "npm run build:adapter && node --check test/mainnet-programdata.test.mjs && node --test test/sdk-compat.test.mjs test/idl-golden.test.mjs test/upgradeable-loader.test.mjs test/program-metadata.test.mjs",
+    "test": "npm run build:adapter && node --check test/mainnet-programdata.test.mjs && node --test test/sdk-compat.test.mjs test/idl-golden.test.mjs test/upgradeable-loader.test.mjs test/program-metadata.test.mjs test/squads-v4.test.mjs",
     "test:workerd": "node --test test/workerd-pages.test.mjs",
     "versions": "npm ls --depth=0",
     "typecheck": "tsc --noEmit -p tsconfig.adapter.json",
