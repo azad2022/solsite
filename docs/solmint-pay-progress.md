@@ -2985,3 +2985,69 @@ Read-only evidence was collected on Mainnet Beta at finalized commitment. The al
 - Subscription Devnet: simulation only, no signing/submission.
 - Ordinary Pay Devnet E2E run 41172466561 is a separate existing Pay test and must not be represented as Subscription E2E.
 - The earlier main-branch history/Cloudflare Production-environment deployment incident remains fully recorded in the preceding checkpoint; this checkpoint does not erase or minimize those deployment events.
+
+
+## 2026-10-31 — Subscription v1 Threat Model and Cantina finding reconciliation
+
+Status: **PASS** for creation and cross-linking of a design-level Threat Model on the Subscription feature branch. **BLOCKED** for Stage 2, protocol residual-risk closure, Contract Freeze and Production DDL. **Part 2.2 remains NOT STARTED.**
+
+### Repository and change boundary
+- Repository: `azad2022/solsite`.
+- Branch: `feat/pay-subscription-billing`.
+- Parent baseline for this documentation checkpoint: `5b8d24b3e2a63531313dddb591bd353aa80e98f0`.
+- Threat Model creation commit: `2e33f9b39801a0409722d73eee38c57a4d14cfa4`.
+- Subsequent documentation commits:
+  - `3707ad52dcb10776e11839d20fd6c6fdd3866048` — project instructions link and Cantina count caveat.
+  - `9649044bccc305197647e43d07b93d83785fb578` — Subscription Skill link and residual-risk caveat.
+  - `4ad153889208a154db66147ff6d9a2b22a97c091` — Release Audit Skill link and release gate.
+  - `fd5844862bee8ea59241b0d9218abb823c12cdac` — implementation plan link and protocol-fix caveat.
+- Current branch HEAD at time of this checkpoint: `fd5844862bee8ea59241b0d9218abb823c12cdac`.
+- PR #366 remains the target PR; its latest head and CI for this new documentation sequence must be re-read after this checkpoint. Earlier exact-head CI on `5b8d24b` was 5/5 successful; those results do not automatically certify these later commits.
+- Local Working Tree remains **UNKNOWN**; only remote GitHub operations were available.
+
+### New design artifact
+- Added `docs/solmint-pay-subscription-v1-threat-model.md` (design-only; not implementation).
+- It maps each detailed Cantina finding to attack path, trust boundary, protocol-level control, SolMint defense-in-depth, backend/database invariant, recovery, adversarial tests, PASS evidence and v1 gate.
+- Added cross-cutting controls for Plan Owner and all Pullers, shared Authority/delegate blast radius, Collector compromise, Billing Cycle concurrency and timeout recovery, independent Subscription verification/atomic accounting, Supabase RLS/Grants/Auth, and Squads v4 zero-second timelock monitoring.
+- Added a proposed v1 capability matrix. Immediate CancelNow, Resume, finite Plans, authority reauthorization, Durable Nonce, unresolved smart-wallet proposals, rent sponsorship, Collector, split principal+fee and entitlement remain excluded/restricted until their gates are evidenced.
+- The matrix is explicitly a proposal; it does not declare any API, DB object, state, instruction or control implemented.
+
+### Material Cantina PDF inconsistency discovered
+The full PDF's page-3 summary table reports five Acknowledged findings (High 1, Medium 3, Low 1), four Fixed overall. The detailed finding pages explicitly mark:
+- High old signed creates — Acknowledged.
+- Medium CancelSubscriptionNow — Acknowledged.
+- Medium update_plan — Fixed.
+- Medium ResumeSubscription — Acknowledged.
+- Medium authority-control — Acknowledged.
+- Medium Plan-expiry full-period charge — Acknowledged.
+- Low CreatePlan payer/IDL — Fixed.
+- Low rent sponsorship — Acknowledged.
+- Informational IDL generation — Fixed.
+
+Thus the detailed pages identify six Acknowledged findings (one High, four Medium, one Low) and three Fixed findings, conflicting with the summary's five Acknowledged/four Fixed. This is **UNKNOWN / BLOCKED pending written Cantina/Solana Foundation clarification or a corrected report**. The Threat Model conservatively tracks all six detailed Acknowledged findings. Historical summary counts are preserved; no silent reconciliation is made.
+
+### Critical security conclusion
+The High old-signed-create issue cannot be fully fixed by SolMint Backend or transaction-builder policy. Rejecting `UNKNOWN_INIT_ID`, avoiding Init+Subscribe bundles and excluding Durable Nonce/pending proposals are defense-in-depth only. A previously signed transaction created outside SolMint may remain executable. Strong revocation requires upstream protocol-enforced persistent consent epoch/action nonce/deadline state, tombstones/generations as appropriate, and rejection of legacy unbound instruction paths. No such fix is evidenced in the pinned deployed Program. Therefore reliable revocation remains **BLOCKED** for production claims.
+
+### Evidence and test status
+- Cantina source: attached 12-page report dated 2026-07-30; full text was re-read from the uploaded PDF for this checkpoint.
+- Repository source: project instructions, master frontend specification, Subscription Skill, Build Web Apps Skill, Release Audit Skill, implementation plan and Progress Ledger were read at the prior verified branch HEAD `5b8d24b`; relevant Subscription/Release instructions were linked/updated in this checkpoint.
+- Tests executed for this documentation-only checkpoint: **none**.
+- CI on the new HEAD `fd5844862bee8ea59241b0d9218abb823c12cdac`: **PENDING / UNKNOWN** until fresh workflow runs complete.
+- No code, API, migration, database schema, RLS policy, grant, Secret, key, signer, Cloudflare/Supabase configuration or UI was changed.
+
+### Current gate status
+- Threat Model document and cross-links: **PASS** (documentation artifact only).
+- Cantina summary/detail finding count: **UNKNOWN / BLOCKED** pending written clarification.
+- TM-01 strong revocation: **BLOCKED** pending upstream protocol fix or explicitly approved residual-risk decision; off-chain policy is insufficient.
+- TM-02 stale same-second CancelNow: **BLOCKED** for immediate cancellation v1.
+- TM-03 stale Resume: **BLOCKED**; Resume excluded from proposed v1.
+- TM-04 stale Authority Init/Close/Revoke: **BLOCKED** for reliable lifecycle guarantees.
+- TM-05 finite Plan expiry: **BLOCKED**; finite Plans excluded from proposed v1 pending protocol-safe binding.
+- TM-06 rent sponsorship: **NOT IMPLEMENTED / disabled by proposed v1 policy**.
+- Plan Owner/other Puller reconciliation, isolated Collector, dedicated verifier/accounting and DB/RLS controls: **NOT IMPLEMENTED**.
+- Issue #355: **OPEN**; actor/trigger and current Supabase integration state remain **UNKNOWN**; Production DDL remains **BLOCKED**.
+- Stage 2: **BLOCKED**. Part 2.2: **NOT STARTED**.
+
+### Production / blockchain mutation statement
+No Production DDL or data mutation; no Cloudflare/Supabase configuration change; no Secret/Key read, copy, rotation or mutation; no Collector signer creation; no Mainnet transaction or Program mutation; no Squads proposal; no live customer consent. No Devnet mutation was performed in this checkpoint.
