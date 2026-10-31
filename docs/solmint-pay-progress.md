@@ -3097,3 +3097,37 @@ No Production DDL or data mutation; no Cloudflare/Supabase configuration change;
 
 ### Mutation boundary
 No Production DDL/data mutation, no provider/configuration change, no Secret/Key/signer change, no Devnet/Mainnet transaction, no Program upgrade or customer consent. Only Threat Model, Subscription Skill and Progress Ledger documentation were changed on `feat/pay-subscription-billing`.
+
+
+## 2026-10-31 — TM-05 finite Plan near-expiry full-period charge review
+
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; parent review HEAD: `5149057f0ac2c11305d2e884d078a61b1b493c92`; PR #366 remains OPEN / DRAFT / NOT MERGED. Main HEAD was rechecked as `4d9fa4c356f4619c5d7998e73a196a4a85d24c6f`. The branch was re-resolved before this checkpoint; all documentation changes were kept on the feature branch.
+- Pinned source reviewed: `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75`: `subscribe.rs`, `update_plan.rs`, `transfer_subscription.rs`, `helpers/transfer_validation.rs`, `state/common.rs`, `test_subscribe.rs`, `test_update_plan.rs` and upstream README Security Considerations.
+
+### TM-05 — confirmed mechanics
+
+- `SubscribeData` binds mint, amount, period, Plan `created_at` and Authority `init_id`; it does not bind `end_ts`. Subscribe rejects only when `current_ts > end_ts`, so equality is accepted; it does not require one complete period remaining.
+- UpdatePlan validates a changed finite end against `current_ts + period_seconds` at update execution. Exact one-period equality passes. A finite end may be shortened, so elapsed time after that update can leave less than one full period by the time a delayed Subscribe lands.
+- TransferSubscription rejects only after `plan_end_ts`, applies a per-period amount ceiling, and caps the emitted `period_end_ts` at Plan end. The transfer validator does not prorate by remaining seconds. An authorized Puller may request the full period amount for a partial/zero-length window at the boundary; this is not an automatic debit on Subscribe.
+- The pinned README explicitly documents full amount for a partial or zero-length first window and the missing expected-end binding. Upstream `test_subscribe.rs` covers normal and already-expired Plans, not the inclusive boundary or post-consent shortening race. `test_update_plan.rs` allows shortening 30 days to 10 days for a 24-hour period. `transfer_validation.rs` includes a full-amount transfer at exact expiry. Sources/tests were inspected, not executed.
+
+### SolMint code boundary and decision
+
+- `src/pay/services/subscriptionPlanPolicy.ts` uses `bigint` and cluster time and rejects finite `endTs` below `chainTime + periodHours * 3600`; exact equality is accepted. It is Plan-input validation only and cannot bind a later Subscribe to the same end time or close a Plan-update/transaction race.
+- At this HEAD no production Subscription API, customer consent flow, Subscribe builder/submission path, Collector, or Subscription verifier/accounting exists. Therefore the helper does not constitute an enforced enrollment control.
+- **Decision:** exclude all finite Plans from SolMint Subscription v1; the intended design profile is the verified perpetual representation (`end_ts = 0`). Do not treat a one-period preflight or consent display as a protocol fix. Finite support requires an approved Program change to bind expected `end_ts`, enforce a full first period atomically, and define/enforce final-period rejection or an approved integer proration rule.
+- Updated the Threat Model, Subscription Skill, Build Web Apps Skill, Release Audit Skill, project instructions and implementation plan with the exact source behavior, the test-coverage gaps and the hard v1 restriction. No runtime code or API/DB/UI was changed.
+
+### Verification and status
+
+- Source review/documentation checkpoint: **PASS**.
+- Finite Plan full-period guarantee in pinned Program: **BLOCKED** pending protocol-level expected-end binding and first/final period rules.
+- Enforced v1 finite-Plan exclusion in a live product/API: **NOT IMPLEMENTED**; no production Subscription enrollment path currently exists.
+- Upstream tests reviewed but not executed. No new tests were added or run in this checkpoint.
+- Exact-head CI on parent `5149057f0ac2c11305d2e884d078a61b1b493c92`: CI `41218686082`, Production Build `41218685997`, Database Security `41218685992`, Mainnet Read-only `41218686071`, ordinary Pay Devnet E2E `41218686262` — all completed SUCCESS. These are parent-HEAD checks; fresh workflows for the documentation commits below must be checked and must not be inferred PASS.
+- Documentation commits preceding this ledger update: `fdf700aea591a36ed796b9b4d98cc45b32f3b081` (`docs/solmint-pay-subscription-v1-threat-model.md`); `3034b8cfb8a2ac98498babe5a796c4bf790e44fb` (`docs/skills/solmint-pay-subscriptions/SKILL.md`); `caceb84a57dbc3907df4590d74b22d101de1b081` (`docs/skills/solmint-pay-build-web-apps/SKILL.md`); `7f9f127e1159e80b25d3a876cf08fc2f6b98228a` (`docs/skills/solmint-pay-release-audit/SKILL.md`); `8ad7eb8872e5d57d4e681fd7cc1b37cfae0b3810` (`docs/solmint-pay-project-instructions.md`); `b61b454c07329dc1fe0aeb7c5db6d52f02052263` (`docs/solmint-pay-subscription-implementation-plan.md`). This ledger entry is included in the final commit containing this checkpoint.
+- Issue #355 remains deferred from the active sequence per owner direction; it is not closed/resolved. No Production DDL or data mutation occurred.
+
+### Mutation boundary
+
+No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare/Supabase configuration, Secret/Key, Collector signer, Mainnet/Devnet transaction, Program upgrade, Squads proposal or customer consent was changed or created. Documentation-only changes were committed to `feat/pay-subscription-billing`.
