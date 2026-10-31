@@ -354,38 +354,62 @@ Finite Plan enrollment: **BLOCKED for v1**. Current SolMint's Plan-input validat
 
 ### TM-06 — Automatic rent sponsorship can lock relayer funds (Cantina Low, Acknowledged)
 
-**Attack / impact**
+**Finding and pinned source boundary**
 
-The SDK/plugin can infer rent sponsorship from a different transaction fee payer and create long-lived sponsored Authority, delegation, subscription or Plan accounts. Some accounts cannot be reclaimed by the sponsor while healthy or active; non-expiring state can lock capital indefinitely. A user can create many sponsored accounts or abandon them.
+Cantina's July 30, 2026 report marks this finding **Low Risk / Acknowledged**. The affected convenience behavior is in the pinned TypeScript SDK plugin, not a SolMint application endpoint: when `client.payer` differs from `client.identity`, the plugin defaults that distinct payer into the optional instruction-level rent `payer` for `InitSubscriptionAuthority`, `CreateFixedDelegation`, `CreateRecurringDelegation`, `Subscribe`, and `CreatePlan`. That payer is a writable signer funding the rent-exempt account allocation. It is not merely the transaction's network-fee payer. The pinned SDK README now documents the behavior, but the plugin still applies the default; documentation did not remove the risk.
 
-**Controls**
+**Account-by-account custody and recovery rules in Program v0.5.0**
 
-- V1 default: no SolMint-funded customer/merchant rent sponsorship.
-- Do not use SDK convenience behavior that silently infers sponsorship from `payer != identity`.
-- Construct instructions with explicit payer/sponsor choice and omit optional rent payer unless a reviewed, explicit policy authorizes it.
-- If sponsorship is introduced later: require explicit opt-in, finite lifetime/recovery design, per-user and aggregate quotas, maximum outstanding sponsored rent, monitoring, and an enforceable recovery path. A UI disclosure alone is not recovery.
-- Keep network transaction fee payer separate from account rent sponsor and from token Source Authority.
+| Sponsored account | Who controls closure / sponsor recovery |
+| --- | --- |
+| `SubscriptionAuthority` | The payer is recorded at first initialization and is not overwritten by later idempotent Init calls. Only the user can close/revoke this shared user+mint authority. If the recorded payer is a sponsor, the user must close it and provide the recorded payer as the rent receiver; the sponsor cannot force-close a healthy authority because that could rotate `init_id` and break live subscriptions. Sponsor recovery is therefore user-dependent and can remain unavailable indefinitely. |
+| Fixed delegation | The original payer is stored in the delegation header. The delegator can close at any time. The sponsor can close only after a non-zero expiry has elapsed or the fixed allowance is fully spent (`amount == 0`). An unexpired / non-expiring fixed delegation with remaining allowance is not sponsor-recoverable through ordinary revoke. |
+| Recurring delegation | The sponsor can close through ordinary revoke only after a non-zero expiry has elapsed. A non-expiring recurring delegation has no time-based sponsor recovery. `RevokeAbandonedDelegation` can return its rent only after the related `SubscriptionAuthority` is closed past its recorded slot or its `init_id` no longer matches. |
+| Subscription delegation | The subscriber can close after cancellation expiry. A sponsor can close after the subscription has cancelled and expired, the Plan is closed, the finite Plan has ended, or the Plan was recreated with incompatible terms. A live subscription on a perpetual Plan has no natural end-time recovery. `RevokeAbandonedSubscription` requires the subscriber's matching Authority to be terminal (closed after the recorded slot or rotated `init_id`); when the Plan itself is closed, ordinary `RevokeDelegation` is the recovery path. |
+| Plan PDA | `CreatePlan` accepts an optional rent payer but stores the Merchant as `Plan.owner`, not the sponsor as a refund beneficiary. `DeletePlan` sends all account lamports to the Plan owner and only permits deletion of a finite Plan whose `end_ts` is in the past. The sponsor does not receive the Plan rent; with `end_ts = 0`, the v0.5.0 DeletePlan path cannot close the Plan at all. |
 
-**Database / backend invariants**
+These rules mean rent sponsorship is **not a general refundable deposit**. Recovery is account-specific and lifecycle-gated. A sponsor cannot force-close healthy customer-controlled Authority/Subscription state merely to reclaim capital. A user may leave a sponsored healthy account open indefinitely. Plan rent is a direct subsidy to the Merchant on deletion, not sponsor-recoverable capital. The Program contains no general sponsor deadline, no automatic expiry for a missing expiry field, and no aggregate sponsorship quota.
 
-- Track rent sponsor, sponsored account, amount in lamports (integer), policy, outstanding exposure, expiry/recovery condition and refund outcome if sponsorship ever exists.
-- Enforce quotas atomically; never rely on a dashboard-only limit.
-- No sponsorship policy or schema is approved in this document.
+**Why the SDK default is dangerous**
+
+- `clients/typescript/src/plugin.ts` supplies `client.payer` as the optional `payer` for the five creation methods above whenever `client.payer !== client.identity` and no per-instruction payer override is supplied.
+- `clients/typescript/README.md` explains that a distinct `payer()` alongside `identity()` sponsors rent for those creation instructions. It also documents the workaround: pass the user's address/signer as the instruction-level `payer` while retaining `client.payer` for transaction fees.
+- A public relayer that exposes the convenience plugin without explicit per-instruction payer control can unintentionally become a long-lived SOL capital provider. A malicious or merely inactive user can create many sponsored PDAs; the Program itself does not cap the relayer's aggregate exposure.
+- No exact SOL amount is asserted here. Rent depends on each allocated account size and the cluster rent parameters; no rent-exemption quote or live transaction was performed for this checkpoint.
+
+**Current SolMint implementation boundary**
+
+- The root SolMint application `package.json` does not depend on `@solana/subscriptions`. The pinned SDK v0.5.0 exists only in `tools/subscription-sdk-compat`, an isolated compatibility harness.
+- The feature branch has a pure Plan-input policy helper and SDK compatibility harness, but no production Subscription transaction builder/API, Collector sponsorship path, rent-sponsorship ledger, per-user quota, aggregate quota, monitoring, or sponsor-recovery worker.
+- Therefore this is a confirmed upstream SDK/Program risk, not evidence that SolMint currently sponsors customer rent. The v1 application must not enable the SDK's implicit sponsorship path.
+
+**V1 policy and implementation boundary**
+
+- **No SolMint-funded customer or merchant rent sponsorship in v1.** The customer funds their own `SubscriptionAuthority` and Subscription/delegation accounts; the Merchant funds its Plan PDA. The Collector/Relayer may pay the transaction network fee only.
+- Keep network fee payer, instruction-level rent payer, token source authority and Plan owner as distinct principals. Do not infer the rent payer from a different `client.payer` or fee payer.
+- For the pinned SDK plugin, explicitly set each creation instruction's optional `payer` to the initiating account (customer for Authority/Subscribe/delegation; Merchant for Plan) while the transaction fee payer remains separate. Do not rely on the convenience default. Omit the optional payer only when the Program's default actor is intentionally the payer.
+- Do not build a sponsorship API, field, database object, limit, or recovery state until its contract is separately approved. This document does not authorize any such object.
+- If sponsorship is ever proposed, require separate product/security approval, explicit opt-in at each sponsored account creation, a fixed per-account lamport cap, per-user and aggregate outstanding-exposure quotas enforced atomically, allowlisted sponsor wallets, an auditable payer→PDA ledger, reconciliation of close/refund outcomes, a maximum exposure budget, operational kill switch, and an enforceable unilateral recovery path before any funds are sponsored. Reject non-expiring customer permissions and perpetual subscriptions unless a protocol-enforced recovery path exists. **Plan sponsorship remains prohibited** unless the refund destination is redesigned to return funds to the actual sponsor or an explicitly approved escrow/accounting subsidy is used.
 
 **Recovery**
 
-No automatic closure of customer-controlled accounts. Stop new sponsorship, reconcile outstanding accounts and use only a protocol-authorized recovery path. Do not promise sponsor refund if the Program does not allow it.
+Stop new sponsorship immediately if exposure is detected. Enumerate every sponsored PDA by recorded payer and account discriminator; read current authority `init_id`, subscription expiry/cancellation, delegation expiry/remaining amount, Plan lifecycle and recorded rent destination. Use only the pinned Program's sponsor-authorized revoke/abandoned instructions when their documented terminal conditions are satisfied. Do not force-close a healthy Authority or live Subscription, do not treat manual SPL delegate revocation alone as Authority closure, and do not promise a refund where the Program returns rent to the Merchant or requires the customer to act.
 
-**Adversarial tests / PASS evidence**
+**Adversarial tests / PASS evidence required before any future sponsorship**
 
-- Assert transaction builders do not append an optional rent payer implicitly.
-- Test customer cannot increase sponsorship by changing fee payer.
-- Test per-user and global quota races if sponsorship is later enabled.
-- Prove every sponsored account has an enforceable expiration/recovery path before enabling.
+- With `client.payer != client.identity`, assert every production creation builder explicitly supplies the intended instruction-level `payer`; a fee-payer change alone must not change the rent payer.
+- Assert a customer-owned payer receives its own Authority/delegation/Subscription rent back on permitted closure, and a sponsor receives it only when the pinned Program explicitly permits that recovery.
+- Verify a sponsor cannot close a healthy SubscriptionAuthority or active perpetual Subscription; verify exact allowed fixed/recurring/subscription recovery states, including `expiry_ts = 0`, partially spent fixed allowance, cancelled-but-not-yet-expired subscription, terminal Authority and changed `init_id` cases.
+- Verify same-slot Authority close/re-init does not allow premature abandoned-PDA reclamation; only reclaim after the pinned `init_id` terminal condition is met.
+- Verify Plan creation paid by a sponsor followed by Plan deletion credits the Merchant, not the sponsor; assert the v1 builder refuses a sponsor payer for Plan rent.
+- If quotas are later approved, run concurrent per-user and global exposure-claim tests and prove the cap is enforced atomically before transaction signing/submission.
 
 **Gate**
 
-Rent sponsorship: **NOT IMPLEMENTED / DISABLED BY POLICY** for v1. Enabling it requires a separate approval and proof.
+- Pinned SDK implicit rent sponsorship and Program recovery constraints: **PASS — source behavior confirmed**.
+- Cantina finding closure: **BLOCKED**; SDK README clarification is not a programmatic opt-in, sponsor deadline, or recovery guarantee.
+- SolMint production rent sponsorship path: **NOT IMPLEMENTED**.
+- SolMint v1 sponsor-funded customer/Plan rent: **NOT IMPLEMENTED / DISABLED BY POLICY**. No Collector/Relayer rent subsidy is permitted without a separate approved control design and adversarial evidence.
 
 ## 6. Cross-cutting threats and mandatory controls
 
