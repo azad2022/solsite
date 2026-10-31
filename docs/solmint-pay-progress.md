@@ -2897,3 +2897,91 @@ Status: **PASS — Mainnet ProgramData, deployed ELF/source hash, canonical IDL/
 - Production database: no DDL or data mutations.
 - Secrets: GitHub Action used existing Mainnet RPC Secret; its value was not read, copied or printed.
 - Cloudflare: Pages deployments occurred on temporary main commits and the recovery commit as described above; no Pages configuration, environment binding or Secret was changed.
+
+
+## 2026-10-31 — Exact-head evidence reconciliation after Squads v4 governance verification
+
+Status: **PASS** for exact-head repository/CI checks, Mainnet ProgramData ↔ reproducible ELF identity, canonical on-chain IDL ↔ pinned source IDL identity, Squads v4 Vault/State relationship and Cantina report/delta review. **Overall Stage 2 remains BLOCKED. Part 2.2 remains NOT STARTED.**
+
+### Repository, branch and PR
+- Repository: azad2022/solsite; default branch: main.
+- Feature branch: feat/pay-subscription-billing.
+- Feature HEAD at this checkpoint: 3960b95e53a2257cf348cd75c1f5238860dcf8e4.
+- Tested executable-code commit: 40456d8cf3be34f3d9ecb30ec17d95111ee13be8. Compare 40456d8 → 3960b95 is exactly one commit and one changed path: docs/solmint-pay-progress.md (104 additions, zero deletions). No executable code changed after the tested code commit.
+- Current main HEAD: 4d9fa4c356f4619c5d7998e73a196a4a85d24c6f. Compare against the previous baseline 7b975d56860b6d937ad76ab2983c71937644dfa3: four commits ahead, zero changed files. The tracked file tree is restored to baseline, but main history contains the four recorded add/delete commits; do not state that its history was unchanged.
+- PR #366: OPEN / DRAFT / NOT MERGED; mergeable=true; base branch main; current head 3960b95. The PR API still reports base SHA 7b975d56860b6d937ad76ab2983c71937644dfa3, while the live main ref is 4d9fa4c356f4619c5d7998e73a196a4a85d24c6f. The PR description was stale at this checkpoint and required synchronization with the new evidence.
+- The remote GitHub connector does not expose a local checkout or local status. Working Tree remains UNKNOWN.
+
+### Exact-head CI and workflow evidence
+All five latest workflow runs below are completed successfully on exact HEAD 3960b95e53a2257cf348cd75c1f5238860dcf8e4:
+
+| Workflow | Run ID | Result |
+|---|---:|---|
+| CI | 41172466490 | PASS |
+| Production Build | 41172466495 | PASS |
+| Database Security | 41172466516 | PASS |
+| Mainnet Read-only | 41172466551 | PASS |
+| Devnet E2E | 41172466561 | PASS |
+
+CI run 41172466490 contains four successful jobs: quality; subscription-reproducible-build; subscription-sdk-compat (24); subscription-mainnet-programdata. The tested code commit 40456d8 had 27/27 Node tests PASS, TypeScript adapter typecheck PASS, Workerd/Pages runtime 1/1 PASS, and non-mutating Subscription CreatePlan Devnet simulation 1/1 PASS. The exact-head Mainnet ProgramData job then succeeded on 3960b95.
+
+Interpretation limits:
+- Database Security PASS covers the existing Pay/database security workflow; it does not prove Subscription schema/RLS exists or was tested.
+- Devnet E2E PASS is ordinary Pay's existing funded/mutating Devnet flow, not a Subscription transaction E2E.
+- Subscription CreatePlan is simulation-only: it did not sign or submit a Subscription transaction.
+- Mainnet Read-only is not a Mainnet write or a Program mutation.
+
+### Mainnet ProgramData and reproducible binary identity
+Read-only evidence was collected on Mainnet Beta at finalized commitment. The allowed RPC methods were getGenesisHash and getAccountInfo.
+
+- Genesis hash: 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d.
+- Subscription Program ID: De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44.
+- ProgramData PDA: HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg.
+- Deployment slot: 438440823.
+- ProgramData Upgrade Authority: DXtFpbPjcn2hxPnw79x1Pfoj35vXh5AsWBkS37YnXMVv.
+- Deployed Mainnet ELF SHA-256: 056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318.
+- Reproducible build SHA-256 from pinned source: exactly the same value.
+- Result: **PASS — deployed Mainnet ELF ↔ pinned reproducible source build**. This establishes byte/source correspondence only, not absence of vulnerabilities or completion of a security audit.
+
+### Canonical on-chain IDL verification
+- Canonical Program Metadata PDA: CCG1hwKFk32h11yE2PRZeEmNAdZsMQrSuiEmqx5eEhWE.
+- Program Metadata Program: ProgM6JCCvbYkfKqJYHePx4xxSUSqJp7rh8Lyv7nk7S.
+- On-chain IDL SHA-256 and pinned source IDL SHA-256: 1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa.
+- Canonical account, owner, authority=null, derivation seed, compression, encoding, format, source, Program key and name were checked.
+- Result: **PASS — canonical on-chain IDL ↔ pinned source IDL**. Preserve the version distinction among Program tag program-v0.5.0, Workspace/IDL 0.5.0-beta.1 and TypeScript SDK 0.5.0-beta.2.
+
+### Squads v4 authority governance
+- ProgramData Upgrade Authority is the canonical Squads v4 Vault PDA.
+- Squads v4 Program ID: SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf.
+- Multisig State Account: 4CxQs26DewQ1KaCHfyyjktkYjndNdUqCJvVdygtJFwcJ.
+- State owner, discriminator, Borsh layout, State PDA and Vault PDA derivations were validated against pinned Squads v4 source.
+- Current configuration: threshold 3 of 5; five members; all five have Initiate/Vote/Execute permission mask 7; config_authority default/zero; timelock 0 seconds.
+- Result: **PASS** for the on-chain ProgramData → Squads State/Vault authority relationship and parsed threshold/permissions.
+- **UNKNOWN** for real-world identity and custody of the five member keys. Do not attribute them to Solana Foundation, staff or named entities without independent evidence.
+- Zero-second timelock is an operational security fact for the threat model. No Proposal was created, signed, approved or executed.
+
+### Cantina report and release delta
+- The attached official Cantina report dated 2026-07-30 was reviewed in full on 2026-10-31 (12 pages; text and visual page review).
+- Finding matrix: Critical 0; High 1 (Acknowledged); Medium 5 (2 Fixed, 3 Acknowledged); Low 2 (1 Fixed, 1 Acknowledged); Informational 1 (Fixed). Total 9: four Fixed and five Acknowledged.
+- Audit baseline: d6b3a5dc7ab18c4168441af733c81ab0a599d414. Remediation marker: debb4f75ff7571218b39de3b633074dd843e70db. Release commit: 364a41976c33347d092902443bbec2def9227e75.
+- The eight-commit post-remediation release delta contains no program/src/** changes. It does contain release/workflow/toolchain, IDL, package/dependency/lockfile, SDK/client/test, demo and documentation changes. The absence of Program Rust source paths in this delta does not prove all release/client behavior was covered by the original audit.
+- Residual acknowledged risks remain release blockers until explicit enforceable v1 controls and adversarial tests exist. High risk includes old signed Init+Subscribe creates using UNKNOWN_INIT_ID restoring authority after revoke. Other acknowledged risks include same-second CancelSubscriptionNow replay, stale Resume approvals, stale Authority-Control approvals, full-period charging near Plan expiry and automatic rent sponsorship. The Low-risk CreatePlan payer and IDL generation items are recorded as Fixed; do not mislabel acknowledged findings as fixed.
+- The zero-second Squads timelock must also be included in the operational threat model.
+
+### Current gate assessment
+- **PASS:** exact-head CI/workflows; SDK/runtime compatibility; reproducible Program build; Mainnet ProgramData/ELF/source hash; canonical on-chain IDL/source hash; Squads v4 authority-chain parsing; complete Cantina report review and post-remediation release delta review.
+- **BLOCKED:** Stage 2 typed API/domain/DB/RLS/grants/RBAC/Consent/Billing/Collector/Verification/Accounting contract freeze; implementation and adversarial proof of the Cantina residual-risk controls; Issue #355 migration-runner provenance and controlled Production DDL policy; split principal + gateway-fee Subscription charging.
+- **UNKNOWN:** local Working Tree; identity/custody of Squads member key holders; exact actor/trigger for Issue #355 and current Supabase GitHub Integration production-deploy toggle.
+- **NOT IMPLEMENTED:** production Subscription API/domain/schema/migrations, customer Consent lifecycle, billing worker/cycle processing, atomic billing claim/recovery, isolated Collector signer, dedicated Subscription Verifier/Accounting, lifecycle adversarial tests, real Subscription transaction E2E and Subscription UI.
+- Issue #355 is still OPEN. Historical runner activity is established; the exact initiating actor and current integration setting are not established. Production DDL remains prohibited.
+- Overall Stage 2 remains **BLOCKED**. Part 2.2 remains **NOT STARTED**.
+
+### Mutation and environment boundary
+- Production DDL: none. Production database data mutation: none.
+- Cloudflare/Supabase configuration: none changed in this checkpoint.
+- Secret/Key values: not read, copied, printed, rotated or changed.
+- Collector signer: not created.
+- Mainnet Transfer, Program write or Squads proposal: none.
+- Subscription Devnet: simulation only, no signing/submission.
+- Ordinary Pay Devnet E2E run 41172466561 is a separate existing Pay test and must not be represented as Subscription E2E.
+- The earlier main-branch history/Cloudflare Production-environment deployment incident remains fully recorded in the preceding checkpoint; this checkpoint does not erase or minimize those deployment events.
