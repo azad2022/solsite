@@ -3131,3 +3131,49 @@ No Production DDL/data mutation, no provider/configuration change, no Secret/Key
 ### Mutation boundary
 
 No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare/Supabase configuration, Secret/Key, Collector signer, Mainnet/Devnet transaction, Program upgrade, Squads proposal or customer consent was changed or created. Documentation-only changes were committed to `feat/pay-subscription-billing`.
+
+## 2026-10-31 — TM-06 rent sponsorship and indefinite relayer capital lock review
+
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; parent checkpoint HEAD before the final ledger entry: `1bfdf698d3c542b91c80cb39d1836bb0e50651b2`. Main HEAD rechecked as `4d9fa4c356f4619c5d7998e73a196a4a85d24c6f`. PR #366 remains OPEN / DRAFT / NOT MERGED; its branch HEAD was updated through documentation-only commits. Working Tree is UNKNOWN through the remote GitHub connector.
+- Read the current Project Instructions, Master Specification, Subscription Skill, Build Web Apps Skill, Release Audit Skill, Implementation Plan, Threat Model and Progress Ledger from `feat/pay-subscription-billing`. Current feature HEAD before ledger update contained only documentation changes after tested executable-code commit `40456d8cf3be34f3d9ecb30ec17d95111ee13be8`.
+
+### Cantina finding and pinned SDK behavior
+
+- The attached Cantina report (2026-07-30), detailed finding 3.3.2, classifies automatic rent sponsorship as **Low Risk / Acknowledged**. It says the TypeScript plugin defaults a distinct `client.payer` into optional payer accounts for Authority, delegation, Subscription and Plan creation. The report says this turns a fee payer into a long-lived capital provider, permits many sponsored PDAs, and has no explicit sponsor acknowledgment in the convenience path.
+- Pinned source reviewed at `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75`: `clients/typescript/src/plugin.ts`, `clients/typescript/README.md`, `program/src/instructions/create_plan.rs`, `helpers/plan.rs`, `helpers/system.rs`, `initialize_subscription_authority.rs`, `close_subscription_authority.rs`, `helpers/authority.rs`, `revoke_subscription_authority.rs`, `revoke_delegation.rs`, `revoke_abandoned_delegation.rs`, `revoke_abandoned_subscription.rs`, `delete_plan.rs`, `state/header.rs`, `state/plan.rs`, `state/subscription_authority.rs`, `state/fixed_delegation.rs`, `state/recurring_delegation.rs` and `state/subscription_delegation.rs`.
+- `plugin.ts` automatically sets optional instruction `payer` to `client.payer` for `createFixedDelegation`, `createPlan`, `createRecurringDelegation`, `initSubscriptionAuthority` and `subscribe` whenever `client.payer !== client.identity`, unless an explicit instruction payer is supplied. The TypeScript README explains that the distinct signer sponsors rent, and that the caller can avoid rent sponsorship by setting the instruction payer to the user while leaving `client.payer` as transaction fee payer. The README clarification does not remove the plugin's runtime default.
+- No exact rent-exempt SOL/lamport amount was calculated. No live rent quote or sponsored transaction was performed.
+
+### Confirmed recovery behavior by account type
+
+- **SubscriptionAuthority:** The original payer is stored only at first creation; idempotent Init preserves it. Only the user can close/revoke the shared Authority. When it was sponsor-funded, the user must provide the recorded payer as the matching rent receiver. Sponsor receives rent only if/when the user initiates close/revoke; sponsor cannot force-close a healthy Authority without risking live subscriptions.
+- **Fixed delegation:** The delegator can close at any time. Sponsor can close only after a non-zero expiry has elapsed or the fixed amount is fully spent (`amount == 0`). A non-expiring fixed delegation with remaining allowance cannot be closed by sponsor through ordinary revoke.
+- **Recurring delegation:** Sponsor can close through ordinary revoke only after a non-zero expiry elapsed. A non-expiring recurring delegation requires a terminal/rotated Authority and the `RevokeAbandonedDelegation` path.
+- **Subscription delegation:** Sponsor can close after cancellation expiry, Plan closure, natural finite Plan end or Plan recreation with incompatible terms. An active Subscription on a perpetual Plan has no natural end-time recovery. `RevokeAbandonedSubscription` requires the matching Authority to be closed past its recorded slot or a changed `init_id`; if the Plan itself is closed, ordinary `RevokeDelegation` is the applicable path.
+- **Plan PDA:** CreatePlan can accept optional sponsor payer, but the Plan owner remains the Merchant. `DeletePlan` returns lamports to the Plan owner, not the sponsor, and only works for non-zero `end_ts` after expiry. A perpetual `end_ts = 0` Plan cannot be deleted by the v0.5.0 DeletePlan instruction. Plan sponsorship is therefore a merchant subsidy/transfer, not refundable sponsor capital.
+- These are lifecycle-gated recovery paths, not a universal refund mechanism, time-bound sponsor claim or quota. Healthy customer-controlled Authority/subscription state can keep sponsor capital unavailable indefinitely. Plan rent has a different destination.
+
+### Existing upstream test source coverage — inspected only
+
+- `test_initialize_subscription_authority.rs`: sponsor payer recorded; idempotent Init preserves original payer.
+- `test_close_subscription_authority.rs`: user closes sponsor-funded Authority with matching receiver; missing/wrong receiver fails; second sponsor cannot replace the original payer.
+- `test_revoke_delegation.rs`: sponsor reclaim for expired fixed/recurring, fully-spent fixed, cancelled+expired subscriptions and terminal Plans; sponsor rejected for non-expired/no-expiry delegations and active subscriptions.
+- `test_revoke_abandoned_delegation.rs`: no-expiry fixed/recurring reclaim after Authority close or `init_id` rotation; same-slot, live-authority, wrong-authority and non-sponsor cases rejected.
+- `test_revoke_abandoned_subscription.rs`: subscription rent reclaimed after Authority close/rotation; same-slot, live-authority and non-sponsor cases rejected.
+- `test_create_plan.rs`: sponsor pays Plan rent while Merchant remains owner. `test_delete_plan.rs`: owner receives rent on deletion. These separate tests plus source behavior establish the refund destination; the inspected tests do not constitute a single end-to-end sponsored-create→delete refund-destination test.
+- These upstream integration tests were read only. They were **not executed** in this checkpoint.
+
+### SolMint boundary and v1 decision
+
+- Root SolMint `package.json` does not depend on `@solana/subscriptions`; pinned SDK v0.5.0 is isolated in `tools/subscription-sdk-compat`. Existing feature branch code includes a Plan-input policy helper and SDK compatibility harness, but no production Subscription transaction builder/API, Collector sponsorship path, sponsor ledger, per-user/aggregate quota, exposure monitor or sponsor recovery worker.
+- This is a confirmed upstream SDK/Program risk, not evidence that SolMint currently sponsors customer rent.
+- **V1 policy:** no SolMint-funded customer or Plan rent. Customer funds their own Authority/Subscription/delegation PDAs; Merchant funds its Plan PDA; Collector/Relayer pays network transaction fees only. Explicitly set instruction-level payer to the account owner; do not infer it from `client.payer`.
+- A future sponsorship proposal requires separate approval, explicit opt-in per created account, per-account cap, atomically enforced per-user and aggregate exposure quotas, payer→PDA/refund ledger, monitoring/kill switch and an enforceable recovery path before any sponsor funds are committed. Plan sponsorship remains prohibited unless refund destination is redesigned/approved.
+
+### Status and mutation boundary
+
+- Pinned plugin/Program sponsorship and per-account recovery behavior: **PASS — source reviewed**.
+- Cantina finding closure / removal of SDK auto-sponsor behavior: **BLOCKED**; the README clarification is not a runtime opt-in or enforceable universal recovery.
+- SolMint production rent-sponsorship path: **NOT IMPLEMENTED**.
+- SolMint v1 rent sponsorship: **NOT IMPLEMENTED / DISABLED BY POLICY**; no live Subscription path exists yet, so this is not an enforced runtime gate.
+- No tests were executed and no tests were changed in this checkpoint. No runtime code, API contract, DB schema/migration, RLS/grant, provider configuration, Secret/Key, Collector signer, Mainnet/Devnet transaction, Program upgrade, Squads proposal or customer consent was changed. Documentation-only changes were committed on `feat/pay-subscription-billing`.
