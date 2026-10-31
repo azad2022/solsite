@@ -400,7 +400,9 @@ These rules mean rent sponsorship is **not a general refundable deposit**. Recov
 
 **V1 policy and implementation boundary**
 
-- **No SolMint-funded customer or merchant rent sponsorship in v1.** The customer funds their own `SubscriptionAuthority` and Subscription/delegation accounts; the Merchant funds its Plan PDA. The Collector/Relayer may pay the transaction network fee only.
+- **No SolMint-funded Rent or transaction network fee in v1.** The Customer funds their own `SubscriptionAuthority` and Subscription/delegation accounts; the Merchant funds its Plan PDA. The account owner also bears the network fee for its own setup/control operations.
+- A recurring `TransferSubscription` pull is a Merchant billing operation: its transaction fee payer must be a Merchant-owned or explicitly Merchant-funded signer. Collector may sign as an authorized Plan Puller, but must not be the fee payer or use SOL funded by SolMint. If a Merchant-funded fee-payer signer is not available, the pull must not be submitted.
+- Keep the network fee payer, instruction-level rent payer, token source authority and Plan owner as distinct principals. Customer/Merchant must fund every on-chain Rent and network fee attributed to their operation. SolMint's only product revenue is the already-approved gateway commission; do not create a hidden gas subsidy, SolMint gas tank, or a new fee/commission rule here.
 - Keep network fee payer, instruction-level rent payer, token source authority and Plan owner as distinct principals. Do not infer the rent payer from a different `client.payer` or fee payer.
 - For the pinned SDK plugin, explicitly set each creation instruction's optional `payer` to the initiating account (customer for Authority/Subscribe/delegation; Merchant for Plan) while the transaction fee payer remains separate. Do not rely on the convenience default. Omit the optional payer only when the Program's default actor is intentionally the payer.
 - Do not build a sponsorship API, field, database object, limit, or recovery state until its contract is separately approved. This document does not authorize any such object.
@@ -481,7 +483,7 @@ Stop new sponsorship immediately if exposure is detected. Enumerate every sponso
 
 ### 6.5 Independent Subscription verification and atomic accounting
 
-**Threat:** Ordinary Pay verifier assumes source authority/fee-payer semantics that differ from Subscription's shared Authority PDA and Collector fee payer. Reusing or weakening it could accept forged/incomplete transfers or corrupt accounting.
+**Threat:** Ordinary Pay verifier assumes source authority/fee-payer semantics that differ from Subscription's shared Authority PDA and a Customer/Merchant-funded transaction fee payer. Reusing or weakening it could accept forged/incomplete transfers or corrupt accounting.
 
 **Controls:**
 - Keep `pay_apply_verified_observation` and ordinary Pay invariants unchanged.
