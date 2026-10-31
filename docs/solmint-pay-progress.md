@@ -3208,3 +3208,12 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - Updated Threat Model, Subscription Skill, Build Web Apps Skill, Release Audit Skill, Project Instructions and Implementation Plan. This reconciles the TM-06 policy with the owner decision and replaces the earlier “Collector pays network fee” wording.
 - No runtime code, API, DB schema/migration, RLS/grants, signer, blockchain transaction or accounting implementation changed. Fee-payer enforcement remains **NOT IMPLEMENTED** because the production Subscription transaction/billing path does not exist; this is a mandatory v1 implementation gate, not a delivered capability.
 - Parent docs HEAD before this ledger entry: `c92de3aa1436a514e4eb6fdd18f2d719fa8c536b`. PR #366 remains OPEN / DRAFT / NOT MERGED; no merge or release action.
+
+## TM-06 TypeScript SDK payer layout test execution evidence
+
+- Expanded inspection of the exact upstream `Test` run `30919854748` / TypeScript integration job `92027298813` at Program/SDK commit `364a41976c33347d092902443bbec2def9227e75`.
+- Pinned `.github/workflows/test.yml` calls `just test-client`; pinned `justfile` runs the TypeScript suite against a local Surfpool fork, then an offline local pass. The job log reports 12 test files / 66 tests passed; the offline pass reports 1 test passed.
+- `clients/typescript/test/create-plan-payer.test.ts` is included and reports 2 tests passed. It verifies that an explicit CreatePlan payer is appended as the sixth account meta with `WRITABLE_SIGNER` role and that the optional payer is omitted when not provided.
+- This is instruction-builder account-layout coverage. It does **not** directly test the plugin's convenience default that injects `client.payer` when it differs from `client.identity`; that behavior was verified in the pinned `clients/typescript/src/plugin.ts` source. No dedicated test for that auto-default path was found in the files reviewed.
+- These were historical successful upstream Actions logs at the exact pinned commit; no job was triggered or rerun in this session. The local Surfpool fork/offline run is not a Mainnet/Devnet transaction and did not charge SolMint an on-chain fee.
+- Threat Model TM-06 now records Rust and TypeScript test execution evidence separately and preserves the plugin-default coverage limitation. No runtime or test code was modified.
