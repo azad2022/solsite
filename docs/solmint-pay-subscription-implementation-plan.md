@@ -291,3 +291,13 @@ The High old-signed-create risk cannot be fixed by backend policy alone. SolMint
 - Added `docs/solmint-pay-subscription-contract-design.md` as a design-only domain/lifecycle draft. It separates Plan, Consent, Authority, Subscription, Cycle, Attempt, pull observations, accounting, entitlement and outbox; sets out principal/cost, verification/accounting and authorization boundaries; records open product/security decisions and G2 exit criteria. It intentionally defines no SQL object names, API routes/payloads, migration or runtime enum.
 - G0 read-only Contract Inventory segment: PASS. Overall G0 remains BLOCKED by the unresolved G0 evidence tasks in the Threat Model (including authoritative Cantina discrepancy clarification and migration-runner provenance). G1 residual-risk approval: NOT RECORDED. G2 Contract Freeze: PARTIAL / BLOCKED. Subscription runtime/API/DB/Collector/Verifier/Accounting/Entitlement/UI remain NOT IMPLEMENTED.
 - No tests or new CI run are claimed for this design draft. A new exact-head CI run is required after the documentation commit. No Production DDL/data, Supabase/Cloudflare config, Secret/Key, signer, Devnet transaction, Mainnet transaction, Program upgrade, customer Consent or funds were changed.
+
+
+## 2026-11-03 — Exact-head CI for Subscription contract design draft
+
+The design-only contract/lifecycle draft on `994eaf14aabd948aa5bb5312082beb635f68a187` passed its exact-head CI:
+
+- CI [41705111324] SUCCESS; jobs `quality`, `subscription-sdk-compat (24)`, `subscription-reproducible-build`, `subscription-tm06-sponsored-plan-refund`, and `subscription-mainnet-programdata` all SUCCESS.
+- TM-06 upstream overlay job [126158227949] reapplied its two-file test-only patch to exact upstream source `364a41976c33347d092902443bbec2def9227e75` and completed **275 passed, 0 failed, 0 ignored**. The combined sponsored-Plan rent refund regression passed.
+- Production Build [41705111568], Database Security [41705111546], ordinary Pay Devnet E2E [41705111411], and Mainnet Read-only [41705111409] completed SUCCESS. Preview Supabase was SKIPPED. Ordinary Pay Devnet E2E is not Subscription E2E; Mainnet is read-only.
+- This is a documentation-only checkpoint. Stage 2 and G2 remain BLOCKED/PARTIAL; CI success is not Subscription implementation or release readiness.

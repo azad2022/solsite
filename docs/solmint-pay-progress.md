@@ -3245,3 +3245,19 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - Added `docs/solmint-pay-subscription-contract-design.md` as a design-only domain/lifecycle draft. It separates Plan, Consent, Authority, Subscription, Cycle, Attempt, pull observations, accounting, entitlement and outbox; sets out principal/cost, verification/accounting and authorization boundaries; records open product/security decisions and G2 exit criteria. It intentionally defines no SQL object names, API routes/payloads, migration or runtime enum.
 - G0 read-only Contract Inventory segment: PASS. Overall G0 remains BLOCKED by the unresolved G0 evidence tasks in the Threat Model (including authoritative Cantina discrepancy clarification and migration-runner provenance). G1 residual-risk approval: NOT RECORDED. G2 Contract Freeze: PARTIAL / BLOCKED. Subscription runtime/API/DB/Collector/Verifier/Accounting/Entitlement/UI remain NOT IMPLEMENTED.
 - No tests or new CI run are claimed for this design draft. A new exact-head CI run is required after the documentation commit. No Production DDL/data, Supabase/Cloudflare config, Secret/Key, signer, Devnet transaction, Mainnet transaction, Program upgrade, customer Consent or funds were changed.
+
+
+## 2026-11-03 — Contract draft exact-HEAD CI validation
+
+- The design-only commit `994eaf14aabd948aa5bb5312082beb635f68a187` was checked by GitHub Actions after the document commit. Exact-head CI run [41705111324](https://github.com/azad2022/solsite/actions/runs/41705111324) completed SUCCESS.
+- The exact-head CI jobs all completed SUCCESS:
+  - `quality` — job `126158227589`
+  - `subscription-sdk-compat (24)` — job `126158227662`
+  - `subscription-reproducible-build` — job `126158227210`
+  - `subscription-tm06-sponsored-plan-refund` — job `126158227949`
+  - `subscription-mainnet-programdata` — job `126158983595`
+- The TM-06 job reapplied the two-file test-only overlay to exact upstream Program SHA `364a41976c33347d092902443bbec2def9227e75`, checked the overlay scope, and ran the Rust integration crate. Log: `running 275 tests`; the regression `test_tm06_sponsored_plan_rent_refund::sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor ... ok`; final result **275 passed, 0 failed, 0 ignored** (14.43s).
+- Exact-head external workflows also completed SUCCESS: Production Build [41705111568], Database Security [41705111546], ordinary Pay Devnet E2E [41705111411], and Mainnet Read-only [41705111409]. Devnet E2E is the existing ordinary Pay flow, not a Subscription transaction. Mainnet checks are read-only. Cloudflare Pages check SUCCESS; Supabase Preview was SKIPPED as expected.
+- These runs validate the design/document commit and existing code. They do not implement a Subscription route, schema, worker, signer, verifier, accounting, or UI.
+- No Production DDL/data, Supabase/Cloudflare provider configuration, Secret/Key, signer, Mainnet or Devnet transaction, Program upgrade, customer Consent or funds were changed. No application runtime code was changed.
+- Contract status remains: G0 inventory segment PASS; overall G0 BLOCKED; G1 approval NOT RECORDED; G2 PARTIAL / BLOCKED. Subscription production functionality remains NOT IMPLEMENTED.
