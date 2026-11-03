@@ -178,6 +178,57 @@ jobs:
         working-directory: upstream-subscriptions
         run: just integration-test sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor
 
+  subscription-atomic-split-transfer:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact SolMint PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: solmint-source
+          persist-credentials: false
+
+      - name: Checkout exact pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Apply atomic split-transfer test overlay and verify scope
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euxo pipefail
+          test "$(git -C solmint-source rev-parse HEAD)" = "$EXPECTED_PR_HEAD"
+          test "$(git -C upstream-subscriptions rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          patch="tm07-atomic-split-transfer.patch"
+          test -s "solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply --check "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions diff --check
+          actual="$(git -C upstream-subscriptions diff --name-only)"
+          expected="tests/integration-tests/src/test_transfer_subscription.rs"
+          test "$actual" = "$expected"
+          echo "Only the pinned upstream TransferSubscription integration-test file was changed."
+
+      - name: Install pinned upstream Rust / Solana test toolchain
+        uses: ./upstream-subscriptions/.github/actions/setup
+        with:
+          rust-toolchain: '1.92'
+          solana-version: '4.0.0'
+          rust-cache-key: 'solmint-atomic-split-transfer'
+          install-pnpm: 'false'
+          install-pnpm-dependencies: 'false'
+          install-surfpool: 'false'
+
+      - name: Run atomic split-transfer and full pinned integration regression suite
+        working-directory: upstream-subscriptions
+        run: just integration-test
+
   subscription-reproducible-build:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
