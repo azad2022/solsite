@@ -649,3 +649,12 @@ As of feature HEAD `5b8d24b`:
 - Stage 2: BLOCKED. Part 2.2: NOT STARTED.
 
 No Production database, Cloudflare/Supabase configuration, Secret/Key, Collector signer, Mainnet account, Program, customer consent or Squads proposal was changed by authoring this design document.
+
+
+## 2026-11-03 — Contract design draft linkage
+
+The first typed domain/lifecycle design draft is now maintained in `docs/solmint-pay-subscription-contract-design.md`. It is derived from the current feature-branch Pay/Auth/Verifier/Accounting code, read-only Production database metadata/function/RLS/grants evidence, and exact pinned v0.5.0 upstream account/instruction source.
+
+This draft distinguishes Plan, Consent, shared Authority, SubscriptionDelegation, Billing Cycle, Attempt, Pull observation, Accounting, Entitlement and Outbox. It does not define implementation enum values, API routes, SQL objects or a new fee model. It records the remaining G2 decisions and exit criteria.
+
+Status: G0 inventory segment PASS; overall G0 BLOCKED; G1 approval NOT RECORDED; G2 PARTIAL / BLOCKED. No runtime or database implementation is implied.

@@ -338,3 +338,8 @@ The detailed threat/control specification is `docs/solmint-pay-subscription-v1-t
 **Cantina report count discrepancy:** the PDF page-3 summary says five Acknowledged findings (including three Medium), but its detailed finding pages mark four Medium findings Acknowledged (CancelNow, Resume, authority-control, Plan expiry), plus the High old-signed-create and Low rent-sponsorship findings: six detailed Acknowledged findings. The detailed pages also identify three Fixed findings, while the summary table reports four. This contradiction is unresolved. Until written clarification/corrected report is obtained, use the detailed pages and conservatively track six residual Acknowledged findings; do not silently repeat the summary count as reconciled fact.
 
 Off-chain SolMint restrictions do not repair upstream on-chain replay semantics. In particular, rejecting `UNKNOWN_INIT_ID` and Init+Subscribe bundles in SolMint builders is defense-in-depth, not proof that externally held signed transactions cannot execute. Reliable revocation requires protocol-enforced persistent generation/nonce/deadline controls and disabling legacy unbound instruction paths. Do not claim strong revocation while this remains unresolved.
+
+
+## 2026-11-03 Subscription Contract Design pointer
+
+Before changing Subscription API, schema, RLS/grants, RBAC, transaction builder, signer, billing worker, verifier/accounting or UI, read `docs/solmint-pay-subscription-contract-design.md` from the same current feature HEAD together with the Implementation Plan and Threat Model. The contract document is a design draft only: G2 remains PARTIAL / BLOCKED and it does not authorize implementation, Production DDL, keys/signers, customer Consent or chain mutation.
