@@ -25,7 +25,7 @@ No Subscription API, database object, signer, worker, transaction builder, verif
 7. Collector, Puller, transaction fee payer, Rent payer, Plan Owner, subscriber, and token source authority are separate principals. SolMint must fund none of the Rent or transaction network fees.
 8. The normal Pay verifier and `pay_apply_verified_observation` remain unchanged. A Subscription-specific verifier and atomic accounting boundary are mandatory.
 9. The current Production ledger graph is Payment-Intent-centric. Subscription accounting needs an explicit typed financial origin; creating synthetic Payment Intent IDs is prohibited.
-10. v1 safety exclusions remain in force: no finite Plans, no Resume, no Immediate CancelNow, no implicit or SolMint-funded sponsorship, no Durable Nonce or unresolved smart-wallet proposal, no split-fee charge until same-transaction allowance/rollback/verifier/accounting proof, and no Customer entitlement before finalized verification plus atomic accounting.
+10. v1 safety exclusions remain in force: no finite Plans, no Resume, no Immediate CancelNow, no implicit or SolMint-funded sponsorship, no Durable Nonce or unresolved smart-wallet proposal, split-fee charge remains disabled: the LiteSVM two-destination cumulative-allowance/rollback sub-gate is PASS, but verifier/accounting, approved fee model and Devnet proof remain open, and no Customer entitlement before finalized verification plus atomic accounting.
 
 ## 2. Evidence baseline and scope
 
@@ -331,7 +331,7 @@ The following are exclusions, not runtime capabilities:
 - No SolMint-paid network fee or platform SOL gas subsidy.
 - No empty Plan destination allowlist.
 - No Token-2022/TransferHook until separately reviewed; retain existing original SPL Token asset policy.
-- No split principal+gateway-fee pull until two-leg cumulative allowance, atomic rollback, dedicated verifier/accounting and Devnet proof all pass.
+- No split principal+gateway-fee pull until the remaining dedicated verifier/accounting, approved fee-model and Devnet gates pass; the pinned-source LiteSVM two-destination cumulative-allowance/atomic-rollback sub-gate is now PASS.
 - No recurring charge while Puller discovery is incomplete or a separate authorized Puller may have consumed remaining allowance.
 - No Customer entitlement until finalized independent verification and atomic accounting are complete.
 - No Subscription UI before Backend/DB/API contracts and lifecycle evidence are implemented.

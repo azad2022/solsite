@@ -494,7 +494,7 @@ Stop new sponsorship immediately if exposure is detected. Enumerate every sponso
 - Verify finalized transaction, exact Program ID/discriminator/accounts, PDA derivations/ownership, Subscriber, Plan, every authorized Puller, Source ATA/Authority, Mint/Token Program/decimals, destination owner/ATA, transfer legs, exact amounts, cumulative period allowance, transaction success and absence of unexpected instructions/transfers.
 - Events, signatures and indexer notifications are discovery/correlation evidence, not standalone proof.
 - Commit verified observation, cycle/attempt outcome, merchant settlement, fee/revenue/referral/network-cost/refund entries and outbox event atomically. If atomic commit fails, no success/entitlement/webhook.
-- Split principal+fee remains BLOCKED until two destination legs are proven to share one cumulative period allowance, rollback atomically, pass LiteSVM adversarial tests and Devnet E2E, and are verified/accounted by the dedicated adapter.
+- **LiteSVM sub-gate PASS (2026-11-04):** two `TransferSubscription` instructions to two distinct Plan-allowlisted destination owners were exercised in one transaction against the exact pinned source. The shared cumulative period allowance was enforced, and an over-limit second instruction rolled back the source debit, both destination balances and Subscription period state. The regression is in `tools/subscription-upstream-tests/tm07-atomic-split-transfer.patch`; exact-head CI run [41782727597](https://github.com/azad2022/solsite/actions/runs/41782727597), job `subscription-atomic-split-transfer`, passed on `0f4a5d5eb8ee7fb2fa47e855ffc9b5f6c467f3e2`. **Production split-fee charging remains BLOCKED:** extra/duplicate-leg rejection by the future verifier, event/balance-to-ledger mapping, a dedicated Subscription verifier/accounting adapter, an approved fee model, Merchant-funded fee-payer custody and Devnet Subscription E2E remain unproven.
 
 **Tests:** wrong cluster/program/mint/destination/amount/authority/puller; source authority != fee payer; extra token transfer; duplicate observation; non-finalized/failed tx; two-leg cumulative limit; DB rollback; ledger imbalance; RLS cross-merchant/customer isolation; outbox retry without duplicate accounting.
 
@@ -559,7 +559,7 @@ No transition is approved by this list alone. A formal transition table with sou
 | Authority reauthorization | Exclude by default | Stale Init can reapprove revoked delegate; explicit protocol-safe lifecycle absent |
 | Shared Authority revoke | Restricted / do not promise global invalidation | Shared blast radius and old signed create residual |
 | Collector | Exclude until isolated signer + policy + recovery | No signer or lifecycle implemented |
-| Split principal + gateway fee | Exclude | Single-destination instruction; cumulative allowance/rollback/verifier/accounting unproven |
+| Split principal + gateway fee | Exclude | LiteSVM two-destination cumulative allowance/rollback sub-gate PASS; verifier/accounting, extra-leg rejection, approved fee model and Devnet Subscription E2E remain unproven |
 | Rent sponsorship | Disabled | No implicit sponsor; no enforceable recovery design |
 | Customer entitlement | Exclude until verification/accounting | Active PDA is not paid/collectable |
 | UI | Not started | No production contracts or lifecycle to present |

@@ -45,7 +45,7 @@ These are conservative implementation constraints, not claims that current SolMi
 7. Exclude all finite Plans from v1; a one-period-remaining preflight is not race-safe because Subscribe omits `expected_end_ts` and does not atomically enforce a full remaining period. Do not assume partial first/final periods are prorated. Finite support requires Program-level end binding, full-period guard and an explicit final-period charge rule.
 8. No sponsored Plan rent by default. No Collector private key in public Pages/browser runtime; use an independently isolated signing boundary with audited permissions, rotation, emergency disable, and recovery.
 9. No service entitlement/renewal until finalized transaction verification and atomic accounting commit.
-10. Split principal + gateway fee remains **BLOCKED** until same-transaction multi-instruction behavior is proven in LiteSVM and Devnet, with dedicated verification and accounting tests.
+10. Split principal + gateway fee remains **BLOCKED**. The two-destination cumulative-allowance and rollback sub-gates are now **PASS in pinned-source LiteSVM (TM-07, 2026-11-04)**; dedicated verification/accounting tests, approved fee model and Devnet Subscription E2E remain outstanding.
 
 ## 3. Target domain boundaries
 
@@ -99,9 +99,9 @@ Do not represent Subscription as a recurring Payment Intent, metadata-only relat
 
 Existing Pay stores merchant fee basis points, fee payer policy, recipient and settlement snapshots and has integer-only fee calculation. Reuse those authoritative inputs only after designing the Subscription snapshot/ledger mapping. Do not accept client-supplied fee recipients or calculate financial truth in the browser.
 
-The upstream `TransferSubscription` instruction has one destination and one amount. A principal/fee split therefore requires separate instructions in the same atomic Solana transaction and both destination owners must be in the Plan allowlist. Although the Program updates cumulative period usage within the instruction, the exact multi-instruction behavior, second-leg rollback, duplicate/extra instruction rejection and event/balance mapping are not yet proven by SolMint tests. Keep split-fee collection blocked until:
-- LiteSVM test proves both legs share one cumulative period allowance.
-- An over-limit/invalid second leg rolls back the first transfer and state.
+The upstream `TransferSubscription` instruction has one destination and one amount. A principal/fee split therefore requires separate instructions in the same atomic Solana transaction and both destination owners must be in the Plan allowlist. A SolMint-maintained regression overlay against the exact pinned Program now proves that two distinct Plan-allowlisted destination owners share one cumulative period allowance and that an over-limit second instruction atomically rolls back the first leg and Subscription state (TM-07 LiteSVM sub-gate **PASS**, 2026-11-04). This does not prove duplicate/extra-instruction rejection by the future verifier, event/balance/accounting mapping, an approved fee model or Devnet billing behavior. Keep split-fee collection blocked until:
+- **PASS — LiteSVM:** both destination legs share one cumulative period allowance in the same transaction.
+- **PASS — LiteSVM:** an over-limit second leg rolls back the first transfer, source/destination balances and Subscription state.
 - Extra, reordered, duplicated, wrong-mint, wrong-destination or unrelated transfers are rejected by the SolMint verifier.
 - The dedicated DB commit creates exactly one correct financial outcome and cannot double-book either leg.
 - Devnet E2E and independent review pass.
@@ -144,7 +144,7 @@ Status: **BLOCKED — isolated SDK runtime compatibility is PASS; Stage 2 remain
 4. Cycle identity uses live on-chain `current_period_start_ts` and cumulative usage, not calendar-month math or scheduler time. Unique DB cycle identity and atomic claim remain mandatory.
 5. Active on-chain state does not grant entitlement. Require live collectability and finalized transfer verification followed by atomic accounting commit.
 6. Ordinary `pay_apply_verified_observation` remains unchanged. Subscription requires a dedicated verifier/accounting boundary for PDA source authority, separate authorized Puller and Customer/Merchant-funded transaction fee payer.
-7. Split principal + gateway fee remains BLOCKED until same-transaction cumulative allowance, rollback, duplicate/extra instruction rejection, dedicated verification/accounting and Devnet behavior are proven.
+7. Split principal + gateway fee remains BLOCKED. Same-transaction two-destination cumulative allowance and rollback are now PASS in LiteSVM (TM-07); duplicate/extra instruction rejection, dedicated verification/accounting and Devnet behavior remain unproven.
 8. V1 remains original SPL Token only with server-configured supported mints, non-empty destination owner allowlist and no TransferHook/Token-2022/MemoTransfer support unless separately reviewed.
 
 ### Remaining Stage 2 gates
