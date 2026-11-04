@@ -3323,3 +3323,5 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - **Implementation status:** Subscription API/domain runtime/schema/migrations, consent lifecycle, billing worker/atomic claim/recovery, isolated Collector signer, dedicated verifier/accounting, real Subscription Devnet E2E and UI remain NOT IMPLEMENTED.
 - **Documentation corrections prepared in this checkpoint:** synchronize the Skills/design documents to record the six-item Cantina discrepancy and the completed TM-07 LiteSVM sub-gate without promoting the remaining split-fee capability to PASS.
 - Mutation boundary: no Production DDL/data, Supabase/Cloudflare setting, Secret/Key, signer, customer Consent, Devnet/Mainnet transaction, Program upgrade, Squads proposal or customer/merchant funds were changed. No application runtime code was changed.
+
+- Documentation follow-up on `d82e945f`: clarified the contract-design summary sentence so the completed LiteSVM sub-gate and still-blocked split-fee conditions are expressed as distinct requirements; no policy or runtime behavior changed.

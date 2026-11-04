@@ -25,7 +25,7 @@ No Subscription API, database object, signer, worker, transaction builder, verif
 7. Collector, Puller, transaction fee payer, Rent payer, Plan Owner, subscriber, and token source authority are separate principals. SolMint must fund none of the Rent or transaction network fees.
 8. The normal Pay verifier and `pay_apply_verified_observation` remain unchanged. A Subscription-specific verifier and atomic accounting boundary are mandatory.
 9. The current Production ledger graph is Payment-Intent-centric. Subscription accounting needs an explicit typed financial origin; creating synthetic Payment Intent IDs is prohibited.
-10. v1 safety exclusions remain in force: no finite Plans, no Resume, no Immediate CancelNow, no implicit or SolMint-funded sponsorship, no Durable Nonce or unresolved smart-wallet proposal, split-fee charge remains disabled: the LiteSVM two-destination cumulative-allowance/rollback sub-gate is PASS, but verifier/accounting, approved fee model and Devnet proof remain open, and no Customer entitlement before finalized verification plus atomic accounting.
+10. V1 exclusions remain in force: no finite Plans, Resume, Immediate CancelNow, implicit or SolMint-funded sponsorship, Durable Nonce or unresolved smart-wallet proposals; no split-fee charge until the remaining dedicated verifier/accounting, approved fee-model and Devnet gates pass (the LiteSVM two-destination cumulative-allowance/rollback sub-gate is PASS); and no Customer entitlement before finalized verification plus atomic accounting.
 
 ## 2. Evidence baseline and scope
 
