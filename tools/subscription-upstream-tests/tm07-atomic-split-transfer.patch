@@ -12,7 +12,7 @@ diff --git a/tests/integration-tests/src/test_transfer_subscription.rs b/tests/i
              move_clock_forward, set_transfer_hook_config, setup, CancelSubscription, CreatePlan, CreateSubscription,
              DeletePlan, TransferSubscription, UpdatePlan, TRANSFER_HOOK_EXAMPLE_PROGRAM_ID,
          },
-@@ -836,0 +837,106 @@
+@@ -834,2 +834,108 @@
      assert!(result.is_err(), "transfer with incomplete hook accounts must fail via the hook");
  }
 +
