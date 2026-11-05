@@ -52,6 +52,12 @@ Current-main references:
 - [revoke_subscription_authority.rs](https://github.com/solana-foundation/subscriptions/blob/abecf131886bec421e38544ec0c312c0325f6a8b/program/src/instructions/revoke_subscription_authority.rs)
 - [subscription_authority.rs](https://github.com/solana-foundation/subscriptions/blob/abecf131886bec421e38544ec0c312c0325f6a8b/program/src/state/subscription_authority.rs)
 
+
+
+### 2.3 Upstream security disclosure procedure
+
+The upstream repository `SECURITY.md` says not to create a public GitHub Issue for a security problem and directs reporters to the private [Report a Vulnerability](https://github.com/solana-foundation/subscriptions/security/advisories/new) flow. This project will use that private disclosure path before opening a public issue or publishing an upstream implementation PR with exploit details. The available connected GitHub actions in this session do not expose private security-advisory creation, so no advisory was submitted and no public issue was created. This document records a proposed remediation; it is not a substitute for submitting the private report to the upstream maintainers.
+
 ## 3. Required security properties
 
 Any acceptable upstream implementation must prove all of the following:
@@ -82,7 +88,7 @@ Conceptual contents:
 
 Required behavior:
 
-- The registry is persistent and cannot be closed, reset, reinitialized, or reclaimed through any generic rent-reclaim path.
+- The Registry is persistent: ordinary instructions must not close, reset, reinitialize or overwrite it. A permissionless excess-rent path may return only lamports above the current rent-exempt minimum for the exact Registry data length to its recorded funder; it must not change owner, data, discriminator, generation or the rent-exempt floor. The Registry must be added to any account-kind / rent-reclaim handling deliberately, not treated as an unknown account or silently routed through a generic close path.
 - It is not caller-controlled: the Program derives and validates it from the signed subscriber and mint.
 - A first invalidation must be able to create the registry/tombstone even when no Authority PDA exists.
 - The initial generation is established by Program logic, never supplied freely by the caller.
@@ -171,7 +177,7 @@ The upstream test suite must cover:
 8. Verify an existing v0.5.0 active subscription remains transferable after lazy Registry bootstrap, then becomes uncollectible after its Authority generation is invalidated; verify it does not revive after reinitialization.
 9. Test concurrent Init/Subscribe/Invalidate transactions using the same Registry; only a valid current-generation operation may commit.
 10. Test malformed Registry PDA, wrong owner/discriminator/bump, wrong subscriber/mint, replayed action nonce, expired deadline and generation overflow. All must fail closed.
-11. Verify Registry cannot be closed, reset or drained by any account-reclaim/close instruction.
+11. Verify Registry cannot be closed/reset and that any supported excess-rent reclaim returns only lamports above the current rent-exempt floor to the recorded funder while preserving Registry bytes, owner, discriminator and generation.
 12. Test a raw external SPL Token Revoke separately. It must be documented that this alone cannot advance Program generation; the Program invalidation transaction is required to invalidate previously signed Program operations.
 13. Test full transaction atomicity across generation writes, token delegate CPI, Authority close/state transition and emitted events.
 
