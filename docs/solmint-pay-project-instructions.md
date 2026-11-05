@@ -343,3 +343,10 @@ Off-chain SolMint restrictions do not repair upstream on-chain replay semantics.
 ## 2026-11-03 Subscription Contract Design pointer
 
 Before changing Subscription API, schema, RLS/grants, RBAC, transaction builder, signer, billing worker, verifier/accounting or UI, read `docs/solmint-pay-subscription-contract-design.md` from the same current feature HEAD together with the Implementation Plan and Threat Model. The contract document is a design draft only: G2 remains PARTIAL / BLOCKED and it does not authorize implementation, Production DDL, keys/signers, customer Consent or chain mutation.
+
+
+## 2026-11-05 — Owner decision: TM-01 High risk is not accepted
+
+The project owner explicitly rejected acceptance of the Cantina High old-signed-create residual risk. A protocol-level upstream correction is a hard prerequisite for any strong-revocation claim and for Production Subscription launch. This is a narrow decision for TM-01 only; it does not accept the remaining five detailed Cantina Acknowledged risks or complete G1.
+
+Read `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` before any further Subscription implementation. It is a design proposal, not an upstream patch, deployment or proof of closure. Until the Program fix is independently reviewed, deployed and verified, TM-01 remains **BLOCKED** and Subscription Production remains prohibited. A raw SPL Token Revoke outside the Program does not itself advance Program-owned generation state; do not tell customers that it invalidates held Program instructions.

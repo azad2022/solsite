@@ -301,3 +301,12 @@ The design-only contract/lifecycle draft on `994eaf14aabd948aa5bb5312082beb635f6
 - TM-06 upstream overlay job [126158227949] reapplied its two-file test-only patch to exact upstream source `364a41976c33347d092902443bbec2def9227e75` and completed **275 passed, 0 failed, 0 ignored**. The combined sponsored-Plan rent refund regression passed.
 - Production Build [41705111568], Database Security [41705111546], ordinary Pay Devnet E2E [41705111411], and Mainnet Read-only [41705111409] completed SUCCESS. Preview Supabase was SKIPPED. Ordinary Pay Devnet E2E is not Subscription E2E; Mainnet is read-only.
 - This is a documentation-only checkpoint. Stage 2 and G2 remain BLOCKED/PARTIAL; CI success is not Subscription implementation or release readiness.
+
+
+## 2026-11-05 — TM-01 owner decision and protocol prerequisite
+
+- The owner explicitly rejected accepting the Cantina High old-signed-create residual risk. Strong revocation and Production Subscription launch require an upstream Program correction; off-chain rejection of `UNKNOWN_INIT_ID` is defense-in-depth only.
+- Re-read the exact current upstream main code at `abecf131886bec421e38544ec0c312c0325f6a8b`. The relevant Init/Close/Revoke/Subscribe/Authority paths still show slot-derived `init_id`, the idempotent approval of `u64::MAX`, sentinel-to-current-slot matching and closable Authority state. No TM-01 fix was found in those files.
+- A candidate persistent per-customer+mint generation registry and legacy-instruction closure/migration approach is documented in `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md`. It is a design proposal only. Its migration compatibility, rent consequences, integer representation and action nonce/deadline rules remain for upstream review.
+- Status: owner decision RECORDED; TM-01 remediation BLOCKED; G1 overall BLOCKED; G0 BLOCKED by Issue #355; G2 PARTIAL / BLOCKED. Subscription API/domain/schema/worker/Collector/verifier/accounting/Devnet E2E/UI remain NOT IMPLEMENTED.
+- No upstream PR, Production DDL, provider setting, Secret/Key, signer, customer Consent, Devnet/Mainnet transaction, Program upgrade, Squads proposal or funds were changed. No test execution is claimed for this documentation/design checkpoint.

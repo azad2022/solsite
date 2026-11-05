@@ -154,7 +154,7 @@ On unknown submit, query/reconcile the original signature/message and relevant f
 
 - SolMint builder policy: NOT IMPLEMENTED until code and tests exist.
 - Upstream protocol invalidation: BLOCKED / NOT EVIDENCED.
-- Overall TM-01: **BLOCKED for production claims of reliable revocation**. Off-chain builder rules alone do not close the High finding.
+- Overall TM-01: **BLOCKED for production claims of reliable revocation**. Off-chain builder rules alone do not close the High finding.\n\n**Owner decision — 2026-11-05:** the project owner explicitly **does not accept** this High residual risk. An upstream protocol fix, independent review, deployment and finalized Mainnet ProgramData/ELF/IDL verification are hard prerequisites for Production Subscription. This records the decision, not remediation; TM-01 remains BLOCKED. The decision applies only to TM-01 and does not accept the other detailed Cantina residual risks. See `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` for the upstream remediation proposal.
 
 ### TM-02 — Stale CancelSubscriptionNow approval can affect a recreated subscription (Cantina Medium, Acknowledged)
 
@@ -644,7 +644,7 @@ As of feature HEAD `5b8d24b`:
 - Subscription adversarial lifecycle suite: NOT IMPLEMENTED.
 - Real Subscription transaction E2E: NOT IMPLEMENTED.
 - Subscription UI: NOT IMPLEMENTED.
-- Issue #355: OPEN; exact migration actor/trigger and current Supabase integration state UNKNOWN; Production DDL BLOCKED.
+- Issue #355: OPEN; exact migration actor/trigger and current Supabase integration state UNKNOWN; Production DDL BLOCKED.\n- TM-01 owner disposition: residual risk **NOT ACCEPTED**; protocol fix is mandatory. TM-01 remains **BLOCKED** pending upstream implementation, audit and deployed Program verification.
 - Local Working Tree: UNKNOWN through remote GitHub connector.
 - Stage 2: BLOCKED. Part 2.2: NOT STARTED.
 
@@ -658,3 +658,12 @@ The first typed domain/lifecycle design draft is now maintained in `docs/solmint
 This draft distinguishes Plan, Consent, shared Authority, SubscriptionDelegation, Billing Cycle, Attempt, Pull observation, Accounting, Entitlement and Outbox. It does not define implementation enum values, API routes, SQL objects or a new fee model. It records the remaining G2 decisions and exit criteria.
 
 Status: G0 inventory segment PASS; overall G0 BLOCKED; G1 approval NOT RECORDED; G2 PARTIAL / BLOCKED. No runtime or database implementation is implied.
+
+
+## 2026-11-05 — TM-01 owner decision and upstream protocol remediation proposal
+
+The owner rejected acceptance of the Cantina High old-signed-create residual risk. Strong revocation and Production Subscription launch remain blocked until the upstream Program invalidates old signed Init/Subscribe/authority-control operations through persistent generation/nonce/deadline enforcement and legacy instruction closure.
+
+The exact current upstream main ref `abecf131886bec421e38544ec0c312c0325f6a8b` was inspected after the pinned release. The relevant Init/Close/Revoke/Subscribe/Authority source paths still contain the described slot-based/idempotent behavior. This is not evidence of a deployed Mainnet update. See `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` for exact source links, candidate migration design, compatibility constraints and required adversarial/deployment evidence.
+
+Status: owner decision **RECORDED**; TM-01 remediation **BLOCKED**; G1 overall **BLOCKED**; G0 **BLOCKED**; G2 **PARTIAL / BLOCKED**. No upstream patch/PR or Program upgrade was made.

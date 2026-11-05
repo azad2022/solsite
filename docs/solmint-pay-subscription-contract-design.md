@@ -3,7 +3,7 @@
 **Date:** 2026-11-03  
 **Repository:** `azad2022/solsite`  
 **Branch:** `feat/pay-subscription-billing`  
-**Design source HEAD:** `8109532f8402bdb72dd3e0ab5ea8572dedd66481`  
+**Design source HEAD:** `${oldHead}`  
 **Pinned upstream Program:** `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75` (`program-v0.5.0`)  
 **Document status:** DESIGN DRAFT — NOT FROZEN, NOT AN IMPLEMENTATION  
 **Gate status:** G0 inventory segment PASS; overall G0 BLOCKED by its unresolved evidence items. G1 approval NOT RECORDED. G2 PARTIAL / BLOCKED.
@@ -351,7 +351,7 @@ These decisions cannot be inferred from the existing code or Program. They must 
 7. **Customer identity and wallet support:** exact supported wallet types, wallet-to-application identity link, ATA ownership proof, and unsupported multisig/smart-wallet behaviours.
 8. **Operational freshness/finality:** the exact finalized read policy, cluster/RPC availability gate, Program drift monitoring/kill switch, discovery coverage for external Pullers and stale observation recovery.
 9. **Accounting origin and settlement:** typed ledger relationships, atomic write set, referral applicability, network-fee accounting, reversal and outbox semantics.
-10. **Upstream residual risk acceptance:** explicit owner/security acceptance of the six detailed Cantina Acknowledged items and whether reliable revocation requires an upstream protocol change before launch.
+10. **Upstream residual risk decisions:** on 2026-11-05 the owner explicitly rejected accepting TM-01 (High old-signed-create) as a residual risk; upstream protocol remediation, independent review, deployment and finalized Mainnet verification are mandatory before launch. The other five detailed Cantina Acknowledged items and the remaining v1 exclusions still require separate dispositions; no blanket risk acceptance is recorded.
 11. **Migration governance:** the Production migration runner provenance remains unresolved (Issue #355). This blocks Production DDL; it does not authorize bypassing the controlled migration workflow.
 
 ## 11. Contract Freeze exit criteria
@@ -384,3 +384,8 @@ Until then: G2 remains PARTIAL / BLOCKED; no migration, API runtime, Collector s
 8. Implement UI last, from the tested domain/API state machines.
 
 **This document is a design draft. It does not authorize production DDL, secret/key changes, a real signer, customer Consent, Devnet mutation or Mainnet mutation.**
+
+
+## 2026-11-05 — TM-01 owner decision
+
+The owner has explicitly rejected the High old-signed-create residual risk. A protocol-level upstream fix is a hard release prerequisite; this decision does not accept the other Cantina residuals or complete G1. The candidate protocol remediation and migration compatibility requirements are documented in `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md`. No API/schema/instruction/Program change is implemented by that proposal.

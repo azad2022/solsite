@@ -258,3 +258,10 @@ Before any Subscription implementation, read `docs/solmint-pay-subscription-v1-t
 **Audit report discrepancy:** page-3 summary counts five Acknowledged findings (three Medium), while detailed pages mark four Medium findings Acknowledged plus one High and one Low (six detailed Acknowledged overall). Detailed pages identify three Fixed findings, whereas the summary reports four. Treat all six detailed Acknowledged findings as residual risks until Cantina/Solana Foundation provides written clarification or a corrected report. Do not silently reconcile the PDF.
 
 Off-chain rejection of `UNKNOWN_INIT_ID`, durable nonce or pending proposals cannot invalidate a transaction already signed outside SolMint. The High old-signed-create issue remains BLOCKED for any strong revocation guarantee absent an upstream protocol fix. The v1 capability matrix is proposed and not yet approved.
+
+
+## 2026-11-05 TM-01 owner decision — mandatory upstream fix
+
+The project owner explicitly rejects acceptance of the High old-signed-create residual risk. Do not claim strong revocation or enable Production Subscription until an upstream Program fix is implemented, independently reviewed, deployed and verified. The decision is specific to TM-01; it does not accept the other five detailed Acknowledged risks or complete G1.
+
+Read `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` before further work on the upstream Program, account-generation model or legacy instruction compatibility. It is a design proposal, not implemented Program code. A raw external SPL Token Revoke does not update Program-owned generation state and must not be represented as invalidating held Program instructions.
