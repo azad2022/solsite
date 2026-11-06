@@ -13,11 +13,32 @@ import {
 const keys = Array.from({ length: TRANSFER_SUBSCRIPTION_ACCOUNT_COUNT }, () =>
   Keypair.generate().publicKey.toBase58(),
 );
-keys[6] = Keypair.generate().publicKey.toBase58();
+const delegator = Keypair.generate().publicKey;
+const mint = Keypair.generate().publicKey.toBase58();
+const planPda = Keypair.generate().publicKey.toBase58();
+const [subscriptionPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from('subscription'), new PublicKey(planPda).toBytes(), delegator.toBytes()],
+  new PublicKey(SUBSCRIPTIONS_PROGRAM_ADDRESS),
+);
+const [authorityPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from('SubscriptionAuthority'), delegator.toBytes(), new PublicKey(mint).toBytes()],
+  new PublicKey(SUBSCRIPTIONS_PROGRAM_ADDRESS),
+);
+const [delegatorAta] = PublicKey.findProgramAddressSync(
+  [
+    delegator.toBytes(),
+    new PublicKey(ORIGINAL_SPL_TOKEN_PROGRAM_ADDRESS).toBytes(),
+    new PublicKey(mint).toBytes(),
+  ],
+  new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
+);
+keys[0] = subscriptionPda.toBase58();
+keys[1] = planPda;
+keys[2] = authorityPda.toBase58();
+keys[3] = delegatorAta.toBase58();
+keys[6] = mint;
 keys[7] = ORIGINAL_SPL_TOKEN_PROGRAM_ADDRESS;
 keys[9] = SUBSCRIPTIONS_PROGRAM_ADDRESS;
-const delegator = Keypair.generate().publicKey;
-const mint = keys[6];
 
 function instruction({
   programAddress = SUBSCRIPTIONS_PROGRAM_ADDRESS,
@@ -117,5 +138,35 @@ test('rejects selfProgram and transferData mint mismatches', () => {
   assert.throws(
     () => decodeTransferSubscriptionInstruction(instruction({ instructionMint: otherMint })),
     /mint argument does not match/,
+  );
+});
+
+test('rejects non-canonical accounts and incorrect Subscription PDA, Authority PDA or source ATA', () => {
+  const malformed = [...keys];
+  malformed[4] = 'not-a-base58-address';
+  assert.throws(
+    () => decodeTransferSubscriptionInstruction(instruction({ accountAddresses: malformed })),
+    /canonical 32-byte Base58 address/,
+  );
+
+  const wrongSubscription = [...keys];
+  wrongSubscription[0] = Keypair.generate().publicKey.toBase58();
+  assert.throws(
+    () => decodeTransferSubscriptionInstruction(instruction({ accountAddresses: wrongSubscription })),
+    /subscription PDA does not match/,
+  );
+
+  const wrongAuthority = [...keys];
+  wrongAuthority[2] = Keypair.generate().publicKey.toBase58();
+  assert.throws(
+    () => decodeTransferSubscriptionInstruction(instruction({ accountAddresses: wrongAuthority })),
+    /authority PDA does not match/,
+  );
+
+  const wrongAta = [...keys];
+  wrongAta[3] = Keypair.generate().publicKey.toBase58();
+  assert.throws(
+    () => decodeTransferSubscriptionInstruction(instruction({ accountAddresses: wrongAta })),
+    /source token account is not the subscriber/,
   );
 });

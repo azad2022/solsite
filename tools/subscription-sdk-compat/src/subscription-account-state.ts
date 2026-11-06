@@ -1,4 +1,5 @@
 import type { Address } from '@solana/kit';
+import { findAssociatedTokenPda } from '@solana-program/token';
 import {
   findPlanPda,
   findSubscriptionAuthorityPda,
@@ -101,6 +102,7 @@ export type SubscriptionAccountStateFailureCode =
   | 'mint_decimals_mismatch'
   | 'mint_not_initialized'
   | 'token_account_identity_mismatch'
+  | 'token_account_ata_mismatch'
   | 'token_account_program_unsupported'
   | 'token_account_not_transferable'
   | 'token_account_delegate_mismatch'
@@ -248,9 +250,9 @@ export async function validateSubscriptionAccountState(
   }
   if (
     subscription.header.initId === UNKNOWN_INIT_ID ||
-    subscription.header.initId < 0n ||
+    !isNonNegativeI64(subscription.header.initId) ||
     authority.initId === UNKNOWN_INIT_ID ||
-    authority.initId < 0n
+    !isNonNegativeI64(authority.initId)
   ) failures.push('subscription_authority_generation_invalid');
   if (
     subscription.terms.amount !== planTerms.amount ||
@@ -269,11 +271,11 @@ export async function validateSubscriptionAccountState(
     isU64(planTerms.amount) &&
     subscription.amountPulledInPeriod > planTerms.amount
   ) failures.push('subscription_period_state_invalid');
-  // Pinned Program v0.5.0 uses a strict hard-stop comparison:
-  // current_ts > expires_at_ts. A transfer at exactly expires_at_ts is valid.
+  // The pinned TransferSubscription handler rejects at current_ts >= expires_at_ts.
+  // Equality is the hard stop; no pull is valid at the exact cancellation boundary.
   if (
     subscription.expiresAtTs !== 0n &&
-    snapshot.blockTimeUnixSeconds > subscription.expiresAtTs
+    snapshot.blockTimeUnixSeconds >= subscription.expiresAtTs
   ) failures.push('subscription_expired_or_cancelled');
 
   if (snapshot.authority.address !== expectedAuthorityAddress) {
@@ -296,11 +298,20 @@ export async function validateSubscriptionAccountState(
   }
   if (!snapshot.mint.initialized) failures.push('mint_not_initialized');
 
+  const [expectedAssociatedTokenAddress] = await findAssociatedTokenPda({
+    owner: expected.subscriber,
+    mint: expected.mint,
+    tokenProgram: SPL_TOKEN_PROGRAM_ADDRESS as Address,
+  });
   if (
     snapshot.tokenAccount.address !== expected.tokenAccount ||
     snapshot.tokenAccount.owner !== expected.subscriber ||
     snapshot.tokenAccount.mint !== expected.mint
   ) failures.push('token_account_identity_mismatch');
+  if (
+    expected.tokenAccount !== expectedAssociatedTokenAddress ||
+    snapshot.tokenAccount.address !== expectedAssociatedTokenAddress
+  ) failures.push('token_account_ata_mismatch');
   if (snapshot.tokenAccount.programAddress !== SPL_TOKEN_PROGRAM_ADDRESS) {
     failures.push('token_account_program_unsupported');
   }

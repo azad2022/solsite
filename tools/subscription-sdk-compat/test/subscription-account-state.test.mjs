@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { address } from '@solana/kit';
+import { findAssociatedTokenPda } from '@solana-program/token';
 import {
   findPlanPda,
   findSubscriptionAuthorityPda,
@@ -15,7 +16,11 @@ const ZERO = address('11111111111111111111111111111111');
 const MERCHANT = address('SysvarRent111111111111111111111111111111111');
 const SUBSCRIBER = address('SysvarC1ock11111111111111111111111111111111');
 const MINT = address('So11111111111111111111111111111111111111112');
-const USER_ATA = address('Vote111111111111111111111111111111111111111');
+const [USER_ATA] = await findAssociatedTokenPda({
+  mint: MINT,
+  owner: SUBSCRIBER,
+  tokenProgram: SPL_TOKEN_PROGRAM,
+});
 const DESTINATION = address('Stake11111111111111111111111111111111111111');
 const PULLER = address('ComputeBudget111111111111111111111111111111');
 const GENESIS = 'devnet-genesis-fixture';
@@ -223,19 +228,26 @@ test('rejects mismatched Plan terms and a different authority generation', async
   assert.ok(result.failures.includes('subscription_authority_generation_mismatch'));
 });
 
-test('rejects UNKNOWN_INIT_ID, accepts exact expiry time, and rejects strictly after it', async () => {
+test('rejects UNKNOWN_INIT_ID and enforces the Program cancellation boundary at equality', async () => {
   const unknown = await makeSnapshot();
   unknown.snapshot.subscription.data.header.initId = -(1n << 63n);
   unknown.snapshot.authority.data.initId = -(1n << 63n);
   const unknownResult = await validateSubscriptionAccountState(expected(), unknown.snapshot);
   assert.ok(unknownResult.failures.includes('subscription_authority_generation_invalid'));
 
+  const beforeExpiry = await makeSnapshot();
+  beforeExpiry.snapshot.subscription.data.expiresAtTs = NOW;
+  beforeExpiry.snapshot.blockTimeUnixSeconds = NOW - 1n;
+  const beforeResult = await validateSubscriptionAccountState(expected(), beforeExpiry.snapshot);
+  assert.equal(beforeResult.consistent, true);
+  assert.equal(beforeResult.cancellationPending, true);
+
   const exactExpiry = await makeSnapshot();
   exactExpiry.snapshot.subscription.data.expiresAtTs = NOW;
   const exactResult = await validateSubscriptionAccountState(expected(), exactExpiry.snapshot);
-  assert.equal(exactResult.consistent, true);
-  assert.equal(exactResult.cancellationPending, true);
-  assert.equal(exactResult.failures.includes('subscription_expired_or_cancelled'), false);
+  assert.equal(exactResult.consistent, false);
+  assert.ok(exactResult.failures.includes('subscription_expired_or_cancelled'));
+  assert.equal(exactResult.snapshotTransferCapacityAtomic, 0n);
 
   const afterExpiry = await makeSnapshot();
   afterExpiry.snapshot.subscription.data.expiresAtTs = NOW;
@@ -257,6 +269,28 @@ test('does not reset the final-period allowance when its next boundary equals ca
   assert.equal(result.effectivePeriodStartTs, NOW - PERIOD_SECONDS);
   assert.equal(result.amountPulledInEffectivePeriodAtomic, PLAN_AMOUNT);
   assert.equal(result.remainingPeriodAllowanceAtomic, 0n);
+  assert.equal(result.snapshotTransferCapacityAtomic, 0n);
+});
+
+test('rejects a consent-bound token account that is not the subscriber original-SPL ATA', async () => {
+  const { snapshot } = await makeSnapshot();
+  snapshot.tokenAccount.address = address('Vote111111111111111111111111111111111111111');
+
+  const result = await validateSubscriptionAccountState(expected(), snapshot);
+
+  assert.ok(result.failures.includes('token_account_identity_mismatch'));
+  assert.ok(result.failures.includes('token_account_ata_mismatch'));
+  assert.equal(result.snapshotTransferCapacityAtomic, 0n);
+});
+
+test('rejects initId values outside the on-chain non-negative i64 range', async () => {
+  const { snapshot } = await makeSnapshot();
+  snapshot.subscription.data.header.initId = 1n << 63n;
+  snapshot.authority.data.initId = 1n << 63n;
+
+  const result = await validateSubscriptionAccountState(expected(), snapshot);
+
+  assert.ok(result.failures.includes('subscription_authority_generation_invalid'));
   assert.equal(result.snapshotTransferCapacityAtomic, 0n);
 });
 
