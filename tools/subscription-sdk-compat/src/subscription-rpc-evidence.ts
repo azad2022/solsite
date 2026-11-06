@@ -226,17 +226,27 @@ function deserializeV1WireTransaction(wire: Uint8Array): DecodedWireTransaction 
 function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
   if (wire.length === 0) throw new Error('RPC_TRANSACTION_WIRE_EMPTY');
 
+  // Solana v1 places the versioned message first and appends signatures.
+  // Legacy and v0 retain the shortvec signature-count + signatures + message layout.
   if ((wire[0] & 0x80) !== 0) {
     const version = wire[0] & 0x7f;
     if (version === 1) return deserializeV1WireTransaction(wire);
-    if (version !== 0) throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
+    throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
+  }
 
-    const signatureVector = readShortVector(wire, 0);
-    if (!isIntegerInRange(signatureVector.value, 1, 64)) {
-      throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_INVALID');
-    }
-    const messageOffset = signatureVector.nextOffset + signatureVector.value * 64;
-    if (messageOffset >= wire.length) throw new Error('RPC_TRANSACTION_MESSAGE_MISSING');
+  const signatureVector = readShortVector(wire, 0);
+  if (!isIntegerInRange(signatureVector.value, 1, 64)) {
+    throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_INVALID');
+  }
+  const messageOffset = signatureVector.nextOffset + signatureVector.value * 64;
+  if (messageOffset >= wire.length) throw new Error('RPC_TRANSACTION_MESSAGE_MISSING');
+
+  const firstMessageByte = wire[messageOffset];
+  const versioned = (firstMessageByte & 0x80) !== 0;
+
+  if (versioned) {
+    const version = firstMessageByte & 0x7f;
+    if (version !== 0) throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
 
     const transaction = VersionedTransaction.deserialize(Buffer.from(wire));
     if (
@@ -270,13 +280,6 @@ function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
       messageBytes: new Uint8Array(messageBytes),
     };
   }
-
-  const signatureVector = readShortVector(wire, 0);
-  if (!isIntegerInRange(signatureVector.value, 1, 64)) {
-    throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_INVALID');
-  }
-  const messageOffset = signatureVector.nextOffset + signatureVector.value * 64;
-  if (messageOffset >= wire.length) throw new Error('RPC_TRANSACTION_MESSAGE_MISSING');
 
   const transaction = Transaction.from(Buffer.from(wire));
   if (transaction.signatures.length !== signatureVector.value) {
