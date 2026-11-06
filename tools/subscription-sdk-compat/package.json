@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "npm run build:adapter && node --check test/mainnet-programdata.test.mjs && node --test test/sdk-compat.test.mjs test/idl-golden.test.mjs test/upgradeable-loader.test.mjs test/program-metadata.test.mjs test/squads-v4.test.mjs test/subscription-account-state.test.mjs test/transfer-subscription-instruction.test.mjs test/subscription-transaction-verifier.test.mjs test/subscription-rpc-evidence.test.mjs test/subscription-programdata-attestation.test.mjs test/subscription-rpc-client.test.mjs test/subscription-account-archive-client.test.mjs",
+    "test": "npm run build:adapter && node --check test/mainnet-programdata.test.mjs && node --test test/sdk-compat.test.mjs test/idl-golden.test.mjs test/upgradeable-loader.test.mjs test/program-metadata.test.mjs test/squads-v4.test.mjs test/subscription-account-state.test.mjs test/subscription-account-snapshot-decoder.test.mjs test/transfer-subscription-instruction.test.mjs test/subscription-transaction-verifier.test.mjs test/subscription-rpc-evidence.test.mjs test/subscription-programdata-attestation.test.mjs test/subscription-rpc-client.test.mjs test/subscription-account-archive-client.test.mjs",
     "test:workerd": "node --test test/workerd-pages.test.mjs",
     "versions": "npm ls --depth=0",
     "typecheck": "tsc --noEmit -p tsconfig.adapter.json",
