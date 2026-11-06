@@ -23,7 +23,18 @@ export interface EffectiveAccountMeta {
 }
 
 export interface ResolvedCompiledInstruction extends CompiledSubscriptionInstruction {
+  readonly programIdIndex: number;
+  readonly accountIndexes: readonly number[];
   readonly accounts: readonly EffectiveAccountMeta[];
+}
+
+export interface ProgramDeploymentAttestation {
+  readonly programAddress: Address;
+  readonly sourceCommit: string;
+  readonly elfSha256: string;
+  /** Must be tied to the transaction slot by an independently trusted archive source. */
+  readonly attestedSlot: bigint;
+  readonly attestationKind: 'historical-slot';
 }
 
 export interface SubscriptionInnerInstruction {
@@ -48,6 +59,7 @@ export interface SubscriptionTransactionEvidence {
   readonly slot: bigint;
   readonly blockTimeUnixSeconds: bigint | null;
   readonly transactionError: unknown | null;
+  readonly programDeployment: ProgramDeploymentAttestation | null;
   readonly feePayer: Address;
   /** Account keys in the same resolved order used by compiled instruction indexes. */
   readonly accountKeys: readonly Address[];
@@ -78,6 +90,8 @@ export interface ExpectedSubscriptionTransaction {
   readonly expectedPeriodStartTs: bigint;
   readonly expectedPeriodEndTs: bigint;
   readonly expectedCumulativeAmountAtomic: bigint;
+  readonly programSourceCommit: string;
+  readonly programElfSha256: string;
 }
 
 export type SubscriptionTransactionFailureCode =
@@ -87,6 +101,7 @@ export type SubscriptionTransactionFailureCode =
   | 'transaction_execution_failed'
   | 'missing_signature'
   | 'fee_payer_mismatch'
+  | 'program_deployment_mismatch'
   | 'unexpected_top_level_instruction'
   | 'subscription_instruction_invalid'
   | 'instruction_privilege_invalid'
@@ -247,8 +262,17 @@ export function verifySubscriptionTransferTransaction(
     failures.push('missing_signature');
   }
   if (evidence.feePayer !== expected.merchantFeePayer) failures.push('fee_payer_mismatch');
+  if (
+    evidence.programDeployment === null ||
+    evidence.programDeployment.programAddress !== SUBSCRIPTIONS_PROGRAM ||
+    evidence.programDeployment.sourceCommit !== expected.programSourceCommit ||
+    evidence.programDeployment.elfSha256 !== expected.programElfSha256 ||
+    evidence.programDeployment.attestedSlot !== evidence.slot ||
+    evidence.programDeployment.attestationKind !== 'historical-slot'
+  ) unknown.push('Exact Program deployment identity is not independently attested for this transaction slot.');
 
   if (failures.length > 0) return reject(failures);
+  if (unknown.length > 0) return { outcome: 'unknown', reasons: unknown };
 
   if (
     !Array.isArray(evidence.accountKeys) ||
@@ -256,6 +280,10 @@ export function verifySubscriptionTransferTransaction(
     !(evidence.innerInstructions instanceof Map)
   ) {
     return { outcome: 'unknown', reasons: ['RPC transaction evidence is incomplete or not normalized.'] };
+  }
+
+  if (evidence.accountKeys.length === 0 || evidence.accountKeys[0] !== evidence.feePayer) {
+    return { outcome: 'unknown', reasons: ['Fee payer is not bound to the first resolved transaction account key.'] };
   }
 
   const subscriptionInstructions = evidence.topLevelInstructions.filter(
@@ -272,6 +300,16 @@ export function verifySubscriptionTransferTransaction(
   if (failures.length > 0) return reject(failures);
 
   const instruction = subscriptionInstructions[0];
+  if (
+    !Number.isInteger(instruction.programIdIndex) ||
+    instruction.programIdIndex < 0 ||
+    evidence.accountKeys[instruction.programIdIndex] !== instruction.programAddress ||
+    !Array.isArray(instruction.accountIndexes) ||
+    instruction.accountIndexes.length !== instruction.accountAddresses.length ||
+    instruction.accountIndexes.some((index, position) =>
+      !Number.isInteger(index) || index < 0 || evidence.accountKeys[index] !== instruction.accountAddresses[position]
+    )
+  ) return { outcome: 'unknown', reasons: ['Compiled instruction indexes do not match the fully resolved transaction account-key list.'] };
   let decoded;
   try {
     decoded = decodeTransferSubscriptionInstruction({
@@ -351,6 +389,12 @@ export function verifySubscriptionTransferTransaction(
     readU64LE(transferData, 1) !== expected.expectedAmountAtomic ||
     transferData[9] !== expected.mintDecimals
   ) failures.push('token_cpi_missing_or_invalid');
+
+  const eventAuthority = decoded.accounts.eventAuthority;
+  if (
+    eventCpis[0].accountAddresses.length !== 1 ||
+    eventCpis[0].accountAddresses[0] !== eventAuthority
+  ) failures.push('event_missing_or_invalid');
 
   let event: DecodedTransferEvent;
   try {
