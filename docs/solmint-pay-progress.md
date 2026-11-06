@@ -3692,3 +3692,39 @@ No Production schema/data, integration setting, credential, Secret, key, signer,
 - No Program source/IDL, SDK, API/runtime, database schema/migration/data, production setting, Secret/Key/signer, customer consent, Mainnet/Devnet transaction, Program deployment/upgrade, Squads proposal, accounting posting or customer funds were changed.
 - Local Working Tree remains **UNKNOWN** because the connected GitHub interface does not expose the local filesystem state.
 - Next: resolve the three divergent branch files without force-push/rebase, re-run exact-head CI, then begin G1-1 by importing the exact MIT-pinned source and reproducing the unmodified v0.5.0 build before patching it.
+
+
+## 2026-11-06 — G1-0 branch reconciliation completed; final exact-head CI pending
+
+### Reconciled branch graph
+- Main remains `514d3401d8d725be106ab0c83557f8e43cdff13e`; it was not modified.
+- Previous Subscription branch HEAD: `298f3a79a357cb28438d70cb953b1ecfcafb4b83`.
+- Created a true two-parent merge commit: `4d7fc8a297ff49a5162de8f4fe807a85346b1785`, with the previous feature HEAD as first parent and current main as second parent.
+- Advanced `refs/heads/feat/pay-subscription-billing` to the merge commit using a non-force fast-forward update. No history was rewritten or deleted.
+- Current comparison: feature branch is 315 commits ahead / 0 behind; merge base is current main `514d3401...`.
+- PR [#366](https://github.com/azad2022/solsite/pull/366) remains OPEN / DRAFT / NOT MERGED; GitHub now reports `mergeable=true`.
+
+### Three-file merge resolution
+1. `.github/workflows/ci.yml`: preserved all Subscription-specific CI jobs and added the generic `production-migration-cli` job from main, pinned to Supabase CLI 2.122.1.
+2. `docs/solmint-pay-production-migration-policy.md`: retained strict Production target/expected-SHA/TLS/CLI controls and added an explicit G0 PASS/COMPLETE disposition based on owner confirmation plus three populated post-change log windows. Earlier interim BLOCKED wording is explicitly superseded.
+3. `docs/solmint-pay-progress.md`: retained the full Subscription feature history, incorporated the detailed main-branch G0 post-merge checkpoints, and retained the owner-confirmed G0 closure and G1 plan.
+
+The other four main-side changed paths (Production migration workflow, guard script, guard tests and workflow test) were byte-identical before merge and were preserved unchanged.
+
+### Verification state
+- PR mergeability: **PASS** (`mergeable=true`, behind_by=0).
+- Branch history preservation: **PASS** (two-parent commit; feature branch is first parent; fast-forward ref update with force=false).
+- Exact-head GitHub Actions for merge commit `4d7fc8a...` were triggered. At the first read-back, Devnet E2E, atomic split-transfer, SDK compatibility, pinned CLI, reproducible build, Production Build, Database Security, quality, Mainnet Read-only and Cloudflare Pages were still in progress/queued; Supabase Preview was skipped by policy.
+- The plan and Progress Ledger were then updated in documentation-only commit `69ebaf3233d69d9cd99a02ac1c9d30cf648cf060`; therefore only checks on the new exact branch HEAD may be used for final G1-0 CI status.
+
+### G1 status
+- G1-0 branch reconciliation: **PASS** for graph reconciliation and PR mergeability; final exact-head CI is **PENDING**.
+- G1-1 local MIT source intake / reproducible baseline build: **NOT STARTED**.
+- G1-2 protocol and ABI freeze: **NOT STARTED**.
+- G1-3 VNext Program implementation: **NOT STARTED**.
+- G1-4 legacy migration, G1-5 adversarial proof, G1-6 independent audit, G1-7 Devnet release, G1-8 Mainnet release: **NOT STARTED**.
+
+### Mutation boundary
+- Repository changes are confined to `feat/pay-subscription-billing`; `main` is unchanged.
+- No Program source/IDL, application runtime, database schema/data, Production configuration, Secret/Key/signer, customer consent, Mainnet/Devnet transaction, Program deployment/upgrade, Squads proposal, accounting entry or customer funds changed.
+- Local Working Tree remains **UNKNOWN** through the remote GitHub connector.
