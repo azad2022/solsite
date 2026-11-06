@@ -276,3 +276,16 @@ The result union is restricted to `verified_observation`, `rejected` or `unknown
 - A successful pure policy result is only a candidate immutable observation. It is not an accounting commit or payment success.
 
 Status after this checkpoint: **pure verifier policy PARTIAL**; **real golden fixtures NOT IMPLEMENTED**; **RPC normalizer NOT IMPLEMENTED**; **historical Program-slot attestation NOT IMPLEMENTED**; **atomic Subscription accounting NOT IMPLEMENTED**. No release gate is closed by this checkpoint.
+
+
+## 2026-11-06 — Verifier correlation and fail-closed classification hardening
+
+The pure policy now requires the exact expected signature, SHA-256 of the serialized transaction message, Cycle ID and Attempt ID supplied by the trusted server-side Attempt record. It returns those correlation values with the immutable observation candidate. It also requires the fee payer to be the first resolved message account key and to be a signer+writable, and it validates every top-level and inner compiled instruction index against the fully resolved account-key list.
+
+Outcome classification is deliberately conservative:
+
+- A non-finalized transaction, missing block time, missing execution metadata, absent exact-slot Program attestation, or absent CPI group is **UNKNOWN**.
+- A proven execution error, cluster mismatch, wrong fee payer, different signature/message hash, wrong Program/ELF identity, unauthorized Puller, unexpected instruction/CPI, event mismatch or token delta mismatch is **REJECTED**.
+- A successful `verified_observation` remains a synthetic-policy-level result until a real RPC normalizer, historical Program attestation source, same-slot Plan/Subscription state proof, all-Puller reconciliation and genuine serialized transaction fixtures exist.
+
+The current tests now include message-hash mismatch and Program ELF mismatch regressions. They remain generated/synthetic policy vectors and must not be labelled golden chain fixtures.
