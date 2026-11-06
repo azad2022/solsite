@@ -71,7 +71,7 @@ export function validateProductionDatabaseUrl(
   }
 
   const queryKeys = [...url.searchParams.keys()];
-  if (queryKeys.some((key) => key.toLowerCase() !== "sslmode")) {
+  if (queryKeys.some((key) => key !== "sslmode")) {
     fail("The Production database URI contains an unsupported query parameter.");
   }
   const sslModes = url.searchParams.getAll("sslmode");

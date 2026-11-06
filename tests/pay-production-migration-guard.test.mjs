@@ -74,6 +74,7 @@ const invalidUriCases = [
   ["rejects unsupported query parameters", poolerUri({ query: "?sslmode=require&options=unsafe" })],
   ["rejects password query parameters", poolerUri({ query: "?password=leak" })],
   ["rejects duplicate sslmode parameters", poolerUri({ query: "?sslmode=require&sslmode=verify-full" })],
+  ["rejects case-variant SSL query keys", poolerUri({ query: "?SSLmode=disable" })],
   ["rejects disabled TLS", poolerUri({ query: "?sslmode=disable" })],
   ["rejects permissive TLS preference", poolerUri({ query: "?sslmode=prefer" })],
   ["rejects malformed URI input", "postgresql://%E0%A4%A:bad@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"],
