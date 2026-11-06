@@ -181,6 +181,14 @@ async function makeFixture({ tokenAccountOwner = TOKEN_PROGRAM, tokenAccountByte
   };
   return {
     archive,
+    transactionEvidence: {
+      signature: archive.evidence.transactionSignature,
+      slot: archive.evidence.transactionSlot,
+      clusterGenesisHash: GENESIS,
+      commitment: 'finalized',
+      transactionError: null,
+      messageHash: 'd'.repeat(64),
+    },
     expected,
     planPda,
     subscriptionPda,
@@ -193,6 +201,7 @@ test('decodes pinned Program and SPL Token account codecs, then validates one hi
   const fixture = await makeFixture();
   const result = await decodeHistoricalSubscriptionAccountSnapshot(
     fixture.expected,
+    fixture.transactionEvidence,
     fixture.archive,
   );
 
@@ -220,6 +229,7 @@ test('rejects mutated account bytes whose preserved metadata hash no longer matc
 
   const result = await decodeHistoricalSubscriptionAccountSnapshot(
     fixture.expected,
+    fixture.transactionEvidence,
     fixture.archive,
   );
   assert.equal(result.outcome, 'unknown');
@@ -232,6 +242,7 @@ test('rejects Program-owned account bytes attributed to a different owner', asyn
 
   const result = await decodeHistoricalSubscriptionAccountSnapshot(
     fixture.expected,
+    fixture.transactionEvidence,
     fixture.archive,
   );
   assert.equal(result.outcome, 'unknown');
@@ -242,6 +253,7 @@ test('fails closed when Token-2022 owns the customer account but the current val
   const fixture = await makeFixture({ tokenAccountOwner: TOKEN_2022_PROGRAM });
   const result = await decodeHistoricalSubscriptionAccountSnapshot(
     fixture.expected,
+    fixture.transactionEvidence,
     fixture.archive,
   );
   assert.equal(result.outcome, 'unknown');
@@ -252,6 +264,7 @@ test('fails closed on extension-bearing SPL token account data instead of trunca
   const fixture = await makeFixture({ tokenAccountBytesExtra: 4 });
   const result = await decodeHistoricalSubscriptionAccountSnapshot(
     fixture.expected,
+    fixture.transactionEvidence,
     fixture.archive,
   );
   assert.equal(result.outcome, 'unknown');
@@ -264,6 +277,7 @@ test('fails closed when the historical state is not bound to the exact transacti
 
   const result = await decodeHistoricalSubscriptionAccountSnapshot(
     fixture.expected,
+    fixture.transactionEvidence,
     fixture.archive,
   );
   assert.equal(result.outcome, 'unknown');
@@ -273,12 +287,12 @@ test('fails closed when the historical state is not bound to the exact transacti
 test('fails closed when the archive snapshot omits or duplicates a required account', async () => {
   const missing = await makeFixture();
   missing.archive.evidence.accounts = missing.archive.evidence.accounts.filter(item => item.id !== 'authority');
-  const missingResult = await decodeHistoricalSubscriptionAccountSnapshot(missing.expected, missing.archive);
+  const missingResult = await decodeHistoricalSubscriptionAccountSnapshot(missing.expected, missing.transactionEvidence, missing.archive);
   assert.equal(missingResult.outcome, 'unknown');
 
   const duplicate = await makeFixture();
   duplicate.archive.evidence.accounts[4].id = 'mint';
-  const duplicateResult = await decodeHistoricalSubscriptionAccountSnapshot(duplicate.expected, duplicate.archive);
+  const duplicateResult = await decodeHistoricalSubscriptionAccountSnapshot(duplicate.expected, duplicate.transactionEvidence, duplicate.archive);
   assert.equal(duplicateResult.outcome, 'unknown');
 });
 
@@ -291,7 +305,46 @@ test('returns an explicit inconsistent snapshot when Plan, delegate and authorit
   account.dataBase64 = data.toString('base64');
   account.accountDataSha256 = createHash('sha256').update(data).digest('hex');
 
-  const result = await decodeHistoricalSubscriptionAccountSnapshot(fixture.expected, fixture.archive);
+  const result = await decodeHistoricalSubscriptionAccountSnapshot(fixture.expected, fixture.transactionEvidence, fixture.archive);
   assert.equal(result.outcome, 'inconsistent_snapshot');
   assert.ok(result.validation.failures.includes('subscription_authority_generation_mismatch'));
+});
+
+test('rejects historical state that is not correlated to the exact finalized transaction evidence', async () => {
+  const fixture = await makeFixture();
+  const wrongSignature = {
+    ...fixture.transactionEvidence,
+    signature: '2'.repeat(88),
+  };
+  const signatureResult = await decodeHistoricalSubscriptionAccountSnapshot(
+    fixture.expected,
+    wrongSignature,
+    fixture.archive,
+  );
+  assert.equal(signatureResult.outcome, 'unknown');
+  assert.match(signatureResult.reasons.join(' '), /TRANSACTION_CORRELATION_MISMATCH/);
+
+  const wrongSlot = {
+    ...fixture.transactionEvidence,
+    slot: 501n,
+  };
+  const slotResult = await decodeHistoricalSubscriptionAccountSnapshot(
+    fixture.expected,
+    wrongSlot,
+    fixture.archive,
+  );
+  assert.equal(slotResult.outcome, 'unknown');
+  assert.match(slotResult.reasons.join(' '), /TRANSACTION_CORRELATION_MISMATCH/);
+});
+
+test('rejects archive provider identity that does not match its declared cluster', async () => {
+  const fixture = await makeFixture();
+  fixture.archive.evidence.providerId = 'alchemy-account-archive-mainnet';
+  const result = await decodeHistoricalSubscriptionAccountSnapshot(
+    fixture.expected,
+    fixture.transactionEvidence,
+    fixture.archive,
+  );
+  assert.equal(result.outcome, 'unknown');
+  assert.match(result.reasons.join(' '), /EVIDENCE_PROVENANCE_INVALID/);
 });
