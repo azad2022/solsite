@@ -59,7 +59,7 @@ interface MessageLike {
   readonly staticAccountKeys: readonly PublicKey[];
   readonly compiledInstructions: readonly CompiledInstructionLike[];
   readonly addressTableLookups?: readonly LookupLike[];
-  serialize(): Uint8Array;
+  serialize?(): Uint8Array;
 }
 
 function unknown(reason: string): SubscriptionRpcNormalization {
@@ -167,11 +167,58 @@ function verifyEd25519MessageSignatures(
   }
 }
 
+function deserializeV1WireTransaction(wire: Uint8Array): {
+  readonly message: MessageLike;
+  readonly signature: string;
+  readonly transactionVersion: 1;
+  readonly signatureCount: number;
+  readonly messageBytes: Uint8Array;
+} {
+  if (wire.length < 1 + 3 + 64 || wire[0] !== 0x81) {
+    throw new Error('RPC_V1_TRANSACTION_WIRE_INVALID');
+  }
+  const signatureCount = wire[1];
+  if (!isIntegerInRange(signatureCount, 1, 64)) {
+    throw new Error('RPC_V1_SIGNATURE_COUNT_INVALID');
+  }
+  const messageLength = wire.length - signatureCount * 64;
+  if (messageLength <= 4 || messageLength >= wire.length) {
+    throw new Error('RPC_V1_MESSAGE_LENGTH_INVALID');
+  }
+  const messageBytes = new Uint8Array(wire.subarray(0, messageLength));
+  const transaction = VersionedTransaction.deserialize(Buffer.from(wire));
+  if (
+    transaction.message.version !== 1 ||
+    transaction.message.header.numRequiredSignatures !== signatureCount ||
+    transaction.signatures.length !== signatureCount ||
+    transaction.signatures.some(signature =>
+      !(signature instanceof Uint8Array) ||
+      signature.length !== 64 ||
+      signature.every(byte => byte === 0)
+    )
+  ) throw new Error('RPC_V1_TRANSACTION_SIGNATURE_LAYOUT_INVALID');
+
+  if (!verifyEd25519MessageSignatures(
+    transaction.message.staticAccountKeys.slice(0, signatureCount),
+    transaction.signatures,
+    messageBytes,
+  )) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
+
+  return {
+    message: transaction.message as unknown as MessageLike,
+    signature: base58Encode(transaction.signatures[0]),
+    transactionVersion: 1,
+    signatureCount,
+    messageBytes,
+  };
+}
+
 function deserializeWireTransaction(wire: Uint8Array): {
   readonly message: MessageLike;
   readonly signature: string;
-  readonly transactionVersion: 'legacy' | 0;
+  readonly transactionVersion: 'legacy' | 0 | 1;
   readonly signatureCount: number;
+  readonly messageBytes: Uint8Array;
 } {
   const signatureVector = readShortVector(wire, 0);
   if (!isIntegerInRange(signatureVector.value, 1, 64)) {
@@ -209,6 +256,7 @@ function deserializeWireTransaction(wire: Uint8Array): {
       signature: base58Encode(signatureBytes),
       transactionVersion: 0,
       signatureCount: signatureVector.value,
+      messageBytes: new Uint8Array(messageBytes),
     };
   }
 
@@ -245,6 +293,7 @@ function deserializeWireTransaction(wire: Uint8Array): {
     signature: base58Encode(signatureBytes),
     transactionVersion: 'legacy',
     signatureCount: signatureVector.value,
+    messageBytes: new Uint8Array(messageBytes),
   };
 }
 
@@ -480,7 +529,7 @@ function normalizeTransaction(
 
   const preTokenBalances = normalizeBalances(meta.preTokenBalances, accountKeys.length);
   const postTokenBalances = normalizeBalances(meta.postTokenBalances, accountKeys.length);
-  const messageHash = createHash('sha256').update(Buffer.from(message.serialize())).digest('hex');
+  const messageHash = createHash('sha256').update(Buffer.from(decoded.messageBytes)).digest('hex');
 
   if (
     typeof provenance.providerId !== 'string' ||
