@@ -3535,3 +3535,14 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - Exact-head CI has not yet been checked for this code/documentation checkpoint; no test or build result is claimed here. Next: inspect and repair exact-head CI, then only claim the checks that actually pass.
 - G0 Production migration governance remains BLOCKED/UNKNOWN under Issue #355. G1 upstream TM-01 and capability-preserving v0.6 protocol remediation remain BLOCKED. G2 contract freeze remains PARTIAL/BLOCKED.
 - Mutation boundary: only files on `feat/pay-subscription-billing` were changed. No Production DDL/data/provider setting, Secret/Key/credential, signer, customer Consent, Devnet/Mainnet transaction, Program upgrade, Squads proposal, accounting posting or funds were changed.
+
+
+## 2026-11-06 — Verifier correlation hardening (exact-head CI pending)
+
+- Follow-up code SHA: `253a1b39099fd463ef047b35e3d2f86dc10ba51c`; branch `feat/pay-subscription-billing`; PR #366 remains OPEN / DRAFT / NOT MERGED. No `main` change.
+- Bound the observation to the trusted Attempt's exact signature, serialized-message SHA-256, Cycle ID and Attempt ID. Added exact resolved program/account index checks for top-level and inner instructions; bound fee payer to the first message key and signer+writable privileges.
+- Corrected fail-closed semantics: non-finalized commitment, missing block time/execution metadata and absent historical deployment attestation now return UNKNOWN; positive signature/message/Program identity mismatch returns REJECTED. Extra CPI effects are rejected, while absent CPI metadata remains UNKNOWN.
+- Added synthetic regression vectors for message-hash mismatch and wrong Program ELF identity. These remain synthetic policy tests, not real serialized transaction golden fixtures.
+- CI/check evidence for this exact SHA was not available through the current GitHub workflow-run/status reads at the time of this note; no test/build result is claimed. The latest PR head must be checked again after the documentation commit.
+- Full RPC normalizer, historical Program deployment attestation producer, same-slot Plan/Subscription account proof, all-Puller reconciliation, real transaction fixtures and atomic accounting remain NOT IMPLEMENTED.
+- No Production DDL/data/provider settings, Secrets/Keys, signer, consent, Devnet/Mainnet transaction, Program upgrade, Squads proposal, accounting posting or funds changed.
