@@ -175,8 +175,9 @@ function unwrapOptionAddress(value: unknown): Address | null {
       return address(value.value);
     }
     if (Object.hasOwn(value, 'value') && value.value === null) return null;
-    if (Object.hasOwn(value, 'value') && typeof value.value === 'string' && isSafeAddress(value.value)) {
-      return address(value.value);
+    const optionValue = value.value;
+    if (Object.hasOwn(value, 'value') && typeof optionValue === 'string' && isSafeAddress(optionValue)) {
+      return address(optionValue);
     }
   }
   throw new Error('SNAPSHOT_OPTION_ADDRESS_SHAPE_UNSUPPORTED');
