@@ -3879,3 +3879,56 @@ This confirms an upgrade of the old Program ID requires Squads governance and ca
 - G1 overall: **BLOCKED**.
 
 No Production DDL/data/provider setting, Secret/Key/signer, customer consent, accounting post, Program ID, keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet write or customer funds were changed. Local Working Tree remains UNKNOWN through the remote GitHub connector.
+
+
+## 2026-11-06 — G1-3 initial Authority lifecycle implementation checkpoint
+
+### Exact repository state
+- SolMint Pay repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`.
+- Current branch commit at this append: `d3569a7116deae9fede54cda1032cc180f39e006`.
+- PR #366 remains OPEN / DRAFT / NOT MERGED. Local Working Tree remains UNKNOWN through the remote connector.
+- Independent Program fork: `azad2022/solmint-subscriptions-program`.
+- Work branch: `feat/solmint-g1-authority-vnext`, exact HEAD `6f2379ddca4f7bbd5332fbe4df0a2eaba50a2d64`.
+- Pristine baseline branch remains at `364a41976c33347d092902443bbec2def9227e75`. Compare reports the work branch 46 commits ahead and 0 behind at this checkpoint. Baseline source branch was not changed.
+- Fork PR #1 remains OPEN / DRAFT / NOT MERGED; current PR changed-file list contains 17 files. The PR description was updated to describe the actual runtime/state changes and blockers.
+
+### Implemented source slice — not yet verified by execution
+Added or modified:
+- `program/src/state/authority_consent_registry.rs`: persistent Registry keyed by exact `(subscriber, mint, source_token_account)`, version 1, 188 bytes, discriminator 5, authority generation, independent authorize/revoke nonces and checked 24-hour action deadline.
+- `program/src/state/vnext_subscription_authority.rs`: 204-byte, tuple-bound VNext delegate Authority, discriminator 8.
+- `program/src/state/subscription_lifecycle_registry.rs`: 116-byte persistent Subscription revision state, discriminator 6.
+- `program/src/state/plan_revision_registry.rs`: 116-byte persistent Plan revision state, discriminator 7.
+- `program/src/instructions/authorize_subscription_authority_vnext.rs` and `revoke_subscription_authority_vnext.rs`: instruction handlers for explicit authorize/revoke, tombstone invalidation, exact non-ATA source validation, token-program/mint checks, foreign-delegate rejection, and Authority rent return to its recorded payer.
+- `program/src/instructions/authority_consent.rs`: 24-byte action payload.
+- `program/src/instructions/mod.rs`, `program/src/entrypoint.rs`, `program/src/errors.rs`, `program/src/state/common.rs`, `program/src/state/mod.rs`: new instruction discriminators 18/19, account discriminators 5–8, error codes 138–154, exports and dispatch.
+- `idl/subscriptions.json`: initial account, PDA, instruction, payload and error definitions.
+- `tests/integration-tests/src/test_vnext_authority_consent.rs`: three LiteSVM cases authored and registered: authorize→revoke, revoke tombstone before stale authorize, and ATA rejection.
+- `docs/solmint-vnext-protocol-design.md`: updated with selected Registry/Authority account layouts and authorize/revoke instruction payload/account order.
+
+### Important boundaries and unimplemented integration
+- Subscription lifecycle and Plan revision Registry structs are state foundations only; current Subscribe, Cancel, CancelNow, Resume, UpdatePlan, DeletePlan and related close/recreate paths do not yet allocate or consume them.
+- No VNext Subscription transfer instruction exists. The future transfer path must validate Registry status/generation, Authority identity and source token account on every transfer path before the approved `u64::MAX` delegate can be used safely.
+- The non-ATA boundary remains **unproven** until exact old v0.5.0 Program/binary LiteSVM adversarial tests prove the legacy Program cannot approve, mutate or debit a VNext source account.
+- No legacy migration or v0.5.0 account fixture migration exists.
+- `program/src/lib.rs` still declares the legacy Program ID. No new Program ID/keypair has been created; no Program deployment/upgrade or chain write was performed.
+- No independent security audit has reviewed these new source changes.
+
+### Test and CI evidence
+- Existing SolMint workflows on the previous SolMint branch head `040ee468f4874c1bf4d6e364b23fe4a7768a06f9` completed SUCCESS: Production Build `42256848064`, Database Security `42256847930`, Mainnet Read-only `42256848088`, and ordinary Pay Devnet E2E `42256848035`. These are not VNext Program tests; the ordinary Pay Devnet E2E is not a Subscription transaction.
+- Earlier VNext CI attempts on older Fork SHAs stopped at Rust formatting and skipped all tests. Formatting corrections were subsequently committed, but a successful exact-SHA VNext CI result is not yet available.
+- The current `subscription-vnext-authority-registry` job is configured to checkout exact Fork SHA `6f2379ddca4f7bbd5332fbe4df0a2eaba50a2d64`, check Rust formatting, run Program unit tests, build SBF with checksum-pinned `solana-verify 0.5.2`, execute the full LiteSVM suite, regenerate Codama IDL, and compare the generated IDL. GitHub Actions has not returned a run/check for this latest SolMint commit at the time of this ledger append. Thus formatting, Rust compile/tests, SBF build, LiteSVM execution and generated-IDL match are **UNKNOWN**, not PASS.
+- Fork-native Actions workflow discovery continues to return no runs/status contexts. It remains UNKNOWN; the Solsite workflow is the current cross-repository verification path.
+
+### G1 disposition
+- G1-0: **PASS** (per the verified baseline-recovery checkpoint).
+- G1-1: **BLOCKED** — immutable MIT fork and original baseline build are established; latest VNext source CI evidence is still UNKNOWN.
+- G1-2: **BLOCKED** — Authority Registry/Authority and authorize/revoke ABI slices are specified; complete Subscription, Plan, transfer and migration ABI is not frozen.
+- G1-3: **BLOCKED** — initial Authority state/handlers/dispatch and test source exist, but exact-source compile, SBF and LiteSVM execution have not passed.
+- G1-4: **NOT IMPLEMENTED** — legacy migration/recovery.
+- G1-5: **NOT IMPLEMENTED** — complete adversarial proof and exact old-program isolation suite.
+- G1-6: **NOT IMPLEMENTED** — independent audit.
+- G1-7: **NOT IMPLEMENTED** — Devnet deployment/rehearsal.
+- G1-8: **NOT IMPLEMENTED** — separately authorized Mainnet deployment/migration.
+- G1 overall: **BLOCKED**.
+
+No Production DDL/data/provider setting, secret/key/signer, customer consent, accounting posting, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet transaction or customer funds were changed.
