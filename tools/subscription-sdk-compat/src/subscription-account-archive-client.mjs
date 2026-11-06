@@ -4,6 +4,7 @@ import { PublicKey } from '@solana/web3.js';
 export const SUBSCRIPTION_ACCOUNT_ARCHIVE_ALLOWED_METHODS = Object.freeze([
   'getGenesisHash',
   'getSlot',
+  'getBlock',
   'getAccountInfo',
 ]);
 const ALLOWED_METHODS = new Set(SUBSCRIPTION_ACCOUNT_ARCHIVE_ALLOWED_METHODS);
@@ -88,7 +89,7 @@ async function postRpc(rpcUrl, method, params, requestId, fetchImpl) {
   } catch {
     throw new Error('ARCHIVE_RPC_RESPONSE_UNREADABLE');
   }
-  if (typeof rawBody !== 'string' || rawBody.length === 0 || rawBody.length > 8_000_000) {
+  if (typeof rawBody !== 'string' || rawBody.length === 0 || rawBody.length > 20_000_000) {
     throw new Error('ARCHIVE_RPC_RESPONSE_SIZE_INVALID');
   }
 
@@ -129,7 +130,7 @@ function normalizeAccountInfo(result, expectedAddress, snapshotSlot) {
   if (!isRecord(value)) throw new Error('ARCHIVE_ACCOUNT_MISSING_AT_PRE_TRANSACTION_SLOT');
 
   const owner = canonicalAddress(value.owner);
-  if (!owner || value.executable !== false && value.executable !== true) {
+  if (!owner || (value.executable !== false && value.executable !== true)) {
     throw new Error('ARCHIVE_ACCOUNT_METADATA_INVALID');
   }
   if (
@@ -159,25 +160,165 @@ function normalizeAccountInfo(result, expectedAddress, snapshotSlot) {
   };
 }
 
+function accountKeysAndWritableSet(blockTransaction) {
+  if (
+    !isRecord(blockTransaction) ||
+    !isRecord(blockTransaction.transaction) ||
+    !isRecord(blockTransaction.transaction.message) ||
+    !isRecord(blockTransaction.meta)
+  ) throw new Error('ARCHIVE_BLOCK_TRANSACTION_SHAPE_INVALID');
+
+  if (blockTransaction.meta.err !== null) {
+    // A failed transaction does not commit account writes.
+    return { signature: readFirstSignature(blockTransaction), writable: new Set(), failed: true };
+  }
+
+  const transaction = blockTransaction.transaction;
+  const message = transaction.message;
+  const header = message.header;
+  const staticKeys = message.accountKeys;
+  if (!Array.isArray(staticKeys) || staticKeys.length === 0 || !isRecord(header)) {
+    throw new Error('ARCHIVE_BLOCK_MESSAGE_INVALID');
+  }
+  const staticAddresses = staticKeys.map(canonicalAddress);
+  if (staticAddresses.some(address => address === null)) {
+    throw new Error('ARCHIVE_BLOCK_ACCOUNT_KEY_INVALID');
+  }
+  const staticCount = staticAddresses.length;
+
+  const lookups = Array.isArray(message.addressTableLookups) ? message.addressTableLookups : [];
+  const expectedWritableLookupCount = lookups.reduce((n, lookup) =>
+    n + (Array.isArray(lookup.writableIndexes) ? lookup.writableIndexes.length : NaN), 0);
+  const expectedReadonlyLookupCount = lookups.reduce((n, lookup) =>
+    n + (Array.isArray(lookup.readonlyIndexes) ? lookup.readonlyIndexes.length : NaN), 0);
+  const loaded = blockTransaction.meta.loadedAddresses;
+
+  let loadedWritable = [];
+  let loadedReadonly = [];
+  if (expectedWritableLookupCount + expectedReadonlyLookupCount > 0) {
+    if (
+      !isRecord(loaded) ||
+      !Array.isArray(loaded.writable) ||
+      !Array.isArray(loaded.readonly)
+    ) throw new Error('ARCHIVE_BLOCK_LOADED_ADDRESSES_MISSING');
+    loadedWritable = loaded.writable.map(canonicalAddress);
+    loadedReadonly = loaded.readonly.map(canonicalAddress);
+    if (
+      loadedWritable.some(address => address === null) ||
+      loadedReadonly.some(address => address === null) ||
+      loadedWritable.length !== expectedWritableLookupCount ||
+      loadedReadonly.length !== expectedReadonlyLookupCount
+    ) throw new Error('ARCHIVE_BLOCK_LOADED_ADDRESSES_INVALID');
+  } else if (loaded !== null && loaded !== undefined) {
+    if (
+      !isRecord(loaded) ||
+      !Array.isArray(loaded.writable) ||
+      !Array.isArray(loaded.readonly) ||
+      loaded.writable.length !== 0 ||
+      loaded.readonly.length !== 0
+    ) throw new Error('ARCHIVE_BLOCK_UNEXPECTED_LOADED_ADDRESSES');
+  }
+
+  const required = header.numRequiredSignatures;
+  const readonlySigned = header.numReadonlySignedAccounts;
+  const readonlyUnsigned = header.numReadonlyUnsignedAccounts;
+  if (
+    !Number.isInteger(required) || required < 1 || required > staticCount ||
+    !Number.isInteger(readonlySigned) || readonlySigned < 0 || readonlySigned > required ||
+    !Number.isInteger(readonlyUnsigned) || readonlyUnsigned < 0 || readonlyUnsigned > staticCount - required
+  ) throw new Error('ARCHIVE_BLOCK_MESSAGE_HEADER_INVALID');
+
+  const allAddresses = [
+    ...staticAddresses,
+    ...loadedWritable,
+    ...loadedReadonly,
+  ];
+  if (allAddresses.length > 256) throw new Error('ARCHIVE_BLOCK_ACCOUNT_KEY_LIMIT');
+
+  const writable = new Set();
+  for (let index = 0; index < staticCount; index += 1) {
+    const isSigner = index < required;
+    const isWritable = isSigner
+      ? index < required - readonlySigned
+      : index < staticCount - readonlyUnsigned;
+    if (isWritable) writable.add(staticAddresses[index]);
+  }
+  for (const address of loadedWritable) writable.add(address);
+
+  return {
+    signature: readFirstSignature(blockTransaction),
+    writable,
+    failed: false,
+  };
+}
+
+function readFirstSignature(blockTransaction) {
+  const signatures = blockTransaction?.transaction?.signatures;
+  if (!Array.isArray(signatures) || signatures.length === 0 ||
+      typeof signatures[0] !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(signatures[0])) {
+    throw new Error('ARCHIVE_BLOCK_SIGNATURE_INVALID');
+  }
+  return signatures[0];
+}
+
+function proveNoEarlierWriters(block, expectedSignature, accountIdsByAddress) {
+  if (!isRecord(block) || !Array.isArray(block.transactions)) {
+    throw new Error('ARCHIVE_BLOCK_TRANSACTIONS_MISSING');
+  }
+
+  const targetIndexes = [];
+  const normalized = block.transactions.map((entry, index) => {
+    const item = accountKeysAndWritableSet(entry);
+    if (item.signature === expectedSignature) targetIndexes.push(index);
+    return item;
+  });
+
+  if (targetIndexes.length !== 1) {
+    throw new Error('ARCHIVE_TARGET_TRANSACTION_NOT_UNIQUE_IN_BLOCK');
+  }
+  const targetIndex = targetIndexes[0];
+  const writers = [];
+
+  for (let index = 0; index < targetIndex; index += 1) {
+    const transaction = normalized[index];
+    if (transaction.failed) continue;
+
+    for (const address of transaction.writable) {
+      const accountId = accountIdsByAddress.get(address);
+      if (accountId) writers.push({ transactionIndex: index, signature: transaction.signature, accountId });
+    }
+  }
+
+  if (writers.length > 0) {
+    return { outcome: 'unknown', reasons: ['ARCHIVE_PRE_TRANSACTION_BLOCK_WRITERS_PRESENT'], writers };
+  }
+  return {
+    outcome: 'safe',
+    targetTransactionIndex: targetIndex,
+    transactionsBeforeTarget: targetIndex,
+    precedingWritableConflictCount: 0,
+  };
+}
+
 /**
- * Fetch historical account bytes immediately before a transaction's slot,
- * then prove that no account write occurred during that whole transaction slot.
+ * Fetch account bytes at slot S-1 from the Alchemy Solana Account Archive,
+ * then inspect the finalized full block at slot S (as returned by the same
+ * archive endpoint) to prove none of the earlier transactions could have
+ * written those accounts.
  *
- * This deliberately uses Alchemy's Solana Account Archive extension to the
- * standard getAccountInfo RPC. It is opt-in and does not change the current
- * Helius transaction/ProgramData provider. Historical parameters require an
- * eligible paid Account Archive plan. This function never falls back to latest
- * state or another RPC provider.
+ * The target transaction itself may write SubscriptionDelegation and token
+ * accounts. This is expected and is not a conflict: the pre-state is from
+ * S-1, and only transactions earlier than the target can invalidate it.
  *
- * Because account history is slot-granular, any first write at the transaction
- * slot is ambiguous relative to the transaction's index within that slot and
- * returns UNKNOWN. A first write strictly after the transaction slot proves
- * the slot-1 snapshot remained unchanged throughout the transaction slot.
+ * This is a read-only, opt-in adapter. Alchemy documents historical parameters
+ * as paid-plan-only. It is not configured by this code and does not fall back
+ * to latest-state RPC, another provider, or a public endpoint.
  */
 export async function fetchHistoricalSubscriptionAccountEvidence({
   rpcUrl,
   cluster,
   transactionSlot,
+  signature,
   accounts,
   fetchImpl = fetch,
   requestPrefix,
@@ -195,18 +336,21 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
     transactionSlot > BigInt(Number.MAX_SAFE_INTEGER)
   ) return unknown('ARCHIVE_TRANSACTION_SLOT_INVALID');
   if (
+    typeof signature !== 'string' ||
+    !/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(signature)
+  ) return unknown('ARCHIVE_TARGET_SIGNATURE_INVALID');
+  if (
     typeof requestPrefix !== 'string' ||
     !/^[a-z0-9][a-z0-9._:-]{0,40}$/i.test(requestPrefix)
   ) return unknown('ARCHIVE_REQUEST_PREFIX_INVALID');
-  if (
-    !Array.isArray(accounts) ||
-    accounts.length === 0 ||
-    accounts.length > 16
-  ) return unknown('ARCHIVE_ACCOUNT_SET_INVALID');
+  if (!Array.isArray(accounts) || accounts.length === 0 || accounts.length > 16) {
+    return unknown('ARCHIVE_ACCOUNT_SET_INVALID');
+  }
 
   const normalizedAccounts = [];
   const ids = new Set();
   const addresses = new Set();
+  const accountIdsByAddress = new Map();
   for (const item of accounts) {
     if (
       !isRecord(item) ||
@@ -218,6 +362,7 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
     if (!address || addresses.has(address)) return unknown('ARCHIVE_ACCOUNT_ADDRESS_INVALID');
     ids.add(item.id);
     addresses.add(address);
+    accountIdsByAddress.set(address, item.id);
     normalizedAccounts.push({ id: item.id, address });
   }
 
@@ -225,6 +370,7 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
   const idsForRpc = {
     genesis: `${requestPrefix}:genesis`,
     tip: `${requestPrefix}:tip`,
+    block: `${requestPrefix}:block`,
   };
 
   try {
@@ -243,13 +389,31 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
       return unknown('ARCHIVE_FINALIZED_TIP_BEHIND_TRANSACTION');
     }
 
+    const block = await postRpc(
+      rpcUrl,
+      'getBlock',
+      [
+        Number(transactionSlot),
+        {
+          commitment: 'finalized',
+          encoding: 'json',
+          transactionDetails: 'full',
+          rewards: false,
+          maxSupportedTransactionVersion: 1,
+        },
+      ],
+      idsForRpc.block,
+      fetchImpl,
+    );
+    if (block.result === null) return unknown('ARCHIVE_TARGET_BLOCK_NOT_AVAILABLE');
+    const writerProof = proveNoEarlierWriters(block.result, signature, accountIdsByAddress);
+    if (writerProof.outcome !== 'safe') return writerProof;
+
     const evidence = [];
-    const responseHashes = [genesis.responseHash, tip.responseHash];
+    const responseHashes = [genesis.responseHash, tip.responseHash, block.responseHash];
 
     for (const account of normalizedAccounts) {
-      const snapshotRequestId = `${requestPrefix}:${account.id}:before`;
-      const updateRequestId = `${requestPrefix}:${account.id}:next-write`;
-
+      const snapshotRequestId = `${requestPrefix}:${account.id}:before-slot`;
       const before = await postRpc(
         rpcUrl,
         'getAccountInfo',
@@ -262,44 +426,11 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
         fetchImpl,
       );
       const snapshot = normalizeAccountInfo(before.result, account.address, snapshotSlot);
-
-      let nextWrite;
-      try {
-        nextWrite = await postRpc(
-          rpcUrl,
-          'getAccountInfo',
-          [account.address, {
-            encoding: 'base64',
-            commitment: 'finalized',
-            firstUpdateAfterSlot: Number(snapshotSlot),
-          }],
-          updateRequestId,
-          fetchImpl,
-        );
-      } catch (error) {
-        if (error?.rpcCode === -32020) {
-          return unknown(`ARCHIVE_NEXT_WRITE_NOT_PROVEN:${account.id}`);
-        }
-        throw error;
-      }
-
-      if (!isRecord(nextWrite.result) || !isRecord(nextWrite.result.context) ||
-          !Number.isSafeInteger(nextWrite.result.context.slot)) {
-        return unknown(`ARCHIVE_NEXT_WRITE_CONTEXT_INVALID:${account.id}`);
-      }
-      const nextWriteSlot = BigInt(nextWrite.result.context.slot);
-      if (nextWriteSlot <= transactionSlot) {
-        return unknown(`ARCHIVE_ACCOUNT_CHANGED_WITHIN_TRANSACTION_SLOT:${account.id}`);
-      }
-
       evidence.push({
         ...snapshot,
-        nextWriteSlot,
-        nextWriteValueIsNull: nextWrite.result.value === null,
-        firstWriteResponseHash: nextWrite.responseHash,
         snapshotResponseHash: before.responseHash,
       });
-      responseHashes.push(before.responseHash, nextWrite.responseHash);
+      responseHashes.push(before.responseHash);
     }
 
     return {
@@ -308,11 +439,15 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
         providerId: clusterConfig.providerId,
         cluster,
         clusterGenesisHash: genesis.result,
+        transactionSignature: signature,
         transactionSlot,
+        targetTransactionIndex: writerProof.targetTransactionIndex,
+        transactionsBeforeTarget: writerProof.transactionsBeforeTarget,
+        precedingWritableConflictCount: 0,
         snapshotSlot,
         finalizedTipSlot: BigInt(tip.result),
         snapshotCommitment: 'finalized',
-        slotBoundary: 'no-write-during-transaction-slot',
+        blockResponseHash: block.responseHash,
         accounts: evidence,
         rpcResponseSetSha256: createHash('sha256').update(responseHashes.join(':')).digest('hex'),
       },
