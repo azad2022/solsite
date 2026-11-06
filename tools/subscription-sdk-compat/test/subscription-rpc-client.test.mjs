@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { verifySubscriptionTransferTransaction } from '../dist/subscription-transaction-verifier.js';
+import {
+  ELF_SHA256,
+  GENESIS,
+  makeFixture,
+  makeProgramDataRpcResponse,
+  SOURCE_COMMIT,
+} from './helpers/subscription-rpc-fixture.mjs';
 import {
   fetchFinalizedSubscriptionTransactionEvidence,
   SUBSCRIPTION_RPC_ALLOWED_METHODS,
@@ -145,4 +153,54 @@ test('does not expose the Helius API-key query in failure reasons', async () => 
 
   assert.equal(result.outcome, 'unknown');
   assert.equal(JSON.stringify(result).includes(secretLikeValue), false);
+});
+
+test('retrieves finalized RPC evidence, attests ProgramData, normalizes and verifies one exact Attempt', async () => {
+  const fixture = makeFixture();
+  const transactionResult = JSON.parse(fixture.rawResponse).result;
+  const calls = [];
+  const fetchImpl = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    calls.push(request);
+    if (request.method === 'getGenesisHash') return response(request, GENESIS);
+    if (request.method === 'getTransaction') return response(request, transactionResult);
+    if (request.method === 'getMultipleAccounts') {
+      return new Response(makeProgramDataRpcResponse(request.id, 500n, 600), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    throw new Error('unexpected RPC method');
+  };
+
+  const result = await fetchFinalizedSubscriptionTransactionEvidence({
+    rpcUrl: RPC_URL,
+    cluster: 'devnet',
+    signature: fixture.signature,
+    transactionSlotHint: 500n,
+    expectedSourceCommit: SOURCE_COMMIT,
+    expectedElfSha256: ELF_SHA256,
+    requestPrefix: 'rpc-integration-attempt-500',
+    fetchImpl,
+  });
+
+  assert.equal(result.outcome, 'normalized');
+  assert.equal(result.evidence.signature, fixture.signature);
+  assert.equal(result.evidence.messageHash, fixture.messageHash);
+  assert.equal(result.evidence.programDeployment.attestationKind, 'current-finalized-programdata');
+  assert.equal(result.evidence.programDeployment.deploymentSlot, 400n);
+  assert.equal(result.evidence.programDeployment.readAtSlot, 600n);
+  assert.deepEqual(calls.map(call => call.method), [
+    'getGenesisHash',
+    'getTransaction',
+    'getMultipleAccounts',
+  ]);
+  assert.equal(calls[1].params[1].commitment, 'finalized');
+  assert.equal(calls[2].params[1].minContextSlot, 500);
+
+  const verified = verifySubscriptionTransferTransaction(fixture.expected, result.evidence);
+  assert.equal(verified.outcome, 'verified_observation');
+  assert.equal(verified.signature, fixture.signature);
+  assert.equal(verified.messageHash, fixture.messageHash);
+  assert.equal(verified.amountAtomic, 250n);
 });
