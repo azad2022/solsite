@@ -86,3 +86,17 @@ The Cantina PDF tally reconciles: four Fixed/Mitigated (two Medium, one Low, one
 ## 2026-11-06 — Capability-preserving release policy
 
 Security findings must be fixed in the Program and surrounding lifecycle; do not permanently remove intended Subscription capabilities to obtain a PASS. Finite Plans, CancelNow, Resume, Authority reauthorization, durable-nonce approvals, supported smart-wallet proposals, rent sponsorship, split transfers and multi-destination pulls remain required product scope. They are BLOCKED from release until each has its versioned protocol control, migration, adversarial evidence, independent review and deployed verification. See `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`.
+
+
+## 2026-11-06 — Controlled Production migration guard
+
+The source-controlled Production migration workflow must enforce:
+
+- Exact commit checkout via `github.sha`.
+- For `APPLY` only: event `workflow_dispatch`, ref exactly `refs/heads/main`, and a separately supplied full expected SHA equal to `GITHUB_SHA`.
+- Session Pooler binding to the exact SolMint project user, approved Supabase Pooler host suffix, port 5432, `postgres` database, TLS-required mode and no arbitrary URI query parameters.
+- Embedded URL password, if present, must equal the standalone DB password secret; strip it from the URI and use `PGPASSWORD` as the sole password source.
+- Negative unit tests for off-main refs, stale/malformed SHA, wrong project/host/port/database, non-TLS URI, credential mismatch and credential leakage.
+- `AUTH_PROBE` remains read-only; `DRY_RUN` performs no schema/data writes; the Production APPLY command is not dispatched during code review.
+
+This guard protects the controlled GitHub workflow only. It cannot assert or change the separate Supabase Dashboard GitHub Integration `Deploy to production` option. Keep Issue #355 **OPEN / BLOCKED** until the historical runner provenance and live provider setting have verified evidence. Do not alter provider settings without explicit owner approval.

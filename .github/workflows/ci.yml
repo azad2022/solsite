@@ -45,6 +45,9 @@ jobs:
       - name: Unit tests
         run: find tests -type f -name '*.test.ts' -print0 | xargs -0 bunx tsx --test
 
+      - name: Test fail-closed Production migration guards
+        run: node --test tests/pay-production-migration-guard.test.mjs
+
       - name: Assert source tree is unchanged
         run: |
           git diff --exit-code

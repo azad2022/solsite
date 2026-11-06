@@ -282,6 +282,7 @@ Devnet mutating tests وMainnet read-only جدا باشند. Public RPC fallback
 
 - هیچ Production DDL، تغییر RLS/Grant، Runtime/Secret/Key، ایجاد/چرخش Collector Key، Plan زنده، Consent مشتری واقعی، Mainnet Transfer، Merge/Release غیرقابل‌بازگشت بدون شواهد و مجوز صریح انجام نشود.
 - Production Migration فقط از مسیر Source-controlled موجود در .github/workflows/solmint-pay-production-migration.yml و مطابق docs/solmint-pay-production-migration-policy.md: ابتدا DRY_RUN، سپس تأیید صریح APPLY، اجرا، بررسی Migration Ledger و تست پس از اجرا.
+- Guardهای workflow برای APPLY و Session Pooler target مطابق بخش Fail-closed در همان Policy الزامی‌اند؛ APPLY فقط برای workflow_dispatch روی refs/heads/main با expected SHA برابر GITHUB_SHA مجاز است. این guard مسیر جداگانه Supabase Dashboard Integration را خاموش نمی‌کند.
 - Issue #355 درباره منشأ Migration Runner تا زمان حل با شواهد معتبر، Production DDL را مسدود می‌کند. از زمان‌بندی Log برای حدس Actor استفاده نکن. تنظیم Provider را بدون تأیید تغییر نده.
 - Devnet E2E فقط از RPC مخصوص Devnet؛ Mainnet Read-only از RPC مخصوص Mainnet. Cluster را از Evidence بررسی کن.
 - Deploy فقط طبق مسیر موجود Repository/Cloudflare Pages. Worker قدیمی یا Integration جانبی را Deployment اصلی فرض نکن؛ دقیقاً مشخص کن کدام Workflow و Deployment اجرا شده است.
@@ -357,3 +358,11 @@ Read `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` before any fu
 The owner requires the complete planned Subscription feature set to be retained. Do not permanently exclude finite Plans, Immediate CancelNow, Resume, Authority reauthorization, durable-nonce approvals, supported program-controlled wallets, rent sponsorship, split transfers or multi-destination pulls to work around protocol risks. Treat any temporary no-launch condition as a **BLOCKED release gate**, not product de-scope. Implement and test the upstream protocol remediation specified in `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`. A capability becomes available only after the exact Program/IDL/SDK version, compatibility migration, adversarial tests, independent review and deployment evidence pass.
 
 TM-01 private disclosure: `GHSA-hvvh-pvqw-g3gx`, current state TRIAGE. This is submitted, not accepted or remediated.
+
+
+### Production migration workflow guards (2026-11-06)
+
+- `APPLY` must run only through `workflow_dispatch` on exact `refs/heads/main`, with a full `expected_main_sha` equal to the event's `GITHUB_SHA`; the workflow checks out that exact SHA. Feature branches, tags, PR events, missing/malformed/stale confirmations fail closed.
+- Before `DRY_RUN` or `APPLY`, validate the exact SolMint Session Pooler host family, project-specific user `postgres.nvopkbiedorfshwbmyhn`, port 5432, database `postgres`, TLS, and embedded-password equality. Strip URI password and pass the standalone secret only through `PGPASSWORD`.
+- Do not log connection URIs or credentials. Keep `AUTH_PROBE` read-only and do not require the Session Pooler URI for it.
+- This repository guard does **not** disable Supabase Dashboard GitHub Integration. Issue #355 remains open until actor/trigger and the current `Deploy to production` provider setting have independent evidence. Provider settings still require explicit owner authorization.

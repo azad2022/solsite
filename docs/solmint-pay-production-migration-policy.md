@@ -97,3 +97,39 @@ Workflow قبل از اتصال و mutation، credential guard را اجرا م�
 فرض نکن که Preview Branching برای production migration لازم است.
 
 مسیر پیش‌فرض این پروژه برای Production migration همان GitHub Actions + Supabase CLI + `supabase db push` است، مگر اینکه یک محدودیت واقعی و مستند جدید خلاف آن را نشان دهد.
+
+
+## Fail-closed Production APPLY and target binding — 2026-11-06
+
+The controlled workflow now separates read-only authentication/preview from the mutating Production apply path.
+
+### APPLY commit guard
+
+For `confirm=APPLY`, all of the following are mandatory before Production database credentials are exposed to a step:
+
+1. The GitHub event is `workflow_dispatch`.
+2. The selected ref is exactly `refs/heads/main`.
+3. `expected_main_sha` is a full 40-character commit SHA and equals `GITHUB_SHA` for the exact event commit.
+4. Checkout uses that exact `GITHUB_SHA`, not a moving branch name.
+5. The run still performs `supabase db push --dry-run` immediately before `supabase db push`.
+
+A dispatch from a feature branch, tag, pull request, push event, missing confirmation, malformed SHA or stale/different SHA fails closed. This is an application-level guard in this repository; it does not itself merge code or authorize a Production run.
+
+### Exact database target
+
+For `DRY_RUN` and `APPLY`, the guard accepts only the SolMint Production Session Pooler target:
+
+- Host under `.pooler.supabase.com` (no direct database or arbitrary host).
+- Exact user `postgres.nvopkbiedorfshwbmyhn`.
+- Port `5432`.
+- Database `postgres`.
+- TLS required (`sslmode=require` by default; stronger `verify-ca` / `verify-full` modes are preserved).
+- Only the SSL mode query parameter is accepted.
+- If the connection URI contains an embedded password, it must exactly match `SUPABASE_DB_PASSWORD`; otherwise the run aborts.
+- The password is removed from the URI and passed only as `PGPASSWORD`. The original URI and password are never printed.
+
+The direct `AUTH_PROBE` remains read-only and uses the known direct project endpoint; it requires the standalone password but does not require a Session Pooler URI. `DRY_RUN` remains non-mutating and may be run to inspect a candidate migration set. `APPLY` still applies every pending repository migration, not an arbitrary selected SQL statement.
+
+### External Supabase GitHub Integration boundary
+
+The repository guard protects only the source-controlled GitHub Actions workflow. Supabase Dashboard's separate GitHub Integration `Deploy to production` setting can independently apply pending migrations on pushes/merges. The repository and connected Supabase APIs available to this project do not expose a verified read/write operation for that Dashboard setting. Do not represent this code change as disabling it. Issue #355 stays **OPEN / BLOCKED** until the historical runner actor/trigger and current provider toggle are verified. No Production provider setting is changed by this workflow guard.

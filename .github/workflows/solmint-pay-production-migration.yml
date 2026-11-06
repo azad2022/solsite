@@ -13,6 +13,11 @@ on:
           - 'AUTH_PROBE'
           - 'DRY_RUN'
           - 'APPLY'
+      expected_main_sha:
+        description: 'Required for APPLY: paste the full 40-character commit SHA shown for the selected main branch run. The workflow rejects stale or different SHAs.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -21,81 +26,48 @@ concurrency:
   group: solmint-pay-production-migration
   cancel-in-progress: false
 
-env:
-  # Use the existing connection URI secret copied from Supabase Dashboard → Connect.
-  # Any password embedded in the URI is stripped; PGPASSWORD is the sole password source.
-  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
 jobs:
   migrate:
     if: inputs.confirm == 'APPLY' || inputs.confirm == 'DRY_RUN' || inputs.confirm == 'AUTH_PROBE'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout exact workflow event commit
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
 
+      - name: Require exact main commit for Production APPLY
+        if: inputs.confirm == 'APPLY'
+        env:
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+        run: node scripts/solmint-pay-production-migration-guard.mjs assert-apply-ref
+
       - name: Setup Supabase CLI
-        if: inputs.confirm != 'AUTH_PROBE'
+        if: inputs.confirm == 'DRY_RUN' || inputs.confirm == 'APPLY'
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
         with:
           version: latest
 
-      - name: Require production credentials
-        id: connection
+      - name: Require standalone Production database password
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$SUPABASE_DB_URL" ]]; then
-            echo "ERROR: required GitHub Actions secret SUPABASE_DB_URL is missing or empty."
-            exit 1
-          fi
           if [[ -z "$SUPABASE_DB_PASSWORD" ]]; then
-            echo "ERROR: required GitHub Actions secret SUPABASE_DB_PASSWORD is missing or empty."
+            echo "::error::Required GitHub Actions secret SUPABASE_DB_PASSWORD is missing or empty."
             exit 1
           fi
-          node --input-type=module <<'NODE'
-          import { appendFileSync } from 'node:fs';
-          const raw = process.env.SUPABASE_DB_URL;
-          let uri;
-          try {
-            uri = new URL(raw);
-          } catch {
-            console.error('ERROR: SUPABASE_DB_URL is not a valid PostgreSQL connection URI.');
-            process.exit(1);
-          }
-          if (!['postgres:', 'postgresql:'].includes(uri.protocol) || !uri.hostname || !uri.username || !uri.pathname || uri.pathname === '/') {
-            console.error('ERROR: SUPABASE_DB_URL must be a PostgreSQL URI with host, username, and database path.');
-            process.exit(1);
-          }
-          const hadEmbeddedPassword = uri.password.length > 0;
-          let embeddedPasswordMatchesStandalone = 'not-applicable';
-          if (hadEmbeddedPassword) {
-            try {
-              embeddedPasswordMatchesStandalone =
-                decodeURIComponent(uri.password) === process.env.SUPABASE_DB_PASSWORD ? 'yes' : 'no';
-            } catch {
-              embeddedPasswordMatchesStandalone = 'no';
-            }
-          }
-          uri.password = '';
-          appendFileSync(process.env.GITHUB_ENV, 'SUPABASE_DB_URL_SANITIZED=' + uri.toString() + '\n');
-          appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            'embedded_password_matches_standalone=' + embeddedPasswordMatchesStandalone + '\n'
-          );
-          console.log(
-            'PostgreSQL connection URI validated: ' +
-            'host=' + uri.hostname +
-            ', port=' + (uri.port || '5432') +
-            ', embedded_password_removed=' + (hadEmbeddedPassword ? 'yes' : 'not-needed') +
-            ', embedded_password_matches_standalone=' + embeddedPasswordMatchesStandalone
-          );
-          NODE
-          echo "Production migration credential sources are present (values are not printed)."
+          echo "Standalone Production database password is present (value is not printed)."
+
+      - name: Validate exact SolMint Production Session Pooler target
+        if: inputs.confirm == 'DRY_RUN' || inputs.confirm == 'APPLY'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: node scripts/solmint-pay-production-migration-guard.mjs validate-target
 
       - name: Read-only direct PostgreSQL authentication probe
         if: inputs.confirm == 'AUTH_PROBE'
@@ -145,7 +117,7 @@ jobs:
           fi
           database_name="$(psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --dbname "$SUPABASE_DB_URL_SANITIZED" --command 'SELECT current_database();')"
           if [[ "$database_name" != "postgres" ]]; then
-            echo "ERROR: PostgreSQL authentication succeeded, but the configured database is not the expected database."
+            echo "ERROR: PostgreSQL authentication succeeded, but the configured Production database is not the expected database."
             exit 1
           fi
           echo "Read-only psql authentication probe passed for the configured Production database. No data or schema was changed."
