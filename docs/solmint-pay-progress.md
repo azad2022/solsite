@@ -3819,3 +3819,36 @@ The attached Cantina Managed report dated 2026-07-30 records 9 findings: 4 Fixed
 - G1 overall: **BLOCKED** until VNext source/IDL, explicit migration, adversarial proof, independent audit and deployment evidence are complete.
 
 No Production database/configuration, Secret/Key/signer, customer consent, accounting entry, Mainnet/Devnet write, Program deployment/upgrade, Squads proposal or customer funds changed in this checkpoint. Local Working Tree remains UNKNOWN through the GitHub connector.
+
+
+## 2026-11-06 — G1 source ownership / Mainnet governance evidence finalized
+
+### Exact latest SolMint branch checks
+- Current Subscription branch checkpoint before this ledger append: `bb0bf34ded4bd60778cc066fae695e640e6ae234`.
+- Compare to main: 321 commits ahead / 0 behind; PR #366 remains OPEN / DRAFT / NOT MERGED / `mergeable=true` / `mergeable_state=clean`.
+- Exact-head check runs on `bb0bf34...`: CI [42234908113](https://github.com/azad2022/solsite/actions/runs/42234908113), Production Build [42234908355](https://github.com/azad2022/solsite/actions/runs/42234908355), Database Security [42234908078](https://github.com/azad2022/solsite/actions/runs/42234908078), Mainnet Read-only [42234908260](https://github.com/azad2022/solsite/actions/runs/42234908260), Devnet E2E [42234908087](https://github.com/azad2022/solsite/actions/runs/42234908087), and Cloudflare Pages preview [127950577448](https://github.com/azad2022/solsite/runs/127950577448) all **SUCCESS**.
+- CI included quality, SDK compatibility, pinned reproducible Program build, TM-06 sponsored Plan refund, TM-07 atomic split-transfer, Mainnet ProgramData and both pinned CLI checks. Supabase Preview was **SKIPPED** under policy.
+- This is the latest fully checked code/docs checkpoint; the following Progress Ledger append is documentation-only and will receive its own exact-head checks.
+
+### Mainnet ProgramData / governance read-only evidence
+The successful ProgramData artifact `solmint-subscription-mainnet-programdata` (run `42233967558`, observed at `2026-11-06T14:28:55.800Z`, finalized mainnet-beta) recorded:
+- Existing Program ID: `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`.
+- ProgramData address: `HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg`.
+- Upgrade authority is the Squads V4 vault `DXtFpbPjcn2hxPnw79x1Pfoj35vXh5AsWBkS37YnXMVv`.
+- Squads state `4CxQs26DewQ1KaCHfyyjktkYjndNdUqCJvVdygtJFwcJ`: threshold **3-of-5**, five members, read-only finalized state.
+- Mainnet ELF SHA-256 matches pinned build: `056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318`.
+- On-chain IDL SHA-256 matches pinned IDL: `1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa`.
+
+This confirms an upgrade of the old Program ID requires Squads governance and cannot be done unilaterally by SolMint. No proposal or vote was created. A new Program ID is the independent path, subject to separate key custody and deployment approval.
+
+### Fork-native CI limitation
+- Fork Actions permissions read returned `enabled=true`, `allowed_actions=all`.
+- The workflow-list API returned zero workflows even though workflow files exist in the fork's default `main` and work branch; workflow enable/dispatch calls returned 404; no fork PR checks were observed.
+- Status: **UNKNOWN / CONNECTOR OR GITHUB WORKFLOW DISCOVERY BLOCKED**. Do not infer Actions are disabled. The exact baseline build is already verified by SolMint's active CI; extend that CI to checkout the fork's exact VNext SHA for subsequent builds/tests until fork-native Actions is demonstrably available.
+
+### G1 disposition
+- G0: **PASS / COMPLETE**.
+- G1-0: **PASS / COMPLETE**.
+- G1-1: **IN PROGRESS** — independent MIT fork, immutable source baseline and reproducible baseline build established; fork-native CI visibility remains UNKNOWN.
+- G1-2 through G1-8: **NOT STARTED**.
+- No VNext Program source/IDL patch, Program ID/keypair, signer, deployment, upgrade, Squads proposal, Devnet/Mainnet transaction, Production DB/configuration, customer consent, accounting posting or customer funds were changed.
