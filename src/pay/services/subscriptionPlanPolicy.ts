@@ -166,13 +166,13 @@ export function validateSubscriptionPlanPolicy(
   }
 
   const endTs = parseUnsignedDecimal(input.endTs, 'INVALID_END_TS', 'endTs', I64_MAX);
-  const chainTime = parseUnsignedDecimal(input.chainTimeUnixSeconds, 'INVALID_CHAIN_TIME', 'chainTimeUnixSeconds', I64_MAX);
   if (endTs !== 0n) {
-    const minimumEndTs = chainTime + periodHours * 3_600n;
-    if (minimumEndTs > I64_MAX || endTs < minimumEndTs) {
-      return fail('INVALID_END_TS', 'A finite Plan end must be at least one complete billing period after the latest cluster time.');
-    }
+    return fail(
+      'INVALID_END_TS',
+      'Finite Plans are not supported by SolMint Subscription v1 until the Program binds and enforces endTs during Subscribe.',
+    );
   }
+  parseUnsignedDecimal(input.chainTimeUnixSeconds, 'INVALID_CHAIN_TIME', 'chainTimeUnixSeconds', I64_MAX);
 
   const ownerAddress = canonicalAddress(input.ownerAddress, 'ownerAddress');
   const destinationOwners = validateAddressList(input.destinationOwners, 'destinationOwners', SUBSCRIPTION_MAX_DESTINATIONS);
