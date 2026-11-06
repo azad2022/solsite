@@ -2091,3 +2091,38 @@ All workflows triggered by the exact merge SHA on `main` completed successfully:
 - Future main merges alone cannot invoke the repository workflow's Production `APPLY` step; that step is only in the explicitly dispatched, guarded workflow. The separate Supabase provider toggle remains a distinct external control and must remain OFF for the approved manual-only policy.
 
 No Production schema/data, integration setting, credential, Secret, key, signer, customer consent, accounting record, Mainnet/Devnet transaction, or customer/merchant funds were changed in this checkpoint. Local Working Tree state was not available through the connected GitHub API and remains **UNKNOWN**.
+
+
+## 2026-11-06 — G0 post-toggle repeated main-push verification
+
+### Test conditions
+- The project owner reported that Supabase Project Settings → Integrations → GitHub Integration → `Deploy to production` was switched OFF before these pushes.
+- The connected Supabase API still does not expose that provider setting for independent read-back; state remains **OWNER-REPORTED OFF / API READ-BACK UNKNOWN**.
+- Two ordinary, reviewed PR merges then produced main-branch push events. Neither PR added a Supabase SQL migration file; the Production migration ledger was unchanged before and after.
+
+### Push 1 — PR #367 repository governance
+- Main commit: `d06c0546b9813c8cd461d3d7ec7b1ff44be32d4e`, created 2026-11-06 13:47:10 UTC.
+- GitHub main-push checks: CI [42228310301](https://github.com/azad2022/solsite/actions/runs/42228310301), Production Build [42228310183](https://github.com/azad2022/solsite/actions/runs/42228310183), and Authentication Build Verification [42228310188](https://github.com/azad2022/solsite/actions/runs/42228310188) all **SUCCESS**.
+- Cloudflare Pages Production deployed this exact SHA; deployment `4a24ddc3-50bf-431a-82a3-f7cc0882fac0` completed the deploy stage successfully.
+- After Supabase log ingestion caught up, the available post-merge window had normal records across all four sources: edge_logs (3), function_edge_logs (1), function_logs (2), postgres_logs (4).
+- Matching internal migration-runner markers (`Cloning git repo`, `Applying migration`, `workflow_run`, `git_ref`) = **0**; PostgreSQL DDL/migration-apply matches = **0**.
+
+### Push 2 — PR #368 Progress Ledger checkpoint
+- Main commit: `a39e1e0ce3a697802ac081e7e139201e6a0c5e76`, created 2026-11-06 13:54:16 UTC.
+- GitHub main-push checks: CI [42229272509](https://github.com/azad2022/solsite/actions/runs/42229272509), Production Build [42229272508](https://github.com/azad2022/solsite/actions/runs/42229272508), and Authentication Build Verification [42229272541](https://github.com/azad2022/solsite/actions/runs/42229272541) all **SUCCESS**.
+- Cloudflare Pages Production deployment `c6fbcb87-088c-464b-90f1-bcfae98ff9ea` was triggered by this exact `main` SHA and completed its deploy stage with status **success**.
+- Supabase log coverage after this push was present in all four sources: edge_logs (6), function_edge_logs (1), function_logs (2), postgres_logs (2), from 2026-11-06 13:55:00–13:55:03 UTC.
+- Matching internal migration-runner markers = **0**; PostgreSQL DDL/migration-apply matches = **0**.
+
+### Production database read-back
+- Supabase Production project `nvopkbiedorfshwbmyhn` remains `ACTIVE_HEALTHY`.
+- Migration ledger remains 106 entries; latest remains `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- No Production Migration `APPLY`, DDL, table/schema/data mutation, provider setting mutation, credential/Secret/Key mutation, or blockchain transaction was performed during these checks.
+- Historical 2026-10-27 / 2026-10-28 runner records remain confirmed; historical initiating human/actor remains **UNKNOWN**.
+
+### G0 disposition
+- Repository controlled Production migration workflow and fail-closed guard: **PASS** (merged in PR #367; exact main-push CI passed).
+- Two post-owner-reported-OFF main pushes with usable Supabase logs and no independent runner/DDL evidence: **PASS for both observed pushes**.
+- Production database health and unchanged migration ledger: **PASS**.
+- Provider toggle direct API read-back: **UNKNOWN**; dashboard state remains owner-reported OFF.
+- The tested effective path shows no recurrence of the independent runner on either post-change main push. Preserve the provider read-back limitation; do not claim the historical actor is identified or that all future configurations are immutable.
