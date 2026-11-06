@@ -9,8 +9,8 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
-import { attestSubscriptionProgramDeployment } from '../src/subscription-programdata-attestation.mjs';
-import { deriveProgramDataAddress, UPGRADEABLE_LOADER_PROGRAM_ID } from '../src/upgradeable-loader.mjs';
+import { attestSubscriptionProgramDeployment } from '../../src/subscription-programdata-attestation.mjs';
+import { deriveProgramDataAddress, UPGRADEABLE_LOADER_PROGRAM_ID } from '../../src/upgradeable-loader.mjs';
 
 export const PROGRAM = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 export const TOKEN = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
