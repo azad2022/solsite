@@ -3852,3 +3852,30 @@ This confirms an upgrade of the old Program ID requires Squads governance and ca
 - G1-1: **IN PROGRESS** — independent MIT fork, immutable source baseline and reproducible baseline build established; fork-native CI visibility remains UNKNOWN.
 - G1-2 through G1-8: **NOT STARTED**.
 - No VNext Program source/IDL patch, Program ID/keypair, signer, deployment, upgrade, Squads proposal, Devnet/Mainnet transaction, Production DB/configuration, customer consent, accounting posting or customer funds were changed.
+
+
+## 2026-11-06 — G1-2 initial protocol/ABI design draft
+
+### Repository and CI evidence at this checkpoint
+- SolMint Pay branch: `feat/pay-subscription-billing`, live branch ref observed at `275b6de52220a65e8ac964825d90a5d6bd95d9ce`.
+- GitHub compare against `main` reports the feature branch 323 commits ahead and 0 behind at this observation. PR #366 remains OPEN according to the current issue/PR record; local Working Tree remains UNKNOWN through the remote connector.
+- Five workflow runs associated with the exact SolMint branch SHA `275b6de...` were observed completed SUCCESS: CI `42235588237`, Production Build `42235588281`, Database Security `42235588307`, ordinary Pay Devnet E2E `42235588185`, and Mainnet Read-only `42235588197`. These are SolMint repository checks; the ordinary Pay Devnet flow is not a VNext Subscription E2E test.
+- Fork work branch: `feat/solmint-g1-authority-vnext`, prior HEAD `d9e18eb3d7a494209aba04efd7c0562f2c942aa4`. The baseline branch remains pinned to `364a41976c33347d092902443bbec2def9227e75`.
+- Added `docs/solmint-vnext-protocol-design.md` on the Fork work branch. Commit: `7d7efe9914cde403e1a851e3a39fb5d8a004df95`. The created file was fetched back and verified. It records source-verified v0.5.0 behavior, the supplied Authority Consent Registry identity tuple `(subscriber, mint, source_token_account)`, lifecycle invariants, source-account isolation hypothesis, ABI compatibility constraints, migration/test gates, and unresolved decisions.
+- The design file is explicitly **DRAFT — NOT FROZEN**. The supplied G1 prompt available in this session ends after the word “حداقل” in §7.1; required Registry fields and subsequent sections are absent. No missing field, seed prefix, discriminator, counter width, deadline limit or ABI byte offset was invented.
+- Fork workflow-run discovery for the new commit `7d7efe9...` returned no runs; combined status also returned no status contexts. Fork CI is therefore **UNKNOWN**, not PASS. Existing progress-documented fork-native workflow visibility limitation remains.
+- No runtime Rust source, account layout, instruction data, discriminator, IDL or client code changed. No tests were executed for this document-only checkpoint.
+
+### G1 disposition
+- G1-0: **PASS / COMPLETE** (per latest recorded baseline checkpoint).
+- G1-1: **IN PROGRESS** — independent MIT source fork and reproducible v0.5.0 baseline remain established; fork-native CI visibility is UNKNOWN.
+- G1-2: **IN PROGRESS — DRAFT ONLY**. Protocol design document exists but ABI is not frozen; the prompt continuation and open design decisions are required before assigning byte-level ABI.
+- G1-3 Program implementation: **NOT STARTED**.
+- G1-4 migration: **NOT STARTED**.
+- G1-5 adversarial proof: **NOT STARTED**.
+- G1-6 independent audit: **NOT STARTED**.
+- G1-7 Devnet release/rehearsal: **NOT STARTED**.
+- G1-8 Mainnet deployment/migration: **NOT STARTED**.
+- G1 overall: **BLOCKED**.
+
+No Production DDL/data/provider setting, Secret/Key/signer, customer consent, accounting post, Program ID, keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet write or customer funds were changed. Local Working Tree remains UNKNOWN through the remote GitHub connector.
