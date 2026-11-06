@@ -78,6 +78,8 @@ function makeFetch({
   },
   clockSlot = TRANSACTION_SLOT,
   clockUnixTimestamp = 1_800_000_001n,
+  clockOwner = SYSVAR_OWNER,
+  clockExecutable = false,
   failRequestId = null,
 } = {}) {
   const calls = [];
@@ -109,9 +111,9 @@ function makeFetch({
           context: { slot: TRANSACTION_SLOT },
           value: {
             data: [clockBytes.toString('base64'), 'base64'],
-            executable: false,
+            executable: clockExecutable,
             lamports: 1_000_000,
-            owner: SYSVAR_OWNER,
+            owner: clockOwner,
             rentEpoch: 0,
           },
         });
@@ -303,6 +305,19 @@ test('returns UNKNOWN when the historical Clock sysvar slot does not equal the t
   const result = await invoke(fetchImpl);
   assert.equal(result.outcome, 'unknown');
   assert.match(result.reasons.join(' '), /CLOCK_SYSVAR_SLOT_MISMATCH/);
+});
+
+
+test('returns UNKNOWN when the historical Clock sysvar owner or executable flag is invalid', async () => {
+  const wrongOwner = makeFetch({ clockOwner: PROGRAM });
+  const ownerResult = await invoke(wrongOwner.fetchImpl);
+  assert.equal(ownerResult.outcome, 'unknown');
+  assert.match(ownerResult.reasons.join(' '), /CLOCK_SYSVAR_OWNER_OR_EXECUTABLE_INVALID/);
+
+  const executableClock = makeFetch({ clockExecutable: true });
+  const executableResult = await invoke(executableClock.fetchImpl);
+  assert.equal(executableResult.outcome, 'unknown');
+  assert.match(executableResult.reasons.join(' '), /CLOCK_SYSVAR_OWNER_OR_EXECUTABLE_INVALID/);
 });
 
 test('uses the on-chain Clock unix_timestamp rather than blockTime estimate', async () => {
