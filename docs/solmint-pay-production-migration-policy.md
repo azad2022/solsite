@@ -97,3 +97,28 @@ Workflow قبل از اتصال و mutation، credential guard را اجرا م�
 فرض نکن که Preview Branching برای production migration لازم است.
 
 مسیر پیش‌فرض این پروژه برای Production migration همان GitHub Actions + Supabase CLI + `supabase db push` است، مگر اینکه یک محدودیت واقعی و مستند جدید خلاف آن را نشان دهد.
+
+
+## 2026-11-06 — Fail-closed Production migration governance
+
+The repository-controlled Production migration path is deliberately manual and SHA-bound. The workflow at \`.github/workflows/solmint-pay-production-migration.yml\` is the only approved repository workflow for applying pending Production migrations.
+
+For \`confirm=APPLY\`, it requires:
+1. A \`workflow_dispatch\` event.
+2. \`refs/heads/main\` as the exact selected ref.
+3. A full 40-character \`expected_main_sha\` equal to the event's \`GITHUB_SHA\`.
+4. Checkout of that exact commit.
+5. An immediate \`supabase db push --dry-run\` before the mutating \`supabase db push\`.
+6. A subsequent \`supabase migration list\` read-back.
+
+For \`DRY_RUN\` and \`APPLY\`, the connection guard accepts only this project's Supabase Session Pooler host family, project-specific database user, port 5432, database \`postgres\`, and TLS-required connection. It strips an embedded URI password and uses the standalone \`SUPABASE_DB_PASSWORD\` through \`PGPASSWORD\`; URI values and credentials must never be logged. Supabase CLI is pinned to 2.122.1; do not replace it with \`latest\` or CLI v3 without a separate reviewed migration.
+
+### Independent Supabase GitHub Integration — separate hard gate
+
+Supabase Dashboard's Project Settings → Integrations → GitHub Integration has a separate \`Deploy to production\` option. When enabled, Supabase can apply repository migrations on pushes/merges to its configured production branch independently of this GitHub Actions workflow. No repository guard can disable or inspect that provider-side option.
+
+Historical Production logs show internal Supabase branch runner \`fabf1ac3-5428-45a1-a707-f466ee49eaed\` (the connected project's \`main\` branch) applying migrations on 2026-10-27 and 2026-10-28. The exact historical initiating human/actor is not exposed by the observed logs. The setting's current state must be read directly in the Supabase Dashboard and, if automatic Production deployment is not the approved policy, set to OFF. Read the setting back and retain the provider deployment-history evidence before closing Issue #355.
+
+**Release rule:** until the current provider toggle is verified OFF and the post-change deployment history confirms no independent migration-apply path, G0 remains **BLOCKED / UNKNOWN**. Passing GitHub CI, the manual workflow guard, a no-op Supabase runner, or zero recent log rows does not prove the provider toggle is off. Do not close Issue #355 on those signals alone.
+
+The controlled workflow's \`APPLY\` path is not automatically dispatched by CI and does not authorize a Production migration by itself. Each Production migration remains a separate explicit release operation after reviewed PR merge and migration-lineage/DRY_RUN evidence.
