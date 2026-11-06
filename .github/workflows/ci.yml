@@ -488,6 +488,15 @@ jobs:
           test -s target/deploy/subscriptions_program.so
           sha256sum target/deploy/subscriptions_program.so
 
+      - name: Build Token-2022 transfer-hook test fixture
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/vnext-subscriptions/tests/transfer-hook-example" \
+            --workspace-path "$GITHUB_WORKSPACE/vnext-subscriptions/tests/transfer-hook-example" \
+            --library-name transfer_hook_example
+          test -s tests/transfer-hook-example/target/deploy/transfer_hook_example.so
+
       - name: Run complete LiteSVM integration suite against VNext SBF
         working-directory: vnext-subscriptions
         run: cargo test -p tests-subscriptions
