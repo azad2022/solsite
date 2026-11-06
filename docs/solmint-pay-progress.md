@@ -3932,3 +3932,39 @@ Added or modified:
 - G1 overall: **BLOCKED**.
 
 No Production DDL/data/provider setting, secret/key/signer, customer consent, accounting posting, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet transaction or customer funds were changed.
+## 2026-11-06 — G1-3 CI failure analysis and test-fixture remediation
+
+### Live repository state
+- SolMint repository: azad2022/solsite, branch feat/pay-subscription-billing, PR #366 OPEN / DRAFT / NOT MERGED.
+- Exact latest SolMint PR head after CI workflow remediation: 30dbfbd47a287bc9081716e93c5fa0c8803187aa.
+- Compare against current main: 347 commits ahead / 0 behind at this observation; GitHub reports mergeable=true. Local Working Tree remains UNKNOWN through the remote connector.
+- Fork: azad2022/solmint-subscriptions-program, branch feat/solmint-g1-authority-vnext, exact PR #1 head 628a5c3a829eb43a95eb7f99bdf9844522f9115a, 64 commits ahead / 0 behind immutable baseline 364a41976c33347d092902443bbec2def9227e75. PR #1 OPEN / DRAFT / NOT MERGED.
+
+### Actual code and CI findings
+- The fork already contains the first Authority lifecycle implementation: persistent 188-byte Authority Consent Registry, 204-byte tuple-bound VNext Authority, authorize/revoke handlers (instruction discriminators 18/19), dispatch and IDL entries, and three LiteSVM integration cases. This is an existing source checkpoint, not newly created in this append.
+- Exact Fork source commit bc6f7d17b588318f29f76a47324d0cd1dfb796f0 passed Rust formatting, Program unit tests and deterministic SBF build in SolMint CI run 42258807894. Its LiteSVM integration suite failed: 271 tests passed and six existing Token-2022 TransferHook tests failed because tests/transfer-hook-example/target/deploy/transfer_hook_example.so was absent. The six failures occurred in tests/integration-tests/src/utils/test_helpers.rs when loading the fixture; they were not failures in the three VNext Authority tests.
+- That same run exposed one Rust test compile error at test_vnext_authority_consent.rs:202 (COption<Address> compared to Option). Fixed by using source_state.delegate.is_none(); Fork commit 628a5c3a829eb43a95eb7f99bdf9844522f9115a.
+- SolMint CI workflow was updated to build the isolated tests/transfer-hook-example fixture with the pinned solana-verify tool before running the full LiteSVM suite. Workflow change commit: 30dbfbd47a287bc9081716e93c5fa0c8803187aa.
+- Exact-head CI for 30dbfbd... is currently running as 42260169672. At this ledger update, quality, SDK compatibility, and migration CLI jobs were SUCCESS; VNext SBF/test job and other full-CI jobs were still IN PROGRESS. No exact-head VNext LiteSVM PASS is claimed yet.
+- Local clone/test execution was unavailable in this environment because outbound DNS/network access to GitHub was unavailable; verification is being performed through the repository's pinned GitHub Actions workflow.
+- The fork's native Actions discovery remains UNKNOWN; SolMint CI is the cross-repository verification path.
+
+### Scope gaps found by source inspection
+- Subscription lifecycle Registry (148-byte v1 account) and Plan revision Registry (116-byte v1 account) currently exist as state foundations and have unit tests, but are not yet wired into actual Subscribe, Cancel, CancelNow, Resume, UpdatePlan, DeletePlan or re-subscribe runtime transitions.
+- No VNext subscription transfer path currently consumes Registry status/generation and tuple-bound Authority on every token movement. The approved delegate amount remains u64::MAX; it must not be treated as product-ready or used by a merchant billing flow until every transfer path enforces the live Registry/Authority lineage.
+- The old Program ID is still declared in program/src/lib.rs. No new Program ID/keypair was created. The existing Mainnet Program ID is governed by the recorded Squads V4 3-of-5 path; no deployment or upgrade is authorized.
+- The non-ATA isolation hypothesis, legacy migration, exact old-program adversarial tests and independent audit remain unproven/not implemented.
+
+### G1 disposition
+- G1-0: PASS / COMPLETE (per prior verified baseline checkpoint).
+- G1-1: IN PROGRESS — independent MIT fork and pinned baseline established; native Fork CI visibility UNKNOWN.
+- G1-2: BLOCKED / PARTIAL — Authority account/instruction slice specified; complete Plan/Subscription/transfer/migration ABI is not frozen.
+- G1-3: BLOCKED / IN PROGRESS — Authority runtime slice exists; exact build and unit tests pass on prior Fork SHA, but full LiteSVM suite has not passed. CI fixture remediation is running on exact current SolMint PR head.
+- G1-4 legacy migration: NOT IMPLEMENTED.
+- G1-5 adversarial isolation/regression proof: NOT IMPLEMENTED.
+- G1-6 independent audit: NOT IMPLEMENTED.
+- G1-7 Devnet deployment/rehearsal: NOT IMPLEMENTED.
+- G1-8 Mainnet deployment/migration: NOT IMPLEMENTED.
+- Overall G1: BLOCKED.
+
+No Production DDL/data/provider setting, secret/key/signer, customer consent, accounting posting, Program ID/keypair, Program deployment/upgrade, Squads proposal, Devnet/Mainnet transaction or customer funds were changed. Local Working Tree remains UNKNOWN.
