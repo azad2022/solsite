@@ -362,10 +362,10 @@ export async function validateSubscriptionAccountState(
         effectiveStart = candidateStart;
         effectivePulled = 0n;
       } else {
-        // The Program caps catch-up at the last period boundary strictly
-        // before expiresAtTs. At the exact expiry boundary the final
-        // in-bounds period remains usable, but a fresh post-expiry allowance
-        // is never opened.
+        // Preserve the prior in-bounds period's consumption when the next
+        // period would begin at/after expiry. TransferSubscription separately
+        // hard-stops at current_ts >= expires_at_ts, so this never authorizes
+        // a pull at or after the cancellation boundary.
         const lastBillableTs = subscription.expiresAtTs - 1n;
         if (lastBillableTs >= subscription.currentPeriodStartTs) {
           const inBoundsSpan =

@@ -265,7 +265,8 @@ test('does not reset the final-period allowance when its next boundary equals ca
 
   const result = await validateSubscriptionAccountState(expected(), snapshot);
 
-  assert.equal(result.consistent, true);
+  assert.equal(result.consistent, false);
+  assert.ok(result.failures.includes('subscription_expired_or_cancelled'));
   assert.equal(result.effectivePeriodStartTs, NOW - PERIOD_SECONDS);
   assert.equal(result.amountPulledInEffectivePeriodAtomic, PLAN_AMOUNT);
   assert.equal(result.remainingPeriodAllowanceAtomic, 0n);
