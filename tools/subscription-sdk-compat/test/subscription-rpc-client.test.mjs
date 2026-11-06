@@ -184,7 +184,7 @@ test('retrieves finalized RPC evidence, attests ProgramData, normalizes and veri
     fetchImpl,
   });
 
-  assert.equal(result.outcome, 'normalized');
+  assert.equal(result.outcome, 'normalized', JSON.stringify(result));
   assert.equal(result.evidence.signature, fixture.signature);
   assert.equal(result.evidence.messageHash, fixture.messageHash);
   assert.equal(result.evidence.programDeployment.attestationKind, 'current-finalized-programdata');
