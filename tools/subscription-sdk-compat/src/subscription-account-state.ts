@@ -269,9 +269,11 @@ export async function validateSubscriptionAccountState(
     isU64(planTerms.amount) &&
     subscription.amountPulledInPeriod > planTerms.amount
   ) failures.push('subscription_period_state_invalid');
+  // Pinned Program v0.5.0 uses a strict hard-stop comparison:
+  // current_ts > expires_at_ts. A transfer at exactly expires_at_ts is valid.
   if (
     subscription.expiresAtTs !== 0n &&
-    snapshot.blockTimeUnixSeconds >= subscription.expiresAtTs
+    snapshot.blockTimeUnixSeconds > subscription.expiresAtTs
   ) failures.push('subscription_expired_or_cancelled');
 
   if (snapshot.authority.address !== expectedAuthorityAddress) {
@@ -326,18 +328,50 @@ export async function validateSubscriptionAccountState(
     isU64(subscription.amountPulledInPeriod) &&
     isU64(planTerms.amount) &&
     subscription.amountPulledInPeriod <= planTerms.amount &&
+    isNonNegativeI64(subscription.expiresAtTs) &&
     periodLengthSeconds > 0n
   ) {
-    // Matches the pinned Program's perpetual-plan period advancement:
-    // floor((now - periodStart) / periodLength), then reset the period pull.
-    const elapsedSeconds = snapshot.blockTimeUnixSeconds - subscription.currentPeriodStartTs;
-    const periodsPassed = elapsedSeconds / periodLengthSeconds;
-    const nextPeriodStart =
-      subscription.currentPeriodStartTs + periodsPassed * periodLengthSeconds;
-    const effectivePulled =
-      periodsPassed > 0n ? 0n : subscription.amountPulledInPeriod;
+    // Mirror validate_recurring_transfer() in the pinned Program:
+    // advance by whole periods, but never open a new allowance whose period
+    // starts at or after a scheduled cancellation/expiry timestamp.
+    let effectiveStart = subscription.currentPeriodStartTs;
+    let effectivePulled = subscription.amountPulledInPeriod;
+    const elapsedSeconds =
+      snapshot.blockTimeUnixSeconds - subscription.currentPeriodStartTs;
 
-    effectivePeriodStartTs = nextPeriodStart;
+    if (elapsedSeconds >= periodLengthSeconds) {
+      const periodsPassed = elapsedSeconds / periodLengthSeconds;
+      const candidateStart =
+        subscription.currentPeriodStartTs + periodsPassed * periodLengthSeconds;
+
+      if (
+        subscription.expiresAtTs === 0n ||
+        candidateStart < subscription.expiresAtTs
+      ) {
+        effectiveStart = candidateStart;
+        effectivePulled = 0n;
+      } else {
+        // The Program caps catch-up at the last period boundary strictly
+        // before expiresAtTs. At the exact expiry boundary the final
+        // in-bounds period remains usable, but a fresh post-expiry allowance
+        // is never opened.
+        const lastBillableTs = subscription.expiresAtTs - 1n;
+        if (lastBillableTs >= subscription.currentPeriodStartTs) {
+          const inBoundsSpan =
+            lastBillableTs - subscription.currentPeriodStartTs;
+          const inBoundsPeriods = inBoundsSpan / periodLengthSeconds;
+          const lastInBoundsStart =
+            subscription.currentPeriodStartTs +
+            inBoundsPeriods * periodLengthSeconds;
+          if (lastInBoundsStart > subscription.currentPeriodStartTs) {
+            effectiveStart = lastInBoundsStart;
+            effectivePulled = 0n;
+          }
+        }
+      }
+    }
+
+    effectivePeriodStartTs = effectiveStart;
     amountPulledInEffectivePeriodAtomic = effectivePulled;
     remainingPeriodAllowanceAtomic = planTerms.amount - effectivePulled;
   }
@@ -349,11 +383,13 @@ export async function validateSubscriptionAccountState(
     ? snapshot.tokenAccount.delegatedAmountAtomic
     : 0n;
   const remaining = remainingPeriodAllowanceAtomic ?? 0n;
-  const snapshotTransferCapacityAtomic = minBigInt([
-    sourceBalanceAtomic,
-    sourceDelegateAllowanceAtomic,
-    remaining,
-  ]);
+  const snapshotTransferCapacityAtomic = failures.length === 0
+    ? minBigInt([
+        sourceBalanceAtomic,
+        sourceDelegateAllowanceAtomic,
+        remaining,
+      ])
+    : 0n;
 
   const authorizedPullers = [
     plan.owner,
