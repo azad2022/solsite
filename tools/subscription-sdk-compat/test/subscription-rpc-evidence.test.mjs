@@ -193,6 +193,7 @@ function makeFixture({ versioned = false } = {}) {
     requestedCommitment: 'finalized',
     clusterGenesisHash: GENESIS,
     providerId: 'helius-devnet-tests',
+    requestId: 1,
     programDeployment: {
       programAddress: PROGRAM,
       sourceCommit: SOURCE_COMMIT,
@@ -289,4 +290,25 @@ test('returns UNKNOWN when RPC execution metadata is missing or the transaction 
 
   const notFound = JSON.stringify({ jsonrpc: '2.0', id: 1, result: null });
   assert.equal(normalizeSubscriptionGetTransactionResponse(notFound, fixture.provenance).outcome, 'unknown');
+});
+
+test('returns UNKNOWN when the JSON-RPC response id does not match the request', () => {
+  const fixture = makeFixture();
+  const body = JSON.parse(fixture.rpcResponse);
+  body.id = 2;
+  const normalized = normalizeSubscriptionGetTransactionResponse(JSON.stringify(body), fixture.provenance);
+  assert.equal(normalized.outcome, 'unknown');
+  assert.match(normalized.reasons.join(' '), /request correlation/);
+});
+
+test('returns UNKNOWN when any serialized transaction signature is altered', () => {
+  const fixture = makeFixture();
+  const body = JSON.parse(fixture.rpcResponse);
+  const wire = Buffer.from(body.result.transaction[0], 'base64');
+  // One-byte signature vector prefix, then the first signature byte.
+  wire[1] ^= 0x01;
+  body.result.transaction[0] = wire.toString('base64');
+  const normalized = normalizeSubscriptionGetTransactionResponse(JSON.stringify(body), fixture.provenance);
+  assert.equal(normalized.outcome, 'unknown');
+  assert.match(normalized.reasons.join(' '), /SIGNATURE/);
 });
