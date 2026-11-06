@@ -18,6 +18,7 @@ import {
   getTokenDecoder,
 } from '@solana-program/token';
 import { validateSubscriptionAccountState } from './subscription-account-state.js';
+import type { SubscriptionTransactionEvidence } from './subscription-transaction-verifier.js';
 import type {
   ExpectedSubscriptionAccountIdentity,
   FinalizedSubscriptionAccountSnapshot,
@@ -28,6 +29,16 @@ const CLASSIC_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const SUBSCRIPTIONS_PROGRAM = SUBSCRIPTIONS_PROGRAM_ADDRESS;
 const TOKEN_ACCOUNT_BASE_BYTES = 165;
 const MINT_BASE_BYTES = 82;
+const ARCHIVE_CLUSTER_PROVENANCE = {
+  'mainnet-beta': {
+    providerId: 'alchemy-account-archive-mainnet',
+    genesisHash: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d',
+  },
+  devnet: {
+    providerId: 'alchemy-account-archive-devnet',
+    genesisHash: 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG',
+  },
+} as const;
 
 interface HistoricalAccountEvidence {
   readonly id: string;
@@ -80,6 +91,7 @@ export type SubscriptionSnapshotDecodeResult =
       readonly snapshot: FinalizedSubscriptionAccountSnapshot;
       readonly validation: SubscriptionAccountStateResult;
       readonly evidence: 'account-state-consistency-only';
+      readonly archiveEvidence: HistoricalSubscriptionAccountEvidence['evidence'];
     }
   | {
       readonly outcome: 'inconsistent_snapshot';
@@ -263,6 +275,7 @@ function decodeAuthorityAccount(account: HistoricalAccountEvidence) {
  */
 export async function decodeHistoricalSubscriptionAccountSnapshot(
   expected: ExpectedSubscriptionAccountIdentity,
+  transactionEvidence: Pick<SubscriptionTransactionEvidence, 'signature' | 'slot' | 'clusterGenesisHash' | 'commitment' | 'transactionError' | 'messageHash'>,
   archiveResult: HistoricalSubscriptionAccountEvidence | unknown,
 ): Promise<SubscriptionSnapshotDecodeResult> {
   try {
@@ -272,14 +285,24 @@ export async function decodeHistoricalSubscriptionAccountSnapshot(
     }
 
     const archive = archiveResult.evidence as HistoricalSubscriptionAccountEvidence['evidence'];
+    const clusterProvenance = ARCHIVE_CLUSTER_PROVENANCE[archive.cluster];
     if (
       archive.clusterGenesisHash !== expected.clusterGenesisHash ||
-      !['mainnet-beta', 'devnet'].includes(archive.cluster) ||
-      typeof archive.providerId !== 'string' ||
-      !/^alchemy-account-archive-(mainnet|devnet)$/.test(archive.providerId) ||
+      !clusterProvenance ||
+      archive.clusterGenesisHash !== clusterProvenance.genesisHash ||
+      archive.providerId !== clusterProvenance.providerId ||
       !Array.isArray(archive.accounts) ||
       archive.accounts.length !== 5
     ) return unknown('HISTORICAL_ACCOUNT_EVIDENCE_PROVENANCE_INVALID');
+
+    if (
+      transactionEvidence.commitment !== 'finalized' ||
+      transactionEvidence.transactionError !== null ||
+      transactionEvidence.signature !== archive.transactionSignature ||
+      transactionEvidence.slot !== archive.transactionSlot ||
+      transactionEvidence.clusterGenesisHash !== archive.clusterGenesisHash ||
+      !isSha256(transactionEvidence.messageHash)
+    ) return unknown('HISTORICAL_ACCOUNT_TRANSACTION_CORRELATION_MISMATCH');
 
     assertClock(archive);
 
@@ -355,6 +378,7 @@ export async function decodeHistoricalSubscriptionAccountSnapshot(
       snapshot,
       validation,
       evidence: 'account-state-consistency-only',
+      archiveEvidence: archive,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'SUBSCRIPTION_SNAPSHOT_DECODE_FAILED';
