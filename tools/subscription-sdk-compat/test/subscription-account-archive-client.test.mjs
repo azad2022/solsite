@@ -10,7 +10,49 @@ const RPC_URL = 'https://solana-devnet.g.alchemy.com/v2/test-only-placeholder';
 const PROGRAM = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
 const ACCOUNT_A = 'SysvarC1ock11111111111111111111111111111111';
 const ACCOUNT_B = 'SysvarRent111111111111111111111111111111111';
+const PAYER = 'Stake11111111111111111111111111111111111111';
+const TARGET_SIGNATURE = '1'.repeat(88);
 const TRANSACTION_SLOT = 500;
+
+function tx(signature, accountKeys, header, { err = null, loadedAddresses, addressTableLookups = [] } = {}) {
+  return {
+    transaction: {
+      signatures: [signature],
+      message: {
+        accountKeys,
+        header,
+        addressTableLookups,
+        instructions: [],
+      },
+    },
+    meta: {
+      err,
+      ...(loadedAddresses === undefined ? {} : { loadedAddresses }),
+    },
+    version: 'legacy',
+  };
+}
+
+function blockFixture({ transactions } = {}) {
+  return {
+    blockhash: '1'.repeat(88),
+    previousBlockhash: '2'.repeat(88),
+    parentSlot: TRANSACTION_SLOT - 1,
+    blockTime: 1_800_000_000,
+    transactions: transactions ?? [
+      tx(
+        '2'.repeat(88),
+        [PAYER, ACCOUNT_A],
+        { numRequiredSignatures: 1, numReadonlySignedAccounts: 0, numReadonlyUnsignedAccounts: 1 },
+      ),
+      tx(
+        TARGET_SIGNATURE,
+        [PAYER, ACCOUNT_A, ACCOUNT_B],
+        { numRequiredSignatures: 1, numReadonlySignedAccounts: 0, numReadonlyUnsignedAccounts: 2 },
+      ),
+    ],
+  };
+}
 
 function response(request, result) {
   return new Response(JSON.stringify({
@@ -20,20 +62,11 @@ function response(request, result) {
   }), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
-function rpcError(request, code, message) {
-  return new Response(JSON.stringify({
-    jsonrpc: '2.0',
-    id: request.id,
-    error: { code, message },
-  }), { status: 200, headers: { 'content-type': 'application/json' } });
-}
-
 function makeFetch({
   genesis = GENESIS,
   tip = 700,
+  block = blockFixture(),
   snapshotContextSlot = TRANSACTION_SLOT - 1,
-  nextWriteSlot = 700,
-  nextWriteError = null,
   snapshotValue = {
     data: [Buffer.from('historical-plan-state').toString('base64'), 'base64'],
     executable: false,
@@ -53,31 +86,28 @@ function makeFetch({
     if (request.id === failRequestId) return new Response('unavailable', { status: 503 });
     if (request.method === 'getGenesisHash') return response(request, genesis);
     if (request.method === 'getSlot') return response(request, tip);
-    if (request.method !== 'getAccountInfo') throw new Error('unexpected RPC method');
-
-    const [address, config] = request.params;
-    if (config.slot !== undefined) {
+    if (request.method === 'getBlock') return response(request, block);
+    if (request.method === 'getAccountInfo') {
+      const [address, config] = request.params;
+      assert.ok([ACCOUNT_A, ACCOUNT_B].includes(address));
+      assert.deepEqual(config, {
+        encoding: 'base64',
+        commitment: 'finalized',
+        slot: TRANSACTION_SLOT - 1,
+      });
       return response(request, {
         context: { slot: snapshotContextSlot },
-        value: snapshotValue === null ? null : { ...snapshotValue, owner: PROGRAM, data: snapshotValue.data },
+        value: snapshotValue === null ? null : { ...snapshotValue },
       });
     }
-
-    if (config.firstUpdateAfterSlot !== undefined) {
-      if (nextWriteError) return rpcError(request, nextWriteError.code, nextWriteError.message);
-      return response(request, {
-        context: { slot: nextWriteSlot },
-        value: null,
-      });
-    }
-    throw new Error('unexpected getAccountInfo config');
+    throw new Error('unexpected RPC method');
   };
   return { fetchImpl, calls };
 }
 
 const accounts = [
   { id: 'plan', address: ACCOUNT_A },
-  { id: 'subscription', address: ACCOUNT_B },
+  { id: 'authority', address: ACCOUNT_B },
 ];
 
 function invoke(fetchImpl, overrides = {}) {
@@ -85,6 +115,7 @@ function invoke(fetchImpl, overrides = {}) {
     rpcUrl: RPC_URL,
     cluster: 'devnet',
     transactionSlot: BigInt(TRANSACTION_SLOT),
+    signature: TARGET_SIGNATURE,
     accounts,
     requestPrefix: 'archive-fixture-500',
     fetchImpl,
@@ -96,6 +127,7 @@ test('only permits read-only historical RPC methods', () => {
   assert.deepEqual(SUBSCRIPTION_ACCOUNT_ARCHIVE_ALLOWED_METHODS, [
     'getGenesisHash',
     'getSlot',
+    'getBlock',
     'getAccountInfo',
   ]);
   assert.equal(Object.isFrozen(SUBSCRIPTION_ACCOUNT_ARCHIVE_ALLOWED_METHODS), true);
@@ -103,7 +135,7 @@ test('only permits read-only historical RPC methods', () => {
   assert.equal(SUBSCRIPTION_ACCOUNT_ARCHIVE_ALLOWED_METHODS.includes('sendRawTransaction'), false);
 });
 
-test('returns pre-slot account bytes only when every account has no writes in the transaction slot', async () => {
+test('returns exact slot-1 account bytes when no earlier transaction could write them', async () => {
   const { fetchImpl, calls } = makeFetch();
   const result = await invoke(fetchImpl);
 
@@ -111,46 +143,108 @@ test('returns pre-slot account bytes only when every account has no writes in th
   assert.equal(result.evidence.transactionSlot, 500n);
   assert.equal(result.evidence.snapshotSlot, 499n);
   assert.equal(result.evidence.finalizedTipSlot, 700n);
-  assert.equal(result.evidence.slotBoundary, 'no-write-during-transaction-slot');
+  assert.equal(result.evidence.targetTransactionIndex, 1);
+  assert.equal(result.evidence.transactionsBeforeTarget, 1);
+  assert.equal(result.evidence.precedingWritableConflictCount, 0);
   assert.equal(result.evidence.accounts.length, 2);
   assert.equal(result.evidence.accounts[0].snapshotSlot, 499n);
-  assert.equal(result.evidence.accounts[0].nextWriteSlot, 700n);
   assert.equal(result.evidence.accounts[0].dataBase64, Buffer.from('historical-plan-state').toString('base64'));
 
-  assert.deepEqual(calls.slice(0, 2).map(call => call.method), ['getGenesisHash', 'getSlot']);
-  assert.deepEqual(calls.slice(2).map(call => call.method), [
-    'getAccountInfo',
-    'getAccountInfo',
+  assert.deepEqual(calls.map(call => call.method), [
+    'getGenesisHash',
+    'getSlot',
+    'getBlock',
     'getAccountInfo',
     'getAccountInfo',
   ]);
   assert.deepEqual(calls[2].params, [
-    ACCOUNT_A,
-    { encoding: 'base64', commitment: 'finalized', slot: 499 },
-  ]);
-  assert.deepEqual(calls[3].params, [
-    ACCOUNT_A,
-    { encoding: 'base64', commitment: 'finalized', firstUpdateAfterSlot: 499 },
+    TRANSACTION_SLOT,
+    {
+      commitment: 'finalized',
+      encoding: 'json',
+      transactionDetails: 'full',
+      rewards: false,
+      maxSupportedTransactionVersion: 1,
+    },
   ]);
 });
 
-test('returns UNKNOWN when an account is updated anywhere in the transaction slot', async () => {
-  const { fetchImpl } = makeFetch({ nextWriteSlot: TRANSACTION_SLOT });
-  const result = await invoke(fetchImpl);
-  assert.equal(result.outcome, 'unknown');
-  assert.match(result.reasons.join(' '), /CHANGED_WITHIN_TRANSACTION_SLOT/);
-});
-
-test('returns UNKNOWN when the archive cannot prove the first write after the pre-transaction snapshot', async () => {
+test('returns UNKNOWN when a preceding transaction can write a required snapshot account', async () => {
+  const precedingWriter = tx(
+    '2'.repeat(88),
+    [PAYER, ACCOUNT_A],
+    { numRequiredSignatures: 1, numReadonlySignedAccounts: 0, numReadonlyUnsignedAccounts: 0 },
+  );
   const { fetchImpl } = makeFetch({
-    nextWriteError: { code: -32020, message: 'Out of coverage' },
+    block: blockFixture({
+      transactions: [
+        precedingWriter,
+        blockFixture().transactions[1],
+      ],
+    }),
   });
   const result = await invoke(fetchImpl);
   assert.equal(result.outcome, 'unknown');
-  assert.match(result.reasons.join(' '), /NEXT_WRITE_NOT_PROVEN/);
+  assert.match(result.reasons.join(' '), /PRE_TRANSACTION_BLOCK_WRITERS_PRESENT/);
+  assert.equal(result.writers[0].accountId, 'plan');
 });
 
-test('returns UNKNOWN when the historical snapshot context is not exactly the prior slot', async () => {
+test('ignores failed preceding transactions because they cannot commit account writes', async () => {
+  const failedWriter = tx(
+    '2'.repeat(88),
+    [PAYER, ACCOUNT_A],
+    { numRequiredSignatures: 1, numReadonlySignedAccounts: 0, numReadonlyUnsignedAccounts: 0 },
+    { err: { InstructionError: [0, 'Custom'] } },
+  );
+  const { fetchImpl } = makeFetch({
+    block: blockFixture({
+      transactions: [
+        failedWriter,
+        blockFixture().transactions[1],
+      ],
+    }),
+  });
+  const result = await invoke(fetchImpl);
+  assert.equal(result.outcome, 'historical_snapshot');
+});
+
+test('detects writable accounts loaded through a v0 address lookup table', async () => {
+  const v0Writer = tx(
+    '2'.repeat(88),
+    [PAYER, PROGRAM],
+    { numRequiredSignatures: 1, numReadonlySignedAccounts: 0, numReadonlyUnsignedAccounts: 1 },
+    {
+      addressTableLookups: [{ writableIndexes: [0], readonlyIndexes: [] }],
+      loadedAddresses: { writable: [ACCOUNT_A], readonly: [] },
+    },
+  );
+  v0Writer.version = 0;
+  const { fetchImpl } = makeFetch({
+    block: blockFixture({
+      transactions: [
+        v0Writer,
+        blockFixture().transactions[1],
+      ],
+    }),
+  });
+  const result = await invoke(fetchImpl);
+  assert.equal(result.outcome, 'unknown');
+  assert.match(result.reasons.join(' '), /PRE_TRANSACTION_BLOCK_WRITERS_PRESENT/);
+});
+
+test('returns UNKNOWN when block target signature is absent or ambiguous', async () => {
+  const noTarget = tx(
+    '2'.repeat(88),
+    [PAYER],
+    { numRequiredSignatures: 1, numReadonlySignedAccounts: 0, numReadonlyUnsignedAccounts: 0 },
+  );
+  const { fetchImpl } = makeFetch({ block: blockFixture({ transactions: [noTarget] }) });
+  const result = await invoke(fetchImpl);
+  assert.equal(result.outcome, 'unknown');
+  assert.match(result.reasons.join(' '), /TARGET_TRANSACTION_NOT_UNIQUE/);
+});
+
+test('returns UNKNOWN when historical account context does not match slot minus one', async () => {
   const { fetchImpl } = makeFetch({ snapshotContextSlot: 498 });
   const result = await invoke(fetchImpl);
   assert.equal(result.outcome, 'unknown');
@@ -164,7 +258,7 @@ test('returns UNKNOWN when a required account did not exist at the prior slot', 
   assert.match(result.reasons.join(' '), /ACCOUNT_MISSING_AT_PRE_TRANSACTION_SLOT/);
 });
 
-test('rejects cluster mismatch and validates finalized chain tip before account reads', async () => {
+test('rejects cluster mismatch and validates finalized chain tip before block/account reads', async () => {
   const mismatch = makeFetch({ genesis: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d' });
   const wrongCluster = await invoke(mismatch.fetchImpl);
   assert.equal(wrongCluster.outcome, 'rejected');
@@ -185,6 +279,7 @@ test('rejects public endpoints and malformed account descriptors without network
   const base = {
     cluster: 'devnet',
     transactionSlot: 500n,
+    signature: TARGET_SIGNATURE,
     accounts,
     requestPrefix: 'invalid-config',
     fetchImpl,
