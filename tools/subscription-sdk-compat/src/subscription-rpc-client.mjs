@@ -2,11 +2,12 @@ import { normalizeSubscriptionGetTransactionResponse } from '../dist/subscriptio
 import { attestSubscriptionProgramDeployment } from './subscription-programdata-attestation.mjs';
 import { deriveProgramDataAddress } from './upgradeable-loader.mjs';
 
-export const SUBSCRIPTION_RPC_ALLOWED_METHODS = new Set([
+export const SUBSCRIPTION_RPC_ALLOWED_METHODS = Object.freeze([
   'getGenesisHash',
   'getTransaction',
   'getMultipleAccounts',
 ]);
+const ALLOWED_RPC_METHODS = new Set(SUBSCRIPTION_RPC_ALLOWED_METHODS);
 
 const CLUSTERS = {
   'mainnet-beta': {
@@ -75,7 +76,7 @@ function parseEnvelope(rawBody, requestId) {
 }
 
 async function postReadOnlyRpc(rpcUrl, method, params, requestId, fetchImpl) {
-  if (!SUBSCRIPTION_RPC_ALLOWED_METHODS.has(method)) {
+  if (!ALLOWED_RPC_METHODS.has(method)) {
     throw new Error('RPC_METHOD_NOT_ALLOWED');
   }
   let response;
