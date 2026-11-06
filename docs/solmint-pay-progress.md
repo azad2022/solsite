@@ -3579,3 +3579,44 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - Current Subscription branch state: `feat/pay-subscription-billing` HEAD `7340ec8eb27897c814a9feb55215d5e7c2d5e8c3`; main HEAD `514d3401d8d725be106ab0c83557f8e43cdff13e`; merge base `7b975d56860b6d937ad76ab2983c71937644dfa3`. Feature branch is 310 commits ahead / 7 behind; seven overlapping governance paths require reviewed reconciliation. PR #366 remains OPEN / DRAFT / NOT MERGED and GitHub currently reports `mergeable=false`. No reset/force-push/rebase was performed.
 - G1 stage status: **G1-0 IN PROGRESS** (baseline/branch recovery). G1-1 to G1-8 **NOT STARTED**. Overall G1 **BLOCKED**; G2 remains PARTIAL / BLOCKED; Subscription runtime/API/schema/Collector/verifier/accounting/billing worker and real Subscription E2E remain NOT IMPLEMENTED.
 - No Program source implementation, IDL, migration, runtime/API/DB change, Production DDL/data/provider change, Secret/Key/signer, customer consent, Mainnet/Devnet transaction, Program deployment/upgrade, Squads proposal, accounting posting or fund movement occurred in this planning checkpoint.
+
+
+## 2026-11-06 — G1-0 source and branch-recovery audit checkpoint
+
+### G0 closure
+- G0 is **PASS / COMPLETE** by explicit owner confirmation that Supabase GitHub Integration → `Deploy to production` is OFF, supported by three post-change main-push windows with normal log coverage and zero independent migration-runner markers / PostgreSQL DDL matches.
+- Issue [#355](https://github.com/azad2022/solsite/issues/355) is CLOSED / COMPLETED. Historical October runner actor remains UNKNOWN and is retained as historical provenance, not a current G0 blocker.
+
+### Exact source and Program recheck
+- Current upstream `solana-foundation/subscriptions` main: `4e8cdb4e84d8ac9e2f0fac6ab2ab3510b7254899` (2026-11-05 18:57:46 UTC).
+- The exact current-main source was re-read for `initialize_subscription_authority.rs`, `close_subscription_authority.rs`, `revoke_subscription_authority.rs`, `subscription_authority.rs`, and `subscribe.rs`.
+- TM-01 remains uncorrected: Init still approves the derived Authority PDA with `u64::MAX` after the optional account creation branch, including when the PDA already exists; `init_id` remains `Clock::slot as i64`; `UNKNOWN_INIT_ID` still resolves to the landing slot; legacy Init/Close/Revoke discriminators 0/6/14 remain callable and are not generation-bound. Subscribe discriminator 11 still binds the slot-derived `init_id`, not a persistent generation.
+- Current v0.5.0 source also confirms the old path requires the subscriber's canonical Associated Token Account in Authority initialization and derives/checks that canonical ATA in transfer helpers. A non-ATA VNext source account may therefore be an isolation candidate, but this is **NOT PROVEN** until exact pinned-source LiteSVM tests demonstrate that every legacy Init/Subscribe/Transfer path rejects it and cannot alter its delegate/balance.
+- The official upstream upgrade document says Mainnet Program upgrades are governed by Squads; CI writes the buffer and transfers buffer authority to the Squads vault, then a Squads proposal is approved/executed by the multisig. The previously recorded ProgramData authority is 3-of-5, with member identity/custody UNKNOWN. SolMint must not assume it can upgrade the existing Program ID.
+- Upstream GitHub connection is read-only for the upstream repository. Local implementation is therefore the intended route; upstream maintainer acceptance is not a prerequisite for local source work.
+
+### Repository / PR exact state before this documentation checkpoint
+- `main`: `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- `feat/pay-subscription-billing`: `7340ec8eb27897c814a9feb55215d5e7c2d5e8c3`.
+- Merge base: `7b975d56860b6d937ad76ab2983c71937644dfa3`.
+- Branch divergence: 310 commits ahead / 7 behind; PR [#366](https://github.com/azad2022/solsite/pull/366) remains OPEN / DRAFT / NOT MERGED, `mergeable=false`.
+- The seven main-side changed paths since the merge base were compared at all three refs. Four are byte-identical between main and the feature branch: Production migration workflow, migration guard, migration guard tests, and workflow test.
+- Three paths need manual reconciliation: CI workflow (preserve Subscription jobs and add the main Production CLI job), Production migration policy (retain strict target/CLI guard and update stale G0 wording), and Progress Ledger (retain all feature history and G0 completion evidence).
+- A GitHub API attempt to merge `main` into the Subscription feature branch returned HTTP 409 Merge conflict. This failed operation changed no branch ref or file. No force-push, reset, rebase or history deletion was attempted.
+- The current exact feature SHA `7340ec8...` has successful quality, SDK compatibility, reproducible build, Mainnet ProgramData, TM-06 rent-refund, TM-07 atomic split-transfer, Production Build, Database Security, Mainnet Read-only and Devnet E2E checks. One Cloudflare Pages check was still IN_PROGRESS at the time of the check; Supabase Preview was SKIPPED by policy. These are checks on `7340ec8...`, not on later documentation commits.
+
+### G1 disposition
+- G1-0: **IN PROGRESS / BLOCKED on safe branch reconciliation**.
+- G1-1 source vendoring and reproducible baseline build: **NOT STARTED**.
+- G1-2 protocol/ABI and migration contract freeze: **NOT STARTED**.
+- G1-3 Program VNext implementation: **NOT STARTED**.
+- G1-4 legacy migration, G1-5 adversarial proof, G1-6 independent audit, G1-7 Devnet release and G1-8 Mainnet release: **NOT STARTED**.
+- Full product capability scope remains retained; no capability is permanently de-scoped. Each capability remains release-blocked until protocol enforcement and its specific migration/test/audit/deployment evidence pass.
+- A new Program ID creates a new PDA namespace and does not invalidate old v0.5.0 signed transactions. The preferred independent route is a SolMint-controlled VNext Program ID plus a dedicated customer-owned non-ATA source token account, but this remains a design hypothesis until old-program isolation tests pass. Existing customer funds/consent must never be silently moved or reinterpreted.
+- Existing v0.5.0 Plans/Authorities/Subscriptions do not auto-migrate. A new Program ID requires explicit customer-owned asset migration, Merchant Plan recreation and fresh customer consent. If safe token-account isolation cannot be proven, the migration path remains BLOCKED; do not use the legacy ATA for VNext funds.
+
+### Mutation boundary
+- This checkpoint is documentation-only on `feat/pay-subscription-billing`.
+- No Program source/IDL, SDK, API/runtime, database schema/migration/data, production setting, Secret/Key/signer, customer consent, Mainnet/Devnet transaction, Program deployment/upgrade, Squads proposal, accounting posting or customer funds were changed.
+- Local Working Tree remains **UNKNOWN** because the connected GitHub interface does not expose the local filesystem state.
+- Next: resolve the three divergent branch files without force-push/rebase, re-run exact-head CI, then begin G1-1 by importing the exact MIT-pinned source and reproducing the unmodified v0.5.0 build before patching it.
