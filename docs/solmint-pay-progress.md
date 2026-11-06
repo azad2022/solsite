@@ -3728,3 +3728,43 @@ The other four main-side changed paths (Production migration workflow, guard scr
 - Repository changes are confined to `feat/pay-subscription-billing`; `main` is unchanged.
 - No Program source/IDL, application runtime, database schema/data, Production configuration, Secret/Key/signer, customer consent, Mainnet/Devnet transaction, Program deployment/upgrade, Squads proposal, accounting entry or customer funds changed.
 - Local Working Tree remains **UNKNOWN** through the remote GitHub connector.
+
+
+## 2026-11-06 — G1-0 complete: branch reconciliation and exact-head CI PASS
+
+- Current `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`; no main changes were made.
+- Subscription branch `feat/pay-subscription-billing` now includes a true two-parent merge commit `4d7fc8a297ff49a5162de8f4fe807a85346b1785` (feature first parent, main second parent), plus the reviewed documentation/checkpoint commits. No force push, reset, blind rebase or history deletion occurred.
+- Current code/test checkpoint SHA tested by GitHub workflows: `f908440cf75b28299b1322e39f1148176e3c7c8c`; compare to main: 317 ahead / 0 behind; merge base equals current main.
+- PR #366 remains OPEN / DRAFT / NOT MERGED; exact PR head is mergeable and GitHub reports `mergeable_state=clean`.
+
+### Exact-head evidence for `f908440...`
+- CI [42233967558](https://github.com/azad2022/solsite/actions/runs/42233967558): **SUCCESS**, all jobs green. Includes quality (typecheck/build/unit/fail-closed Production migration Guard), SDK compatibility/Workerd/Devnet simulation, reproducible pinned upstream Program build, TM-06 sponsored Plan refund regression, TM-07 atomic split-transfer regression, Mainnet ProgramData read-only, and both CLI 2.122.1 checks.
+- Production Build [42233967582](https://github.com/azad2022/solsite/actions/runs/42233967582): **SUCCESS**.
+- Ordinary Pay Devnet E2E [42233967417](https://github.com/azad2022/solsite/actions/runs/42233967417): **SUCCESS**; not a real Subscription charge.
+- Database Security [42233967519](https://github.com/azad2022/solsite/actions/runs/42233967519): **SUCCESS**.
+- Mainnet Read-only [42233967433](https://github.com/azad2022/solsite/actions/runs/42233967433): **SUCCESS**.
+- Cloudflare Pages PR check [127947226759](https://github.com/azad2022/solsite/runs/127947226759): **SUCCESS**; this is a preview check, not Production deployment.
+- Supabase Preview: **SKIPPED** under the preview-free policy.
+
+### Limits of this checkpoint
+- TM-06 and TM-07 regression overlays ran against an ephemeral checkout of pinned upstream v0.5.0. They do not patch the upstream repo or deployed Program.
+- Reproducible Program build/Mainnet ProgramData job identify the existing pinned upstream Program, not a VNext Program.
+- CreatePlan Devnet validation is simulation-only; no transaction submitted.
+- No SolMint-owned Program source/IDL, protocol patch, migration, production subscription runtime, customer consent, signer, Program deploy/upgrade or Mainnet/Devnet transaction was created.
+- Local Working Tree remains **UNKNOWN** through the remote GitHub interface.
+
+### G1 status
+- G0: **PASS / COMPLETE**; Issue #355 closed following owner confirmation and three post-change populated log windows. Historical runner initiating actor remains UNKNOWN.
+- G1-0: **PASS / COMPLETE** (branch graph reconciled, main preserved, PR mergeability restored, exact-head CI and all companion checks succeeded).
+- G1-1 local MIT source intake/reproducible baseline: **NOT STARTED**.
+- G1-2 protocol/ABI freeze: **NOT STARTED**.
+- G1-3 VNext Program implementation: **NOT STARTED**.
+- G1-4 legacy migration: **NOT STARTED**.
+- G1-5 VNext adversarial proof: **NOT STARTED**.
+- G1-6 independent audit: **NOT STARTED**.
+- G1-7 Devnet release/migration rehearsal: **NOT STARTED**.
+- G1-8 separately authorized Mainnet deployment/migration: **NOT STARTED**.
+- G1 overall: **BLOCKED**. The required local Program code, VNext IDL, legacy migration, full adversarial proof, independent audit and deployed verification do not yet exist.
+- All product capabilities remain in scope; none has been permanently de-scoped.
+
+No Production DDL/data/provider setting, Secret/Key, signer, customer consent, accounting post, Program upgrade/deployment, Squads proposal, Mainnet/Devnet write or customer fund movement occurred during G1-0.
