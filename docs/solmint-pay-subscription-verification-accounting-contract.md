@@ -142,7 +142,19 @@ A verifier result is valid only if every stage succeeds. It must return structur
 - Reject any transaction where SolMint treasury/platform infrastructure is paying the recurring network fee or where the principal roles are conflated.
 - Do not infer gateway fee, referral, gas markup or a split transfer from the ordinary Pay fee configuration. Those require an explicit approved Subscription fee decision.
 
-## 5. Verifier result semantics
+## 5. Implemented structural-decoder checkpoint
+
+The isolated compatibility harness now contains `src/transfer-subscription-instruction.ts`, a strict structural decoder for the pinned `TransferSubscription` instruction. It:
+
+- requires the pinned Program ID and discriminator 10;
+- requires exactly 73 instruction-data bytes and decodes the amount as `bigint` from little-endian u64;
+- decodes the delegator and Mint public keys and requires the Mint argument to match the fixed Mint account;
+- requires exactly the ten fixed account addresses in the pinned IDL order, rejects any trailing/remaining account, requires the original SPL Token Program and validates the self-Program account;
+- returns named account positions without treating them as verified signer privileges, account ownership, CPI effects, transaction finality or payment evidence.
+
+The decoder is intentionally a parser only. It does not inspect the compiled transaction message/header, signer/writable privileges, address lookup tables, transaction metadata, inner instructions, actual token deltas, Plan/Subscription state, Puller authorization, duplicate signatures or billing Attempt correlation. It cannot return a paid/verified result. Regression coverage is in `test/transfer-subscription-instruction.test.mjs`, wired into the isolated harness `npm test` script. CI must compile and execute these tests before this checkpoint can be called PASS.
+
+## 6. Verifier result semantics
 
 The pure verifier may produce only:
 
@@ -154,7 +166,7 @@ The verifier must never return `paid`, `accounted`, `entitled`, or a customer-fa
 
 The existing `validateSubscriptionAccountState` remains a separate component with its current `account-state-consistency-only` evidence label. It must not be renamed or upgraded to transaction verification.
 
-## 6. Atomic accounting boundary
+## 7. Atomic accounting boundary
 
 No accounting write is part of the pure verifier. A future database-side commit must receive a verified, immutable observation and enforce all of the following in one transaction:
 
@@ -179,7 +191,7 @@ If any validation, uniqueness, balance, posting, or outbox insert fails, the ent
 
 Therefore the accounting database function/table/RPC and its schema are NOT IMPLEMENTED. No fee or ledger semantics are invented in this document.
 
-## 7. Adversarial verification test matrix
+## 8. Adversarial verification test matrix
 
 A future pure verifier test suite must include, at minimum:
 
@@ -212,20 +224,21 @@ A future pure verifier test suite must include, at minimum:
 
 Golden fixtures must be generated from the exact pinned Program/IDL and real serialized transaction metadata. Hand-authored mock events alone are insufficient.
 
-## 8. Required implementation order
+## 9. Required implementation order
 
-1. Pin the exact `transfer_with_delegate` helper and SPL CPI behavior from the same upstream commit; record the source blob and add instruction/CPI golden fixtures.
+1. Pin the exact `transfer_with_delegate` helper and SPL CPI behavior from the same upstream commit; record the source blob and add instruction/CPI golden fixtures. (Source pin is complete; golden transaction fixtures remain outstanding.)
 2. Define a normalized, server-only finalized transaction evidence type from the actual Solana RPC response schema; preserve raw message/meta provenance.
 3. Implement a pure, no-I/O transaction verifier in the isolated compatibility harness. It must not sign, submit, call RPC or write to a database.
-4. Add adversarial tests for instruction/account ordering, CPI/token effects, exact amount, Puller, fee payer, period rollover, duplicates and unknown evidence.
+4. Extend adversarial tests from the structural instruction decoder to compiled-message privileges, CPI/token effects, exact amount, Puller, fee payer, period rollover, duplicates and unknown evidence.
 5. Implement an RPC adapter that fetches finalized transaction and same-bank account evidence from the dedicated configured endpoint; test provider errors, pruning and missing historical state.
 6. Freeze the typed financial origin and atomic accounting contract only after the fee, referral, network-cost, refund and entitlement decisions are explicitly approved.
 7. Build disposable-DB security tests for RLS, grants, SECURITY DEFINER ownership/search_path, unique constraints, fencing, balanced postings, rollback and outbox atomicity.
 8. Only after those gates pass may server routes, billing worker and Collector signing be implemented. UI remains last.
 
-## 9. Current status and authorization boundary
+## 10. Current status and authorization boundary
 
 - Existing account-state consistency helper and its isolated tests: present in the repository; its exact-head CI must be rechecked before use.
+- Strict TransferSubscription instruction structural decoder: implemented in the isolated compatibility harness; exact-head CI still required for PASS.
 - Dedicated transaction verifier: **NOT IMPLEMENTED**.
 - Finalized transaction RPC adapter: **NOT IMPLEMENTED**.
 - Atomic Subscription accounting DB contract/runtime: **NOT IMPLEMENTED**.
