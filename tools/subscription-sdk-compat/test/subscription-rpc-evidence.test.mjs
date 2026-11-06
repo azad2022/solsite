@@ -111,3 +111,17 @@ test('returns UNKNOWN when any serialized transaction signature is altered', () 
   assert.equal(normalized.outcome, 'unknown');
   assert.match(normalized.reasons.join(' '), /SIGNATURE/);
 });
+
+test('fails closed on a v1 wire-message prefix until the pinned decoder supports its format', () => {
+  const fixture = makeFixture();
+  const body = JSON.parse(fixture.rawResponse);
+  const wire = Buffer.from(body.result.transaction[0], 'base64');
+  const messageOffset = 1 + 64;
+  wire[messageOffset] = 0x81;
+  body.result.transaction = [wire.toString('base64'), 'base64'];
+  body.result.version = 1;
+
+  const result = normalizeSubscriptionGetTransactionResponse(JSON.stringify(body), fixture.provenance);
+  assert.equal(result.outcome, 'unknown');
+  assert.match(result.reasons.join(' '), /RPC_TRANSACTION_VERSION_UNSUPPORTED/);
+});
