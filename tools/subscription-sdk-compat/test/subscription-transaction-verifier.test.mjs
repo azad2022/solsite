@@ -210,12 +210,29 @@ test('returns only a verified transaction observation when instruction, CPI, eve
   assert.equal('entitled' in result, false);
 });
 
-test('rejects a transaction that is not finalized', () => {
+test('returns UNKNOWN for a transaction that has not reached finalized commitment', () => {
   const { expected, evidence } = makeFixture();
   evidence.commitment = 'confirmed';
   const result = verifySubscriptionTransferTransaction(expected, evidence);
+  assert.equal(result.outcome, 'unknown');
+  assert.match(result.reasons.join(' '), /finalized commitment/);
+});
+
+
+test('rejects a transaction whose signed message hash does not match the durable Attempt', () => {
+  const { expected, evidence } = makeFixture();
+  evidence.messageHash = 'c'.repeat(64);
+  const result = verifySubscriptionTransferTransaction(expected, evidence);
   assert.equal(result.outcome, 'rejected');
-  assert.ok(result.failures.includes('transaction_not_finalized'));
+  assert.ok(result.failures.includes('attempt_message_mismatch'));
+});
+
+test('rejects a Program deployment hash that differs from the approved source build', () => {
+  const { expected, evidence } = makeFixture();
+  evidence.programDeployment.elfSha256 = 'd'.repeat(64);
+  const result = verifySubscriptionTransferTransaction(expected, evidence);
+  assert.equal(result.outcome, 'rejected');
+  assert.ok(result.failures.includes('program_deployment_mismatch'));
 });
 
 test('rejects a token-balance delta that does not match the TransferChecked amount', () => {
