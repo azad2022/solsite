@@ -541,6 +541,7 @@ function normalizeTransaction(
 
   return {
     signature: decoded.signature,
+    transactionVersion: decoded.transactionVersion,
     messageHash,
     commitment: provenance.requestedCommitment,
     clusterGenesisHash: provenance.clusterGenesisHash,
