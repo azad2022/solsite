@@ -273,3 +273,23 @@ The attached Cantina report (2026-07-30) records 9 findings: 4 Fixed, 5 Acknowle
 - G1-1: **IN PROGRESS** — own source repository, exact MIT baseline and reproducible build evidence established; VNext source patch and fork CI are still pending.
 - G1-2 through G1-8: **NOT STARTED**.
 - G1 overall: **BLOCKED** until VNext code, ABI/IDL, explicit migration, adversarial proof, independent audit and deployment evidence are complete.
+
+
+## 10. Mainnet upgrade-authority evidence and fork-CI limitation (2026-11-06)
+
+### Existing Mainnet Program — read-only observation
+The successful `subscription-mainnet-programdata` CI artifact (run `42233967558`, observed at `2026-11-06T14:28:55.800Z`, finalized mainnet-beta) records:
+- Existing Program ID: `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`.
+- ProgramData: `HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg`.
+- Upgrade authority: Squads vault `DXtFpbPjcn2hxPnw79x1Pfoj35vXh5AsWBkS37YnXMVv`.
+- Squads V4 state: `4CxQs26DewQ1KaCHfyyjktkYjndNdUqCJvVdygtJFwcJ`; threshold **3 of 5**, five members, finalized read-only state.
+- On-chain ELF SHA-256 matches the pinned source build: `056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318`.
+- On-chain IDL SHA-256 matches pinned source IDL: `1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa`.
+
+This proves SolMint cannot unilaterally upgrade the existing Program ID. No Squads proposal or vote was created. The independent VNext Program ID path avoids waiting for upstream/old Program governance, but its own keypair custody, authority model and deployment still require explicit review/authorization.
+
+### Fork Actions observation
+- Fork repository Actions permission read: `enabled=true`, `allowed_actions=all`.
+- Despite workflow files existing in the fork's default `main` and pinned work branch, the connected GitHub Actions workflow-list endpoint returned zero workflows; workflow enable/dispatch calls returned 404 and no fork PR check runs were observed.
+- This is recorded as **FORK CI UNKNOWN / CONNECTOR OR GITHUB WORKFLOW DISCOVERY BLOCKED**, not as proof that GitHub Actions are disabled.
+- The exact pinned baseline build is independently proven by SolMint's active CI run [42233967558](https://github.com/azad2022/solsite/actions/runs/42233967558). For VNext, the SolMint CI in `solsite` must be extended to checkout the SolMint fork branch and build/test its exact commit until fork-native Actions is demonstrably available.
