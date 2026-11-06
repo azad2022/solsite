@@ -340,7 +340,7 @@ export function verifySubscriptionTransferTransaction(
     evidence.accountKeys[instruction.programIdIndex] !== instruction.programAddress ||
     !Array.isArray(instruction.accountIndexes) ||
     instruction.accountIndexes.length !== instruction.accountAddresses.length ||
-    instruction.accountIndexes.some((index, position) =>
+    instruction.accountIndexes.some((index: number, position: number) =>
       !Number.isInteger(index) || index < 0 || evidence.accountKeys[index] !== instruction.accountAddresses[position]
     )
   ) return { outcome: 'unknown', reasons: ['Compiled instruction indexes do not match the fully resolved transaction account-key list.'] };
@@ -407,13 +407,13 @@ export function verifySubscriptionTransferTransaction(
     return reject(failures);
   }
 
-  const innerIndexesValid = inner.every(item =>
+  const innerIndexesValid = inner.every((item: SubscriptionInnerInstruction) =>
     Number.isInteger(item.programIdIndex) &&
     item.programIdIndex >= 0 &&
     evidence.accountKeys[item.programIdIndex] === item.programAddress &&
     Array.isArray(item.accountIndexes) &&
     item.accountIndexes.length === item.accountAddresses.length &&
-    item.accountIndexes.every((index, position) =>
+    item.accountIndexes.every((index: number, position: number) =>
       Number.isInteger(index) && index >= 0 && evidence.accountKeys[index] === item.accountAddresses[position]
     )
   );
@@ -421,8 +421,8 @@ export function verifySubscriptionTransferTransaction(
     return { outcome: 'unknown', reasons: ['Inner instruction indexes do not match the resolved transaction account-key list.'] };
   }
 
-  const tokenCpis = inner.filter(item => item.programAddress === SPL_TOKEN_PROGRAM);
-  const eventCpis = inner.filter(item => item.programAddress === SUBSCRIPTIONS_PROGRAM);
+  const tokenCpis = inner.filter((item: SubscriptionInnerInstruction) => item.programAddress === SPL_TOKEN_PROGRAM);
+  const eventCpis = inner.filter((item: SubscriptionInnerInstruction) => item.programAddress === SUBSCRIPTIONS_PROGRAM);
   if (tokenCpis.length !== 1 || eventCpis.length !== 1) {
     failures.push('token_cpi_missing_or_invalid');
     return reject(failures);
