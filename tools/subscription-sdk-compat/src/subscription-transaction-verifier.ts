@@ -57,6 +57,7 @@ export interface SubscriptionTokenBalance {
 
 export interface SubscriptionTransactionEvidence {
   readonly signature: string;
+  readonly messageHash: string;
   readonly commitment: string;
   readonly clusterGenesisHash: string;
   readonly slot: bigint;
@@ -77,6 +78,10 @@ export interface SubscriptionTransactionEvidence {
 
 export interface ExpectedSubscriptionTransaction {
   readonly clusterGenesisHash: string;
+  readonly cycleId: string;
+  readonly attemptId: string;
+  readonly expectedSignature: string;
+  readonly expectedMessageHash: string;
   readonly merchant: Address;
   readonly merchantFeePayer: Address;
   readonly subscriber: Address;
@@ -124,6 +129,9 @@ export type SubscriptionTransactionVerification =
       readonly outcome: 'verified_observation';
       readonly evidence: 'finalized-subscription-transfer-transaction';
       readonly signature: string;
+      readonly messageHash: string;
+      readonly cycleId: string;
+      readonly attemptId: string;
       readonly slot: bigint;
       readonly blockTimeUnixSeconds: bigint;
       readonly puller: Address;
@@ -251,9 +259,13 @@ export function verifySubscriptionTransferTransaction(
     evidence.blockTimeUnixSeconds < 0n
   ) failures.push('invalid_chain_context');
   if (evidence.transactionError !== null) failures.push('transaction_execution_failed');
-  if (typeof evidence.signature !== 'string' || evidence.signature.length < 80) {
-    failures.push('missing_signature');
-  }
+  if (
+    typeof evidence.signature !== 'string' || evidence.signature.length < 80 ||
+    evidence.signature !== expected.expectedSignature ||
+    typeof evidence.messageHash !== 'string' || !/^[0-9a-f]{64}$/.test(evidence.messageHash) ||
+    evidence.messageHash !== expected.expectedMessageHash ||
+    !expected.cycleId || !expected.attemptId
+  ) failures.push('missing_signature');
   if (
     evidence.feePayer !== expected.merchantFeePayer ||
     evidence.feePayerIsSigner !== true ||
@@ -363,9 +375,13 @@ export function verifySubscriptionTransferTransaction(
 
   const outerIndex = evidence.topLevelInstructions.indexOf(instruction);
   const inner = evidence.innerInstructions.get(outerIndex);
-  if (!inner || inner.length !== 2) {
-    unknown.push('Expected exactly one TransferChecked CPI and one Program event self-CPI; inner instruction evidence is missing or incomplete.');
+  if (!inner) {
+    unknown.push('RPC response did not provide the inner-instruction group for the Subscription instruction.');
     return { outcome: 'unknown', reasons: unknown };
+  }
+  if (inner.length !== 2) {
+    failures.push('token_cpi_missing_or_invalid');
+    return reject(failures);
   }
 
   const innerIndexesValid = inner.every(item =>
@@ -470,6 +486,9 @@ export function verifySubscriptionTransferTransaction(
     outcome: 'verified_observation',
     evidence: 'finalized-subscription-transfer-transaction',
     signature: evidence.signature,
+    messageHash: evidence.messageHash,
+    cycleId: expected.cycleId,
+    attemptId: expected.attemptId,
     slot: evidence.slot,
     blockTimeUnixSeconds: evidence.blockTimeUnixSeconds as bigint,
     puller,
