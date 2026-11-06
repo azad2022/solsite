@@ -110,6 +110,8 @@ export type SubscriptionTransactionFailureCode =
   | 'invalid_chain_context'
   | 'transaction_execution_failed'
   | 'missing_signature'
+  | 'attempt_signature_mismatch'
+  | 'attempt_message_mismatch'
   | 'fee_payer_mismatch'
   | 'program_deployment_mismatch'
   | 'unexpected_top_level_instruction'
@@ -246,7 +248,9 @@ export function verifySubscriptionTransferTransaction(
   const failures: SubscriptionTransactionFailureCode[] = [];
   const unknown: string[] = [];
 
-  if (evidence.commitment !== 'finalized') failures.push('transaction_not_finalized');
+  if (evidence.commitment !== 'finalized') {
+    unknown.push('Transaction has not reached finalized commitment.');
+  }
   if (
     !expected.clusterGenesisHash ||
     evidence.clusterGenesisHash !== expected.clusterGenesisHash
@@ -254,31 +258,50 @@ export function verifySubscriptionTransferTransaction(
   if (
     typeof evidence.slot !== 'bigint' ||
     evidence.slot < 0n ||
-    evidence.slot > U64_MAX ||
-    typeof evidence.blockTimeUnixSeconds !== 'bigint' ||
-    evidence.blockTimeUnixSeconds < 0n
+    evidence.slot > U64_MAX
   ) failures.push('invalid_chain_context');
-  if (evidence.transactionError !== null) failures.push('transaction_execution_failed');
-  if (
-    typeof evidence.signature !== 'string' || evidence.signature.length < 80 ||
-    evidence.signature !== expected.expectedSignature ||
-    typeof evidence.messageHash !== 'string' || !/^[0-9a-f]{64}$/.test(evidence.messageHash) ||
-    evidence.messageHash !== expected.expectedMessageHash ||
-    !expected.cycleId || !expected.attemptId
-  ) failures.push('missing_signature');
+  if (typeof evidence.blockTimeUnixSeconds !== 'bigint') {
+    unknown.push('Finalized block time is missing from transaction evidence.');
+  } else if (evidence.blockTimeUnixSeconds < 0n) {
+    failures.push('invalid_chain_context');
+  }
+  if (evidence.transactionError === undefined) {
+    unknown.push('Transaction execution metadata is missing.');
+  } else if (evidence.transactionError !== null) {
+    failures.push('transaction_execution_failed');
+  }
+  if (typeof evidence.signature !== 'string' || evidence.signature.length < 80) {
+    unknown.push('Transaction signature is missing or malformed.');
+  } else if (evidence.signature !== expected.expectedSignature) {
+    failures.push('attempt_signature_mismatch');
+  }
+  if (typeof evidence.messageHash !== 'string' || !/^[0-9a-f]{64}$/.test(evidence.messageHash)) {
+    unknown.push('Canonical serialized-message SHA-256 is missing or malformed.');
+  } else if (evidence.messageHash !== expected.expectedMessageHash) {
+    failures.push('attempt_message_mismatch');
+  }
+  if (!expected.cycleId || !expected.attemptId) {
+    unknown.push('Trusted Cycle/Attempt correlation is missing.');
+  }
+  if (!evidence.programDeployment) {
+    unknown.push('Exact Program deployment identity is not independently attested for this transaction slot.');
+  } else if (
+    evidence.programDeployment.programAddress !== SUBSCRIPTIONS_PROGRAM ||
+    evidence.programDeployment.sourceCommit !== expected.programSourceCommit ||
+    evidence.programDeployment.elfSha256 !== expected.programElfSha256
+  ) {
+    failures.push('program_deployment_mismatch');
+  } else if (
+    evidence.programDeployment.attestedSlot !== evidence.slot ||
+    evidence.programDeployment.attestationKind !== 'historical-slot'
+  ) {
+    unknown.push('Program deployment attestation is not bound to this exact transaction slot.');
+  }
   if (
     evidence.feePayer !== expected.merchantFeePayer ||
     evidence.feePayerIsSigner !== true ||
     evidence.feePayerIsWritable !== true
   ) failures.push('fee_payer_mismatch');
-  if (
-    !evidence.programDeployment ||
-    evidence.programDeployment.programAddress !== SUBSCRIPTIONS_PROGRAM ||
-    evidence.programDeployment.sourceCommit !== expected.programSourceCommit ||
-    evidence.programDeployment.elfSha256 !== expected.programElfSha256 ||
-    evidence.programDeployment.attestedSlot !== evidence.slot ||
-    evidence.programDeployment.attestationKind !== 'historical-slot'
-  ) unknown.push('Exact Program deployment identity is not independently attested for this transaction slot.');
 
   if (failures.length > 0) return reject(failures);
   if (unknown.length > 0) return { outcome: 'unknown', reasons: unknown };
