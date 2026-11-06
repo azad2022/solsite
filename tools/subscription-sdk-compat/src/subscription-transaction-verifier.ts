@@ -1,4 +1,5 @@
 import type { Address } from '@solana/kit';
+import { PublicKey } from '@solana/web3.js';
 import {
   decodeTransferSubscriptionInstruction,
   type CompiledSubscriptionInstruction,
@@ -171,19 +172,7 @@ function readI64LE(bytes: Uint8Array, offset: number): bigint {
 
 function readAddress(bytes: Uint8Array, offset: number): Address {
   if (offset < 0 || offset + 32 > bytes.length) throw new RangeError('address out of bounds');
-  // Base58 encoding is delegated to the already-pinned web3.js PublicKey dependency
-  // through the structural decoder's canonical address validation path.
-  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  let value = 0n;
-  for (const byte of bytes.slice(offset, offset + 32)) value = (value << 8n) + BigInt(byte);
-  let encoded = '';
-  while (value > 0n) {
-    const remainder = Number(value % 58n);
-    encoded = alphabet[remainder] + encoded;
-    value /= 58n;
-  }
-  for (let i = offset; i < offset + 32 && bytes[i] === 0; i += 1) encoded = '1' + encoded;
-  return encoded as Address;
+  return new PublicKey(bytes.slice(offset, offset + 32)).toBase58() as Address;
 }
 
 function decodeTransferEvent(data: Uint8Array): DecodedTransferEvent {
@@ -271,7 +260,7 @@ export function verifySubscriptionTransferTransaction(
     evidence.feePayerIsWritable !== true
   ) failures.push('fee_payer_mismatch');
   if (
-    evidence.programDeployment === null ||
+    !evidence.programDeployment ||
     evidence.programDeployment.programAddress !== SUBSCRIPTIONS_PROGRAM ||
     evidence.programDeployment.sourceCommit !== expected.programSourceCommit ||
     evidence.programDeployment.elfSha256 !== expected.programElfSha256 ||
@@ -285,7 +274,9 @@ export function verifySubscriptionTransferTransaction(
   if (
     !Array.isArray(evidence.accountKeys) ||
     !Array.isArray(evidence.topLevelInstructions) ||
-    !(evidence.innerInstructions instanceof Map)
+    !(evidence.innerInstructions instanceof Map) ||
+    !Array.isArray(evidence.preTokenBalances) ||
+    !Array.isArray(evidence.postTokenBalances)
   ) {
     return { outcome: 'unknown', reasons: ['RPC transaction evidence is incomplete or not normalized.'] };
   }
@@ -401,6 +392,7 @@ export function verifySubscriptionTransferTransaction(
   const tokenCpi = tokenCpis[0];
   const transferData = tokenCpi.data;
   if (
+    !(transferData instanceof Uint8Array) ||
     transferData.length !== 10 ||
     transferData[0] !== TOKEN_TRANSFER_CHECKED ||
     tokenCpi.accountAddresses.length !== 4 ||
@@ -414,6 +406,7 @@ export function verifySubscriptionTransferTransaction(
 
   const eventAuthority = decoded.accounts.eventAuthority;
   if (
+    !Array.isArray(eventCpis[0].accountAddresses) ||
     eventCpis[0].accountAddresses.length !== 1 ||
     eventCpis[0].accountAddresses[0] !== eventAuthority
   ) failures.push('event_missing_or_invalid');
