@@ -310,3 +310,10 @@ The design-only contract/lifecycle draft on `994eaf14aabd948aa5bb5312082beb635f6
 - A candidate persistent per-customer+mint generation registry and legacy-instruction closure/migration approach is documented in `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md`. It is a design proposal only. Its migration compatibility, rent consequences, integer representation and action nonce/deadline rules remain for upstream review.
 - Status: owner decision RECORDED; TM-01 remediation BLOCKED; G1 overall BLOCKED; G0 BLOCKED by Issue #355; G2 PARTIAL / BLOCKED. Subscription API/domain/schema/worker/Collector/verifier/accounting/Devnet E2E/UI remain NOT IMPLEMENTED.
 - No upstream PR, Production DDL, provider setting, Secret/Key, signer, customer Consent, Devnet/Mainnet transaction, Program upgrade, Squads proposal or funds were changed. No test execution is claimed for this documentation/design checkpoint.
+
+
+## 2026-11-06 — Product scope decision and private disclosure
+
+The owner explicitly requires preserving the complete planned Subscription capability set. The earlier provisional v1 exclusions are no longer acceptable as permanent product-scope decisions; they remain temporary no-launch safeguards until protocol-level remediation passes. The capability-preserving upstream remediation plan is `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`.
+
+The TM-01 old-signed-create report was submitted privately to `solana-foundation/subscriptions` as `GHSA-hvvh-pvqw-g3gx`; current state is TRIAGE. An attempt to create the associated temporary private fork was rejected with HTTP 403 because the upstream organization restricts third-party OAuth App access. No public issue, public upstream PR, fork or Mainnet mutation was created.
