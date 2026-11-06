@@ -180,3 +180,51 @@ Rules:
 - G2 Subscription contract/runtime: remains partial / blocked; production Subscription API/schema/Collector/verifier/accounting/billing worker are not implemented.
 - Local Working Tree: **UNKNOWN** through the available remote GitHub connector.
 - No Production DDL/data/provider setting/Secret/Key/signer, customer consent, Program deployment/upgrade, Mainnet/Devnet transaction, accounting posting or funds were changed in this checkpoint.
+
+
+## 2026-11-06 — G1-0 branch reconciliation and exact-head CI: PASS
+
+### Repository state
+- Current `main`: `514d3401d8d725be106ab0c83557f8e43cdff13e` (unchanged by this checkpoint).
+- Current Subscription branch SHA: `f908440cf75b28299b1322e39f1148176e3c7c8c`.
+- Subscription branch compares to current `main`: **317 commits ahead / 0 behind**, merge base is current main.
+- PR [#366](https://github.com/azad2022/solsite/pull/366) is OPEN / DRAFT / NOT MERGED; GitHub API reports `mergeable=true`, `mergeable_state=clean`.
+- The reviewed merge commit `4d7fc8a297ff49a5162de8f4fe807a85346b1785` has two parents: feature branch first parent, current main second parent. No force push, reset, blind rebase, history deletion or direct main edit was used.
+- The CI merge preserves Subscription-specific SDK, reproducible Program build, TM-06/TM-07 regression, Mainnet ProgramData jobs and adds the generic pinned Production migration CLI check. The Production migration workflow, Guard and Guard tests are identical to the current main G0 versions.
+
+### Exact-head GitHub evidence
+
+All workflows below are bound to exact Subscription HEAD `f908440...`:
+- CI [42233967558](https://github.com/azad2022/solsite/actions/runs/42233967558): **SUCCESS**, all seven jobs succeeded:
+  - `quality`: typecheck, production build, unit tests, fail-closed migration guard tests and source-tree-cleanliness assertion.
+  - `subscription-sdk-compat (24)`: pinned SDK TypeScript compatibility tests, PDA/web3.js transaction compatibility tests, Workerd and non-submitting Devnet CreatePlan simulation.
+  - `subscription-reproducible-build`: exact pinned upstream v0.5.0 source/toolchain, checksum-verified `solana-verify`, deterministic source build and ELF/IDL hashes.
+  - `subscription-tm06-sponsored-plan-refund`: pinned upstream test-only regression passed.
+  - `subscription-atomic-split-transfer`: pinned upstream test-only split-transfer atomicity regression and integration suite passed.
+  - `subscription-mainnet-programdata`: read-only identity/ProgramData check of the existing upstream Mainnet Program passed.
+  - `production-migration-cli` and `subscription-production-migration-cli`: Supabase CLI 2.122.1 installation/version verification passed.
+- Production Build [42233967582](https://github.com/azad2022/solsite/actions/runs/42233967582): **SUCCESS**.
+- Ordinary Pay Devnet E2E [42233967417](https://github.com/azad2022/solsite/actions/runs/42233967417): **SUCCESS**. This is not a real Subscription charge E2E.
+- Database Security [42233967519](https://github.com/azad2022/solsite/actions/runs/42233967519): **SUCCESS**.
+- Mainnet Read-only [42233967433](https://github.com/azad2022/solsite/actions/runs/42233967433): **SUCCESS**.
+- Cloudflare Pages PR check [127947226759](https://github.com/azad2022/solsite/runs/127947226759): **SUCCESS** (preview check, not a Production deployment).
+- Supabase Preview was **SKIPPED** under the project's preview-free policy; no preview database was created or mutated.
+
+### Strict interpretation limits
+- CI verifies the reconciled source branch and existing toolchains/tests. It does **not** implement a VNext Program or prove stale v0.5.0 signatures are invalidated.
+- TM-06 and TM-07 are regression overlays applied only to an ephemeral checkout of the exact pinned upstream v0.5.0 source. They do not change the upstream repository, deployed ELF or source behavior.
+- The Mainnet ProgramData job proves read-only identity of the existing upstream Program, not deployment of a SolMint-owned VNext Program.
+- The SDK Devnet CreatePlan check is simulation-only and does not submit a transaction; ordinary Pay Devnet E2E is not Subscription billing.
+- No Production DB/configuration, secret/key, signer, customer consent, accounting entry, Mainnet/Devnet write, Program deploy/upgrade, Squads proposal or funds changed.
+
+### G1 disposition
+- G1-0 baseline/branch recovery: **PASS / COMPLETE**.
+- G1-1 local MIT source intake and reproducible baseline: **NOT STARTED**.
+- G1-2 protocol/ABI freeze: **NOT STARTED**.
+- G1-3 VNext Program implementation: **NOT STARTED**.
+- G1-4 legacy migration: **NOT STARTED**.
+- G1-5 adversarial proof for VNext and legacy migration: **NOT STARTED**.
+- G1-6 independent audit: **NOT STARTED**.
+- G1-7 Devnet release/migration rehearsal: **NOT STARTED**.
+- G1-8 separately authorized Mainnet deployment/migration: **NOT STARTED**.
+- G1 overall remains **BLOCKED**. There is no SolMint-owned VNext Program source/IDL, legacy migration, full G1 adversarial proof, independent audit or deployed verification yet.
