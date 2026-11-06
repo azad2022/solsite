@@ -2080,8 +2080,8 @@ All workflows triggered by the exact merge SHA on `main` completed successfully:
 
 ### Independent Supabase runner — unresolved provider-side evidence
 - The project owner reports that Supabase Project Settings → Integrations → GitHub Integration → `Deploy to production` is OFF. Record this as **OWNER-REPORTED OFF**, not as an independent API read-back.
-- The connected Supabase API does not expose that provider-level toggle for direct read-back.
-- A log query beginning at the exact merge timestamp found no runner/migration markers, but it also returned no records from any Supabase log source in that interval. Log coverage/ingestion for this post-merge interval is therefore **UNKNOWN**; absence of rows must not be treated as proof that the runner did not execute.
+- The connected Supabase API does not expose that provider-level toggle for direct read-back. Its saved state remains **UNKNOWN by independent read-back** (owner-reported OFF).
+- A fresh read-only query after log ingestion caught up found ordinary timestamped rows across all four unified-log sources for the interval after merge: `edge_logs` (3), `function_edge_logs` (1), `function_logs` (2), and `postgres_logs` (4), from 2026-11-06 13:50:00 through 13:51:48 UTC. In the post-merge query window, matching `Cloning git repo`, `Applying migration`, `workflow_run`, or `git_ref` markers = **0**; PostgreSQL DDL/migration-apply matches = **0**. This is **PASS for the observed post-merge main push only**: no independent Supabase migration runner execution was observed while normal logs were flowing. It is not a guarantee against future setting changes or every possible external path.
 - The historical initiating human/actor for the 2026-10-27 and 2026-10-28 runner executions remains **UNKNOWN**.
 - Issue [#355](https://github.com/azad2022/solsite/issues/355) remains **OPEN / BLOCKED** pending direct provider-setting read-back or a sufficiently populated post-change log/deployment-history window that proves the independent migration-apply path is inactive.
 
