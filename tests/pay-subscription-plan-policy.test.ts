@@ -61,23 +61,17 @@ test('accepts a server-resolved original SPL USDC plan with explicit destination
   assert.deepEqual(result.destinationOwners, [DESTINATIONS[0]]);
 });
 
-test('accepts upstream maximum period and exact one-period finite end boundary', () => {
+test('rejects every finite Plan, including an exact full-period and a one-year end', () => {
   const chainTime = 1_793_380_000n;
-  const period = SUBSCRIPTION_MAX_PERIOD_HOURS;
-  const result = validateSubscriptionPlanPolicy(input({
-    periodHours: period.toString(),
-    endTs: (chainTime + period * 3_600n).toString(),
-    chainTimeUnixSeconds: chainTime.toString(),
-  }));
-  assert.equal(result.periodHours, '8760');
-});
-
-test('rejects a finite Plan end one second shorter than one complete period', () => {
-  const chainTime = 1_793_380_000n;
-  expectPolicyError({
-    endTs: (chainTime + 720n * 3_600n - 1n).toString(),
-    chainTimeUnixSeconds: chainTime.toString(),
-  }, 'INVALID_END_TS');
+  for (const finiteEndTs of [
+    chainTime + 720n * 3_600n,
+    chainTime + SUBSCRIPTION_MAX_PERIOD_HOURS * 3_600n,
+  ]) {
+    expectPolicyError({
+      endTs: finiteEndTs.toString(),
+      chainTimeUnixSeconds: chainTime.toString(),
+    }, 'INVALID_END_TS');
+  }
 });
 
 test('rejects zero and out-of-range billing periods', () => {
