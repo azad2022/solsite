@@ -53,6 +53,55 @@ Review the customer's signed consent and the broad u64::MAX Token Delegate appro
 
 Collector signing is a separate security boundary: verify isolated key custody, narrow Puller permissions, exact decoded instruction/account allowlist, per-cycle policy, simulation, anti-replay, idempotency, rate limiting, signer audit, rotation and compromise recovery. Cloudflare runtime secrets are not an HSM. Public endpoints must never sign arbitrary customer-supplied transaction bytes.
 
-Critical compatibility gate: the inspected normal Pay reconciliation requires merchant/fee transfer source authority to equal transaction fee payer and rejects gas-sponsored observations. Subscription Authority PDA and Collector fee payer are different principals. Do not weaken the current verifier or bypass fee/accounting checks. Require a dedicated Subscription verification/database adapter, exact on-chain evidence and atomic ledger handling before enabling charges.
+Critical compatibility gate: the inspected normal Pay reconciliation requires merchant/fee transfer source authority to equal transaction fee payer and rejects gas-sponsored observations. Subscription Authority PDA and Customer/Merchant-funded transaction fee payer are different principals; Collector may sign as Puller but must not be the SolMint-funded fee payer. Do not weaken the current verifier or bypass fee/accounting checks. Require a dedicated Subscription verification/database adapter, exact on-chain evidence and atomic ledger handling before enabling charges.
 
 Billing retry must distinguish rejected, retryable, submitted-unknown and verified outcomes. On RPC timeout or process restart, reconcile the existing transaction before another debit. Verify database-enforced unique cycle/attempt identity, atomic claims, cross-merchant/customer RLS, grants/revokes, append-only accounting, webhook outbox, Devnet E2E and adversarial tests. Webhook delivery is notification, never financial proof.
+
+
+## Additional Subscription release blockers — 2026-10-30
+
+- Treat the upstream v0.5.0 README Security Considerations as first-class threat-model input. A held init+subscribe bundle using `UNKNOWN_INIT_ID` can recreate authority and a spendable subscription after revoke. Production v1 must use separate init and Subscribe transactions and the actual observed `init_id`; reject the sentinel.
+- Do not accept Durable Nonce or unresolved smart-wallet/multisig proposals for consent/control in v1. A recent blockhash expiry is not the same as canceling a pending program-controlled wallet proposal. Reconcile every outstanding approval/nonce/proposal before telling a customer an authority or consent is revoked.
+- Test the same-period Resume replay edge, second-granular immediate-cancel replay, UpdatePlan ABA, held authority init/close/revoke, shared authority scope, and finite Plan near-expiry full-period charge. For TM-05, verify `SubscribeData` expected-end/revision binding, the exact `current_ts == end_ts` boundary, a post-consent Plan shortening race, and the selected full-period/proration rule. Finite Plans remain a required product capability but are BLOCKED for release until the upstream Program fix and adversarial tests pass. Do not describe slot-scoped `init_id` as a global generation or permanent revocation mechanism.
+- The Plan Owner is implicitly authorized to pull and cannot be removed. Reconcile every authorized Puller, not only Collector-generated transactions. Concurrent Plan Owner pulls can consume the same on-chain period allowance before a Collector transaction lands.
+- Subscription period identity comes from live on-chain SubscriptionDelegation period-start/usage state. Do not derive it from calendar months or scheduler timestamps. A scheduler is a trigger; a database unique cycle key and atomic claim/attempt are still required.
+- A `TransferSubscription` instruction has one destination/amount. Any principal+fee split needs two explicitly allowed destinations and proof, using the pinned Program, that multiple instructions in one transaction enforce one cumulative period allowance and rollback atomically. Until LiteSVM adversarial tests, Devnet E2E, dedicated verifier and accounting approval pass, split-fee subscription charge is BLOCKED.
+- The Program allowlist checks destination token-account owner; an empty list permits any destination. Require a non-empty explicit Plan allowlist and validate mint/program/ATA/owner.
+- An active on-chain Subscription is not proof of collectability or service entitlement. Check delegate, actual ATA/mint/frozen/balance state as applicable; unlock service only after independent finalized transfer verification and atomic ledger commit.
+- Audit the rent payer separately from the transaction fee payer. The pinned SDK plugin defaults distinct `client.payer` to optional rent payer on Authority, fixed/recurring delegation, Subscribe and Plan creation. SolMint v1 must override this with the customer/merchant account and must not sponsor rent.
+- Verify sponsor recovery per account type before any future opt-in: Authority closure is user-only; fixed sponsor reclaim requires expiry or zero remaining amount; recurring sponsor reclaim requires expiry or terminal Authority; Subscription sponsor reclaim requires cancellation/Plan terminality or terminal Authority; Plan rent returns to Merchant on deletion, not sponsor. A UI disclosure is not an enforceable recovery path.
+- Verify transaction network fees are funded by the Customer or Merchant, never by the SolMint treasury or a SolMint-funded Collector wallet. For recurring pulls, require a Merchant-owned/explicitly Merchant-funded fee-payer signer; Collector's Puller signature must not silently make SolMint the gas sponsor. Block the attempt if no approved Customer/Merchant fee source is available.
+- Require negative tests for implicit payer append, cross-user sponsorship abuse, non-expiring rent lock, and Plan sponsor refund destination. If future sponsorship is approved, require atomically enforced per-user/global rent exposure quotas and a recorded sponsor-to-account/refund ledger before enabling it.
+- One SPL Token account has one approved delegate slot; replacing an existing delegate needs explicit customer disclosure/consent. Revoke of the shared customer+mint authority affects other subscriptions.
+- **PASS (evidence identity/review only):** the complete 12-page Cantina PDF and eight-commit post-remediation release delta were reviewed on 2026-10-31; the delta contains no program/src/** changes. Finalized read-only Mainnet ProgramData confirms the deployed ELF hash equals the reproducible pinned-source build hash, and the canonical on-chain Program Metadata/IDL hash equals the pinned source IDL hash. The ProgramData upgrade authority resolves to the inspected Squads v4 Vault/State pair (3-of-5, zero-second timelock). The five Cantina Acknowledged findings remain residual risks; Squads member identity/custody remains UNKNOWN. These PASS results do not close Stage 2 or authorize Production Subscription.
+- No Production DDL while issue #355 migration-runner provenance is open. No Production signer, live consent, Mainnet transfer or migration without explicit authorization and documented recovery.
+ 
+## 2026-10-31 Subscription v1 threat-model release gate
+
+Use `docs/solmint-pay-subscription-v1-threat-model.md` as the finding-to-control/test matrix for any Subscription release audit. It is design-only, not evidence of implementation. A build, SDK compatibility test, ProgramData hash match, IDL hash match or UI restriction cannot close an upstream replay vulnerability.
+
+The Cantina PDF tally reconciles: four Fixed/Mitigated (two Medium, one Low, one Informational) and five Acknowledged (one High, three Medium, one Low). The CancelSubscriptionNow finding is mitigated for differing timestamps by `expected_current_period_start_ts`, but Cantina explicitly retains same-second recreation as an acknowledged residual; do not treat that partial mitigation as full protocol closure. The High old-signed-create finding remains BLOCKED for strong revocation unless protocol-enforced persistent epoch/nonce/deadline state and legacy-instruction rejection are evidenced. Do not treat off-chain builder policy as a protocol fix.
+
+
+## 2026-11-06 — Capability-preserving release policy
+
+Security findings must be fixed in the Program and surrounding lifecycle; do not permanently remove intended Subscription capabilities to obtain a PASS. Finite Plans, CancelNow, Resume, Authority reauthorization, durable-nonce approvals, supported smart-wallet proposals, rent sponsorship, split transfers and multi-destination pulls remain required product scope. They are BLOCKED from release until each has its versioned protocol control, migration, adversarial evidence, independent review and deployed verification. See `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`.
+
+
+## 2026-11-06 — Controlled Production migration guard
+
+The source-controlled Production migration workflow must enforce:
+
+- Exact commit checkout via `github.sha`.
+- For `APPLY` only: event `workflow_dispatch`, ref exactly `refs/heads/main`, and a separately supplied full expected SHA equal to `GITHUB_SHA`.
+- Session Pooler binding to the exact SolMint project user, approved Supabase Pooler host suffix, port 5432, `postgres` database, TLS-required mode and no arbitrary URI query parameters.
+- Embedded URL password, if present, must equal the standalone DB password secret; strip it from the URI and use `PGPASSWORD` as the sole password source.
+- Negative unit tests for off-main refs, stale/malformed SHA, wrong project/host/port/database, non-TLS URI, credential mismatch and credential leakage.
+- `AUTH_PROBE` remains read-only; `DRY_RUN` performs no schema/data writes; the Production APPLY command is not dispatched during code review.
+
+This guard protects the controlled GitHub workflow only. It cannot assert or change the separate Supabase Dashboard GitHub Integration `Deploy to production` option. Keep Issue #355 **OPEN / BLOCKED** until the historical runner provenance and live provider setting have verified evidence. Do not alter provider settings without explicit owner approval.
+
+
+### Supabase CLI version pin
+
+The repository's current controlled Production migration workflow is pinned to Supabase CLI 2.122.1. Treat `latest` as unsafe for this workflow. The CLI v3 release changed hosted command defaults and non-interactive confirmations; a v3 move requires a separate compatibility task, updated explicit remote targeting/confirmation, and exact-version CI evidence before it replaces v2.122.1.

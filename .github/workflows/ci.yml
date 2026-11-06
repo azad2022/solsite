@@ -53,6 +53,359 @@ jobs:
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all)"
 
+  subscription-sdk-compat:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [24]
+    defaults:
+      run:
+        working-directory: tools/subscription-sdk-compat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact PR head checkout
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          printf 'EXPECTED_PR_HEAD=%s\nACTUAL_CHECKOUT_HEAD=%s\n' "$EXPECTED_PR_HEAD" "$actual"
+          test "$actual" = "$EXPECTED_PR_HEAD"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Record runtime and package-manager policy
+        run: |
+          node --version
+          npm --version
+          npm config set engine-strict true
+          npm config get engine-strict
+
+      - name: Verify committed lockfile matches the pinned manifest
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git diff --exit-code -- package-lock.json
+
+      - name: Install isolated dependency graph
+        run: npm ci --no-audit --no-fund
+
+      - name: Report installed dependency versions and engine requirements
+        run: |
+          npm ls --depth=0
+          node --input-type=module -e "import { createRequire } from 'node:module'; import { readFileSync } from 'node:fs'; import { dirname, join } from 'node:path'; const require = createRequire(import.meta.url); for (const name of ['@solana/subscriptions','@solana/kit','@solana-program/token','@solana-program/token-2022','@solana/web3.js']) { let dir = dirname(require.resolve(name)); for (;;) { const candidate = join(dir, 'package.json'); try { const pkg = JSON.parse(readFileSync(candidate, 'utf8')); if (pkg.name === name) { console.log(name + '@' + pkg.version + ' engines=' + JSON.stringify(pkg.engines ?? {})); break; } } catch {} const parent = dirname(dir); if (parent === dir) throw new Error('package.json not found: ' + name); dir = parent; } }"
+
+      - name: Setup Bun for repository TypeScript compiler
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install pinned root TypeScript toolchain
+        working-directory: .
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck Subscription adapter and SDK builder integration
+        run: npm run typecheck
+
+      - name: Execute SDK / PDA / web3.js transaction compatibility tests
+        run: npm test
+
+      - name: Execute SDK integration in local Cloudflare Pages Workerd runtime
+        run: npm run test:workerd
+
+      - name: Simulate Subscription CreatePlan on dedicated Devnet RPC (no submission)
+        env:
+          SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
+        run: npm run test:devnet-sim
+
+  subscription-tm06-sponsored-plan-refund:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact SolMint PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: solmint-source
+          persist-credentials: false
+
+      - name: Checkout exact pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Apply test-only regression overlay and verify scope
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euxo pipefail
+          test "$(git -C solmint-source rev-parse HEAD)" = "$EXPECTED_PR_HEAD"
+          test "$(git -C upstream-subscriptions rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          patch="tm06-sponsored-plan-refund.patch"
+          test -s "solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply --check "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions add -N tests/integration-tests/src/test_tm06_sponsored_plan_rent_refund.rs
+          git -C upstream-subscriptions diff --check
+          actual="$(git -C upstream-subscriptions diff --name-only | sort)"
+          expected="$(printf '%s\n' \
+            tests/integration-tests/src/lib.rs \
+            tests/integration-tests/src/test_tm06_sponsored_plan_rent_refund.rs | sort)"
+          test "$actual" = "$expected"
+          echo "Only the test module registration and new regression test are overlaid."
+
+      - name: Install pinned upstream Rust / Solana test toolchain
+        uses: ./upstream-subscriptions/.github/actions/setup
+        with:
+          rust-toolchain: '1.92'
+          solana-version: '4.0.0'
+          rust-cache-key: 'solmint-tm06-sponsored-plan-refund'
+          install-pnpm: 'false'
+          install-pnpm-dependencies: 'false'
+          install-surfpool: 'false'
+
+      - name: Run sponsored Plan rent refund regression on pinned Program
+        working-directory: upstream-subscriptions
+        run: just integration-test sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor
+
+  subscription-atomic-split-transfer:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact SolMint PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: solmint-source
+          persist-credentials: false
+
+      - name: Checkout exact pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Apply atomic split-transfer test overlay and verify scope
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euxo pipefail
+          test "$(git -C solmint-source rev-parse HEAD)" = "$EXPECTED_PR_HEAD"
+          test "$(git -C upstream-subscriptions rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          patch="tm07-atomic-split-transfer.patch"
+          test -s "solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply --check "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions diff --check
+          actual="$(git -C upstream-subscriptions diff --name-only)"
+          expected="tests/integration-tests/src/test_transfer_subscription.rs"
+          test "$actual" = "$expected"
+          echo "Only the pinned upstream TransferSubscription integration-test file was changed."
+
+      - name: Install pinned upstream Rust / Solana test toolchain
+        uses: ./upstream-subscriptions/.github/actions/setup
+        with:
+          rust-toolchain: '1.92'
+          solana-version: '4.0.0'
+          rust-cache-key: 'solmint-atomic-split-transfer'
+          install-pnpm: 'false'
+          install-pnpm-dependencies: 'false'
+          install-surfpool: 'false'
+
+      - name: Run atomic split-transfer and full pinned integration regression suite
+        working-directory: upstream-subscriptions
+        run: just integration-test
+
+  subscription-reproducible-build:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      elf_sha256: ${{ steps.hash.outputs.elf_sha256 }}
+      idl_sha256: ${{ steps.hash.outputs.idl_sha256 }}
+    steps:
+      - name: Checkout pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Verify exact upstream source commit and toolchain pins
+        working-directory: upstream-subscriptions
+        run: |
+          test "$(git rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          grep -F 'solana = "3.1.10"' Cargo.toml
+          grep -F 'channel = "1.92"' rust-toolchain.toml
+          grep -F 'name = "subscriptions_program"' program/Cargo.toml
+
+      - name: Download pinned solana-verify CLI and verify release checksum
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
+            --output solana-verify
+          echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
+          chmod 0755 solana-verify
+          ./solana-verify --version
+
+      - name: Build pinned source in deterministic Solana Docker image (no RPC)
+        id: build
+        working-directory: upstream-subscriptions
+        run: |
+          set -o pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/upstream-subscriptions" --workspace-path "$GITHUB_WORKSPACE/upstream-subscriptions" --library-name subscriptions_program 2>&1 | tee "$RUNNER_TEMP/subscription-build.log"
+          container_rust_toolchain="$(sed -n 's/^Using container Rust toolchain: //p' "$RUNNER_TEMP/subscription-build.log" | tail -n 1)"
+          if [ -z "$container_rust_toolchain" ]; then
+            echo "::error::Could not capture the actual Solana build container Rust toolchain"
+            exit 1
+          fi
+          echo "container_rust_toolchain=$container_rust_toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Compute reproducible executable hash
+        id: hash
+        working-directory: upstream-subscriptions
+        env:
+          CONTAINER_RUST_TOOLCHAIN: ${{ steps.build.outputs.container_rust_toolchain }}
+        run: |
+          set -euo pipefail
+          binary="$(find "$GITHUB_WORKSPACE/upstream-subscriptions/target/deploy" -name 'subscriptions_program.so' -type f -print -quit)"
+          if [ -z "$binary" ]; then
+            echo "::error::Pinned verified build did not produce subscriptions_program.so"
+            find "$GITHUB_WORKSPACE/upstream-subscriptions" -name '*.so' -type f -print
+            exit 1
+          fi
+          hash="$(../solana-verify get-executable-hash "$binary")"
+          if ! [[ "$hash" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::solana-verify returned an invalid executable hash"
+            exit 1
+          fi
+          idl_file="$GITHUB_WORKSPACE/upstream-subscriptions/idl/subscriptions.json"
+          if [ ! -s "$idl_file" ]; then
+            echo "::error::Pinned upstream IDL file is missing or empty"
+            exit 1
+          fi
+          idl_hash="$(sha256sum "$idl_file" | awk '{print $1}')"
+          if ! [[ "$idl_hash" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::Pinned source IDL SHA-256 is invalid"
+            exit 1
+          fi
+          echo "elf_sha256=$hash" >> "$GITHUB_OUTPUT"
+          echo "idl_sha256=$idl_hash" >> "$GITHUB_OUTPUT"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          printf '{"source_commit":"364a41976c33347d092902443bbec2def9227e75","solana_verify_version":"0.5.2","solana_cli_build_version":"3.1.10","rust_toolchain_file":"1.92","build_container_rust_toolchain":"%s","docker_image_digest":"sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3","elf_sha256":"%s","idl_sha256":"%s"}\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" "$idl_hash" > "$GITHUB_WORKSPACE/artifacts/subscription-program-reproducible-build.json"
+          printf 'Pinned source commit: 364a41976c33347d092902443bbec2def9227e75\nBuild container Rust toolchain: %s\nReproducible ELF SHA-256: %s\nPinned source IDL SHA-256: %s\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" "$idl_hash"
+
+      - name: Upload sanitized reproducible build evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-subscription-reproducible-build
+          path: artifacts/subscription-program-reproducible-build.json
+          if-no-files-found: error
+          retention-days: 30
+
+  subscription-mainnet-programdata:
+    needs: subscription-reproducible-build
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/subscription-sdk-compat
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact PR head checkout
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_PR_HEAD"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Require dedicated Mainnet RPC secret without displaying it
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+        run: |
+          if [ -z "$SOLANA_RPC_URL" ]; then
+            echo "::error::Repository secret SOLANA_RPC_URL is required for read-only Mainnet ProgramData verification; no public RPC fallback is permitted."
+            exit 1
+          fi
+          case "$SOLANA_RPC_URL" in
+            https://*) ;;
+            *) echo "::error::SOLANA_RPC_URL must use HTTPS."; exit 1 ;;
+          esac
+
+      - name: Install isolated SDK dependency graph
+        run: npm ci --no-audit --no-fund
+
+      - name: Read Mainnet Program and ProgramData metadata
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+          EXPECTED_PROGRAM_ELF_SHA256: ${{ needs.subscription-reproducible-build.outputs.elf_sha256 }}
+          EXPECTED_SUBSCRIPTION_IDL_SHA256: ${{ needs.subscription-reproducible-build.outputs.idl_sha256 }}
+        run: npm run test:mainnet-programdata
+
+      - name: Upload sanitized ProgramData evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-subscription-mainnet-programdata
+          path: tools/subscription-sdk-compat/artifacts/subscription-mainnet-programdata.json
+          if-no-files-found: error
+          retention-days: 30
+
+
+  subscription-production-migration-cli:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install the pinned Supabase CLI v2
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
+        with:
+          version: 2.122.1
+
+      - name: Verify exact Supabase CLI version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(supabase --version)"
+          printf 'Supabase CLI version: %s\n' "$version"
+          grep -Fq '2.122.1' <<< "$version"
+
+
   production-migration-cli:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -69,3 +422,144 @@ jobs:
           version="$(supabase --version)"
           printf 'Supabase CLI version: %s\n' "$version"
           grep -Fq '2.122.1' <<< "$version"
+
+
+  subscription-vnext-authority-registry:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact SolMint VNext fork commit
+        uses: actions/checkout@v5
+        with:
+          repository: azad2022/solmint-subscriptions-program
+          ref: aa6f7c0839970f9e758876b30a27950629307996
+          path: vnext-subscriptions
+          persist-credentials: false
+
+      - name: Verify immutable VNext source commit
+        working-directory: vnext-subscriptions
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="aa6f7c0839970f9e758876b30a27950629307996"
+          printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
+          test "$actual" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: '1.92'
+          components: rustfmt, clippy
+
+      - name: Restore Rust build cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+        with:
+          workspaces: 'vnext-subscriptions -> vnext-subscriptions/target'
+          shared-key: solmint-vnext-authority-registry
+
+      - name: Check Program Rust formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt -p subscriptions-program -- --check
+
+      - name: Check LiteSVM test Rust formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt -p tests-subscriptions -- --check
+
+      - name: Run Program unit tests
+        working-directory: vnext-subscriptions
+        run: cargo test -p subscriptions-program
+
+      - name: Download pinned solana-verify CLI and verify checksum
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
+            --output solana-verify
+          echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
+          chmod 0755 solana-verify
+          ./solana-verify --version
+
+      - name: Build exact VNext SBF artifact in deterministic container
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/vnext-subscriptions" \
+            --workspace-path "$GITHUB_WORKSPACE/vnext-subscriptions" \
+            --library-name subscriptions_program
+          test -s target/deploy/subscriptions_program.so
+          sha256sum target/deploy/subscriptions_program.so
+
+      - name: Build Token-2022 transfer-hook test fixture
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/vnext-subscriptions/tests/transfer-hook-example" \
+            --workspace-path "$GITHUB_WORKSPACE/vnext-subscriptions/tests/transfer-hook-example" \
+            --library-name transfer_hook_example
+          test -s tests/transfer-hook-example/target/deploy/transfer_hook_example.so
+
+      - name: Run complete LiteSVM integration suite against VNext SBF
+        working-directory: vnext-subscriptions
+        run: cargo test -p tests-subscriptions
+
+      - name: Checkout immutable v0.5.0 legacy Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: legacy-subscriptions
+          persist-credentials: false
+
+      - name: Build immutable legacy Program SBF for isolation testing
+        working-directory: legacy-subscriptions
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          ../solana-verify build "$GITHUB_WORKSPACE/legacy-subscriptions" \
+            --workspace-path "$GITHUB_WORKSPACE/legacy-subscriptions" \
+            --library-name subscriptions_program
+          test -s target/deploy/subscriptions_program.so
+
+      - name: Prove immutable legacy Program cannot delegate a VNext non-ATA source
+        working-directory: vnext-subscriptions
+        env:
+          SOLMINT_LEGACY_PROGRAM_SO: ${{ github.workspace }}/legacy-subscriptions/target/deploy/subscriptions_program.so
+        run: cargo test -p tests-subscriptions vnext_legacy_program_cannot_delegate_a_non_ata_source -- --ignored
+
+      - name: Regenerate Codama IDL from exact Rust source
+        working-directory: vnext-subscriptions
+        run: GENERATE_IDL=1 cargo check -p subscriptions-program
+
+      - name: Verify generated Codama IDL matches committed VNext IDL
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          git show HEAD:idl/subscriptions.json > /tmp/committed-subscriptions-idl.json
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          generated = json.loads(Path("idl/subscriptions.json").read_text())
+          committed = json.loads(Path("/tmp/committed-subscriptions-idl.json").read_text())
+          if generated != committed:
+              raise SystemExit("Generated Codama IDL differs structurally from the committed IDL")
+
+          canonical = json.dumps(generated, sort_keys=True, separators=(",", ":")).encode()
+          print("PASS: generated and committed IDL are structurally identical")
+          print(f"Canonical IDL SHA-256: {hashlib.sha256(canonical).hexdigest()}")
+          print(f"Instructions: {len(generated['program']['instructions'])}")
+          print(f"Accounts: {len(generated['program']['accounts'])}")
+          print(f"Defined types: {len(generated['program']['definedTypes'])}")
+          print(f"PDAs: {len(generated['program']['pdas'])}")
+          PY
+
+      - name: Upload exact VNext SBF, generated IDL and build hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-vnext-authority-registry-build
+          path: |
+            vnext-subscriptions/target/deploy/subscriptions_program.so
+            vnext-subscriptions/idl/subscriptions.json
+          if-no-files-found: warn
+          retention-days: 14
