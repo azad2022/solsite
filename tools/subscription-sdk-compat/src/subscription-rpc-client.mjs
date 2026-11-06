@@ -226,7 +226,7 @@ export async function fetchFinalizedSubscriptionTransactionEvidence({
 
     return normalizeSubscriptionGetTransactionResponse(transactionRaw, {
       requestedCommitment: 'finalized',
-      clusterGenesisHash,
+      clusterGenesisHash: genesisHash,
       providerId: clusterConfig.providerId,
       requestId: ids.transaction,
       programDeployment: attested.attestation,
