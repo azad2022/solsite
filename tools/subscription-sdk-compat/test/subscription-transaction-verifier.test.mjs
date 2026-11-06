@@ -23,13 +23,6 @@ function key() {
   return Keypair.generate().publicKey.toBase58();
 }
 
-function pda(seeds) {
-  return PublicKey.findProgramAddressSync(
-    seeds.map(seed => Buffer.from(seed)),
-    new PublicKey(PROGRAM),
-  )[0].toBase58();
-}
-
 function makeFixture() {
   const subscriber = key();
   const merchant = key();
@@ -141,16 +134,22 @@ function makeFixture() {
       attestationKind: 'historical-slot',
     },
     feePayer: merchantFeePayer,
+    feePayerIsSigner: true,
+    feePayerIsWritable: true,
     accountKeys,
     topLevelInstructions: [instruction],
     innerInstructions: new Map([[0, [
       {
         programAddress: TOKEN,
+        programIdIndex: accountIndex(TOKEN),
+        accountIndexes: [sourceAta.toBase58(), mint, expectedDestinationAta, authorityPda.toBase58()].map(accountIndex),
         data: transferCpiData,
         accountAddresses: [sourceAta.toBase58(), mint, expectedDestinationAta, authorityPda.toBase58()],
       },
       {
         programAddress: PROGRAM,
+        programIdIndex: accountIndex(PROGRAM),
+        accountIndexes: [accountIndex(eventAuthority.toBase58())],
         data: eventData,
         accountAddresses: [eventAuthority.toBase58()],
       },
@@ -227,9 +226,26 @@ test('returns UNKNOWN when exact-slot Program deployment provenance is absent', 
   assert.equal(result.outcome, 'unknown');
 });
 
-test('rejects an unauthorized puller and a fee payer outside the Merchant policy', () => {
+test('rejects a puller that is not the Plan Owner or an explicitly authorized Puller', () => {
+  const { expected, evidence } = makeFixture();
+  const unauthorizedPuller = key();
+  const instruction = evidence.topLevelInstructions[0];
+  const oldPuller = instruction.accountAddresses[5];
+  const pullerIndex = evidence.accountKeys.indexOf(oldPuller);
+  evidence.accountKeys[pullerIndex] = unauthorizedPuller;
+  instruction.accountAddresses[5] = unauthorizedPuller;
+  instruction.accounts[5].address = unauthorizedPuller;
+  const event = evidence.innerInstructions.get(0)[1].data;
+  event.set(new PublicKey(unauthorizedPuller).toBytes(), 233);
+  const result = verifySubscriptionTransferTransaction(expected, evidence);
+  assert.equal(result.outcome, 'rejected');
+  assert.ok(result.failures.includes('puller_not_authorized'));
+});
+
+test('rejects a fee payer outside the explicit Merchant fee-payer policy', () => {
   const { expected, evidence } = makeFixture();
   evidence.feePayer = SYSTEM;
+  evidence.accountKeys[0] = SYSTEM;
   const result = verifySubscriptionTransferTransaction(expected, evidence);
   assert.equal(result.outcome, 'rejected');
   assert.ok(result.failures.includes('fee_payer_mismatch'));
