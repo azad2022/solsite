@@ -544,29 +544,29 @@ These are semantic distinctions; final enum/column names are deferred until Cont
 
 No transition is approved by this list alone. A formal transition table with source of truth, actor, guard, side effect and recovery is a Contract Freeze deliverable.
 
-## 9. V1 capability matrix — proposed, not yet implemented
+## 9. V1 capability matrix — provisional launch gates, superseded as permanent scope by the 2026-11-06 owner decision
 
 | Capability | Proposed v1 decision | Why / gate |
 |---|---|---|
 | Create Plan | Restricted | Non-empty destination allowlist; exact terms read-back; real Plan Owner signer; verified Plan PDA |
-| Finite Plan | Exclude | Upstream expiry/consent race not bound on-chain |
-| Perpetual Plan | Candidate only | Verify exact Program representation and all lifecycle semantics first |
+| Finite Plan | KEEP — BLOCKED until Program binding and full/final-period rules pass | V2 must bind exact Plan revision/end_ts and enforce selected first/final-period policy on-chain |
+| Perpetual Plan | KEEP | Verify exact Program representation, generation and all lifecycle semantics |
 | Authority init | Restricted | Separate recent-blockhash customer transaction; no implicit reapproval; actual init_id read-back |
 | Subscribe | Restricted | Separate transaction; actual init_id; immutable terms snapshot; no UNKNOWN_INIT_ID |
-| Durable Nonce | Exclude | Retains stale signed authority/control actions |
-| Pending smart-wallet / Squads / Swig proposals | Exclude | Delayed execution and cancellation/recovery not implemented |
-| Immediate dual-signed CancelNow | Exclude | Same-second stale approval residual |
-| Ordinary cancellation | Candidate only | Separate exact Program state machine and adversarial tests required |
-| Resume | Exclude | Stale Resume can undo later cancellation |
-| Authority reauthorization | Exclude by default | Stale Init can reapprove revoked delegate; explicit protocol-safe lifecycle absent |
+| Durable Nonce | KEEP — BLOCKED until V2 freshness/deadline is enforced | A nonce may preserve bytes, but cannot bypass generation, action nonce or deadline checks |
+| Pending smart-wallet / Squads / Swig proposals | KEEP — BLOCKED until V2 freshness/deadline is enforced | Delayed execution must fail after invalidation/revision advance or deadline |
+| Immediate dual-signed CancelNow | KEEP — BLOCKED until lifecycle revision is enforced | Both signers bind the persistent subscription incarnation/revision; same-second ABA must fail |
+| Ordinary cancellation | KEEP — BLOCKED until state machine and adversarial tests pass | Exact Program transitions and finalized-state verification |
+| Resume | KEEP — BLOCKED until lifecycle revision is enforced | Resume binds to the exact cancellation revision and incarnation |
+| Authority reauthorization | KEEP — BLOCKED until persistent generation is deployed | Fresh explicit consent; stale Init cannot reapprove the delegate |
 | Shared Authority revoke | Restricted / do not promise global invalidation | Shared blast radius and old signed create residual |
-| Collector | Exclude until isolated signer + policy + recovery | No signer or lifecycle implemented |
-| Split principal + gateway fee | Exclude | LiteSVM two-destination cumulative allowance/rollback sub-gate PASS; verifier/accounting, extra-leg rejection, approved fee model and Devnet Subscription E2E remain unproven |
-| Rent sponsorship | Disabled | No implicit sponsor; no enforceable recovery design |
-| Customer entitlement | Exclude until verification/accounting | Active PDA is not paid/collectable |
-| UI | Not started | No production contracts or lifecycle to present |
+| Collector | KEEP — BLOCKED until isolated signer + policy + recovery are proven | No signer or lifecycle is currently implemented |
+| Split principal + gateway fee | KEEP — BLOCKED until verifier/accounting and Devnet E2E pass | LiteSVM cumulative allowance/rollback sub-gate PASS; extra-leg rejection, fee model and accounting remain open |
+| Rent sponsorship | KEEP — BLOCKED until explicit payer/refund and exposure controls pass | No hidden payer default; retain recorded sponsor and terminal recovery rules |
+| Customer entitlement | KEEP — BLOCKED until verification/accounting | Active PDA is not paid/collectable |
+| UI | KEEP — implement after tested contracts | No production contracts or lifecycle currently exist |
 
-The table is a conservative design proposal. It does not authorize implementation or customer-facing claims.
+The table records provisional technical launch gates, not permanent product de-scoping. On 2026-11-06 the owner explicitly directed that planned Subscription capabilities remain in scope and that upstream protocol controls be implemented instead of deleting functionality. A capability remains blocked from production until its relevant protocol, backend, accounting and adversarial gates pass; it must not be removed from product requirements to make the security gate appear green.
 
 ## 10. Implementation sequence and release gates
 
@@ -669,3 +669,10 @@ The owner rejected acceptance of the Cantina High old-signed-create residual ris
 The exact current upstream main ref `abecf131886bec421e38544ec0c312c0325f6a8b` was inspected after the pinned release. The relevant Init/Close/Revoke/Subscribe/Authority source paths still contain the described slot-based/idempotent behavior. This is not evidence of a deployed Mainnet update. See `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` for exact source links, candidate migration design, compatibility constraints and required adversarial/deployment evidence.
 
 Status: owner decision **RECORDED**; TM-01 remediation **BLOCKED**; G1 overall **BLOCKED**; G0 **BLOCKED**; G2 **PARTIAL / BLOCKED**. No upstream patch/PR or Program upgrade was made.
+
+
+## 2026-11-06 — Owner decision: preserve full Subscription capability scope
+
+The owner explicitly directed that SolMint Subscriptions must not reduce its planned capability set to work around Cantina findings. Earlier `Exclude` / `Disabled` entries in the provisional matrix are superseded as permanent product-scope decisions. They remain launch-safety gates only until the corresponding upstream Program/SDK changes, compatibility migration, independent review and deployed verification pass. Required upstream remediation for all retained capabilities is specified in `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`.
+
+The product scope retains finite Plans, immediate dual-approved CancelNow, Resume, authority reauthorization, durable-nonce transactions, supported program-controlled wallets, explicit rent sponsorship, split transfers and multi-destination pulls. No feature is enabled merely by this owner decision; G1 and Production Subscription remain BLOCKED until evidence exists. Private TM-01 report was submitted as `GHSA-hvvh-pvqw-g3gx` and remains in maintainer triage. No upstream patch, Program deployment or Mainnet change is claimed.
