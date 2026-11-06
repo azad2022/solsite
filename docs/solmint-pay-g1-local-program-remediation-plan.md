@@ -156,25 +156,26 @@ No synthetic policy-only test or UI rejection substitutes for on-chain LiteSVM/i
 
 Current state on 2026-11-06:
 - Main: `514d3401d8d725be106ab0c83557f8e43cdff13e`.
-- Subscription branch: `7340ec8eb27897c814a9feb55215d5e7c2d5e8c3`.
-- Merge base: `7b975d56860b6d937ad76ab2983c71937644dfa3`.
-- Feature branch: 310 commits ahead and 7 commits behind main.
-- Seven paths changed on `main` since the merge base. A direct three-ref content comparison found four paths already byte-identical between `main` and the feature branch (`solmint-pay-production-migration.yml`, `solmint-pay-production-migration-guard.mjs`, `pay-production-migration-guard.test.mjs`, and `pay-production-migration-workflow.test.ts`). Three paths remain divergent and require deliberate reconciliation: `.github/workflows/ci.yml` (preserve both Subscription jobs and the new `production-migration-cli` job), `docs/solmint-pay-production-migration-policy.md` (retain the hardened target/CLI policy and supersede stale G0 BLOCKED wording with owner-confirmed G0 PASS), and `docs/solmint-pay-progress.md` (retain the full feature-branch history plus G0 closure evidence).
-- A non-mutating GitHub merge attempt from `main` into `feat/pay-subscription-billing` returned HTTP 409 `Merge conflict`; no branch ref or file was changed by that failed attempt. The three divergent paths above are the reconciliation scope.
-- PR #366 is OPEN / DRAFT / NOT MERGED; the PR API reports `mergeable=false` / `mergeable_state=dirty`.
+- Subscription branch before reconciliation: `298f3a79a357cb28438d70cb953b1ecfcafb4b83`.
+- A manual two-parent merge commit reconciled current `main` into the existing feature branch: `4d7fc8a297ff49a5162de8f4fe807a85346b1785` (first parent = feature; second parent = main).
+- The reconciled branch is now 315 commits ahead / 0 behind main; merge base is exactly `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Three divergent paths were manually reconciled in the merge tree: `.github/workflows/ci.yml` retains every Subscription job and adds the generic pinned Production CLI check; `docs/solmint-pay-production-migration-policy.md` retains the strict guard and records G0 PASS based on owner confirmation; `docs/solmint-pay-progress.md` retains the entire Subscription history and incorporates the G0 main-branch evidence/closure.
+- Four other main-side paths were byte-identical before merge: Production migration workflow, migration guard, guard tests and workflow test.
+- The first automatic merge attempt returned HTTP 409 and changed nothing. A two-parent commit was then created with the reviewed three-file resolution and the feature ref was advanced using a non-force fast-forward update.
+- PR #366 remains OPEN / DRAFT / NOT MERGED; GitHub now reports `mergeable=true`. Exact checks for the merge commit and subsequent checkpoint commit must still complete before G1-0 is marked PASS.
 - Local Working Tree is UNKNOWN through the remote connector.
 
 Rules:
 - No force reset, force push, blind rebase, or deletion of historical feature commits.
-- First inspect the exact diff and resolve the seven overlapping files while retaining both the current G0 guard and Subscription-specific CI.
+- The reviewed three-file reconciliation is now represented by the two-parent merge commit above; no force-push, reset, rebase or history deletion was used.
 - Re-run exact-head CI after the merge; do not reuse green checks from earlier SHAs.
-- Only after the branch is reconciled may G1-1 source vendoring or Program code changes begin.
+- Only after the reconciled branch's exact-head checks pass may G1-1 source vendoring or Program code changes begin.
 
 ## 8. Current status and mutation boundary
 
 - G0 Production migration governance: **PASS / COMPLETE** on 2026-11-06 by owner confirmation plus three usable post-change log windows; Issue #355 is closed. Historical runner actor remains UNKNOWN.
 - G1 overall: **BLOCKED** — no SolMint-owned Program VNext source, IDL, legacy migration, full adversarial implementation, independent audit or deployment exists yet.
-- G1-0: **IN PROGRESS** — branch reconciliation is the first execution task.
+- G1-0: **IN PROGRESS** — branch reconciliation is complete and PR mergeability is restored; exact-head CI on the final documentation checkpoint remains pending.
 - G1-1 through G1-8: **NOT STARTED**.
 - G2 Subscription contract/runtime: remains partial / blocked; production Subscription API/schema/Collector/verifier/accounting/billing worker are not implemented.
 - Local Working Tree: **UNKNOWN** through the available remote GitHub connector.
