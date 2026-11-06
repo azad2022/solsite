@@ -164,6 +164,10 @@ function normalizeAccountInfo(result, expectedAddress, snapshotSlot) {
 
 function normalizeClockSysvar(result, expectedSlot) {
   const account = normalizeAccountInfo(result, CLOCK_SYSVAR_ADDRESS, expectedSlot);
+  if (
+    account.owner !== 'Sysvar1111111111111111111111111111111111111' ||
+    account.executable !== false
+  ) throw new Error('ARCHIVE_CLOCK_SYSVAR_OWNER_OR_EXECUTABLE_INVALID');
   const bytes = Buffer.from(account.dataBase64, 'base64');
   if (bytes.length !== 40) throw new Error('ARCHIVE_CLOCK_SYSVAR_LENGTH_INVALID');
 
