@@ -159,8 +159,9 @@ Current state on 2026-11-06:
 - Subscription branch: `7340ec8eb27897c814a9feb55215d5e7c2d5e8c3`.
 - Merge base: `7b975d56860b6d937ad76ab2983c71937644dfa3`.
 - Feature branch: 310 commits ahead and 7 commits behind main.
-- Seven overlapping paths require reconciliation: CI workflow, Production migration workflow, migration policy, Progress Ledger, migration guard, guard tests and workflow tests.
-- PR #366 is OPEN / DRAFT / NOT MERGED and GitHub reports `mergeable=false` / `mergeable_state=dirty`.
+- Seven paths changed on `main` since the merge base. A direct three-ref content comparison found four paths already byte-identical between `main` and the feature branch (`solmint-pay-production-migration.yml`, `solmint-pay-production-migration-guard.mjs`, `pay-production-migration-guard.test.mjs`, and `pay-production-migration-workflow.test.ts`). Three paths remain divergent and require deliberate reconciliation: `.github/workflows/ci.yml` (preserve both Subscription jobs and the new `production-migration-cli` job), `docs/solmint-pay-production-migration-policy.md` (retain the hardened target/CLI policy and supersede stale G0 BLOCKED wording with owner-confirmed G0 PASS), and `docs/solmint-pay-progress.md` (retain the full feature-branch history plus G0 closure evidence).
+- A non-mutating GitHub merge attempt from `main` into `feat/pay-subscription-billing` returned HTTP 409 `Merge conflict`; no branch ref or file was changed by that failed attempt. The three divergent paths above are the reconciliation scope.
+- PR #366 is OPEN / DRAFT / NOT MERGED; the PR API reports `mergeable=false` / `mergeable_state=dirty`.
 - Local Working Tree is UNKNOWN through the remote connector.
 
 Rules:
