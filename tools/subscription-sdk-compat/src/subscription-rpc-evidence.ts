@@ -224,13 +224,16 @@ function deserializeWireTransaction(wire: Uint8Array): {
   const messageBytes = message.serialize();
   const requiredSignatures = message.header.numRequiredSignatures;
   const legacySignatureKeys = transaction.signatures.map(entry => entry.publicKey);
-  const legacySignatureBytes = transaction.signatures.map(entry => entry.signature);
+  const legacySignatureBytes = transaction.signatures.map(entry => {
+    if (!entry.signature) throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
+    return new Uint8Array(entry.signature);
+  });
   if (
     requiredSignatures !== signatureVector.value ||
     legacySignatureKeys.some((key, index) => !key.equals(message.accountKeys[index])) ||
     !verifyEd25519MessageSignatures(
       message.accountKeys.slice(0, requiredSignatures),
-      legacySignatureBytes.filter((signature): signature is Uint8Array => signature !== null),
+      legacySignatureBytes,
       messageBytes,
     )
   ) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
