@@ -3460,3 +3460,18 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - Product scope is unchanged: all requested Subscription capabilities remain required. Protocol/security gates are temporary BLOCKED launch gates, not product de-scope. Subscription API/schema/worker/Collector/verifier/ledger/entitlement and real Subscription Devnet E2E remain NOT IMPLEMENTED.
 - Mutation boundary: only feature-branch source/test/documentation files were changed. No Production DDL/data, provider setting, GitHub secret, key/signer, Mainnet/Devnet transaction, Program upgrade, Squads proposal, customer consent or accounting/funds were changed.
 - Next: poll the two remaining exact-SHA CI integration jobs, fix any source/test failure without weakening gates, then record the terminal exact-head result. Issue #355 and upstream TM-01 remain independently blocked and must not be hidden by green CI.
+
+
+## 2026-11-06 — Terminal exact-code CI result for migration guard checkpoint
+
+- Follow-up to the partial checkpoint above: CI run [42204712094](https://github.com/azad2022/solsite/actions/runs/42204712094) completed **SUCCESS** on exact code SHA `dc430f93a7504a1756662e4cd75a7bc11ecaf792`; all seven jobs completed SUCCESS:
+  - `quality`: 423 passed, 0 failed, 2 skipped in the repository test batch; additional migration-guard suite 30 passed, 0 failed.
+  - `subscription-production-migration-cli`: SUCCESS; the log confirms installed CLI version exactly `2.122.1`.
+  - `subscription-sdk-compat (24)`: SUCCESS.
+  - `subscription-reproducible-build`: SUCCESS.
+  - `subscription-mainnet-programdata`: SUCCESS (read-only).
+  - `subscription-tm06-sponsored-plan-refund`: SUCCESS; exact pinned upstream integration test `sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor` passed; full Rust integration suite reported 275 passed, 0 failed, 0 ignored.
+  - `subscription-atomic-split-transfer`: SUCCESS; the adversarial test `failed_second_split_pull_rolls_back_first_destination_and_subscription_state` passed, and `two_subscription_pulls_to_two_whitelisted_destinations_share_period_allowance` passed; full Rust integration suite reported 276 passed, 0 failed, 0 ignored.
+- The other four exact-code workflows also completed SUCCESS: Production Build [42204711578], Database Security [42204712048], ordinary Pay Devnet E2E [42204711779], and Mainnet Read-only [42204711643]. Devnet workflow is ordinary Pay, not Subscription customer billing. Mainnet job is read-only.
+- CI PASS applies to the tested code SHA `dc430f93a7504a1756662e4cd75a7bc11ecaf792`. The subsequent documentation-only Progress commit is `3630b26494e3a591ed0e54adf1cc8107c2ff95aa`; its exact-head CI was queued at this update and must be checked separately before claiming latest-HEAD CI PASS.
+- These Rust integration tests run against the pinned upstream source in an ephemeral CI checkout with SolMint-maintained test overlays. They do not mean the upstream canonical repository accepted the fixes, do not change the deployed Mainnet Program, and do not close TM-01/other protocol release blockers.
