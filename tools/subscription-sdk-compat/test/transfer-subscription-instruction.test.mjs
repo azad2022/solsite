@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Keypair, SystemProgram } from '@solana/web3.js';
+import { Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
 import { SUBSCRIPTIONS_PROGRAM_ADDRESS } from '@solana/subscriptions';
 import {
   ORIGINAL_SPL_TOKEN_PROGRAM_ADDRESS,
@@ -33,7 +33,7 @@ function instruction({
     bytes[0] = discriminator;
     view.setBigUint64(1, amount, true);
     bytes.set(delegator.toBytes(), 9);
-    bytes.set(new (delegator.constructor)(instructionMint).toBytes(), 41);
+    bytes.set(new PublicKey(instructionMint).toBytes(), 41);
   }
   return { programAddress, data: bytes, accountAddresses };
 }
