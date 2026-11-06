@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   address,
   getBase64Encoder,
+  type Address,
   type Base64EncodedBytes,
   type EncodedAccount,
 } from '@solana/kit';
@@ -165,9 +166,9 @@ function asEncodedAccount(account: HistoricalAccountEvidence): EncodedAccount {
   } as EncodedAccount;
 }
 
-function unwrapOptionAddress(value: unknown): string | null {
+function unwrapOptionAddress(value: unknown): Address | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === 'string' && isSafeAddress(value)) return value;
+  if (typeof value === 'string' && isSafeAddress(value)) return address(value);
   if (isRecord(value)) {
     if (value.__option === 'None' || value.__option === 'NoneValue') return null;
     if (value.__option === 'Some' && typeof value.value === 'string' && isSafeAddress(value.value)) {
