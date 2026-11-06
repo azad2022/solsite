@@ -223,18 +223,41 @@ test('rejects mismatched Plan terms and a different authority generation', async
   assert.ok(result.failures.includes('subscription_authority_generation_mismatch'));
 });
 
-test('rejects UNKNOWN_INIT_ID and cancellation at the exact expiry boundary', async () => {
+test('rejects UNKNOWN_INIT_ID, accepts exact expiry time, and rejects strictly after it', async () => {
   const unknown = await makeSnapshot();
   unknown.snapshot.subscription.data.header.initId = -(1n << 63n);
   unknown.snapshot.authority.data.initId = -(1n << 63n);
   const unknownResult = await validateSubscriptionAccountState(expected(), unknown.snapshot);
   assert.ok(unknownResult.failures.includes('subscription_authority_generation_invalid'));
 
-  const cancelled = await makeSnapshot();
-  cancelled.snapshot.subscription.data.expiresAtTs = NOW;
-  const cancelledResult = await validateSubscriptionAccountState(expected(), cancelled.snapshot);
-  assert.ok(cancelledResult.failures.includes('subscription_expired_or_cancelled'));
-  assert.equal(cancelledResult.cancellationPending, true);
+  const exactExpiry = await makeSnapshot();
+  exactExpiry.snapshot.subscription.data.expiresAtTs = NOW;
+  const exactResult = await validateSubscriptionAccountState(expected(), exactExpiry.snapshot);
+  assert.equal(exactResult.consistent, true);
+  assert.equal(exactResult.cancellationPending, true);
+  assert.equal(exactResult.failures.includes('subscription_expired_or_cancelled'), false);
+
+  const afterExpiry = await makeSnapshot();
+  afterExpiry.snapshot.subscription.data.expiresAtTs = NOW;
+  afterExpiry.snapshot.blockTimeUnixSeconds = NOW + 1n;
+  const afterResult = await validateSubscriptionAccountState(expected(), afterExpiry.snapshot);
+  assert.ok(afterResult.failures.includes('subscription_expired_or_cancelled'));
+  assert.equal(afterResult.snapshotTransferCapacityAtomic, 0n);
+});
+
+test('does not reset the final-period allowance when its next boundary equals cancellation expiry', async () => {
+  const { snapshot } = await makeSnapshot();
+  snapshot.subscription.data.currentPeriodStartTs = NOW - PERIOD_SECONDS;
+  snapshot.subscription.data.amountPulledInPeriod = PLAN_AMOUNT;
+  snapshot.subscription.data.expiresAtTs = NOW;
+
+  const result = await validateSubscriptionAccountState(expected(), snapshot);
+
+  assert.equal(result.consistent, true);
+  assert.equal(result.effectivePeriodStartTs, NOW - PERIOD_SECONDS);
+  assert.equal(result.amountPulledInEffectivePeriodAtomic, PLAN_AMOUNT);
+  assert.equal(result.remainingPeriodAllowanceAtomic, 0n);
+  assert.equal(result.snapshotTransferCapacityAtomic, 0n);
 });
 
 test('rejects wrong token owner, delegate, mint decimals and frozen token account', async () => {
