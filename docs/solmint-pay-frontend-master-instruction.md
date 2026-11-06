@@ -2294,3 +2294,8 @@ Future capability boundary:
 `docs/solmint-pay-project-instructions.md`
 
 این فایل مکمل Master Specification است و جایگزین آن، Source Code، Backend Contract، Database/RLS/Migrations یا شواهد زنده نیست. هر دو سند باید پیش از تغییر مرتبط، از همان HEAD جاری خوانده شوند. قواعد اختصاصی Subscription در `docs/skills/solmint-pay-subscriptions/SKILL.md` و مهندسی Frontend/Release در Skillهای مربوط باقی می‌مانند. در تعارض، ترتیب تقدم منابع همین سند و شواهد واقعی Repository/Backend حفظ می‌شود.
+
+
+## 140. Subscription capability-preservation owner decision — 2026-11-06
+
+The owner explicitly requires preserving the complete planned Subscription capability set. Do not permanently de-scope finite Plans, CancelNow, Resume, Authority reauthorization, durable-nonce approvals, supported smart-wallet proposals, rent sponsorship, split transfers or multi-destination pulls as a workaround for protocol weaknesses. Any temporary no-launch condition is a **BLOCKED release gate**, not a product requirement to remove the capability. Read `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md` alongside the Threat Model and Subscription Skill. Enable a capability only after its protocol controls, compatibility migration, adversarial tests, independent review and deployed evidence pass.
