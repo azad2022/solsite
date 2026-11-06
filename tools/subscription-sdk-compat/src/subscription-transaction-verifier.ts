@@ -39,6 +39,8 @@ export interface ProgramDeploymentAttestation {
 
 export interface SubscriptionInnerInstruction {
   readonly programAddress: Address;
+  readonly programIdIndex: number;
+  readonly accountIndexes: readonly number[];
   readonly data: Uint8Array;
   readonly accountAddresses: readonly Address[];
 }
@@ -61,6 +63,8 @@ export interface SubscriptionTransactionEvidence {
   readonly transactionError: unknown | null;
   readonly programDeployment: ProgramDeploymentAttestation | null;
   readonly feePayer: Address;
+  readonly feePayerIsSigner: boolean;
+  readonly feePayerIsWritable: boolean;
   /** Account keys in the same resolved order used by compiled instruction indexes. */
   readonly accountKeys: readonly Address[];
   readonly topLevelInstructions: readonly ResolvedCompiledInstruction[];
@@ -261,7 +265,11 @@ export function verifySubscriptionTransferTransaction(
   if (typeof evidence.signature !== 'string' || evidence.signature.length < 80) {
     failures.push('missing_signature');
   }
-  if (evidence.feePayer !== expected.merchantFeePayer) failures.push('fee_payer_mismatch');
+  if (
+    evidence.feePayer !== expected.merchantFeePayer ||
+    evidence.feePayerIsSigner !== true ||
+    evidence.feePayerIsWritable !== true
+  ) failures.push('fee_payer_mismatch');
   if (
     evidence.programDeployment === null ||
     evidence.programDeployment.programAddress !== SUBSCRIPTIONS_PROGRAM ||
@@ -367,6 +375,20 @@ export function verifySubscriptionTransferTransaction(
   if (!inner || inner.length !== 2) {
     unknown.push('Expected exactly one TransferChecked CPI and one Program event self-CPI; inner instruction evidence is missing or incomplete.');
     return { outcome: 'unknown', reasons: unknown };
+  }
+
+  const innerIndexesValid = inner.every(item =>
+    Number.isInteger(item.programIdIndex) &&
+    item.programIdIndex >= 0 &&
+    evidence.accountKeys[item.programIdIndex] === item.programAddress &&
+    Array.isArray(item.accountIndexes) &&
+    item.accountIndexes.length === item.accountAddresses.length &&
+    item.accountIndexes.every((index, position) =>
+      Number.isInteger(index) && index >= 0 && evidence.accountKeys[index] === item.accountAddresses[position]
+    )
+  );
+  if (!innerIndexesValid) {
+    return { outcome: 'unknown', reasons: ['Inner instruction indexes do not match the resolved transaction account-key list.'] };
   }
 
   const tokenCpis = inner.filter(item => item.programAddress === SPL_TOKEN_PROGRAM);
