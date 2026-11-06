@@ -59,7 +59,7 @@ interface MessageLike {
   readonly staticAccountKeys: readonly PublicKey[];
   readonly compiledInstructions: readonly CompiledInstructionLike[];
   readonly addressTableLookups?: readonly LookupLike[];
-  serialize(): Uint8Array;
+  serialize?(): Uint8Array;
 }
 
 function unknown(reason: string): SubscriptionRpcNormalization {
@@ -168,31 +168,87 @@ function verifyEd25519MessageSignatures(
 }
 
 
-function deserializeWireTransaction(wire: Uint8Array): {
+interface DecodedWireTransaction {
   readonly message: MessageLike;
   readonly signature: string;
-  readonly transactionVersion: 'legacy' | 0;
+  readonly transactionVersion: 'legacy' | 0 | 1;
   readonly signatureCount: number;
+  /** Exact message bytes that are covered by every transaction signature. */
   readonly messageBytes: Uint8Array;
-} {
-  const signatureVector = readShortVector(wire, 0);
-  if (!isIntegerInRange(signatureVector.value, 1, 64)) {
-    throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_INVALID');
+}
+
+function deserializeV1WireTransaction(wire: Uint8Array): DecodedWireTransaction {
+  if (wire[0] !== 0x81 || wire.length < 1 + 3 + 64) {
+    throw new Error('RPC_V1_TRANSACTION_WIRE_INVALID');
   }
-  const messageOffset = signatureVector.nextOffset + signatureVector.value * 64;
-  if (messageOffset >= wire.length) throw new Error('RPC_TRANSACTION_MESSAGE_MISSING');
+  // Version 1 has no shortvec signature-count prefix: the count is the second
+  // byte of the v1 message header. Signatures follow the serialized message.
+  const signatureCount = wire[1];
+  if (!isIntegerInRange(signatureCount, 1, 64)) {
+    throw new Error('RPC_V1_SIGNATURE_COUNT_INVALID');
+  }
+  const messageLength = wire.length - signatureCount * 64;
+  if (messageLength < 1 + 3 + 4 + 32 || messageLength >= wire.length) {
+    throw new Error('RPC_V1_MESSAGE_LENGTH_INVALID');
+  }
 
-  const firstMessageByte = wire[messageOffset];
-  const versioned = (firstMessageByte & 0x80) !== 0;
+  const messageBytes = new Uint8Array(wire.subarray(0, messageLength));
+  const transaction = VersionedTransaction.deserialize(Buffer.from(wire));
+  const message = transaction.message;
+  if (
+    message.version !== 1 ||
+    message.header.numRequiredSignatures !== signatureCount ||
+    transaction.signatures.length !== signatureCount ||
+    transaction.signatures.some(signature =>
+      !(signature instanceof Uint8Array) ||
+      signature.length !== 64 ||
+      signature.every(byte => byte === 0)
+    )
+  ) throw new Error('RPC_V1_TRANSACTION_SIGNATURE_LAYOUT_INVALID');
 
-  if (versioned) {
-    const version = firstMessageByte & 0x7f;
+  // web3.js 1.99.0 can deserialize MessageV1, but MessageV1.serialize()
+  // intentionally throws. Hash/verify the exact original wire message bytes.
+  if (!verifyEd25519MessageSignatures(
+    message.staticAccountKeys.slice(0, signatureCount),
+    transaction.signatures,
+    messageBytes,
+  )) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
+
+  return {
+    message: message as unknown as MessageLike,
+    signature: base58Encode(transaction.signatures[0]),
+    transactionVersion: 1,
+    signatureCount,
+    messageBytes,
+  };
+}
+
+function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
+  if (wire.length === 0) throw new Error('RPC_TRANSACTION_WIRE_EMPTY');
+
+  if ((wire[0] & 0x80) !== 0) {
+    const version = wire[0] & 0x7f;
+    if (version === 1) return deserializeV1WireTransaction(wire);
     if (version !== 0) throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
-    const transaction = VersionedTransaction.deserialize(Buffer.from(wire));
-    const signatureBytes = transaction.signatures[0];
-    if (transaction.signatures.length !== signatureVector.value) {
-      throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
+
+    const signatureVector = readShortVector(wire, 0);
+    if (!isIntegerInRange(signatureVector.value, 1, 64)) {
+      throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_INVALID');
     }
+    const messageOffset = signatureVector.nextOffset + signatureVector.value * 64;
+    if (messageOffset >= wire.length) throw new Error('RPC_TRANSACTION_MESSAGE_MISSING');
+
+    const transaction = VersionedTransaction.deserialize(Buffer.from(wire));
+    if (
+      transaction.message.version !== 0 ||
+      transaction.signatures.length !== signatureVector.value ||
+      transaction.signatures.some(signature =>
+        !(signature instanceof Uint8Array) ||
+        signature.length !== 64 ||
+        signature.every(byte => byte === 0)
+      )
+    ) throw new Error('RPC_TRANSACTION_SIGNATURE_LAYOUT_INVALID');
+
     const messageBytes = transaction.message.serialize();
     const requiredSignatures = transaction.message.header.numRequiredSignatures;
     if (
@@ -208,35 +264,40 @@ function deserializeWireTransaction(wire: Uint8Array): {
     }
     return {
       message: transaction.message as unknown as MessageLike,
-      signature: base58Encode(signatureBytes),
+      signature: base58Encode(transaction.signatures[0]),
       transactionVersion: 0,
       signatureCount: signatureVector.value,
       messageBytes: new Uint8Array(messageBytes),
     };
   }
 
-  const transaction = Transaction.from(Buffer.from(wire));
-  const signatureBytes = transaction.signatures[0]?.signature;
-  if (!signatureBytes || signatureBytes.length !== 64 || signatureBytes.every(byte => byte === 0)) {
-    throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
+  const signatureVector = readShortVector(wire, 0);
+  if (!isIntegerInRange(signatureVector.value, 1, 64)) {
+    throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_INVALID');
   }
+  const messageOffset = signatureVector.nextOffset + signatureVector.value * 64;
+  if (messageOffset >= wire.length) throw new Error('RPC_TRANSACTION_MESSAGE_MISSING');
+
+  const transaction = Transaction.from(Buffer.from(wire));
   if (transaction.signatures.length !== signatureVector.value) {
     throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
   }
   const message = transaction.compileMessage();
   const messageBytes = message.serialize();
   const requiredSignatures = message.header.numRequiredSignatures;
-  const legacySignatureKeys = transaction.signatures.map(entry => entry.publicKey);
-  const legacySignatureBytes = transaction.signatures.map(entry => {
+  const signatureKeys = transaction.signatures.map(entry => entry.publicKey);
+  const signatures = transaction.signatures.map(entry => {
     if (!entry.signature) throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
     return new Uint8Array(entry.signature);
   });
+
   if (
     requiredSignatures !== signatureVector.value ||
-    legacySignatureKeys.some((key, index) => !key.equals(message.accountKeys[index])) ||
+    signatures.length !== requiredSignatures ||
+    signatureKeys.some((key, index) => !key.equals(message.accountKeys[index])) ||
     !verifyEd25519MessageSignatures(
       message.accountKeys.slice(0, requiredSignatures),
-      legacySignatureBytes,
+      signatures,
       messageBytes,
     )
   ) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
@@ -245,7 +306,7 @@ function deserializeWireTransaction(wire: Uint8Array): {
   }
   return {
     message: message as unknown as MessageLike,
-    signature: base58Encode(signatureBytes),
+    signature: base58Encode(signatures[0]),
     transactionVersion: 'legacy',
     signatureCount: signatureVector.value,
     messageBytes: new Uint8Array(messageBytes),
