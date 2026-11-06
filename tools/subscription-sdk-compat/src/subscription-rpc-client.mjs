@@ -1,4 +1,4 @@
-import { normalizeSubscriptionGetTransactionResponse } from './subscription-rpc-evidence.ts';
+import { normalizeSubscriptionGetTransactionResponse } from '../dist/subscription-rpc-evidence.js';
 import { attestSubscriptionProgramDeployment } from './subscription-programdata-attestation.mjs';
 import { deriveProgramDataAddress } from './upgradeable-loader.mjs';
 
@@ -125,7 +125,7 @@ export async function fetchFinalizedSubscriptionTransactionEvidence({
   expectedSourceCommit,
   expectedElfSha256,
   fetchImpl = fetch,
-  requestPrefix = 'solmint-subscription-evidence',
+  requestPrefix,
 }) {
   let clusterConfig;
   try {
