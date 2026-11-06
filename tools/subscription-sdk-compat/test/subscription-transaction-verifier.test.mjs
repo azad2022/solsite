@@ -133,12 +133,16 @@ function makeFixture() {
       programAddress: PROGRAM,
       sourceCommit: SOURCE_COMMIT,
       elfSha256: ELF_SHA256,
-      attestedSlot: 500n,
-      attestationKind: 'historical-slot',
+      deploymentSlot: 400n,
+      readAtSlot: 600n,
+      readCommitment: 'finalized',
+      attestationKind: 'current-finalized-programdata',
     },
     feePayer: merchantFeePayer,
     feePayerIsSigner: true,
     feePayerIsWritable: true,
+    rpcProviderId: 'helius-devnet-test',
+    rpcResponseHash: 'e'.repeat(64),
     accountKeys,
     topLevelInstructions: [instruction],
     innerInstructions: new Map([[0, [
@@ -148,6 +152,7 @@ function makeFixture() {
         accountIndexes: [sourceAta.toBase58(), mint, expectedDestinationAta, authorityPda.toBase58()].map(accountIndex),
         data: transferCpiData,
         accountAddresses: [sourceAta.toBase58(), mint, expectedDestinationAta, authorityPda.toBase58()],
+        stackHeight: 2,
       },
       {
         programAddress: PROGRAM,
@@ -155,6 +160,7 @@ function makeFixture() {
         accountIndexes: [accountIndex(eventAuthority.toBase58())],
         data: eventData,
         accountAddresses: [eventAuthority.toBase58()],
+        stackHeight: 2,
       },
     ]]]),
     preTokenBalances: [
@@ -206,6 +212,8 @@ test('returns only a verified transaction observation when instruction, CPI, eve
   assert.equal(result.amountAtomic, AMOUNT);
   assert.equal(result.puller, expected.planOwner);
   assert.equal(result.feePayer, expected.merchantFeePayer);
+  assert.equal(result.rpcProviderId, evidence.rpcProviderId);
+  assert.equal(result.rpcResponseHash, evidence.rpcResponseHash);
   assert.equal('paid' in result, false);
   assert.equal('entitled' in result, false);
 });
@@ -292,4 +300,18 @@ test('rejects a missing caller signer privilege', () => {
   const result = verifySubscriptionTransferTransaction(expected, evidence);
   assert.equal(result.outcome, 'rejected');
   assert.ok(result.failures.includes('instruction_privilege_invalid'));
+});
+
+test('returns UNKNOWN when the finalized ProgramData read is older than the transaction slot', () => {
+  const { expected, evidence } = makeFixture();
+  evidence.programDeployment.readAtSlot = 499n;
+  const result = verifySubscriptionTransferTransaction(expected, evidence);
+  assert.equal(result.outcome, 'unknown');
+});
+
+test('returns UNKNOWN when the current ProgramData deployment slot is newer than the transaction', () => {
+  const { expected, evidence } = makeFixture();
+  evidence.programDeployment.deploymentSlot = 501n;
+  const result = verifySubscriptionTransferTransaction(expected, evidence);
+  assert.equal(result.outcome, 'unknown');
 });
