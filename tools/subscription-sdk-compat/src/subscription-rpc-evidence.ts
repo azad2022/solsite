@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
+import { createHash, createPublicKey, verify as verifyEd25519 } from 'node:crypto';
 import {
   PublicKey,
   Transaction,
@@ -134,6 +134,39 @@ function readShortVector(bytes: Uint8Array, offset: number): { value: number; ne
   throw new Error('RPC_TRANSACTION_SIGNATURE_VECTOR_INVALID');
 }
 
+
+const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+function verifyEd25519MessageSignatures(
+  signerPublicKeys: readonly PublicKey[],
+  signatures: readonly Uint8Array[],
+  messageBytes: Uint8Array,
+): boolean {
+  if (
+    signerPublicKeys.length === 0 ||
+    signerPublicKeys.length !== signatures.length
+  ) return false;
+
+  try {
+    return signatures.every((signature, index) => {
+      if (
+        !(signature instanceof Uint8Array) ||
+        signature.length !== 64 ||
+        signature.every(byte => byte === 0)
+      ) return false;
+
+      const derKey = Buffer.concat([
+        ED25519_SPKI_PREFIX,
+        Buffer.from(signerPublicKeys[index].toBytes()),
+      ]);
+      const publicKey = createPublicKey({ key: derKey, format: 'der', type: 'spki' });
+      return verifyEd25519(null, Buffer.from(messageBytes), publicKey, Buffer.from(signature));
+    });
+  } catch {
+    return false;
+  }
+}
+
 function deserializeWireTransaction(wire: Uint8Array): {
   readonly message: MessageLike;
   readonly signature: string;
@@ -155,17 +188,19 @@ function deserializeWireTransaction(wire: Uint8Array): {
     if (version !== 0) throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
     const transaction = VersionedTransaction.deserialize(Buffer.from(wire));
     const signatureBytes = transaction.signatures[0];
-    if (
-      transaction.signatures.length === 0 ||
-      transaction.signatures.some(signature =>
-        !(signature instanceof Uint8Array) || signature.length !== 64 || signature.every(byte => byte === 0)
-      )
-    ) throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
-    if (!transaction.verifySignatures()) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
     if (transaction.signatures.length !== signatureVector.value) {
       throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
     }
     const messageBytes = transaction.message.serialize();
+    const requiredSignatures = transaction.message.header.numRequiredSignatures;
+    if (
+      requiredSignatures !== signatureVector.value ||
+      !verifyEd25519MessageSignatures(
+        transaction.message.staticAccountKeys.slice(0, requiredSignatures),
+        transaction.signatures,
+        messageBytes,
+      )
+    ) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
     if (Buffer.compare(Buffer.from(messageBytes), Buffer.from(wire.subarray(messageOffset))) !== 0) {
       throw new Error('RPC_TRANSACTION_MESSAGE_WIRE_MISMATCH');
     }
@@ -179,18 +214,26 @@ function deserializeWireTransaction(wire: Uint8Array): {
 
   const transaction = Transaction.from(Buffer.from(wire));
   const signatureBytes = transaction.signatures[0]?.signature;
-  if (
-    transaction.signatures.length === 0 ||
-    transaction.signatures.some(signature =>
-      !signature.signature || signature.signature.length !== 64 || signature.signature.every(byte => byte === 0)
-    )
-  ) throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
-  if (!transaction.verifySignatures()) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
+  if (!signatureBytes || signatureBytes.length !== 64 || signatureBytes.every(byte => byte === 0)) {
+    throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
+  }
   if (transaction.signatures.length !== signatureVector.value) {
     throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
   }
   const message = transaction.compileMessage();
   const messageBytes = message.serialize();
+  const requiredSignatures = message.header.numRequiredSignatures;
+  const legacySignatureKeys = transaction.signatures.map(entry => entry.publicKey);
+  const legacySignatureBytes = transaction.signatures.map(entry => entry.signature);
+  if (
+    requiredSignatures !== signatureVector.value ||
+    legacySignatureKeys.some((key, index) => !key.equals(message.accountKeys[index])) ||
+    !verifyEd25519MessageSignatures(
+      message.accountKeys.slice(0, requiredSignatures),
+      legacySignatureBytes.filter((signature): signature is Uint8Array => signature !== null),
+      messageBytes,
+    )
+  ) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
   if (Buffer.compare(Buffer.from(messageBytes), Buffer.from(wire.subarray(messageOffset))) !== 0) {
     throw new Error('RPC_TRANSACTION_MESSAGE_WIRE_MISMATCH');
   }
