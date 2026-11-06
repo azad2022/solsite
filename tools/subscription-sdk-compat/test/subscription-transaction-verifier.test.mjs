@@ -315,3 +315,10 @@ test('returns UNKNOWN when the current ProgramData deployment slot is newer than
   const result = verifySubscriptionTransferTransaction(expected, evidence);
   assert.equal(result.outcome, 'unknown');
 });
+
+test('returns UNKNOWN when the ProgramData deployment slot equals the transaction slot', () => {
+  const { expected, evidence } = makeFixture();
+  evidence.programDeployment.deploymentSlot = evidence.slot;
+  const result = verifySubscriptionTransferTransaction(expected, evidence);
+  assert.equal(result.outcome, 'unknown');
+});
