@@ -335,7 +335,7 @@ Devnet mutating tests وMainnet read-only جدا باشند. Public RPC fallback
 
 The detailed threat/control specification is `docs/solmint-pay-subscription-v1-threat-model.md`. Read it before Subscription design or implementation. It is a design document, not proof of implemented controls or Production approval. Stage 2 remains BLOCKED.
 
-**Cantina report count discrepancy:** the PDF page-3 summary says five Acknowledged findings (including three Medium), but its detailed finding pages mark four Medium findings Acknowledged (CancelNow, Resume, authority-control, Plan expiry), plus the High old-signed-create and Low rent-sponsorship findings: six detailed Acknowledged findings. The detailed pages also identify three Fixed findings, while the summary table reports four. This contradiction is unresolved. Until written clarification/corrected report is obtained, use the detailed pages and conservatively track six residual Acknowledged findings; do not silently repeat the summary count as reconciled fact.
+**Cantina tally reconciliation:** the detailed pages reconcile to the page-3 aggregate: four Fixed/Mitigated (two Medium, one Low, one Informational) and five Acknowledged (one High, three Medium, one Low). The CancelNow timestamp binding is a partial mitigation included in the aggregate Fixed/Mitigated count; its same-second recreation residual remains acknowledged and must not be called fully fixed.
 
 Off-chain SolMint restrictions do not repair upstream on-chain replay semantics. In particular, rejecting `UNKNOWN_INIT_ID` and Init+Subscribe bundles in SolMint builders is defense-in-depth, not proof that externally held signed transactions cannot execute. Reliable revocation requires protocol-enforced persistent generation/nonce/deadline controls and disabling legacy unbound instruction paths. Do not claim strong revocation while this remains unresolved.
 
@@ -350,3 +350,10 @@ Before changing Subscription API, schema, RLS/grants, RBAC, transaction builder,
 The project owner explicitly rejected acceptance of the Cantina High old-signed-create residual risk. A protocol-level upstream correction is a hard prerequisite for any strong-revocation claim and for Production Subscription launch. This is a narrow decision for TM-01 only; it does not accept the remaining five detailed Cantina Acknowledged risks or complete G1.
 
 Read `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` before any further Subscription implementation. It is a design proposal, not an upstream patch, deployment or proof of closure. Until the Program fix is independently reviewed, deployed and verified, TM-01 remains **BLOCKED** and Subscription Production remains prohibited. A raw SPL Token Revoke outside the Program does not itself advance Program-owned generation state; do not tell customers that it invalidates held Program instructions.
+
+
+## 2026-11-06 — Owner decision: no Subscription capability reduction
+
+The owner requires the complete planned Subscription feature set to be retained. Do not permanently exclude finite Plans, Immediate CancelNow, Resume, Authority reauthorization, durable-nonce approvals, supported program-controlled wallets, rent sponsorship, split transfers or multi-destination pulls to work around protocol risks. Treat any temporary no-launch condition as a **BLOCKED release gate**, not product de-scope. Implement and test the upstream protocol remediation specified in `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`. A capability becomes available only after the exact Program/IDL/SDK version, compatibility migration, adversarial tests, independent review and deployment evidence pass.
+
+TM-01 private disclosure: `GHSA-hvvh-pvqw-g3gx`, current state TRIAGE. This is submitted, not accepted or remediated.
