@@ -422,3 +422,54 @@ jobs:
           version="$(supabase --version)"
           printf 'Supabase CLI version: %s\n' "$version"
           grep -Fq '2.122.1' <<< "$version"
+
+
+  subscription-vnext-authority-registry:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact SolMint VNext fork commit
+        uses: actions/checkout@v5
+        with:
+          repository: azad2022/solmint-subscriptions-program
+          ref: 952ce5b4cebe2ce71d2d6ac0d11f7c3b5494306e
+          path: vnext-subscriptions
+          persist-credentials: false
+
+      - name: Verify immutable VNext source commit
+        working-directory: vnext-subscriptions
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="952ce5b4cebe2ce71d2d6ac0d11f7c3b5494306e"
+          printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
+          test "$actual" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: '1.92'
+          components: rustfmt, clippy
+
+      - name: Restore Rust build cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+        with:
+          workspaces: 'vnext-subscriptions -> vnext-subscriptions/target'
+          shared-key: solmint-vnext-authority-registry
+
+      - name: Check Rust formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt --all -- --check
+
+      - name: Run Program unit tests
+        working-directory: vnext-subscriptions
+        run: cargo test -p subscriptions-program
+
+      - name: Upload Codama IDL generated from exact VNext source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-vnext-authority-registry-generated-idl
+          path: vnext-subscriptions/idl/subscriptions.json
+          if-no-files-found: warn
+          retention-days: 14
