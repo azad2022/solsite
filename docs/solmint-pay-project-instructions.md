@@ -281,7 +281,7 @@ Devnet mutating tests وMainnet read-only جدا باشند. Public RPC fallback
 ## 15. Production، Migration، Secret و Release
 
 - هیچ Production DDL، تغییر RLS/Grant، Runtime/Secret/Key، ایجاد/چرخش Collector Key، Plan زنده، Consent مشتری واقعی، Mainnet Transfer، Merge/Release غیرقابل‌بازگشت بدون شواهد و مجوز صریح انجام نشود.
-- Production Migration فقط از مسیر Source-controlled موجود در .github/workflows/solmint-pay-production-migration.yml و مطابق docs/solmint-pay-production-migration-policy.md: ابتدا DRY_RUN، سپس تأیید صریح APPLY، اجرا، بررسی Migration Ledger و تست پس از اجرا.
+- Production Migration فقط از مسیر Source-controlled موجود در .github/workflows/solmint-pay-production-migration.yml و مطابق docs/solmint-pay-production-migration-policy.md: ابتدا DRY_RUN، سپس تأیید صریح APPLY، اجرا، بررسی Migration Ledger و تست پس از اجرا. نسخه CLI باید ثابت و با تست سازگار باشد؛ تا پایان مهاجرت کنترل‌شده v3، از Supabase CLI 2.122.1 استفاده شود و `latest` ممنوع است.
 - Guardهای workflow برای APPLY و Session Pooler target مطابق بخش Fail-closed در همان Policy الزامی‌اند؛ APPLY فقط برای workflow_dispatch روی refs/heads/main با expected SHA برابر GITHUB_SHA مجاز است. این guard مسیر جداگانه Supabase Dashboard Integration را خاموش نمی‌کند.
 - Issue #355 درباره منشأ Migration Runner تا زمان حل با شواهد معتبر، Production DDL را مسدود می‌کند. از زمان‌بندی Log برای حدس Actor استفاده نکن. تنظیم Provider را بدون تأیید تغییر نده.
 - Devnet E2E فقط از RPC مخصوص Devnet؛ Mainnet Read-only از RPC مخصوص Mainnet. Cluster را از Evidence بررسی کن.
@@ -366,3 +366,8 @@ TM-01 private disclosure: `GHSA-hvvh-pvqw-g3gx`, current state TRIAGE. This is s
 - Before `DRY_RUN` or `APPLY`, validate the exact SolMint Session Pooler host family, project-specific user `postgres.nvopkbiedorfshwbmyhn`, port 5432, database `postgres`, TLS, and embedded-password equality. Strip URI password and pass the standalone secret only through `PGPASSWORD`.
 - Do not log connection URIs or credentials. Keep `AUTH_PROBE` read-only and do not require the Session Pooler URI for it.
 - This repository guard does **not** disable Supabase Dashboard GitHub Integration. Issue #355 remains open until actor/trigger and the current `Deploy to production` provider setting have independent evidence. Provider settings still require explicit owner authorization.
+
+
+### Supabase CLI version control — 2026-11-06
+
+The Production migration workflow and its CI compatibility job pin Supabase CLI to 2.122.1. Do not switch to the CLI v3 default or a moving `latest` channel without a separately reviewed v3 migration covering hosted command targeting, non-interactive confirmation, exact target selection and regression tests.

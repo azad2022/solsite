@@ -100,3 +100,8 @@ The source-controlled Production migration workflow must enforce:
 - `AUTH_PROBE` remains read-only; `DRY_RUN` performs no schema/data writes; the Production APPLY command is not dispatched during code review.
 
 This guard protects the controlled GitHub workflow only. It cannot assert or change the separate Supabase Dashboard GitHub Integration `Deploy to production` option. Keep Issue #355 **OPEN / BLOCKED** until the historical runner provenance and live provider setting have verified evidence. Do not alter provider settings without explicit owner approval.
+
+
+### Supabase CLI version pin
+
+The repository's current controlled Production migration workflow is pinned to Supabase CLI 2.122.1. Treat `latest` as unsafe for this workflow. The CLI v3 release changed hosted command defaults and non-interactive confirmations; a v3 move requires a separate compatibility task, updated explicit remote targeting/confirmation, and exact-version CI evidence before it replaces v2.122.1.

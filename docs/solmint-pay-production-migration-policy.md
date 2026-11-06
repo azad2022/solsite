@@ -133,3 +133,13 @@ The direct `AUTH_PROBE` remains read-only and uses the known direct project endp
 ### External Supabase GitHub Integration boundary
 
 The repository guard protects only the source-controlled GitHub Actions workflow. Supabase Dashboard's separate GitHub Integration `Deploy to production` setting can independently apply pending migrations on pushes/merges. The repository and connected Supabase APIs available to this project do not expose a verified read/write operation for that Dashboard setting. Do not represent this code change as disabling it. Issue #355 stays **OPEN / BLOCKED** until the historical runner actor/trigger and current provider toggle are verified. No Production provider setting is changed by this workflow guard.
+
+
+### Supabase CLI release pin
+
+The controlled Production workflow pins Supabase CLI to **2.122.1** instead of `latest`. Supabase CLI v3 became the default release on 2026-11-02 and changes hosted-command targeting/confirmation behavior; the current workflow has not completed a dedicated v3 migration. Keep the established v2 command contract stable until a separate upgrade updates every command (including explicit hosted targeting/confirmation), tests it against a non-Production environment and verifies the migration plan. The CI job `subscription-production-migration-cli` installs the exact v2 version and checks the reported version without connecting to Production.
+
+Official references:
+- [Supabase CLI v3 breaking-change notice](https://supabase.com/changelog/supabase-cli-v3)
+- [Supabase setup-cli action and version input](https://github.com/supabase/setup-cli)
+- [Supabase CLI v2.122.1 release](https://github.com/supabase/cli/releases/tag/v2.122.1)

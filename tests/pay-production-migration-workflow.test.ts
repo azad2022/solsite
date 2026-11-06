@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const workflow = readFileSync('.github/workflows/solmint-pay-production-migration.yml', 'utf8');
+const migrationGuard = readFileSync('scripts/solmint-pay-production-migration-guard.mjs', 'utf8');
 
 test('Production migration workflow exposes an explicit read-only dry-run mode', () => {
   assert.match(workflow, /- 'NO'[\s\S]*- 'DRY_RUN'[\s\S]*- 'APPLY'/);

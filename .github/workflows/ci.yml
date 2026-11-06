@@ -379,3 +379,28 @@ jobs:
           path: tools/subscription-sdk-compat/artifacts/subscription-mainnet-programdata.json
           if-no-files-found: error
           retention-days: 30
+
+
+  subscription-production-migration-cli:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install the pinned Supabase CLI v2
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
+        with:
+          version: 2.122.1
+
+      - name: Verify exact Supabase CLI version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(supabase --version)"
+          printf 'Supabase CLI version: %s\\n' "$version"
+          grep -Fq '2.122.1' <<< "$version"

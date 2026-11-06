@@ -48,7 +48,7 @@ jobs:
         if: inputs.confirm == 'DRY_RUN' || inputs.confirm == 'APPLY'
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
         with:
-          version: latest
+          version: 2.122.1
 
       - name: Require standalone Production database password
         env:
