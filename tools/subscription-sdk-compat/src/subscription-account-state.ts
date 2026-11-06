@@ -145,11 +145,11 @@ const I64_MAX = (1n << 63n) - 1n;
 const CURRENT_DELEGATION_VERSION = 1;
 
 function isU64(value: bigint): boolean {
-  return value >= 0n && value <= U64_MAX;
+  return typeof value === 'bigint' && value >= 0n && value <= U64_MAX;
 }
 
 function isNonNegativeI64(value: bigint): boolean {
-  return value >= 0n && value <= I64_MAX;
+  return typeof value === 'bigint' && value >= 0n && value <= I64_MAX;
 }
 
 function minBigInt(values: readonly bigint[]): bigint {
@@ -184,7 +184,7 @@ export async function validateSubscriptionAccountState(
     snapshot.clusterGenesisHash !== expected.clusterGenesisHash
   ) failures.push('cluster_genesis_mismatch');
   if (
-    snapshot.slot < 0n ||
+    !isU64(snapshot.slot) ||
     !isNonNegativeI64(snapshot.blockTimeUnixSeconds)
   ) failures.push('invalid_chain_context');
 
@@ -417,7 +417,9 @@ export async function validateSubscriptionAccountState(
     authorizedPullers,
     allowedDestinationOwners,
     newEnrollmentsAllowed: plan.status === PlanStatus.Active,
-    cancellationPending: subscription.expiresAtTs !== 0n,
+    cancellationPending:
+      subscription.expiresAtTs !== 0n &&
+      snapshot.blockTimeUnixSeconds < subscription.expiresAtTs,
     effectivePeriodStartTs,
     amountPulledInEffectivePeriodAtomic,
     remainingPeriodAllowanceAtomic,

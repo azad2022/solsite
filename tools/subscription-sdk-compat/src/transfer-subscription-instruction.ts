@@ -98,6 +98,14 @@ export function decodeTransferSubscriptionInstruction(
     throw new Error('TransferSubscription selfProgram account mismatch.');
   }
 
+  const expectedEventAuthority = derivePda(
+    [Buffer.from('event_authority')],
+    SUBSCRIPTIONS_PROGRAM_ADDRESS,
+  );
+  if (accounts[8] !== expectedEventAuthority) {
+    throw new Error('TransferSubscription eventAuthority PDA mismatch.');
+  }
+
   const view = new DataView(
     instruction.data.buffer,
     instruction.data.byteOffset,

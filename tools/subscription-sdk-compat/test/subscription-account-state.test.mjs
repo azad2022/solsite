@@ -320,3 +320,28 @@ test('rejects a corrupt cumulative amount above the Plan period allowance', asyn
   assert.equal(result.remainingPeriodAllowanceAtomic, null);
   assert.equal(result.snapshotTransferCapacityAtomic, 0n);
 });
+
+
+test('rejects chain slots outside the unsigned 64-bit RPC domain and non-BigInt values', async () => {
+  for (const slot of [-1n, 1n << 64n, '500']) {
+    const { snapshot } = await makeSnapshot();
+    snapshot.slot = slot;
+    const result = await validateSubscriptionAccountState(expected(), snapshot);
+    assert.equal(result.consistent, false);
+    assert.ok(result.failures.includes('invalid_chain_context'));
+    assert.equal(result.snapshotTransferCapacityAtomic, 0n);
+  }
+});
+
+test('cancellationPending is false at and after the on-chain expiry boundary', async () => {
+  const exact = await makeSnapshot();
+  exact.snapshot.subscription.data.expiresAtTs = NOW;
+  const exactResult = await validateSubscriptionAccountState(expected(), exact.snapshot);
+  assert.equal(exactResult.cancellationPending, false);
+
+  const after = await makeSnapshot();
+  after.snapshot.subscription.data.expiresAtTs = NOW;
+  after.snapshot.blockTimeUnixSeconds = NOW + 1n;
+  const afterResult = await validateSubscriptionAccountState(expected(), after.snapshot);
+  assert.equal(afterResult.cancellationPending, false);
+});

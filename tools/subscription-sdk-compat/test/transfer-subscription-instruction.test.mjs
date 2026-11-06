@@ -38,6 +38,11 @@ keys[2] = authorityPda.toBase58();
 keys[3] = delegatorAta.toBase58();
 keys[6] = mint;
 keys[7] = ORIGINAL_SPL_TOKEN_PROGRAM_ADDRESS;
+const [eventAuthority] = PublicKey.findProgramAddressSync(
+  [Buffer.from('event_authority')],
+  new PublicKey(SUBSCRIPTIONS_PROGRAM_ADDRESS),
+);
+keys[8] = eventAuthority.toBase58();
 keys[9] = SUBSCRIPTIONS_PROGRAM_ADDRESS;
 
 function instruction({
@@ -123,6 +128,15 @@ test('rejects Token-2022 or any non-original token program in the fixed account 
   assert.throws(
     () => decodeTransferSubscriptionInstruction(instruction({ accountAddresses: wrongTokenProgram })),
     /original SPL Token Program/,
+  );
+});
+
+test('rejects an event authority account that is not the Program event-authority PDA', () => {
+  const wrongEventAuthority = [...keys];
+  wrongEventAuthority[8] = Keypair.generate().publicKey.toBase58();
+  assert.throws(
+    () => decodeTransferSubscriptionInstruction(instruction({ accountAddresses: wrongEventAuthority })),
+    /eventAuthority PDA mismatch/,
   );
 });
 
