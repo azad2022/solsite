@@ -172,7 +172,7 @@ function unwrapOptionAddress(value: unknown): Address | null {
   if (isRecord(value)) {
     if (value.__option === 'None' || value.__option === 'NoneValue') return null;
     if (value.__option === 'Some' && typeof value.value === 'string' && isSafeAddress(value.value)) {
-      return value.value;
+      return address(value.value);
     }
     if (Object.hasOwn(value, 'value') && value.value === null) return null;
     if (Object.hasOwn(value, 'value') && typeof value.value === 'string' && isSafeAddress(value.value)) {
