@@ -8,11 +8,13 @@ import {
 const GENESIS = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
 const RPC_URL = 'https://solana-devnet.g.alchemy.com/v2/test-only-placeholder';
 const PROGRAM = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
-const ACCOUNT_A = 'SysvarC1ock11111111111111111111111111111111';
+const ACCOUNT_A = 'Vote111111111111111111111111111111111111111';
 const ACCOUNT_B = 'SysvarRent111111111111111111111111111111111';
 const PAYER = 'Stake11111111111111111111111111111111111111';
 const TARGET_SIGNATURE = '1'.repeat(88);
 const TRANSACTION_SLOT = 500;
+const CLOCK_SYSVAR = 'SysvarC1ock11111111111111111111111111111111';
+const SYSVAR_OWNER = 'Sysvar1111111111111111111111111111111111111';
 
 function tx(signature, accountKeys, header, { err = null, loadedAddresses, addressTableLookups = [] } = {}) {
   return {
@@ -74,6 +76,8 @@ function makeFetch({
     owner: PROGRAM,
     rentEpoch: 0,
   },
+  clockSlot = TRANSACTION_SLOT,
+  clockUnixTimestamp = 1_800_000_001n,
   failRequestId = null,
 } = {}) {
   const calls = [];
@@ -89,6 +93,29 @@ function makeFetch({
     if (request.method === 'getBlock') return response(request, block);
     if (request.method === 'getAccountInfo') {
       const [address, config] = request.params;
+      if (address === CLOCK_SYSVAR) {
+        assert.deepEqual(config, {
+          encoding: 'base64',
+          commitment: 'finalized',
+          slot: TRANSACTION_SLOT,
+        });
+        const clockBytes = Buffer.alloc(40);
+        clockBytes.writeBigUInt64LE(BigInt(clockSlot), 0);
+        clockBytes.writeBigInt64LE(1_700_000_000n, 8);
+        clockBytes.writeBigUInt64LE(500n, 16);
+        clockBytes.writeBigUInt64LE(500n, 24);
+        clockBytes.writeBigInt64LE(clockUnixTimestamp, 32);
+        return response(request, {
+          context: { slot: TRANSACTION_SLOT },
+          value: {
+            data: [clockBytes.toString('base64'), 'base64'],
+            executable: false,
+            lamports: 1_000_000,
+            owner: SYSVAR_OWNER,
+            rentEpoch: 0,
+          },
+        });
+      }
       assert.ok([ACCOUNT_A, ACCOUNT_B].includes(address));
       assert.deepEqual(config, {
         encoding: 'base64',
@@ -143,6 +170,9 @@ test('returns exact slot-1 account bytes when no earlier transaction could write
   assert.equal(result.evidence.transactionSlot, 500n);
   assert.equal(result.evidence.snapshotSlot, 499n);
   assert.equal(result.evidence.finalizedTipSlot, 700n);
+  assert.equal(result.evidence.clock.slot, 500n);
+  assert.equal(result.evidence.clock.unixTimestamp, 1_800_000_001n);
+  assert.equal(result.evidence.clock.responseContextSlot, 500n);
   assert.equal(result.evidence.targetTransactionIndex, 1);
   assert.equal(result.evidence.transactionsBeforeTarget, 1);
   assert.equal(result.evidence.precedingWritableConflictCount, 0);
@@ -156,6 +186,7 @@ test('returns exact slot-1 account bytes when no earlier transaction could write
     'getBlock',
     'getAccountInfo',
     'getAccountInfo',
+    'getAccountInfo',
   ]);
   assert.deepEqual(calls[2].params, [
     TRANSACTION_SLOT,
@@ -165,6 +196,14 @@ test('returns exact slot-1 account bytes when no earlier transaction could write
       transactionDetails: 'full',
       rewards: false,
       maxSupportedTransactionVersion: 1,
+    },
+  ]);
+  assert.deepEqual(calls.at(-1).params, [
+    CLOCK_SYSVAR,
+    {
+      encoding: 'base64',
+      commitment: 'finalized',
+      slot: TRANSACTION_SLOT,
     },
   ]);
 });
@@ -256,6 +295,22 @@ test('returns UNKNOWN when a required account did not exist at the prior slot', 
   const result = await invoke(fetchImpl);
   assert.equal(result.outcome, 'unknown');
   assert.match(result.reasons.join(' '), /ACCOUNT_MISSING_AT_PRE_TRANSACTION_SLOT/);
+});
+
+
+test('returns UNKNOWN when the historical Clock sysvar slot does not equal the transaction slot', async () => {
+  const { fetchImpl } = makeFetch({ clockSlot: TRANSACTION_SLOT - 1 });
+  const result = await invoke(fetchImpl);
+  assert.equal(result.outcome, 'unknown');
+  assert.match(result.reasons.join(' '), /CLOCK_SYSVAR_SLOT_MISMATCH/);
+});
+
+test('uses the on-chain Clock unix_timestamp rather than blockTime estimate', async () => {
+  const timestamp = 1_800_000_987n;
+  const { fetchImpl } = makeFetch({ clockUnixTimestamp: timestamp });
+  const result = await invoke(fetchImpl);
+  assert.equal(result.outcome, 'historical_snapshot');
+  assert.equal(result.evidence.clock.unixTimestamp, timestamp);
 });
 
 test('rejects cluster mismatch and validates finalized chain tip before block/account reads', async () => {
