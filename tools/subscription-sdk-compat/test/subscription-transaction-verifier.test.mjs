@@ -119,8 +119,11 @@ function makeFixture() {
     amountAtomic: String(amountAtomic),
   });
 
+  const signature = 'A'.repeat(88);
+  const messageHash = 'b'.repeat(64);
   const evidence = {
-    signature: 'A'.repeat(88),
+    signature,
+    messageHash,
     commitment: 'finalized',
     clusterGenesisHash: GENESIS,
     slot: 500n,
@@ -166,6 +169,10 @@ function makeFixture() {
 
   const expected = {
     clusterGenesisHash: GENESIS,
+    cycleId: 'cycle-test-001',
+    attemptId: 'attempt-test-001',
+    expectedSignature: signature,
+    expectedMessageHash: messageHash,
     merchant,
     merchantFeePayer,
     subscriber,
@@ -258,7 +265,8 @@ test('rejects additional inner instructions rather than ignoring extra CPI effec
     { programAddress: TOKEN, data: new Uint8Array([1]), accountAddresses: [] },
   ]);
   const result = verifySubscriptionTransferTransaction(expected, evidence);
-  assert.equal(result.outcome, 'unknown');
+  assert.equal(result.outcome, 'rejected');
+  assert.ok(result.failures.includes('token_cpi_missing_or_invalid'));
 });
 
 test('rejects a missing caller signer privilege', () => {
