@@ -98,6 +98,7 @@ export type SubscriptionSnapshotDecodeResult =
       readonly snapshot: FinalizedSubscriptionAccountSnapshot;
       readonly validation: SubscriptionAccountStateResult;
       readonly evidence: 'account-state-consistency-only';
+      readonly archiveEvidence: HistoricalSubscriptionAccountEvidence['evidence'];
     }
   | {
       readonly outcome: 'unknown';
