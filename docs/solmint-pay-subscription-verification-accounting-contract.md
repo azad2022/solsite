@@ -247,3 +247,32 @@ Golden fixtures must be generated from the exact pinned Program/IDL and real ser
 - Production DDL and Subscription activation: **BLOCKED**.
 
 This design does not authorize Production DDL, Supabase mutation, Secret/Key changes, signer creation, Devnet mutation, Mainnet mutation, Program upgrade, customer Consent, financial posting or customer entitlement.
+
+
+## 2026-11-06 — First pure transaction-verifier implementation checkpoint
+
+A first isolated policy implementation was added at `tools/subscription-sdk-compat/src/subscription-transaction-verifier.ts`. It is intentionally not an RPC adapter, transaction submitter, signer, persistence layer or accounting function.
+
+The implementation currently checks:
+
+- finalized commitment, configured cluster genesis, non-null execution result, signature shape, and Merchant-approved fee payer identity/fee-payer signer+writable flags;
+- exact-slot Program deployment attestation fields (Program ID, pinned source commit, ELF SHA-256 and attested slot); absent or mismatched attestation returns UNKNOWN;
+- exactly one top-level Subscription instruction, with Compute Budget instructions as the only additional top-level instruction class currently tolerated;
+- fixed TransferSubscription instruction decoding and its ten fixed accounts, resolved account indexes, required writable positions and caller signer privilege;
+- Plan Owner or configured Puller identity, expected Plan/Subscription/Authority/source ATA/Mint/amount binding;
+- exactly one original-SPL TransferChecked CPI and one Subscription event self-CPI, including resolved inner-instruction index binding;
+- SubscriptionTransfer event tag/discriminator/layout and correlation of Subscription, Plan, subscriber, Mint, amount, period, destination, receiver ATA and Puller;
+- exact source debit and destination credit using raw integer token-balance strings.
+
+The result union is restricted to `verified_observation`, `rejected` or `unknown`; it does not expose paid, accounted or entitled states. The existing one-off Pay verifier is untouched.
+
+### Evidence boundary — do not overstate this checkpoint
+
+- The accompanying `test/subscription-transaction-verifier.test.mjs` uses generated keypairs and synthetic normalized evidence to exercise the pure policy. It is **not** a real serialized transaction golden fixture and does not prove the normalizer against a real Solana RPC response.
+- The required historical Program deployment attestation producer is **NOT IMPLEMENTED**. The current ProgramData probe is a current read-only deployment probe; it does not prove which ELF executed at an arbitrary historical transaction slot. The verifier therefore returns UNKNOWN when the exact-slot attestation is absent.
+- A production-grade RPC normalizer is **NOT IMPLEMENTED**. It must preserve v0 static + loaded address ordering, message signer/writable privileges, inner instruction indexes, pre/post token balance account indexes, commitment and raw response provenance.
+- Historical Plan/Subscription state at the transaction bank slot, all-Puller discovery, duplicate signature/Cycle/Attempt fencing and transaction-message hash binding are not yet verified by this module.
+- The single-pull v0.5.0 verifier path is not the final capability-preserving v0.6 contract. Multiple pulls/destinations, split transfer legs, TransferHook/Token-2022 policy and v0.6 revision/generation fields require a versioned verifier extension after the upstream protocol contract is pinned.
+- A successful pure policy result is only a candidate immutable observation. It is not an accounting commit or payment success.
+
+Status after this checkpoint: **pure verifier policy PARTIAL**; **real golden fixtures NOT IMPLEMENTED**; **RPC normalizer NOT IMPLEMENTED**; **historical Program-slot attestation NOT IMPLEMENTED**; **atomic Subscription accounting NOT IMPLEMENTED**. No release gate is closed by this checkpoint.
