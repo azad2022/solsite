@@ -474,6 +474,10 @@ jobs:
         run: cargo test -p tests-subscriptions --no-run
 
 
+      - name: Regenerate Codama IDL from exact Rust source
+        working-directory: vnext-subscriptions
+        run: GENERATE_IDL=1 cargo check -p subscriptions-program
+
       - name: Verify generated Codama IDL matches committed VNext IDL
         working-directory: vnext-subscriptions
         run: git diff --exit-code -- idl/subscriptions.json
