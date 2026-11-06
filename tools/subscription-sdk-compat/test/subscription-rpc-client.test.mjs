@@ -53,7 +53,7 @@ test('RPC method allowlist is immutable and contains no state-changing transacti
   assert.equal(SUBSCRIPTION_RPC_ALLOWED_METHODS.includes('sendRawTransaction'), false);
 });
 
-test('uses only finalized read RPC calls and requests ProgramData no older than the transaction slot', async () => {
+test('uses only finalized read RPC calls and opts into active transaction version 1', async () => {
   const { calls, fetchImpl } = fixtureFetch();
   const result = await fetchFinalizedSubscriptionTransactionEvidence({
     rpcUrl: RPC_URL,
@@ -78,7 +78,7 @@ test('uses only finalized read RPC calls and requests ProgramData no older than 
     {
       commitment: 'finalized',
       encoding: 'base64',
-      maxSupportedTransactionVersion: 0,
+      maxSupportedTransactionVersion: 1,
     },
   ]);
   assert.deepEqual(calls[2].params[1], {
