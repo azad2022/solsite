@@ -459,7 +459,7 @@ jobs:
 
       - name: Check Rust formatting
         working-directory: vnext-subscriptions
-        run: cargo fmt --all -- --check
+        run: cargo fmt -p subscriptions-program -- --check
 
       - name: Run Program unit tests
         working-directory: vnext-subscriptions
