@@ -168,6 +168,9 @@ function accountKeysAndWritableSet(blockTransaction) {
     !isRecord(blockTransaction.meta)
   ) throw new Error('ARCHIVE_BLOCK_TRANSACTION_SHAPE_INVALID');
 
+  if (!Object.hasOwn(blockTransaction.meta, 'err')) {
+    throw new Error('ARCHIVE_BLOCK_EXECUTION_STATUS_MISSING');
+  }
   if (blockTransaction.meta.err !== null) {
     // A failed transaction does not commit account writes.
     return { signature: readFirstSignature(blockTransaction), writable: new Set(), failed: true };
@@ -186,11 +189,19 @@ function accountKeysAndWritableSet(blockTransaction) {
   }
   const staticCount = staticAddresses.length;
 
-  const lookups = Array.isArray(message.addressTableLookups) ? message.addressTableLookups : [];
-  const expectedWritableLookupCount = lookups.reduce((n, lookup) =>
-    n + (Array.isArray(lookup.writableIndexes) ? lookup.writableIndexes.length : NaN), 0);
-  const expectedReadonlyLookupCount = lookups.reduce((n, lookup) =>
-    n + (Array.isArray(lookup.readonlyIndexes) ? lookup.readonlyIndexes.length : NaN), 0);
+  const lookups = message.addressTableLookups ?? [];
+  if (
+    !Array.isArray(lookups) ||
+    lookups.some(lookup =>
+      !isRecord(lookup) ||
+      !Array.isArray(lookup.writableIndexes) ||
+      !Array.isArray(lookup.readonlyIndexes) ||
+      lookup.writableIndexes.some(index => !Number.isInteger(index) || index < 0 || index > 255) ||
+      lookup.readonlyIndexes.some(index => !Number.isInteger(index) || index < 0 || index > 255)
+    )
+  ) throw new Error('ARCHIVE_BLOCK_LOOKUP_LAYOUT_INVALID');
+  const expectedWritableLookupCount = lookups.reduce((n, lookup) => n + lookup.writableIndexes.length, 0);
+  const expectedReadonlyLookupCount = lookups.reduce((n, lookup) => n + lookup.readonlyIndexes.length, 0);
   const loaded = blockTransaction.meta.loadedAddresses;
 
   let loadedWritable = [];
@@ -277,6 +288,9 @@ function proveNoEarlierWriters(block, expectedSignature, accountIdsByAddress) {
     throw new Error('ARCHIVE_TARGET_TRANSACTION_NOT_UNIQUE_IN_BLOCK');
   }
   const targetIndex = targetIndexes[0];
+  if (normalized[targetIndex].failed) {
+    throw new Error('ARCHIVE_TARGET_TRANSACTION_FAILED');
+  }
   const writers = [];
 
   for (let index = 0; index < targetIndex; index += 1) {
