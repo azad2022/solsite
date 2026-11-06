@@ -402,5 +402,5 @@ jobs:
         run: |
           set -euo pipefail
           version="$(supabase --version)"
-          printf 'Supabase CLI version: %s\\n' "$version"
+          printf 'Supabase CLI version: %s\n' "$version"
           grep -Fq '2.122.1' <<< "$version"
