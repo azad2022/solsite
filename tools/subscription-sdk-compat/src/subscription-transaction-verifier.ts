@@ -33,7 +33,7 @@ export interface ProgramDeploymentAttestation {
   readonly programAddress: Address;
   readonly sourceCommit: string;
   readonly elfSha256: string;
-  /** ProgramData's latest deployment/upgrade slot from a finalized account read. */
+  /** ProgramData's latest deployment/upgrade slot; this ELF is effective from deploymentSlot + 1. */
   readonly deploymentSlot: bigint;
   /** RPC context slot at which this ProgramData account was read. */
   readonly readAtSlot: bigint;
@@ -306,7 +306,7 @@ export function verifySubscriptionTransferTransaction(
     typeof evidence.programDeployment.readAtSlot !== 'bigint' ||
     evidence.programDeployment.deploymentSlot < 0n ||
     evidence.programDeployment.readAtSlot < evidence.slot ||
-    evidence.programDeployment.deploymentSlot > evidence.slot
+    evidence.programDeployment.deploymentSlot >= evidence.slot
   ) {
     unknown.push('Current finalized ProgramData cannot prove that the approved ELF was deployed and unchanged at the transaction slot.');
   }
@@ -415,7 +415,7 @@ export function verifySubscriptionTransferTransaction(
     unknown.push('RPC response did not provide the inner-instruction group for the Subscription instruction.');
     return { outcome: 'unknown', reasons: unknown };
   }
-  if (inner.length !== 2) {
+  if (evidence.innerInstructions.size !== 1 || inner.length !== 2) {
     failures.push('token_cpi_missing_or_invalid');
     return reject(failures);
   }
