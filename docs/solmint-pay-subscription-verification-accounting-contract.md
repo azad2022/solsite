@@ -289,3 +289,23 @@ Outcome classification is deliberately conservative:
 - A successful `verified_observation` remains a synthetic-policy-level result until a real RPC normalizer, historical Program attestation source, same-slot Plan/Subscription state proof, all-Puller reconciliation and genuine serialized transaction fixtures exist.
 
 The current tests now include message-hash mismatch and Program ELF mismatch regressions. They remain generated/synthetic policy vectors and must not be labelled golden chain fixtures.
+
+
+## 2026-11-06 — Historical RPC evidence and account-state decoder boundary
+
+The isolated compatibility harness now contains:
+
+- A read-only finalized transaction RPC adapter with exact message-hash and Ed25519 signature verification for legacy, v0 and v1 transaction wire formats. Unsupported future versions remain UNKNOWN.
+- A ProgramData attestation reader that binds the finalized Program/ProgramData account metadata, deployment slot and ELF SHA-256 to the reproducible pinned build.
+- A historical account archive adapter. It reads account bytes at slot S-1, scans the finalized full block at slot S to prove no earlier transaction could write the required accounts, and reads the Clock sysvar at exact slot S. The Clock owner/executable metadata and its serialized slot are checked.
+- A pinned-SDK decoder for Plan, SubscriptionDelegation, SubscriptionAuthority, Mint and original SPL Token account bytes. It rejects Token-2022 and extension-bearing layouts rather than interpreting them as classic SPL.
+- A pure account-state consistency result that is explicitly separate from transaction verification, accounting, payment and entitlement. The decoder now binds archive signature, slot and cluster genesis to the normalized transaction evidence and preserves archive response hashes in its result.
+
+Evidence limits and gates:
+
+- The RPC and account-archive tests use generated signed transactions and synthetic JSON-RPC fixtures. They are policy/adapter tests, not a real historical Mainnet/Devnet Subscription charge fixture.
+- Alchemy documents historical `getAccountInfo(slot=...)` reads as paid-plan-only. This provider is an opt-in test-harness dependency; no production endpoint, API key or paid plan is configured or authorized.
+- Archive data is provider-sourced evidence, not a cryptographic proof emitted by Solana consensus. The adapter hashes raw responses and binds the finalized block/slot, but the service must preserve the provider trust boundary in its audit record.
+- The historical account decoder is not wired to a production API, worker, database transaction or accounting ledger.
+- The exact-head CI for the decoder/correlation changes is pending; no PASS is claimed for those changes until that run completes.
+- The one-off Pay verifier and existing Pay accounting path remain unchanged.
