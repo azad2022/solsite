@@ -47,6 +47,7 @@ function derivePda(seeds, programId = PROGRAM) {
 
 function makeFixture({ versioned = false } = {}) {
   const merchant = Keypair.generate();
+  const merchantFeePayer = Keypair.generate();
   const subscriber = Keypair.generate();
   const mint = new PublicKey('So11111111111111111111111111111111111111112');
 
@@ -140,20 +141,20 @@ function makeFixture({ versioned = false } = {}) {
       },
     });
     message = new TransactionMessage({
-      payerKey: merchant.publicKey,
+      payerKey: merchantFeePayer.publicKey,
       recentBlockhash,
       instructions: [instruction],
     }).compileToV0Message([lookupTable]);
     transaction = new VersionedTransaction(message);
-    transaction.sign([merchant]);
+    transaction.sign([merchantFeePayer, merchant]);
     staticKeys = message.staticAccountKeys;
     loadedAddresses = { writable: [destinationAta.toBase58()], readonly: [] };
   } else {
     transaction = new Transaction({
-      feePayer: merchant.publicKey,
+      feePayer: merchantFeePayer.publicKey,
       recentBlockhash,
     }).add(instruction);
-    transaction.sign(merchant);
+    transaction.sign(merchantFeePayer, merchant);
     message = transaction.compileMessage();
     staticKeys = message.accountKeys;
   }
@@ -256,7 +257,7 @@ function makeFixture({ versioned = false } = {}) {
     expectedSignature: signature,
     expectedMessageHash: messageHash,
     merchant: merchant.publicKey.toBase58(),
-    merchantFeePayer: merchant.publicKey.toBase58(),
+    merchantFeePayer: merchantFeePayer.publicKey.toBase58(),
     subscriber: subscriber.publicKey.toBase58(),
     planPda: planPda.toBase58(),
     subscriptionPda: subscriptionPda.toBase58(),
@@ -313,6 +314,8 @@ test('normalizes a real signed legacy message and verifies the complete transact
   assert.equal(verified.signature, fixture.signature);
   assert.equal(verified.messageHash, fixture.messageHash);
   assert.equal(verified.amountAtomic, AMOUNT);
+  assert.equal(verified.feePayer, fixture.expected.merchantFeePayer);
+  assert.notEqual(verified.feePayer, verified.puller);
   assert.equal(verified.rpcProviderId, 'helius-devnet-tests');
 });
 
