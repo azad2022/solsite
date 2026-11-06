@@ -202,12 +202,12 @@ test('fails closed for non-finalized snapshots and a different cluster genesis',
 
 test('rejects finite Plans and Plans without an explicit destination allowlist', async () => {
   const finite = await makeSnapshot();
-  finite.snapshot.plan.data.endTs = NOW + PERIOD_SECONDS;
+  finite.snapshot.plan.data.data.endTs = NOW + PERIOD_SECONDS;
   const finiteResult = await validateSubscriptionAccountState(expected(), finite.snapshot);
   assert.ok(finiteResult.failures.includes('finite_plan_not_supported'));
 
   const empty = await makeSnapshot();
-  empty.snapshot.plan.data.destinations = [ZERO, ZERO, ZERO, ZERO];
+  empty.snapshot.plan.data.data.destinations = [ZERO, ZERO, ZERO, ZERO];
   const emptyResult = await validateSubscriptionAccountState(expected(), empty.snapshot);
   assert.ok(emptyResult.failures.includes('plan_destination_allowlist_empty'));
 });
