@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifySubscriptionTransferTransaction } from '../dist/subscription-transaction-verifier.js';
 import {
-  ELF_SHA256,
+  ELF_SHA256 as FIXTURE_ELF_SHA256,
   GENESIS,
   makeFixture,
   makeProgramDataRpcResponse,
-  SOURCE_COMMIT,
+  SOURCE_COMMIT as FIXTURE_SOURCE_COMMIT,
 } from './helpers/subscription-rpc-fixture.mjs';
 import {
   fetchFinalizedSubscriptionTransactionEvidence,
@@ -178,8 +178,8 @@ test('retrieves finalized RPC evidence, attests ProgramData, normalizes and veri
     cluster: 'devnet',
     signature: fixture.signature,
     transactionSlotHint: 500n,
-    expectedSourceCommit: SOURCE_COMMIT,
-    expectedElfSha256: ELF_SHA256,
+    expectedSourceCommit: FIXTURE_SOURCE_COMMIT,
+    expectedElfSha256: FIXTURE_ELF_SHA256,
     requestPrefix: 'rpc-integration-attempt-500',
     fetchImpl,
   });
