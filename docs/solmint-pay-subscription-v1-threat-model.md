@@ -34,24 +34,26 @@ Therefore:
 4. Mainnet finalized read-only evidence: deployed ELF hash equals the reproducible pinned-source ELF hash; canonical on-chain IDL hash equals pinned source IDL hash.
 5. Current repository instructions, Subscription Skill, Release Audit Skill, and implementation plan at feature HEAD `5b8d24b`.
 
-### 2.2 Material count inconsistency inside the Cantina PDF — unresolved
+### 2.2 Cantina finding tally reconciliation — PASS (source pages reconciled)
 
-The PDF's page 3 summary table says: High 1 acknowledged; Medium 5 with 2 fixed and 3 acknowledged; Low 2 with 1 fixed and 1 acknowledged; Informational 1 fixed; total 4 fixed and 5 acknowledged.
+The PDF's page 3 summary table reports: High 1 acknowledged; Medium 5 with 2 fixed and 3 acknowledged; Low 2 with 1 fixed and 1 acknowledged; Informational 1 fixed; total 4 fixed and 5 acknowledged.
 
-The detailed finding pages say:
+The detailed pages reconcile to that tally when the CancelSubscriptionNow change is classified as **mitigated for the aggregate tally, with a documented residual**:
 - High: old signed creates — Acknowledged.
-- Medium: stale CancelSubscriptionNow — Acknowledged.
-- Medium: stale update_plan — Fixed (Cantina says verified fix).
-- Medium: stale ResumeSubscription — Acknowledged.
-- Medium: stale authority-control — Acknowledged.
+- Medium: stale CancelSubscriptionNow — partially mitigated by binding to `current_period_start_ts`; Cantina counts this in its mitigated/fixed aggregate, while explicitly retaining same-second recreation as an acknowledged residual.
+- Medium: stale UpdatePlan approvals — Fixed (Cantina says verified fix).
+- Medium: stale ResumeSubscription approvals — Acknowledged.
+- Medium: stale authority-control approvals — Acknowledged.
 - Medium: full-period charge near Plan expiry — Acknowledged.
 - Low: optional CreatePlan payer missing from IDL — Fixed (Cantina says verified fix).
 - Low: automatic rent sponsorship — Acknowledged.
 - Informational: IDL generation failure not stopping release — Fixed (Cantina says verified fix).
 
-Thus the detailed pages enumerate **four Acknowledged Medium findings**, not the three in the summary table. The detailed pages enumerate six Acknowledged findings overall (one High, four Medium, one Low), while the summary table says five. The detailed pages also enumerate three Fixed findings overall, while the summary table says four. This conflict must not be silently reconciled.
+The reconciled tally is therefore **four Fixed/Mitigated** (two Medium, one Low, one Informational) and **five Acknowledged** (one High, three Medium, one Low), matching page 3. There is no summary/detail count inconsistency and no need to infer a missing finding or request a corrected report for this tally.
 
-**Audit accounting status: UNKNOWN / BLOCKED pending written clarification or corrected report from Cantina/Solana Foundation.** Until resolved, the security gate uses the more conservative detailed finding-by-finding classification and treats all six detailed Acknowledged findings as residual risks. This count discrepancy does not change the fact that the High and named Medium/Low issues require controls.
+Important: aggregate classification does not erase a residual. TM-02 remains a same-second replay risk and is still excluded from SolMint v1 immediate-cancellation capability unless the protocol behavior is fixed and verified. Cantina's overall statement that findings were "addressed" includes documented/acknowledged residuals; it must not be paraphrased as every recommendation being fixed in Program code.
+
+**Audit accounting status: PASS — report tally reconciled against the PDF's detailed disposition text.** Finding-level residual risks remain governed by their individual threat entries and are not closed by this arithmetic reconciliation.
 
 ## 3. Assets, principals, and trust boundaries
 
@@ -156,7 +158,7 @@ On unknown submit, query/reconcile the original signature/message and relevant f
 - Upstream protocol invalidation: BLOCKED / NOT EVIDENCED.
 - Overall TM-01: **BLOCKED for production claims of reliable revocation**. Off-chain builder rules alone do not close the High finding.\n\n**Owner decision — 2026-11-05:** the project owner explicitly **does not accept** this High residual risk. An upstream protocol fix, independent review, deployment and finalized Mainnet ProgramData/ELF/IDL verification are hard prerequisites for Production Subscription. This records the decision, not remediation; TM-01 remains BLOCKED. The decision applies only to TM-01 and does not accept the other detailed Cantina residual risks. See `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` for the upstream remediation proposal.
 
-### TM-02 — Stale CancelSubscriptionNow approval can affect a recreated subscription (Cantina Medium, Acknowledged)
+### TM-02 — Stale CancelSubscriptionNow approval can affect a recreated subscription (Cantina Medium, partially mitigated; same-second residual acknowledged)
 
 **Attack / impact**
 
@@ -635,7 +637,7 @@ As of feature HEAD `5b8d24b`:
 - Reproducible Program build and Mainnet ELF/source identity: PASS (identity only).
 - Canonical on-chain IDL/source identity: PASS (identity only).
 - Squads v4 Vault/State authority-chain parsing: PASS; member identity/custody UNKNOWN; zero-second timelock is a material operational risk.
-- Cantina detailed findings: six Acknowledged items are conservatively tracked pending report clarification; summary/detail count inconsistency is unresolved.
+- Cantina detailed findings: four Fixed/Mitigated and five Acknowledged, matching the report summary. TM-02 is counted as mitigated for the differing-timestamp case but retains the explicitly acknowledged same-second replay residual.
 - Production Subscription API/domain/schema/migrations: NOT IMPLEMENTED.
 - Customer Consent lifecycle: NOT IMPLEMENTED.
 - Billing worker/cycle claim/recovery: NOT IMPLEMENTED.
