@@ -33,9 +33,12 @@ export interface ProgramDeploymentAttestation {
   readonly programAddress: Address;
   readonly sourceCommit: string;
   readonly elfSha256: string;
-  /** Must be tied to the transaction slot by an independently trusted archive source. */
-  readonly attestedSlot: bigint;
-  readonly attestationKind: 'historical-slot';
+  /** ProgramData's latest deployment/upgrade slot from a finalized account read. */
+  readonly deploymentSlot: bigint;
+  /** RPC context slot at which this ProgramData account was read. */
+  readonly readAtSlot: bigint;
+  readonly readCommitment: 'finalized' | 'confirmed' | 'processed';
+  readonly attestationKind: 'current-finalized-programdata';
 }
 
 export interface SubscriptionInnerInstruction {
@@ -44,6 +47,7 @@ export interface SubscriptionInnerInstruction {
   readonly accountIndexes: readonly number[];
   readonly data: Uint8Array;
   readonly accountAddresses: readonly Address[];
+  readonly stackHeight: number;
 }
 
 export interface SubscriptionTokenBalance {
@@ -67,6 +71,8 @@ export interface SubscriptionTransactionEvidence {
   readonly feePayer: Address;
   readonly feePayerIsSigner: boolean;
   readonly feePayerIsWritable: boolean;
+  readonly rpcProviderId: string;
+  readonly rpcResponseHash: string;
   /** Account keys in the same resolved order used by compiled instruction indexes. */
   readonly accountKeys: readonly Address[];
   readonly topLevelInstructions: readonly ResolvedCompiledInstruction[];
@@ -132,6 +138,8 @@ export type SubscriptionTransactionVerification =
       readonly evidence: 'finalized-subscription-transfer-transaction';
       readonly signature: string;
       readonly messageHash: string;
+      readonly rpcProviderId: string;
+      readonly rpcResponseHash: string;
       readonly cycleId: string;
       readonly attemptId: string;
       readonly slot: bigint;
@@ -284,18 +292,23 @@ export function verifySubscriptionTransferTransaction(
     unknown.push('Trusted Cycle/Attempt correlation is missing.');
   }
   if (!evidence.programDeployment) {
-    unknown.push('Exact Program deployment identity is not independently attested for this transaction slot.');
+    unknown.push('Finalized ProgramData deployment evidence is missing.');
   } else if (
     evidence.programDeployment.programAddress !== SUBSCRIPTIONS_PROGRAM ||
     evidence.programDeployment.sourceCommit !== expected.programSourceCommit ||
-    evidence.programDeployment.elfSha256 !== expected.programElfSha256
+    evidence.programDeployment.elfSha256 !== expected.programElfSha256 ||
+    evidence.programDeployment.attestationKind !== 'current-finalized-programdata'
   ) {
     failures.push('program_deployment_mismatch');
   } else if (
-    evidence.programDeployment.attestedSlot !== evidence.slot ||
-    evidence.programDeployment.attestationKind !== 'historical-slot'
+    evidence.programDeployment.readCommitment !== 'finalized' ||
+    typeof evidence.programDeployment.deploymentSlot !== 'bigint' ||
+    typeof evidence.programDeployment.readAtSlot !== 'bigint' ||
+    evidence.programDeployment.deploymentSlot < 0n ||
+    evidence.programDeployment.readAtSlot < evidence.slot ||
+    evidence.programDeployment.deploymentSlot > evidence.slot
   ) {
-    unknown.push('Program deployment attestation is not bound to this exact transaction slot.');
+    unknown.push('Current finalized ProgramData cannot prove that the approved ELF was deployed and unchanged at the transaction slot.');
   }
   if (
     evidence.feePayer !== expected.merchantFeePayer ||
@@ -408,6 +421,8 @@ export function verifySubscriptionTransferTransaction(
   }
 
   const innerIndexesValid = inner.every((item: SubscriptionInnerInstruction) =>
+    Number.isInteger(item.stackHeight) &&
+    item.stackHeight === 2 &&
     Number.isInteger(item.programIdIndex) &&
     item.programIdIndex >= 0 &&
     evidence.accountKeys[item.programIdIndex] === item.programAddress &&
@@ -423,7 +438,12 @@ export function verifySubscriptionTransferTransaction(
 
   const tokenCpis = inner.filter((item: SubscriptionInnerInstruction) => item.programAddress === SPL_TOKEN_PROGRAM);
   const eventCpis = inner.filter((item: SubscriptionInnerInstruction) => item.programAddress === SUBSCRIPTIONS_PROGRAM);
-  if (tokenCpis.length !== 1 || eventCpis.length !== 1) {
+  if (
+    tokenCpis.length !== 1 ||
+    eventCpis.length !== 1 ||
+    inner[0].programAddress !== SPL_TOKEN_PROGRAM ||
+    inner[1].programAddress !== SUBSCRIPTIONS_PROGRAM
+  ) {
     failures.push('token_cpi_missing_or_invalid');
     return reject(failures);
   }
@@ -510,6 +530,8 @@ export function verifySubscriptionTransferTransaction(
     evidence: 'finalized-subscription-transfer-transaction',
     signature: evidence.signature,
     messageHash: evidence.messageHash,
+    rpcProviderId: evidence.rpcProviderId,
+    rpcResponseHash: evidence.rpcResponseHash,
     cycleId: expected.cycleId,
     attemptId: expected.attemptId,
     slot: evidence.slot,
