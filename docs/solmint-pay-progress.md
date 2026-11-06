@@ -3968,3 +3968,62 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - Overall G1: BLOCKED.
 
 No Production DDL/data/provider setting, secret/key/signer, customer consent, accounting posting, Program ID/keypair, Program deployment/upgrade, Squads proposal, Devnet/Mainnet transaction or customer funds were changed. Local Working Tree remains UNKNOWN.
+
+## 2026-11-06 — G1 VNext Subscription runtime and exact-source CI verification
+
+### Live repository and PR state
+- SolMint repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`, PR #366 OPEN / DRAFT / NOT MERGED.
+- SolMint PR head at this checkpoint: `bb82f8667f0744114f00bdb411db33bf9a87b86a`; compare against `main`: 360 commits ahead / 0 behind; GitHub reports mergeable=true.
+- VNext Program repository: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, PR #1 OPEN / DRAFT / NOT MERGED.
+- VNext source head: `aa6f7c0839970f9e758876b30a27950629307996`; compare against pristine baseline branch: 97 commits ahead / 0 behind; mergeable=true.
+- Pristine baseline remains pinned at `364a41976c33347d092902443bbec2def9227e75`. No changes were made to the baseline branch.
+- Local Working Tree remains UNKNOWN because a local clone could not be established in this environment; repository state was checked through the GitHub connector.
+
+### VNext implementation present at the exact tested source
+- Persistent 188-byte Authority Consent Registry keyed by (subscriber, mint, exact source token account), and 204-byte tuple-bound VNext Authority.
+- VNext Plan account: discriminator 9, version 1, 500 bytes, separate `planVNext` seed namespace.
+- VNext Subscription account: discriminator 10, version 1, 260 bytes, keyed by (Plan PDA, subscriber, exact source token account).
+- Persistent Subscription Lifecycle Registry: 148 bytes; persistent Plan Revision Registry: 116 bytes. Both retain monotonic revision/action-nonce lineage and are consumed by VNext runtime handlers.
+- Additive instruction discriminators 18–26: Authority authorize/revoke, VNext Plan create/update, Subscribe, Cancel, CancelNow, Resume and Transfer. Existing discriminators 0–17 remain unchanged.
+- Subscription lifecycle handlers advance the persistent lifecycle revision/nonce on Subscribe, regular Cancel, dual-authorized CancelNow, Resume and re-subscribe. A cancelled Subscription does not reset/close the persistent Registry.
+- Plan create/update handlers initialize and advance the persistent Plan revision/nonce. Mutable Plan administration checks expected revision, nonce and current state snapshot.
+- VNext transfer validates the exact Plan/Subscription/source-account tuple, live Plan revision/nonce, lifecycle revision/nonce, Authority consent generation, source delegate, caller/Puller, destination and cumulative period allowance before CPI. Its 120-byte payload includes those expected snapshots and a Program-enforced 24-hour deadline.
+- Token-2022 transfer-hook fixture is built in CI and the helper forwards remaining accounts. A VNext-specific TransferHook adversarial case is still not implemented.
+
+### Exact CI evidence — PASS
+- SolMint CI run: `42271881452`, triggered from SolMint PR head `bb82f8667f0744114f00bdb411db33bf9a87b86a`, pinning exact VNext source `aa6f7c0839970f9e758876b30a27950629307996`.
+- `subscription-vnext-authority-registry`: SUCCESS.
+  - Rust Program formatting: PASS.
+  - LiteSVM test formatting: PASS.
+  - Program unit tests: 93 passed, 0 failed.
+  - Deterministic VNext SBF build: PASS using checksum-pinned `solana-verify 0.5.2`, Rust 1.92 and the pinned verifiable-build container digest `sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3`.
+  - Token-2022 TransferHook test fixture build: PASS.
+  - Full LiteSVM integration suite: 279 passed, 0 failed, 1 ignored.
+  - Exact immutable upstream v0.5.0 source checkout/build: PASS.
+  - Legacy binary isolation regression: 1 passed, 0 failed. It proves the old binary's legacy `InitSubscriptionAuthority` path cannot delegate the tested VNext non-ATA source; this is one bounded case, not proof of all legacy paths.
+  - Codama regeneration: PASS.
+  - Generated-vs-committed IDL structural comparison: PASS. Canonical IDL SHA-256 `f74110e13a2cf991f7afd823e50bf2b4d2ae55c221f183cb45635352479535ad`; 27 instructions, 12 accounts, 19 defined types and 12 PDAs.
+  - Other run jobs: `subscription-production-migration-cli`, `subscription-sdk-compat (24)`, `subscription-reproducible-build`, `subscription-tm06-sponsored-plan-refund`, `subscription-atomic-split-transfer`, `quality`, `production-migration-cli` and `subscription-mainnet-programdata`: SUCCESS.
+- VNext SBF SHA-256: `b8cd8b12e8b629d30d09632c11f8b9398e9a30f77585a731aa907da1194b9fe1` (215,976 bytes).
+- Committed IDL SHA-256: `40a3dbcdad2edfe339393b6ff65eeaf69a3e3734abb3b5e2d52e7f7493b368e2` (187,274 bytes).
+- Build artifact: `solmint-vnext-authority-registry-build`, artifact ID `13529229054`, 65,075-byte ZIP, uploaded SHA-256 `c84e25ad8e42883ad692818b65a0e0ab22c8be9825f600e89c7b6d93190fe0b0`, 14-day retention.
+- CI compares parsed JSON structure rather than raw JSON text because object-key order is not ABI; array order and all field values remain significant. This prevents a formatting/key-order-only diff from being misreported as an ABI mismatch.
+
+### Remaining gaps and G1 disposition
+- G1-0 baseline recovery/provenance: PASS.
+- G1-1 independent fork and immutable baseline: PASS.
+- G1-2 protocol/ABI design: BLOCKED — current VNext instruction/account layouts and generated IDL are implemented and structurally synchronized, but ABI golden byte/account-meta tests and independent protocol review are not complete; ABI is not frozen.
+- G1-3 VNext Subscription runtime slice (Authority, Plan create/update, Subscription lifecycle and transfer): PASS for the exact tested scope above.
+- G1-4 legacy migration/recovery: NOT IMPLEMENTED.
+- G1-5 complete adversarial isolation: BLOCKED — only the legacy InitSubscriptionAuthority/non-ATA boundary is tested. Legacy Close/Revoke/Subscribe/Fixed/Recurring/Transfer and existing VNext Registry/Authority mutation paths still need exact-old-binary adversarial coverage.
+- G1-6 independent security audit: NOT IMPLEMENTED.
+- G1-7 Devnet deployment/rehearsal: NOT IMPLEMENTED.
+- G1-8 separately authorized Mainnet deployment/migration: NOT IMPLEMENTED.
+- G1 overall: BLOCKED.
+
+### Explicit scope limits and mutation attestation
+- VNext fixed/recurring delegation instructions are NOT IMPLEMENTED.
+- VNext finite Plan support is NOT IMPLEMENTED; current VNext Plan creation rejects non-zero `end_ts`.
+- VNext DeletePlan, Plan rent recovery, Subscription close/recovery, full rent sponsorship/quota/refund policy and legacy migration are NOT IMPLEMENTED.
+- No separate VNext Program ID/keypair was generated. `program/src/lib.rs` still declares the legacy Program ID; therefore this source is not an independently deployable Program identity.
+- No Production DDL/data/provider settings, secret/key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet transaction, customer consent, accounting posting or customer funds were changed. The Mainnet ProgramData job was read-only.
