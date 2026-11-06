@@ -169,14 +169,15 @@ Rules:
 - No force reset, force push, blind rebase, or deletion of historical feature commits.
 - The reviewed three-file reconciliation is now represented by the two-parent merge commit above; no force-push, reset, rebase or history deletion was used.
 - Re-run exact-head CI after the merge; do not reuse green checks from earlier SHAs.
-- Only after the reconciled branch's exact-head checks pass may G1-1 source vendoring or Program code changes begin.
+- Exact-head checks on the reconciled branch passed. G1-1 now uses a dedicated SolMint-owned fork rather than copying the Program source into the React application repository.
 
 ## 8. Current status and mutation boundary
 
 - G0 Production migration governance: **PASS / COMPLETE** on 2026-11-06 by owner confirmation plus three usable post-change log windows; Issue #355 is closed. Historical runner actor remains UNKNOWN.
 - G1 overall: **BLOCKED** — no SolMint-owned Program VNext source, IDL, legacy migration, full adversarial implementation, independent audit or deployment exists yet.
-- G1-0: **IN PROGRESS** — branch reconciliation is complete and PR mergeability is restored; exact-head CI on the final documentation checkpoint remains pending.
-- G1-1 through G1-8: **NOT STARTED**.
+- G1-0: **PASS / COMPLETE** — branch reconciliation, PR mergeability and exact-head CI/companion checks all passed on `f908440...`.
+- G1-1: **IN PROGRESS** — SolMint-owned fork, pinned source branch, MIT provenance and reproducible v0.5.0 baseline evidence established; no VNext source patch yet.
+- G1-2 through G1-8: **NOT STARTED**.
 - G2 Subscription contract/runtime: remains partial / blocked; production Subscription API/schema/Collector/verifier/accounting/billing worker are not implemented.
 - Local Working Tree: **UNKNOWN** through the available remote GitHub connector.
 - No Production DDL/data/provider setting/Secret/Key/signer, customer consent, Program deployment/upgrade, Mainnet/Devnet transaction, accounting posting or funds were changed in this checkpoint.
@@ -228,3 +229,47 @@ All workflows below are bound to exact Subscription HEAD `f908440...`:
 - G1-7 Devnet release/migration rehearsal: **NOT STARTED**.
 - G1-8 separately authorized Mainnet deployment/migration: **NOT STARTED**.
 - G1 overall remains **BLOCKED**. There is no SolMint-owned VNext Program source/IDL, legacy migration, full G1 adversarial proof, independent audit or deployed verification yet.
+
+
+## 9. G1-1 — Independent source ownership and baseline intake (2026-11-06)
+
+### SolMint-controlled repository
+- Created public fork `azad2022/solmint-subscriptions-program` from `solana-foundation/subscriptions`.
+- Fork default `main` tracks upstream latest `4e8cdb4e84d8ac9e2f0fac6ab2ab3510b7254899`; no upstream repository or branch was changed.
+- Created pristine baseline branch `solmint/v0.5.0-baseline` at immutable tag `program-v0.5.0` → `364a41976c33347d092902443bbec2def9227e75`.
+- Created work branch `feat/solmint-g1-authority-vnext` at the same exact tag.
+- Original MIT `LICENSE` and copyright notice are retained. Workspace package version is `0.5.0-beta.1`; toolchain pins are Rust `1.92` and Solana CLI `3.1.10`.
+- Baseline documentation commit `d9e18eb3d7a494209aba04efd7c0562f2c942aa4` adds `docs/solmint-security-remediation-baseline.md`. Fork PR [#1](https://github.com/azad2022/solmint-subscriptions-program/pull/1) is OPEN / DRAFT and targets the pristine `solmint/v0.5.0-baseline` branch.
+- The source baseline remains unmodified; the new fork branch currently contains documentation only.
+
+### Reproducible source-build proof
+The existing SolMint CI reproducibly built the exact source SHA `364a419...` in run [42233967558](https://github.com/azad2022/solsite/actions/runs/42233967558), job `subscription-reproducible-build` = **SUCCESS**. The sanitized artifact `solmint-subscription-reproducible-build` records:
+- `solana-verify` 0.5.2; Solana CLI build version 3.1.10.
+- Repository rust-toolchain 1.92; SBF build-container Rust 1.86.0.
+- Docker digest `sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3`.
+- Baseline ELF SHA-256 `056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318`.
+- Baseline IDL SHA-256 `1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa`.
+
+These hashes identify the unmodified v0.5.0 baseline only. They are not VNext hashes and do not prove any VNext deployment.
+
+### Cantina residual finding inventory
+The attached Cantina report (2026-07-30) records 9 findings: 4 Fixed, 5 Acknowledged. G1 must explicitly close the acknowledged residuals; the report is not treated as a clean security certificate:
+- High: stale signed create bundle can restore revoked Authority / `u64::MAX` delegate; acknowledged, not fixed.
+- Medium: stale Authority Init/Close/Revoke approvals are not generation-bound; acknowledged, not fixed.
+- Medium: CancelSubscriptionNow's timestamp binding is not a unique incarnation; same-second replay requires adversarial proof.
+- Medium: Resume uses expected expiry timestamp but no persistent monotonic cancellation revision; collision/replay requires proof.
+- Medium: Subscribe can accept a finite Plan without a complete first billing period remaining; full-period-at-expiry issue remains to be fixed.
+- Low: automatic rent sponsorship remains a feature, but must become explicit and bounded with enforceable recovery/quota.
+- UpdatePlan stale approvals, optional CreatePlan payer/IDL, and IDL generation failure were previously verified fixed; retain regression tests and do not regress them.
+
+### Isolation design status
+- VNext will use a new Program ID and a dedicated customer-owned non-ATA source token account, with Authority bound to that exact account, as the leading isolation design.
+- This is a **HYPOTHESIS**, not a proven security boundary. G1-5 must run the exact old v0.5.0 binary/source in LiteSVM and prove every stale legacy Init/Subscribe/Fixed/Recurring/Transfer path fails to accept or mutate/debit the VNext non-ATA account.
+- The old Program remains active and old signed transactions remain valid for legacy ATAs. New Program ID alone does not disable them. Existing legacy funds, Plans and Subscriptions require explicit customer/merchant migration and fresh consent.
+- Reusing the old Program ID requires its existing Squads upgrade authority approval; no governance bypass is permitted.
+
+### Status
+- G1-0: **PASS / COMPLETE**.
+- G1-1: **IN PROGRESS** — own source repository, exact MIT baseline and reproducible build evidence established; VNext source patch and fork CI are still pending.
+- G1-2 through G1-8: **NOT STARTED**.
+- G1 overall: **BLOCKED** until VNext code, ABI/IDL, explicit migration, adversarial proof, independent audit and deployment evidence are complete.
