@@ -427,13 +427,13 @@ jobs:
   subscription-vnext-authority-registry:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout exact SolMint VNext fork commit
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: b453bc7ed119f2f7e3a55cb98c2c6fad551ee25b
+          ref: 36f14276f024465d5ee868df2a75fd841b1fb973
           path: vnext-subscriptions
           persist-credentials: false
 
@@ -441,7 +441,7 @@ jobs:
         working-directory: vnext-subscriptions
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="b453bc7ed119f2f7e3a55cb98c2c6fad551ee25b"
+          expected="36f14276f024465d5ee868df2a75fd841b1fb973"
           printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
           test "$actual" = "$expected"
 
@@ -500,6 +500,30 @@ jobs:
       - name: Run complete LiteSVM integration suite against VNext SBF
         working-directory: vnext-subscriptions
         run: cargo test -p tests-subscriptions
+
+      - name: Checkout immutable v0.5.0 legacy Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: legacy-subscriptions
+          persist-credentials: false
+
+      - name: Build immutable legacy Program SBF for isolation testing
+        working-directory: legacy-subscriptions
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          ../solana-verify build "$GITHUB_WORKSPACE/legacy-subscriptions" \
+            --workspace-path "$GITHUB_WORKSPACE/legacy-subscriptions" \
+            --library-name subscriptions_program
+          test -s target/deploy/subscriptions_program.so
+
+      - name: Prove immutable legacy Program cannot delegate a VNext non-ATA source
+        working-directory: vnext-subscriptions
+        env:
+          SOLMINT_LEGACY_PROGRAM_SO: ${{ github.workspace }}/legacy-subscriptions/target/deploy/subscriptions_program.so
+        run: cargo test -p tests-subscriptions vnext_legacy_program_cannot_delegate_a_non_ata_source -- --ignored --exact
 
       - name: Regenerate Codama IDL from exact Rust source
         working-directory: vnext-subscriptions
