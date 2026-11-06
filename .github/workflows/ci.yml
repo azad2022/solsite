@@ -427,6 +427,91 @@ jobs:
   subscription-vnext-authority-registry:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact SolMint VNext fork commit
+        uses: actions/checkout@v5
+        with:
+          repository: azad2022/solmint-subscriptions-program
+          ref: 83f84a8e912dc68b54005f443b6e2dd76a30ede8
+          path: vnext-subscriptions
+          persist-credentials: false
+
+      - name: Verify immutable VNext source commit
+        working-directory: vnext-subscriptions
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="83f84a8e912dc68b54005f443b6e2dd76a30ede8"
+          printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
+          test "$actual" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: '1.92'
+          components: rustfmt, clippy
+
+      - name: Restore Rust build cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+        with:
+          workspaces: 'vnext-subscriptions -> vnext-subscriptions/target'
+          shared-key: solmint-vnext-authority-registry
+
+      - name: Check Program Rust formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt -p subscriptions-program -- --check
+
+      - name: Check LiteSVM test Rust formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt -p tests-subscriptions -- --check
+
+      - name: Run Program unit tests
+        working-directory: vnext-subscriptions
+        run: cargo test -p subscriptions-program
+
+      - name: Download pinned solana-verify CLI and verify checksum
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
+            --output solana-verify
+          echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
+          chmod 0755 solana-verify
+          ./solana-verify --version
+
+      - name: Build exact VNext SBF artifact in deterministic container
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/vnext-subscriptions" \
+            --workspace-path "$GITHUB_WORKSPACE/vnext-subscriptions" \
+            --library-name subscriptions_program
+          test -s target/deploy/subscriptions_program.so
+          sha256sum target/deploy/subscriptions_program.so
+
+      - name: Run complete LiteSVM integration suite against VNext SBF
+        working-directory: vnext-subscriptions
+        run: cargo test -p tests-subscriptions
+
+      - name: Regenerate Codama IDL from exact Rust source
+        working-directory: vnext-subscriptions
+        run: GENERATE_IDL=1 cargo check -p subscriptions-program
+
+      - name: Verify generated Codama IDL matches committed VNext IDL
+        working-directory: vnext-subscriptions
+        run: git diff --exit-code -- idl/subscriptions.json
+
+      - name: Upload exact VNext SBF, generated IDL and build hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-vnext-authority-registry-build
+          path: |
+            vnext-subscriptions/target/deploy/subscriptions_program.so
+            vnext-subscriptions/idl/subscriptions.json
+          if-no-files-found: warn
+          retention-days: 14
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout exact SolMint VNext fork commit
