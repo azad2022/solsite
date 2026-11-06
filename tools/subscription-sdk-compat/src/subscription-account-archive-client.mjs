@@ -192,7 +192,7 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
   if (
     typeof transactionSlot !== 'bigint' ||
     transactionSlot <= 0n ||
-    transactionSlot > ((1n << 64n) - 1n)
+    transactionSlot > BigInt(Number.MAX_SAFE_INTEGER)
   ) return unknown('ARCHIVE_TRANSACTION_SLOT_INVALID');
   if (
     typeof requestPrefix !== 'string' ||
