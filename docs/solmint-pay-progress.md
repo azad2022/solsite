@@ -3378,3 +3378,12 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - No runtime source or tests were changed in this design checkpoint. No tests were executed for the new design document; no CI result is claimed for this documentation-only commit.
 - Dedicated transaction verifier, finalized RPC adapter, typed Subscription accounting origin/atomic DB operation, fee/referral/network-cost/refund decisions and entitlement policy remain NOT IMPLEMENTED or BLOCKED as detailed in the new contract. Existing one-off Pay verifier remains unchanged.
 - Mutation boundary: only the new design document and this progress ledger are changed on the feature branch. No Production DDL/data, Supabase/Cloudflare settings, Secret/Key/credential, signer, Devnet/Mainnet transaction, Program upgrade, customer Consent, ledger posting or customer/merchant funds were changed.
+
+
+## 2026-11-06 — Pinned delegated-token CPI verification detail
+
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; source design commit: `c9d88d71fd853c70a94e99524d32bd46aca40c26`; PR #366 remains OPEN / DRAFT / NOT MERGED at this checkpoint.
+- Follow-up source inspection resolved an important unknown from the prior verifier draft. Exact upstream helper `program/src/instructions/helpers/transfer_utils.rs` at pinned Program commit `364a41976c33347d092902443bbec2def9227e75` (blob `241937f6ad46877c3d29f01f62109f5c33bf781e`) shows the non-hook path invokes SPL `TransferChecked` signed by SubscriptionAuthority PDA. Remaining accounts are forwarded only when a mint has an active Transfer Hook. Since v1 excludes Token-2022/TransferHook and retains original SPL Token, the supported path requires zero remaining accounts; verifier must reject non-empty trailing accounts.
+- Updated `docs/solmint-pay-subscription-verification-accounting-contract.md` to record the exact CPI and source evidence. This narrows the transaction-verifier contract but does not implement the verifier or prove an actual transaction.
+- No runtime code, tests, schema, routes or migrations changed. No tests were run for this documentation-only refinement. CI for the documentation checkpoint is not claimed PASS; the exact-head Actions run for the previous ledger commit was cancelled by GitHub and must be rechecked on the current head.
+- Mutation boundary unchanged: no Production/DB/RLS/Secret/Key/signer/Devnet/Mainnet/Program/customer Consent/accounting/funds mutation.
