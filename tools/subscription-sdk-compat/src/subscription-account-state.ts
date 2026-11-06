@@ -249,8 +249,8 @@ export async function validateSubscriptionAccountState(
   if (
     subscription.header.initId === UNKNOWN_INIT_ID ||
     subscription.header.initId < 0n ||
-    authority.data.initId === UNKNOWN_INIT_ID ||
-    authority.data.initId < 0n
+    authority.initId === UNKNOWN_INIT_ID ||
+    authority.initId < 0n
   ) failures.push('subscription_authority_generation_invalid');
   if (
     subscription.terms.amount !== planTerms.amount ||
@@ -278,10 +278,10 @@ export async function validateSubscriptionAccountState(
     failures.push('subscription_authority_pda_mismatch');
   }
   if (
-    authority.data.user !== expected.subscriber ||
-    authority.data.tokenMint !== expected.mint
+    authority.user !== expected.subscriber ||
+    authority.tokenMint !== expected.mint
   ) failures.push('subscription_authority_identity_mismatch');
-  if (authority.data.initId !== subscription.header.initId) {
+  if (authority.initId !== subscription.header.initId) {
     failures.push('subscription_authority_generation_mismatch');
   }
 
