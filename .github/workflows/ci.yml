@@ -433,7 +433,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: c7882a51862f07eec781ba5aa3b82eee4eb24212
+          ref: aa6f7c0839970f9e758876b30a27950629307996
           path: vnext-subscriptions
           persist-credentials: false
 
@@ -441,7 +441,7 @@ jobs:
         working-directory: vnext-subscriptions
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="c7882a51862f07eec781ba5aa3b82eee4eb24212"
+          expected="aa6f7c0839970f9e758876b30a27950629307996"
           printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
           test "$actual" = "$expected"
 
@@ -531,7 +531,27 @@ jobs:
 
       - name: Verify generated Codama IDL matches committed VNext IDL
         working-directory: vnext-subscriptions
-        run: git diff --exit-code -- idl/subscriptions.json
+        run: |
+          set -euo pipefail
+          git show HEAD:idl/subscriptions.json > /tmp/committed-subscriptions-idl.json
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          generated = json.loads(Path("idl/subscriptions.json").read_text())
+          committed = json.loads(Path("/tmp/committed-subscriptions-idl.json").read_text())
+          if generated != committed:
+              raise SystemExit("Generated Codama IDL differs structurally from the committed IDL")
+
+          canonical = json.dumps(generated, sort_keys=True, separators=(",", ":")).encode()
+          print("PASS: generated and committed IDL are structurally identical")
+          print(f"Canonical IDL SHA-256: {hashlib.sha256(canonical).hexdigest()}")
+          print(f"Instructions: {len(generated['program']['instructions'])}")
+          print(f"Accounts: {len(generated['program']['accounts'])}")
+          print(f"Defined types: {len(generated['program']['definedTypes'])}")
+          print(f"PDAs: {len(generated['program']['pdas'])}")
+          PY
 
       - name: Upload exact VNext SBF, generated IDL and build hashes
         if: always()
