@@ -255,7 +255,7 @@ This is a proposed engineering default, not a claim that the current repository 
 
 Before any Subscription implementation, read `docs/solmint-pay-subscription-v1-threat-model.md`. The document defines finding-specific attack paths, trust boundaries, off-chain defense-in-depth, protocol-level fixes, database invariants, recovery, adversarial tests and v1 capability exclusions. It is a design specification only; no control in it is implemented merely by being documented.
 
-**Audit report discrepancy:** page-3 summary counts five Acknowledged findings (three Medium), while detailed pages mark four Medium findings Acknowledged plus one High and one Low (six detailed Acknowledged overall). Detailed pages identify three Fixed findings, whereas the summary reports four. Treat all six detailed Acknowledged findings as residual risks until Cantina/Solana Foundation provides written clarification or a corrected report. Do not silently reconcile the PDF.
+**Cantina tally reconciliation:** the page-3 summary and detailed dispositions reconcile to four Fixed/Mitigated and five Acknowledged. CancelNow's `expected_current_period_start_ts` partially mitigates different-timestamp replay but leaves a same-second recreation residual; retain that residual in TM-02.
 
 Off-chain rejection of `UNKNOWN_INIT_ID`, durable nonce or pending proposals cannot invalidate a transaction already signed outside SolMint. The High old-signed-create issue remains BLOCKED for any strong revocation guarantee absent an upstream protocol fix. The v1 capability matrix is proposed and not yet approved.
 
@@ -265,3 +265,10 @@ Off-chain rejection of `UNKNOWN_INIT_ID`, durable nonce or pending proposals can
 The project owner explicitly rejects acceptance of the High old-signed-create residual risk. Do not claim strong revocation or enable Production Subscription until an upstream Program fix is implemented, independently reviewed, deployed and verified. The decision is specific to TM-01; it does not accept the other five detailed Acknowledged risks or complete G1.
 
 Read `docs/solmint-pay-subscription-tm01-protocol-fix-proposal.md` before further work on the upstream Program, account-generation model or legacy instruction compatibility. It is a design proposal, not implemented Program code. A raw external SPL Token Revoke does not update Program-owned generation state and must not be represented as invalidating held Program instructions.
+
+
+## 2026-11-06 Owner decision — retain complete Subscription feature scope
+
+Do not permanently de-scope finite Plans, CancelNow, Resume, authority reauthorization, durable nonce, supported smart-wallet proposals, rent sponsorship, split transfers or multi-destination pulls to work around protocol weaknesses. Earlier exclusions in the provisional v1 matrix are temporary release-safety gates only. Read `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`; the objective is to fix the protocol and preserve the product. A capability remains BLOCKED until exact-source implementation, legacy migration, adversarial tests, independent review and deployed verification pass.
+
+TM-01 private report `GHSA-hvvh-pvqw-g3gx` was submitted on 2026-11-06 and is in TRIAGE. This is not an accepted advisory or a fix.
