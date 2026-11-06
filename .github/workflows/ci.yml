@@ -433,7 +433,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 385d64d54bbe87f49356274cfb79e956402879eb
+          ref: a696d349b6945cd2e8b9e0f30994fcd4df2cda94
           path: vnext-subscriptions
           persist-credentials: false
 
@@ -441,7 +441,7 @@ jobs:
         working-directory: vnext-subscriptions
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="385d64d54bbe87f49356274cfb79e956402879eb"
+          expected="a696d349b6945cd2e8b9e0f30994fcd4df2cda94"
           printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
           test "$actual" = "$expected"
 
@@ -464,6 +464,14 @@ jobs:
       - name: Run Program unit tests
         working-directory: vnext-subscriptions
         run: cargo test -p subscriptions-program
+
+      - name: Check LiteSVM integration test formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt -p tests-subscriptions -- --check
+
+      - name: Compile LiteSVM integration tests
+        working-directory: vnext-subscriptions
+        run: cargo test -p tests-subscriptions --no-run
 
 
       - name: Verify generated Codama IDL matches committed VNext IDL
