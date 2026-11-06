@@ -226,13 +226,10 @@ function deserializeV1WireTransaction(wire: Uint8Array): DecodedWireTransaction 
 function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
   if (wire.length === 0) throw new Error('RPC_TRANSACTION_WIRE_EMPTY');
 
-  // Solana v1 places the versioned message first and appends signatures.
-  // Legacy and v0 retain the shortvec signature-count + signatures + message layout.
-  if ((wire[0] & 0x80) !== 0) {
-    const version = wire[0] & 0x7f;
-    if (version === 1) return deserializeV1WireTransaction(wire);
-    throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
-  }
+  // Version 1 uses a different transaction wire layout: message first,
+  // followed by signatures. Legacy and v0 use shortvec(signature count),
+  // signatures, then message.
+  if (wire[0] === 0x81) return deserializeV1WireTransaction(wire);
 
   const signatureVector = readShortVector(wire, 0);
   if (!isIntegerInRange(signatureVector.value, 1, 64)) {
@@ -242,9 +239,9 @@ function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
   if (messageOffset >= wire.length) throw new Error('RPC_TRANSACTION_MESSAGE_MISSING');
 
   const firstMessageByte = wire[messageOffset];
-  const versioned = (firstMessageByte & 0x80) !== 0;
+  const isVersionedMessage = (firstMessageByte & 0x80) !== 0;
 
-  if (versioned) {
+  if (isVersionedMessage) {
     const version = firstMessageByte & 0x7f;
     if (version !== 0) throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
 
@@ -272,6 +269,7 @@ function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
     if (Buffer.compare(Buffer.from(messageBytes), Buffer.from(wire.subarray(messageOffset))) !== 0) {
       throw new Error('RPC_TRANSACTION_MESSAGE_WIRE_MISMATCH');
     }
+
     return {
       message: transaction.message as unknown as MessageLike,
       signature: base58Encode(transaction.signatures[0]),
@@ -307,6 +305,7 @@ function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
   if (Buffer.compare(Buffer.from(messageBytes), Buffer.from(wire.subarray(messageOffset))) !== 0) {
     throw new Error('RPC_TRANSACTION_MESSAGE_WIRE_MISMATCH');
   }
+
   return {
     message: message as unknown as MessageLike,
     signature: base58Encode(signatures[0]),
