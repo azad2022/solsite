@@ -8,6 +8,7 @@ export const SUBSCRIPTION_ACCOUNT_ARCHIVE_ALLOWED_METHODS = Object.freeze([
   'getAccountInfo',
 ]);
 const ALLOWED_METHODS = new Set(SUBSCRIPTION_ACCOUNT_ARCHIVE_ALLOWED_METHODS);
+const CLOCK_SYSVAR_ADDRESS = 'SysvarC1ock11111111111111111111111111111111';
 
 const CLUSTERS = {
   'mainnet-beta': {
@@ -157,6 +158,31 @@ function normalizeAccountInfo(result, expectedAddress, snapshotSlot) {
     dataLength: bytes.length,
     accountDataSha256: createHash('sha256').update(bytes).digest('hex'),
     snapshotSlot,
+  };
+}
+
+
+function normalizeClockSysvar(result, expectedSlot) {
+  const account = normalizeAccountInfo(result, CLOCK_SYSVAR_ADDRESS, expectedSlot);
+  const bytes = Buffer.from(account.dataBase64, 'base64');
+  if (bytes.length !== 40) throw new Error('ARCHIVE_CLOCK_SYSVAR_LENGTH_INVALID');
+
+  const slot = bytes.readBigUInt64LE(0);
+  const epochStartTimestamp = bytes.readBigInt64LE(8);
+  const epoch = bytes.readBigUInt64LE(16);
+  const leaderScheduleEpoch = bytes.readBigUInt64LE(24);
+  const unixTimestamp = bytes.readBigInt64LE(32);
+  if (slot !== expectedSlot) throw new Error('ARCHIVE_CLOCK_SYSVAR_SLOT_MISMATCH');
+
+  return {
+    address: CLOCK_SYSVAR_ADDRESS,
+    slot,
+    epochStartTimestamp,
+    epoch,
+    leaderScheduleEpoch,
+    unixTimestamp,
+    accountDataSha256: account.accountDataSha256,
+    responseContextSlot: account.snapshotSlot,
   };
 }
 
@@ -385,6 +411,7 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
     genesis: `${requestPrefix}:genesis`,
     tip: `${requestPrefix}:tip`,
     block: `${requestPrefix}:block`,
+    clock: `${requestPrefix}:clock`,
   };
 
   try {
@@ -447,6 +474,24 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
       responseHashes.push(before.responseHash);
     }
 
+    // Clock is a sysvar updated by the runtime at the slot boundary and is
+    // stable for transactions executed in that slot. Read the Clock account
+    // at the transaction slot itself so period rollover uses the exact
+    // on-chain unix_timestamp rather than RPC blockTime's estimated value.
+    const clockRaw = await postRpc(
+      rpcUrl,
+      'getAccountInfo',
+      [CLOCK_SYSVAR_ADDRESS, {
+        encoding: 'base64',
+        commitment: 'finalized',
+        slot: Number(transactionSlot),
+      }],
+      idsForRpc.clock,
+      fetchImpl,
+    );
+    const clock = normalizeClockSysvar(clockRaw.result, transactionSlot);
+    responseHashes.push(clockRaw.responseHash);
+
     return {
       outcome: 'historical_snapshot',
       evidence: {
@@ -462,6 +507,7 @@ export async function fetchHistoricalSubscriptionAccountEvidence({
         finalizedTipSlot: BigInt(tip.result),
         snapshotCommitment: 'finalized',
         blockResponseHash: block.responseHash,
+        clock,
         accounts: evidence,
         rpcResponseSetSha256: createHash('sha256').update(responseHashes.join(':')).digest('hex'),
       },
