@@ -143,3 +143,16 @@ Official references:
 - [Supabase CLI v3 breaking-change notice](https://supabase.com/changelog/supabase-cli-v3)
 - [Supabase setup-cli action and version input](https://github.com/supabase/setup-cli)
 - [Supabase CLI v2.122.1 release](https://github.com/supabase/cli/releases/tag/v2.122.1)
+
+
+## 2026-11-06 — G0 closed by explicit owner confirmation
+
+**Current disposition: PASS / COMPLETE.** This section supersedes the interim OPEN/BLOCKED wording above, which described the state before the project owner completed the Dashboard action and before the three post-change log windows were available.
+
+- The project owner explicitly confirms that Supabase Project Settings → Integrations → GitHub Integration → `Deploy to production` is OFF.
+- Three subsequent main pushes (`d06c0546...`, `a39e1e0c...`, `514d3401...`) had normal records in all four Supabase log sources and zero independent migration-runner markers / PostgreSQL DDL or migration-apply matches.
+- Repository-controlled Production migration guard, exact-main CI, Production Build, Authentication Build Verification and Cloudflare Production deployment evidence passed.
+- Issue [#355](https://github.com/azad2022/solsite/issues/355) is CLOSED / COMPLETED.
+- The connected Supabase API still cannot independently read the provider toggle; this is recorded as **OWNER-CONFIRMED OFF**, not connector-read. Historical October runner actor remains UNKNOWN and is not a current G0 blocker.
+
+No Production DDL, migration APPLY, provider-setting mutation, credential/Secret/Key change or blockchain transaction was performed to close G0.

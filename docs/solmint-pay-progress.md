@@ -3559,6 +3559,78 @@ No runtime code, API contract, database schema, migration, RLS/grant, Cloudflare
 - G0 Production migration governance remains BLOCKED/UNKNOWN under Issue #355. G1 upstream TM-01 remediation remains BLOCKED; upstream repository has no accepted Program fix/PR for the stale-authority lifecycle. G2 business-contract freeze and production Subscription backend/accounting remain PARTIAL/BLOCKED / NOT IMPLEMENTED.
 
 
+## 2026-11-06 — G0 post-merge repository checkpoint
+
+Status: **REPOSITORY GOVERNANCE MERGED / PROVIDER VERIFICATION BLOCKED**
+
+### Repository and merge
+- Dedicated governance PR [#367](https://github.com/azad2022/solsite/pull/367) was squash-merged to `main`.
+- Merge commit: `d06c0546b9813c8cd461d3d7ec7b1ff44be32d4e`.
+- The change set is limited to the controlled Production migration workflow, its target/ref guard, negative regression tests, CI CLI-version check, migration policy and this Progress Ledger. It contains no SQL migration file.
+- The large Subscription PR #366 and its branch were not modified.
+
+### Exact-main-push validation
+All workflows triggered by the exact merge SHA on `main` completed successfully:
+- CI [42228310301](https://github.com/azad2022/solsite/actions/runs/42228310301): **PASS**. The quality job passed TypeScript typecheck, Production build, unit tests, fail-closed Production migration guard tests and source-tree cleanliness. The separate production-migration-cli job installed and verified Supabase CLI 2.122.1.
+- Production Build [42228310183](https://github.com/azad2022/solsite/actions/runs/42228310183): **PASS**.
+- Authentication Build Verification [42228310188](https://github.com/azad2022/solsite/actions/runs/42228310188): **PASS**.
+- Cloudflare Pages Production deployment [4a24ddc3-50bf-431a-82a3-f7cc0882fac0](https://4a24ddc3.solsite-9uh.pages.dev): **PASS**. It was triggered by `github:push` on `main` for the exact merge SHA; the final `deploy` stage succeeded and the `solmint.ir` alias remained attached.
+
+### Production database read-back
+- Supabase project `nvopkbiedorfshwbmyhn` remained `ACTIVE_HEALTHY`.
+- Read-only migration ledger contained 106 entries; latest remained `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- No Production `APPLY`, SQL mutation, DDL, migration, data mutation, credential/Secret/Key change, or blockchain transaction was performed during this checkpoint.
+
+### Independent Supabase runner — unresolved provider-side evidence
+- The project owner reports that Supabase Project Settings → Integrations → GitHub Integration → `Deploy to production` is OFF. Record this as **OWNER-REPORTED OFF**, not as an independent API read-back.
+- The connected Supabase API does not expose that provider-level toggle for direct read-back. Its saved state remains **UNKNOWN by independent read-back** (owner-reported OFF).
+- A fresh read-only query after log ingestion caught up found ordinary timestamped rows across all four unified-log sources for the interval after merge: `edge_logs` (3), `function_edge_logs` (1), `function_logs` (2), and `postgres_logs` (4), from 2026-11-06 13:50:00 through 13:51:48 UTC. In the post-merge query window, matching `Cloning git repo`, `Applying migration`, `workflow_run`, or `git_ref` markers = **0**; PostgreSQL DDL/migration-apply matches = **0**. This is **PASS for the observed post-merge main push only**: no independent Supabase migration runner execution was observed while normal logs were flowing. It is not a guarantee against future setting changes or every possible external path.
+- The historical initiating human/actor for the 2026-10-27 and 2026-10-28 runner executions remains **UNKNOWN**.
+- Issue [#355](https://github.com/azad2022/solsite/issues/355) remains **OPEN / BLOCKED** pending direct provider-setting read-back or a sufficiently populated post-change log/deployment-history window that proves the independent migration-apply path is inactive.
+
+### Effective control now merged
+- Production migration mutation is repository-controlled and fail-closed: explicit `workflow_dispatch`, `refs/heads/main`, full exact expected SHA matching `GITHUB_SHA`, checkout of that same SHA, project-specific Session Pooler/user/database/TLS validation, standalone password via `PGPASSWORD`, immediate dry-run, explicit `APPLY`, and migration-list read-back.
+- Supabase CLI is pinned to 2.122.1. Changes to the CLI major or pin require a separately reviewed change.
+- Future main merges alone cannot invoke the repository workflow's Production `APPLY` step; that step is only in the explicitly dispatched, guarded workflow. The separate Supabase provider toggle remains a distinct external control and must remain OFF for the approved manual-only policy.
+
+No Production schema/data, integration setting, credential, Secret, key, signer, customer consent, accounting record, Mainnet/Devnet transaction, or customer/merchant funds were changed in this checkpoint. Local Working Tree state was not available through the connected GitHub API and remains **UNKNOWN**.
+
+
+## 2026-11-06 — G0 post-toggle repeated main-push verification
+
+### Test conditions
+- The project owner reported that Supabase Project Settings → Integrations → GitHub Integration → `Deploy to production` was switched OFF before these pushes.
+- The connected Supabase API still does not expose that provider setting for independent read-back; state remains **OWNER-REPORTED OFF / API READ-BACK UNKNOWN**.
+- Two ordinary, reviewed PR merges then produced main-branch push events. Neither PR added a Supabase SQL migration file; the Production migration ledger was unchanged before and after.
+
+### Push 1 — PR #367 repository governance
+- Main commit: `d06c0546b9813c8cd461d3d7ec7b1ff44be32d4e`, created 2026-11-06 13:47:10 UTC.
+- GitHub main-push checks: CI [42228310301](https://github.com/azad2022/solsite/actions/runs/42228310301), Production Build [42228310183](https://github.com/azad2022/solsite/actions/runs/42228310183), and Authentication Build Verification [42228310188](https://github.com/azad2022/solsite/actions/runs/42228310188) all **SUCCESS**.
+- Cloudflare Pages Production deployed this exact SHA; deployment `4a24ddc3-50bf-431a-82a3-f7cc0882fac0` completed the deploy stage successfully.
+- After Supabase log ingestion caught up, the available post-merge window had normal records across all four sources: edge_logs (3), function_edge_logs (1), function_logs (2), postgres_logs (4).
+- Matching internal migration-runner markers (`Cloning git repo`, `Applying migration`, `workflow_run`, `git_ref`) = **0**; PostgreSQL DDL/migration-apply matches = **0**.
+
+### Push 2 — PR #368 Progress Ledger checkpoint
+- Main commit: `a39e1e0ce3a697802ac081e7e139201e6a0c5e76`, created 2026-11-06 13:54:16 UTC.
+- GitHub main-push checks: CI [42229272509](https://github.com/azad2022/solsite/actions/runs/42229272509), Production Build [42229272508](https://github.com/azad2022/solsite/actions/runs/42229272508), and Authentication Build Verification [42229272541](https://github.com/azad2022/solsite/actions/runs/42229272541) all **SUCCESS**.
+- Cloudflare Pages Production deployment `c6fbcb87-088c-464b-90f1-bcfae98ff9ea` was triggered by this exact `main` SHA and completed its deploy stage with status **success**.
+- Supabase log coverage after this push was present in all four sources: edge_logs (6), function_edge_logs (1), function_logs (2), postgres_logs (2), from 2026-11-06 13:55:00–13:55:03 UTC.
+- Matching internal migration-runner markers = **0**; PostgreSQL DDL/migration-apply matches = **0**.
+
+### Production database read-back
+- Supabase Production project `nvopkbiedorfshwbmyhn` remains `ACTIVE_HEALTHY`.
+- Migration ledger remains 106 entries; latest remains `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- No Production Migration `APPLY`, DDL, table/schema/data mutation, provider setting mutation, credential/Secret/Key mutation, or blockchain transaction was performed during these checks.
+- Historical 2026-10-27 / 2026-10-28 runner records remain confirmed; historical initiating human/actor remains **UNKNOWN**.
+
+### G0 disposition
+- Repository controlled Production migration workflow and fail-closed guard: **PASS** (merged in PR #367; exact main-push CI passed).
+- Two post-owner-reported-OFF main pushes with usable Supabase logs and no independent runner/DDL evidence: **PASS for both observed pushes**.
+- Production database health and unchanged migration ledger: **PASS**.
+- Provider toggle direct API read-back: **UNKNOWN**; dashboard state remains owner-reported OFF.
+- The tested effective path shows no recurrence of the independent runner on either post-change main push. Preserve the provider read-back limitation; do not claim the historical actor is identified or that all future configurations are immutable.
+
+
 ## 2026-11-06 — G0 closed; G1 local Program-fork execution plan checkpoint
 
 ### G0 — PASS / COMPLETE
