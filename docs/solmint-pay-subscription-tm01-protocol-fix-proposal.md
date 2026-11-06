@@ -222,3 +222,10 @@ These require upstream protocol/product/security review before implementation:
 - SolMint Subscription API, schema, consent runtime, Collector, verifier/accounting, billing worker, Devnet Subscription E2E and UI: **NOT IMPLEMENTED**.
 
 No Product runtime, Production database, Supabase/Cloudflare setting, secret/key, Collector signer, customer consent, Devnet/Mainnet transaction, Program upgrade, Squads proposal or funds were changed by this proposal.
+
+
+## 2026-11-06 — Owner decision: preserve all Subscription capabilities
+
+The owner explicitly rejects product de-scoping as a security workaround. All planned capabilities remain in scope; any temporary stop-ship restriction is not a permanent removal. Use the capability-preserving remediation plan `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md`. Never enable a capability until the upstream protocol control, compatibility, adversarial test, independent review and deployed verification for that capability pass.
+
+TM-01 private security report `GHSA-hvvh-pvqw-g3gx` is in maintainer triage. It is not yet accepted or fixed.
