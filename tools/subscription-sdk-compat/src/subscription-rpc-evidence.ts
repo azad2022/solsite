@@ -229,7 +229,10 @@ function deserializeWireTransaction(wire: Uint8Array): DecodedWireTransaction {
   // Version 1 uses a different transaction wire layout: message first,
   // followed by signatures. Legacy and v0 use shortvec(signature count),
   // signatures, then message.
-  if (wire[0] === 0x81) return deserializeV1WireTransaction(wire);
+  if ((wire[0] & 0x80) !== 0) {
+    if (wire[0] === 0x81) return deserializeV1WireTransaction(wire);
+    throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
+  }
 
   const signatureVector = readShortVector(wire, 0);
   if (!isIntegerInRange(signatureVector.value, 1, 64)) {
