@@ -185,7 +185,7 @@ function makeFixture({ versioned = false } = {}) {
       blockTime: 1_800_000_001,
       meta,
       slot: 500,
-      transaction: [wire.toString('base64'), 'base64'],
+      transaction: [Buffer.from(wire).toString('base64'), 'base64'],
       version: versioned ? 0 : 'legacy',
     },
   });
