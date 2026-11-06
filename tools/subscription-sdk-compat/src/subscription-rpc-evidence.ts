@@ -136,6 +136,7 @@ function deserializeWireTransaction(wire: Uint8Array): {
   readonly message: MessageLike;
   readonly signature: string;
   readonly transactionVersion: 'legacy' | 0;
+  readonly signatureCount: number;
 } {
   const signatureVector = readShortVector(wire, 0);
   if (!isIntegerInRange(signatureVector.value, 1, 64)) {
@@ -158,10 +159,15 @@ function deserializeWireTransaction(wire: Uint8Array): {
     if (transaction.signatures.length !== signatureVector.value) {
       throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
     }
+    const messageBytes = transaction.message.serialize();
+    if (Buffer.compare(Buffer.from(messageBytes), Buffer.from(wire.subarray(messageOffset))) !== 0) {
+      throw new Error('RPC_TRANSACTION_MESSAGE_WIRE_MISMATCH');
+    }
     return {
       message: transaction.message as unknown as MessageLike,
       signature: base58Encode(signatureBytes),
       transactionVersion: 0,
+      signatureCount: signatureVector.value,
     };
   }
 
@@ -174,10 +180,15 @@ function deserializeWireTransaction(wire: Uint8Array): {
     throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
   }
   const message = transaction.compileMessage();
+  const messageBytes = message.serialize();
+  if (Buffer.compare(Buffer.from(messageBytes), Buffer.from(wire.subarray(messageOffset))) !== 0) {
+    throw new Error('RPC_TRANSACTION_MESSAGE_WIRE_MISMATCH');
+  }
   return {
     message: message as unknown as MessageLike,
     signature: base58Encode(signatureBytes),
     transactionVersion: 'legacy',
+    signatureCount: signatureVector.value,
   };
 }
 
@@ -321,6 +332,9 @@ function normalizeTransaction(
     !isIntegerInRange(header.numReadonlySignedAccounts, 0, header.numRequiredSignatures) ||
     !isIntegerInRange(header.numReadonlyUnsignedAccounts, 0, staticKeys.length - header.numRequiredSignatures)
   ) throw new Error('RPC_MESSAGE_HEADER_INVALID');
+  if (decoded.signatureCount !== header.numRequiredSignatures) {
+    throw new Error('RPC_TRANSACTION_SIGNATURE_HEADER_COUNT_MISMATCH');
+  }
 
   const loaded = normalizeLoadedAddresses(meta, message);
   const accountKeys = [...staticAddresses, ...loaded.writable, ...loaded.readonly];
