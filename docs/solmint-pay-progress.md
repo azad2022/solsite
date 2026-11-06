@@ -2054,3 +2054,40 @@ The available Supabase connector does not expose the GitHub Integration dashboar
   - Production Build run [42226119185](https://github.com/azad2022/solsite/actions/runs/42226119185): **SUCCESS**.
 - **Provider-side gate remains BLOCKED / UNKNOWN:** Supabase Dashboard's independent GitHub Integration `Deploy to production` setting cannot be inspected or changed through the currently connected Supabase tools. Zero recent matching log rows do not prove it is OFF. The setting must be directly read back in the Dashboard; if enabled and manual-only deployment remains the approved policy, turn it OFF, then verify the saved state and inspect subsequent deployment history. Keep Issue #355 OPEN until that evidence exists.
 - No Production DDL/data/migration, provider integration setting, GitHub/Supabase Secret or credential, signer/key, Mainnet/Devnet transaction, customer consent, accounting posting or funds were changed. No Production `APPLY` was dispatched. The local Working Tree was not accessible through the remote connector and remains UNKNOWN.
+
+
+## 2026-11-06 — G0 post-merge repository checkpoint
+
+Status: **REPOSITORY GOVERNANCE MERGED / PROVIDER VERIFICATION BLOCKED**
+
+### Repository and merge
+- Dedicated governance PR [#367](https://github.com/azad2022/solsite/pull/367) was squash-merged to `main`.
+- Merge commit: `d06c0546b9813c8cd461d3d7ec7b1ff44be32d4e`.
+- The change set is limited to the controlled Production migration workflow, its target/ref guard, negative regression tests, CI CLI-version check, migration policy and this Progress Ledger. It contains no SQL migration file.
+- The large Subscription PR #366 and its branch were not modified.
+
+### Exact-main-push validation
+All workflows triggered by the exact merge SHA on `main` completed successfully:
+- CI [42228310301](https://github.com/azad2022/solsite/actions/runs/42228310301): **PASS**. The quality job passed TypeScript typecheck, Production build, unit tests, fail-closed Production migration guard tests and source-tree cleanliness. The separate production-migration-cli job installed and verified Supabase CLI 2.122.1.
+- Production Build [42228310183](https://github.com/azad2022/solsite/actions/runs/42228310183): **PASS**.
+- Authentication Build Verification [42228310188](https://github.com/azad2022/solsite/actions/runs/42228310188): **PASS**.
+- Cloudflare Pages Production deployment [4a24ddc3-50bf-431a-82a3-f7cc0882fac0](https://4a24ddc3.solsite-9uh.pages.dev): **PASS**. It was triggered by `github:push` on `main` for the exact merge SHA; the final `deploy` stage succeeded and the `solmint.ir` alias remained attached.
+
+### Production database read-back
+- Supabase project `nvopkbiedorfshwbmyhn` remained `ACTIVE_HEALTHY`.
+- Read-only migration ledger contained 106 entries; latest remained `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- No Production `APPLY`, SQL mutation, DDL, migration, data mutation, credential/Secret/Key change, or blockchain transaction was performed during this checkpoint.
+
+### Independent Supabase runner — unresolved provider-side evidence
+- The project owner reports that Supabase Project Settings → Integrations → GitHub Integration → `Deploy to production` is OFF. Record this as **OWNER-REPORTED OFF**, not as an independent API read-back.
+- The connected Supabase API does not expose that provider-level toggle for direct read-back.
+- A log query beginning at the exact merge timestamp found no runner/migration markers, but it also returned no records from any Supabase log source in that interval. Log coverage/ingestion for this post-merge interval is therefore **UNKNOWN**; absence of rows must not be treated as proof that the runner did not execute.
+- The historical initiating human/actor for the 2026-10-27 and 2026-10-28 runner executions remains **UNKNOWN**.
+- Issue [#355](https://github.com/azad2022/solsite/issues/355) remains **OPEN / BLOCKED** pending direct provider-setting read-back or a sufficiently populated post-change log/deployment-history window that proves the independent migration-apply path is inactive.
+
+### Effective control now merged
+- Production migration mutation is repository-controlled and fail-closed: explicit `workflow_dispatch`, `refs/heads/main`, full exact expected SHA matching `GITHUB_SHA`, checkout of that same SHA, project-specific Session Pooler/user/database/TLS validation, standalone password via `PGPASSWORD`, immediate dry-run, explicit `APPLY`, and migration-list read-back.
+- Supabase CLI is pinned to 2.122.1. Changes to the CLI major or pin require a separately reviewed change.
+- Future main merges alone cannot invoke the repository workflow's Production `APPLY` step; that step is only in the explicitly dispatched, guarded workflow. The separate Supabase provider toggle remains a distinct external control and must remain OFF for the approved manual-only policy.
+
+No Production schema/data, integration setting, credential, Secret, key, signer, customer consent, accounting record, Mainnet/Devnet transaction, or customer/merchant funds were changed in this checkpoint. Local Working Tree state was not available through the connected GitHub API and remains **UNKNOWN**.
