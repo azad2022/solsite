@@ -3768,3 +3768,54 @@ The other four main-side changed paths (Production migration workflow, guard scr
 - All product capabilities remain in scope; none has been permanently de-scoped.
 
 No Production DDL/data/provider setting, Secret/Key, signer, customer consent, accounting post, Program upgrade/deployment, Squads proposal, Mainnet/Devnet write or customer fund movement occurred during G1-0.
+
+
+## 2026-11-06 — G1-1 independent source repository and Cantina residual baseline
+
+### G1-0 exact completion
+- Reconciled Subscription branch exact HEAD `f908440cf75b28299b1322e39f1148176e3c7c8c`: all 13 applicable check runs **SUCCESS**; Supabase Preview was **SKIPPED** under policy.
+- CI [42233967558](https://github.com/azad2022/solsite/actions/runs/42233967558), Production Build [42233967582](https://github.com/azad2022/solsite/actions/runs/42233967582), Devnet E2E [42233967417](https://github.com/azad2022/solsite/actions/runs/42233967417), Database Security [42233967519](https://github.com/azad2022/solsite/actions/runs/42233967519), Mainnet Read-only [42233967433](https://github.com/azad2022/solsite/actions/runs/42233967433), and Cloudflare Pages PR preview [127947226759](https://github.com/azad2022/solsite/runs/127947226759) all **SUCCESS**.
+- PR #366 is OPEN / DRAFT / NOT MERGED, `mergeable=true`, `mergeable_state=clean`; feature branch is 317 commits ahead / 0 behind main.
+- G1-0: **PASS / COMPLETE**.
+
+### Independent source repository created
+- Created SolMint-controlled public fork: [azad2022/solmint-subscriptions-program](https://github.com/azad2022/solmint-subscriptions-program).
+- Fork default `main` tracks upstream latest `4e8cdb4e84d8ac9e2f0fac6ab2ab3510b7254899`; no write was made to upstream.
+- Created pristine `solmint/v0.5.0-baseline` and work branch `feat/solmint-g1-authority-vnext`, both at exact immutable `program-v0.5.0` tag commit `364a41976c33347d092902443bbec2def9227e75`.
+- Upstream MIT `LICENSE` and copyright notice are retained. Workspace version is `0.5.0-beta.1`; Rust toolchain pin 1.92; Solana CLI pin 3.1.10.
+- Documentation-only provenance commit in fork: `d9e18eb3d7a494209aba04efd7c0562f2c942aa4`, file `docs/solmint-security-remediation-baseline.md`.
+- Fork PR [#1](https://github.com/azad2022/solmint-subscriptions-program/pull/1) is OPEN / DRAFT, head `d9e18eb...`, base `solmint/v0.5.0-baseline`. Fork PR CI is pending at this checkpoint.
+- No Program source, IDL, Program ID, keypair, signer, deployment, upgrade or transaction was changed/created.
+
+### Pinned baseline reproducible build
+- SolMint CI run [42233967558](https://github.com/azad2022/solsite/actions/runs/42233967558), job `subscription-reproducible-build`: **SUCCESS** for exact source commit `364a419...`.
+- Sanitized artifact: `solmint-subscription-reproducible-build`, artifact ID `13510673502`.
+- `solana-verify` 0.5.2; Solana CLI 3.1.10; repository rust-toolchain 1.92; SBF build-container Rust 1.86.0.
+- Docker digest: `sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3`.
+- Baseline ELF SHA-256: `056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318`.
+- Baseline IDL SHA-256: `1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa`.
+- These identify the unmodified upstream v0.5.0 baseline only; they are not VNext build or deployment evidence.
+
+### Cantina report residuals to close
+The attached Cantina Managed report dated 2026-07-30 records 9 findings: 4 Fixed and 5 Acknowledged. G1 must close the acknowledged residuals rather than treating acknowledgement as a fix:
+- High old signed create bundle restores revoked Authority / `u64::MAX` approval — acknowledged, not fixed.
+- Medium stale Authority Init/Close/Revoke approvals are not generation-bound — acknowledged, not fixed.
+- Medium CancelSubscriptionNow uses timestamp binding, not a unique incarnation; same-second replay remains a required test.
+- Medium Resume uses expected expiry timestamp but lacks persistent monotonic cancellation revision; collision/replay remains a required test.
+- Medium Subscribe can accept a finite Plan without a complete first period remaining; must be fixed without changing agreed billing semantics.
+- Low automatic rent sponsorship remains a product feature but must become explicit/bounded with recoverable sponsor terms and quotas.
+- UpdatePlan stale approvals, optional CreatePlan payer/IDL and IDL generation failure were previously verified fixed; their regression tests must remain.
+
+### Isolation hypothesis
+- Leading VNext route: new Program ID + customer-owned dedicated non-ATA source token account, with VNext Authority bound to that exact source account.
+- **NOT PROVEN**: G1-5 must demonstrate using exact v0.5.0 source/binary in LiteSVM that every old Init/Subscribe/Fixed/Recurring/Transfer path rejects or cannot mutate/debit the VNext non-ATA account.
+- A new Program ID does not invalidate old signed transactions against legacy ATAs. Legacy Plans, Subscriptions and funds require explicit user/merchant migration and fresh consent. The old Program remains active for legacy accounts.
+- Reusing the existing Program ID requires its existing Squads upgrade authority; no governance bypass is permitted.
+
+### Current G1 state
+- G1-0: **PASS / COMPLETE**.
+- G1-1: **IN PROGRESS** — independent fork, immutable source baseline, MIT provenance and reproducible baseline build established; fork PR CI and source-level VNext implementation are pending.
+- G1-2 protocol/ABI freeze; G1-3 Program implementation; G1-4 legacy migration; G1-5 adversarial proof; G1-6 independent audit; G1-7 Devnet release; G1-8 separately authorized Mainnet deployment/migration: **NOT STARTED**.
+- G1 overall: **BLOCKED** until VNext source/IDL, explicit migration, adversarial proof, independent audit and deployment evidence are complete.
+
+No Production database/configuration, Secret/Key/signer, customer consent, accounting entry, Mainnet/Devnet write, Program deployment/upgrade, Squads proposal or customer funds changed in this checkpoint. Local Working Tree remains UNKNOWN through the GitHub connector.
