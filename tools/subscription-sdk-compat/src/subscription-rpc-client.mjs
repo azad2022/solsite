@@ -169,7 +169,7 @@ export async function fetchFinalizedSubscriptionTransactionEvidence({
         {
           commitment: 'finalized',
           encoding: 'base64',
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion: 1,
         },
       ],
       ids.transaction,
