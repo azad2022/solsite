@@ -21,6 +21,8 @@ interface RpcProvenance {
   readonly clusterGenesisHash: string;
   /** Non-secret allowlisted provider alias, never an endpoint URL. */
   readonly providerId: string;
+  /** JSON-RPC request id; response correlation is mandatory. */
+  readonly requestId: string | number;
   /** Derived from finalized Program + ProgramData account evidence. */
   readonly programDeployment: ProgramDeploymentAttestation | null;
 }
@@ -153,9 +155,13 @@ function deserializeWireTransaction(wire: Uint8Array): {
     if (version !== 0) throw new Error('RPC_TRANSACTION_VERSION_UNSUPPORTED');
     const transaction = VersionedTransaction.deserialize(Buffer.from(wire));
     const signatureBytes = transaction.signatures[0];
-    if (!(signatureBytes instanceof Uint8Array) || signatureBytes.length !== 64 || signatureBytes.every(byte => byte === 0)) {
-      throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
-    }
+    if (
+      transaction.signatures.length === 0 ||
+      transaction.signatures.some(signature =>
+        !(signature instanceof Uint8Array) || signature.length !== 64 || signature.every(byte => byte === 0)
+      )
+    ) throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
+    if (!transaction.verifySignatures()) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
     if (transaction.signatures.length !== signatureVector.value) {
       throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
     }
@@ -173,9 +179,13 @@ function deserializeWireTransaction(wire: Uint8Array): {
 
   const transaction = Transaction.from(Buffer.from(wire));
   const signatureBytes = transaction.signatures[0]?.signature;
-  if (!signatureBytes || signatureBytes.length !== 64 || signatureBytes.every(byte => byte === 0)) {
-    throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
-  }
+  if (
+    transaction.signatures.length === 0 ||
+    transaction.signatures.some(signature =>
+      !signature.signature || signature.signature.length !== 64 || signature.signature.every(byte => byte === 0)
+    )
+  ) throw new Error('RPC_TRANSACTION_SIGNATURE_MISSING');
+  if (!transaction.verifySignatures()) throw new Error('RPC_TRANSACTION_SIGNATURE_VERIFICATION_FAILED');
   if (transaction.signatures.length !== signatureVector.value) {
     throw new Error('RPC_TRANSACTION_SIGNATURE_COUNT_MISMATCH');
   }
@@ -489,9 +499,14 @@ export function normalizeSubscriptionGetTransactionResponse(
 
   try {
     const payload: unknown = JSON.parse(rawResponseBody);
-    if (!isRecord(payload) || !Object.hasOwn(payload, 'result')) {
-      return unknown('JSON-RPC response envelope or result is missing.');
-    }
+    if (
+      !isRecord(payload) ||
+      payload.jsonrpc !== '2.0' ||
+      !Object.hasOwn(payload, 'id') ||
+      payload.id !== provenance.requestId ||
+      Object.hasOwn(payload, 'error') ||
+      !Object.hasOwn(payload, 'result')
+    ) return unknown('JSON-RPC version, request correlation, error or result envelope is invalid.');
     if (payload.result === null) return unknown('The configured RPC did not return the requested transaction.');
     if (!isRecord(payload.result)) return unknown('getTransaction result has an unsupported JSON shape.');
 
