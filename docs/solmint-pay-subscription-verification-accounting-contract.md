@@ -45,7 +45,8 @@ The facts below were checked against the exact pinned Program source and IDL abo
   8. Token Program — read-only;
   9. event-authority PDA — read-only;
   10. this Program ID — read-only.
-- The Rust account parser accepts a trailing `remaining` account slice. V1 verification must not silently accept arbitrary remaining accounts. The exact supported remaining-account set must be derived from the pinned `transfer_with_delegate` helper and the chosen original SPL Token path; until that source and a golden transaction fixture are checked, any non-empty trailing set is rejected.
+- The Rust account parser accepts a trailing `remaining` account slice. The exact pinned helper `program/src/instructions/helpers/transfer_utils.rs` (blob `241937f6ad46877c3d29f01f62109f5c33bf781e`) confirms that a mint with an active Transfer Hook forwards this slice to the hook CPI; without a hook it is ignored. SolMint v1 excludes Token-2022 and TransferHook, so the supported original SPL Token path requires **zero** trailing accounts. Reject every non-empty trailing account list.
+- For original SPL Token with no hook, the pinned helper invokes `TransferChecked` signed by the SubscriptionAuthority PDA, with source ATA, Mint, receiver ATA, authority PDA, exact `u64` amount and Mint decimals. The transaction verifier must match the inner SPL Token instruction and its account metas to this exact CPI path.
 - The transaction message fee payer is not an instruction account in this list. It must be derived from the actual transaction message/signature structure and checked separately against the approved Merchant-funded fee-payer policy.
 
 ### 2.2 On-chain checks and effects
@@ -112,7 +113,7 @@ A verifier result is valid only if every stage succeeds. It must return structur
 - Caller/Puller must sign and be either the Plan Owner or an explicitly configured Plan Puller in the same finalized Plan snapshot.
 - The source token account must be the subscriber's expected ATA; destination token account owner must be in the non-empty Plan allowlist and match the expected Merchant settlement owner.
 - Validate every inner instruction/CPI and token-balance effect associated with the transaction. Reject additional token transfers, unexpected programs/instructions, extra Subscription pulls, unapproved account metas, or ambiguous CPI mapping.
-- Until the pinned `transfer_with_delegate` helper and its CPI shape are included in the golden fixtures, this stage is NOT IMPLEMENTED and the verifier must not return success.
+- The pinned helper/CPI shape is now source-verified as described in §2.3; the implementation must still prove it from finalized transaction metadata and golden fixtures before returning success.
 
 ### V4 — Token movement
 
