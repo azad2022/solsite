@@ -11,6 +11,8 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import { normalizeSubscriptionGetTransactionResponse } from '../dist/subscription-rpc-evidence.js';
+import { attestSubscriptionProgramDeployment } from '../src/subscription-programdata-attestation.mjs';
+import { deriveProgramDataAddress, UPGRADEABLE_LOADER_PROGRAM_ID } from '../src/upgradeable-loader.mjs';
 import { verifySubscriptionTransferTransaction } from '../dist/subscription-transaction-verifier.js';
 
 const PROGRAM = 'De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44';
@@ -18,7 +20,8 @@ const TOKEN = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const ASSOCIATED_TOKEN = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 const GENESIS = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
 const SOURCE_COMMIT = '364a41976c33347d092902443bbec2def9227e75';
-const ELF_SHA256 = 'a'.repeat(64);
+const ELF_BYTES = Buffer.from('solmint-pinned-program-elf-fixture-v1', 'utf8');
+const ELF_SHA256 = createHash('sha256').update(ELF_BYTES).digest('hex');
 const AMOUNT = 250n;
 const PERIOD_START = 1_800_000_000n;
 const PERIOD_END = PERIOD_START + 2_592_000n;
@@ -36,6 +39,51 @@ function base58Encode(bytes) {
   let leading = 0;
   while (leading < bytes.length && bytes[leading] === 0) leading += 1;
   return '1'.repeat(leading) + encoded;
+}
+
+
+function makeProgramDataAttestation(transactionSlot) {
+  const programDataAddress = deriveProgramDataAddress(PROGRAM);
+  const programState = Buffer.alloc(36);
+  programState.writeUInt32LE(2, 0);
+  new PublicKey(programDataAddress).toBuffer().copy(programState, 4);
+
+  const programDataState = Buffer.alloc(13 + ELF_BYTES.length + 8);
+  programDataState.writeUInt32LE(3, 0);
+  programDataState.writeBigUInt64LE(400n, 4);
+  programDataState[12] = 0;
+  ELF_BYTES.copy(programDataState, 13);
+
+  const requestId = 'subscription-programdata-fixture';
+  const raw = JSON.stringify({
+    jsonrpc: '2.0',
+    id: requestId,
+    result: {
+      context: { slot: 600 },
+      value: [
+        {
+          data: [programState.toString('base64'), 'base64'],
+          executable: true,
+          owner: UPGRADEABLE_LOADER_PROGRAM_ID,
+        },
+        {
+          data: [programDataState.toString('base64'), 'base64'],
+          executable: false,
+          owner: UPGRADEABLE_LOADER_PROGRAM_ID,
+        },
+      ],
+    },
+  });
+  const result = attestSubscriptionProgramDeployment(raw, {
+    requestId,
+    providerId: 'helius-devnet-tests',
+    requestedCommitment: 'finalized',
+    transactionSlot,
+    expectedSourceCommit: SOURCE_COMMIT,
+    expectedElfSha256: ELF_SHA256,
+  });
+  assert.equal(result.outcome, 'attested');
+  return result.attestation;
 }
 
 function derivePda(seeds, programId = PROGRAM) {
@@ -240,13 +288,7 @@ function makeFixture({ versioned = false } = {}) {
     providerId: 'helius-devnet-tests',
     requestId: 1,
     programDeployment: {
-      programAddress: PROGRAM,
-      sourceCommit: SOURCE_COMMIT,
-      elfSha256: ELF_SHA256,
-      deploymentSlot: 400n,
-      readAtSlot: 600n,
-      readCommitment: 'finalized',
-      attestationKind: 'current-finalized-programdata',
+      ...makeProgramDataAttestation(500n),
     },
   };
 
