@@ -61,6 +61,7 @@ export interface SubscriptionTokenBalance {
 
 export interface SubscriptionTransactionEvidence {
   readonly signature: string;
+  readonly transactionVersion: 'legacy' | 0 | 1;
   readonly messageHash: string;
   readonly commitment: string;
   readonly clusterGenesisHash: string;
