@@ -917,6 +917,48 @@ try {
     ['SOL', 'USDC', 'USDT'],
   );
   for (const asset of walletBalanceData.assets) assert.match(String(asset.balanceAtomic), /^\d+$/);
+
+  // Exercise the exact mobile breakpoint reported by the user. The account-name
+  // wrapper is intentionally hidden there; the wallet-address action must not be.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const addressCopyButton = accountMenu.locator('.pay-account-address-copy');
+  await addressCopyButton.waitFor({ state: 'visible', timeout: 5000 });
+  const copyButtonGeometry = await addressCopyButton.evaluate((button) => {
+    const style = window.getComputedStyle(button);
+    const rect = button.getBoundingClientRect();
+    return {
+      display: style.display,
+      visibility: style.visibility,
+      width: rect.width,
+      height: rect.height,
+      text: button.textContent?.trim() || '',
+    };
+  });
+  assert.notEqual(copyButtonGeometry.display, 'none', 'Wallet address copy button must remain displayed at a 390px mobile viewport.');
+  assert.equal(copyButtonGeometry.visibility, 'visible', 'Wallet address copy button must remain visible at a 390px mobile viewport.');
+  assert.ok(copyButtonGeometry.width > 0 && copyButtonGeometry.height > 0, 'Wallet address copy button must retain a usable touch target on mobile.');
+
+  await page.evaluate(() => {
+    let captured = '';
+    Object.defineProperty(window, '__solmintCapturedWalletAddress', {
+      configurable: true,
+      get: () => captured,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (value) => { captured = String(value); } },
+    });
+  });
+  await addressCopyButton.click();
+  const copiedWalletAddress = await page.evaluate(() => window.__solmintCapturedWalletAddress || '');
+  assert.equal(copiedWalletAddress, generatedAddress, 'Mobile copy action must copy the full authoritative wallet address, not its shortened display text.');
+  console.log('MOBILE_WALLET_ADDRESS_COPY_PASS ' + JSON.stringify({
+    viewportWidth: 390,
+    visible: true,
+    touchTarget: { width: Math.round(copyButtonGeometry.width), height: Math.round(copyButtonGeometry.height) },
+    copiedFullAddress: copiedWalletAddress === generatedAddress,
+  }));
+
   const accountMenuText = await accountMenu.innerText();
   assert.ok(accountMenuText.includes('SOL') && accountMenuText.includes('USDT') && accountMenuText.includes('USDC'));
   assert.equal(accountMenuText.includes('sk_pay_'), false);
