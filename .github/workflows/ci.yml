@@ -317,7 +317,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: solmint-subscription-reproducible-build
-          path: artifacts/subscription-program-reproducible-build.json
+          path: |
+            artifacts/subscription-program-reproducible-build.json
+            solana-verify
           if-no-files-found: error
           retention-days: 30
 
@@ -425,6 +427,7 @@ jobs:
 
 
   subscription-vnext-authority-registry:
+    needs: subscription-reproducible-build
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -469,11 +472,15 @@ jobs:
         working-directory: vnext-subscriptions
         run: cargo test -p subscriptions-program
 
-      - name: Download pinned solana-verify CLI and verify checksum
+      - name: Download checksum-verified solana-verify artifact from reproducible build
+        uses: actions/download-artifact@v4
+        with:
+          name: solmint-subscription-reproducible-build
+          path: ${{ github.workspace }}
+
+      - name: Re-verify pinned solana-verify CLI checksum
         run: |
-          curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 180 \
-            https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
-            --output solana-verify
+          test -s solana-verify
           echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
           chmod 0755 solana-verify
           ./solana-verify --version
