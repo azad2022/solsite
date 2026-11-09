@@ -523,7 +523,7 @@ jobs:
         working-directory: vnext-subscriptions
         env:
           SOLMINT_LEGACY_PROGRAM_SO: ${{ github.workspace }}/legacy-subscriptions/target/deploy/subscriptions_program.so
-        run: cargo test -p tests-subscriptions vnext_legacy_program_cannot_delegate_a_non_ata_source -- --ignored
+        run: cargo test -p tests-subscriptions vnext_legacy_program_ -- --ignored
 
       - name: Regenerate Codama IDL from exact Rust source
         working-directory: vnext-subscriptions
