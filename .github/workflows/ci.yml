@@ -471,7 +471,7 @@ jobs:
 
       - name: Download pinned solana-verify CLI and verify checksum
         run: |
-          curl --fail --silent --show-error --location \
+          curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 180 \
             https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
             --output solana-verify
           echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
