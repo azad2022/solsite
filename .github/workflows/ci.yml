@@ -167,6 +167,23 @@ jobs:
           test "$actual" = "$expected"
           echo "Only the test module registration and new regression test are overlaid."
 
+      - name: Suppress ephemeral CI keypair mnemonic output in pinned setup action
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          action = Path("upstream-subscriptions/.github/actions/setup/action.yml")
+          source = action.read_text()
+          original = "[ -f ~/.config/solana/id.json ] || solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json"
+          replacement = "if [ ! -f ~/.config/solana/id.json ]; then solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json >/dev/null 2>&1 || { echo \"::error::Ephemeral CI keypair generation failed; output suppressed.\"; exit 1; }; fi"
+          if source.count(original) != 1:
+              raise SystemExit("Pinned setup action keypair command changed; refusing an ambiguous redaction patch")
+          action.write_text(source.replace(original, replacement))
+          print("PASS: ephemeral CI key generation output is suppressed before setup action execution")
+          PY
+
       - name: Install pinned upstream Rust / Solana test toolchain
         uses: ./upstream-subscriptions/.github/actions/setup
         with:
@@ -175,11 +192,16 @@ jobs:
           rust-cache-key: 'solmint-tm06-sponsored-plan-refund'
           install-pnpm: 'false'
           install-pnpm-dependencies: 'false'
+          install-just: 'false'
           install-surfpool: 'false'
 
       - name: Run sponsored Plan rent refund regression on pinned Program
         working-directory: upstream-subscriptions
-        run: just integration-test sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor
+        run: |
+          set -euo pipefail
+          (cd program && cargo build-sbf)
+          (cd tests/transfer-hook-example && cargo build-sbf)
+          cargo test -p tests-subscriptions sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor
 
   subscription-atomic-split-transfer:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
@@ -218,6 +240,23 @@ jobs:
           test "$actual" = "$expected"
           echo "Only the pinned upstream TransferSubscription integration-test file was changed."
 
+      - name: Suppress ephemeral CI keypair mnemonic output in pinned setup action
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          action = Path("upstream-subscriptions/.github/actions/setup/action.yml")
+          source = action.read_text()
+          original = "[ -f ~/.config/solana/id.json ] || solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json"
+          replacement = "if [ ! -f ~/.config/solana/id.json ]; then solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json >/dev/null 2>&1 || { echo \"::error::Ephemeral CI keypair generation failed; output suppressed.\"; exit 1; }; fi"
+          if source.count(original) != 1:
+              raise SystemExit("Pinned setup action keypair command changed; refusing an ambiguous redaction patch")
+          action.write_text(source.replace(original, replacement))
+          print("PASS: ephemeral CI key generation output is suppressed before setup action execution")
+          PY
+
       - name: Install pinned upstream Rust / Solana test toolchain
         uses: ./upstream-subscriptions/.github/actions/setup
         with:
@@ -226,11 +265,16 @@ jobs:
           rust-cache-key: 'solmint-atomic-split-transfer'
           install-pnpm: 'false'
           install-pnpm-dependencies: 'false'
+          install-just: 'false'
           install-surfpool: 'false'
 
       - name: Run atomic split-transfer and full pinned integration regression suite
         working-directory: upstream-subscriptions
-        run: just integration-test
+        run: |
+          set -euo pipefail
+          (cd program && cargo build-sbf)
+          (cd tests/transfer-hook-example && cargo build-sbf)
+          cargo test -p tests-subscriptions
 
   subscription-reproducible-build:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
@@ -256,10 +300,12 @@ jobs:
           grep -F 'channel = "1.92"' rust-toolchain.toml
           grep -F 'name = "subscriptions_program"' program/Cargo.toml
 
-      - name: Download pinned solana-verify CLI and verify release checksum
+      - name: Download pinned solana-verify CLI from immutable release asset
         run: |
           curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 180 \
-            https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
+            --header "Accept: application/octet-stream" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/solana-foundation/solana-verifiable-build/releases/assets/579129981 \
             --output solana-verify
           echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
           chmod 0755 solana-verify
