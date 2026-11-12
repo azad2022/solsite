@@ -4061,3 +4061,65 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - G1-8 separate Program ID/Mainnet deployment/migration: NOT IMPLEMENTED.
 - Overall G1 remains BLOCKED.
 - No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Subscription Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed by this task. The ordinary Pay Devnet E2E ran separately and is not Subscription transaction evidence; Mainnet checks were read-only.
+
+
+## 2026-11-12 — Exact-head VNext CI PASS; G1-5 remains BLOCKED
+
+### Repository and exact refs
+- SolMint repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`; PR #366 remains OPEN / DRAFT / NOT MERGED.
+- SolMint source HEAD for this verified CI: `11c9e20e6de5984d4b71d7053ed560375e8ad07c`; base `main` HEAD: `514d3401d8d725be106ab0c83557f8e43cdff13e`. Compare: 381 commits ahead, 0 behind.
+- VNext Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`; PR #1 remains OPEN / DRAFT / NOT MERGED.
+- Exact VNext source HEAD: `86b6b4d8b30662bd3d9d257305e742407349f758`; immutable v0.5.0 baseline: `364a41976c33347d092902443bbec2def9227e75`.
+- Local Working Tree remains UNKNOWN; this checkpoint was verified through GitHub remote refs and Actions, not a local clone.
+
+### Narrow test correction and CI pin
+- Fork commit `86b6b4d8b30662bd3d9d257305e742407349f758` changes only `tests/integration-tests/src/test_vnext_subscription.rs` (4 additions / 3 deletions). The re-signed stale Subscribe replay after a successful re-subscription is now expected to fail with `AlreadySubscribed`, because the runtime checks the active Subscription PDA before advancing/checking the lifecycle Registry. The earlier held stale Subscribe, submitted after CancelNow but before re-subscription, continues to assert `StaleSubscriptionLifecycleRevision`; the stale Transfer after re-subscription continues to assert the persistent lifecycle revision failure. No Program runtime, account layout, instruction ABI, or financial logic changed.
+- SolMint commit `11c9e20e6de5984d4b71d7053ed560375e8ad07c` updates exactly the two immutable VNext source pins in `.github/workflows/ci.yml` to the Fork SHA above.
+
+### Exact-head CI evidence — PASS
+- SolMint CI run `43268855665` on exact SolMint HEAD `11c9e20e6de5984d4b71d7053ed560375e8ad07c`: SUCCESS.
+- `subscription-vnext-authority-registry`: SUCCESS.
+  - Program Rust formatting: PASS.
+  - LiteSVM test formatting: PASS.
+  - Program unit tests: 98 passed, 0 failed, 1 ignored.
+  - Deterministic VNext SBF build: PASS using pinned `solana-verify 0.5.2`, Rust 1.92 and verifiable-build image digest `sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3`.
+  - Token-2022 TransferHook test fixture build: PASS.
+  - Full LiteSVM integration suite: 282 passed, 0 failed, 2 ignored.
+  - Immutable v0.5.0 source checkout/build: PASS.
+  - Both separately invoked ignored Legacy Isolation tests: 2 passed, 0 failed. They prove only (a) the immutable old binary rejects VNext discriminators 18–27 and (b) legacy InitSubscriptionAuthority rejects the tested non-ATA source without creating the tested delegate/Authority.
+  - Codama regeneration: PASS.
+  - Generated-vs-committed IDL structural comparison: PASS. Canonical IDL SHA-256 `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`; 28 instructions, 12 accounts, 20 defined types and 12 PDAs.
+  - Build artifact `solmint-vnext-authority-registry-build`: artifact ID `13967018151`, 65,533 bytes, uploaded ZIP SHA-256 `3ceb52daee929afed2c3bed068bf7baf91d388a67b753b010de3d94ab2b0f592`, 14-day retention.
+- Other exact-head SolMint workflows: Production Build `43268855702` SUCCESS; Database Security `43268855662` SUCCESS; Mainnet Read-only `43268855676` SUCCESS; ordinary Pay Devnet E2E `43268855683` SUCCESS. The ordinary Pay E2E is not a Subscription transaction test. Mainnet verification was read-only.
+- CI run: https://github.com/azad2022/solsite/actions/runs/43268855665
+
+### G1-5 source audit and remaining isolation boundary
+- The legacy handlers for Init, Close Authority, Revoke Authority, fixed/recurring permission creation, Subscribe, legacy transfers, Cancel/Resume/CancelNow, Revoke Delegation and abandoned-account recovery were compared by Git blob SHA with the immutable v0.5.0 baseline; the inspected handler files are unchanged. `entrypoint.rs` and `instructions/mod.rs` add VNext dispatch while preserving legacy dispatch.
+- Current Program source still declares the legacy Program ID `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. Legacy discriminators 0–17 remain dispatched alongside VNext discriminators 18–27. Therefore an upgrade of the same Program ID without a separately designed legacy-closure/migration path would leave old unbound handlers callable.
+- The two passing old-binary tests are bounded evidence, not complete G1-5 proof. They do not exercise legacy Subscribe, Fixed/Recurring creation, all transfer paths, Close/Revoke, Plan/Subscription recovery, remaining-account injection, Token-2022 substitution, or byte-for-byte preservation of pre-existing VNext Registry/Authority state across every legacy route.
+- The old Init path still approves `u64::MAX` on the canonical ATA. The old transfer helper validates the canonical ATA. A dedicated non-ATA source is a useful isolation boundary, but all legacy paths still require adversarial proof.
+- The VNext Subscription Lifecycle Registry is persistent, but a VNext Subscription close/recovery instruction is not implemented. The current lifecycle test proves cancel/re-subscribe revision behavior on the reusable PDA; it does not prove an actual close/recreate path.
+- The protocol design's default independent Program ID route remains the leading architecture, but no new Program ID/keypair was generated. A separate Program ID does not disable the old Program; a new VNext binary must also fail closed for legacy unbound instruction selectors. Path A (same-ID upgrade) remains blocked by unproven governance authority and requires explicit authorization.
+
+### Gate status
+- G1-0 Baseline Recovery: PASS.
+- G1-1 Fork / immutable baseline provenance: PASS.
+- G1-2 Protocol / ABI Freeze: BLOCKED — structural IDL sync is green, but golden byte/account-meta tests and independent protocol review remain incomplete.
+- G1-3 VNext runtime tested slice: PASS for the exact source and tests listed above; broader product capabilities and legacy closure are not thereby complete.
+- G1-4 Legacy Migration / Recovery: NOT IMPLEMENTED.
+- G1-5 Complete Legacy Isolation / Adversarial Proof: BLOCKED.
+- G1-6 Independent Security Audit: NOT IMPLEMENTED.
+- G1-7 Devnet Deployment / Rehearsal: NOT IMPLEMENTED.
+- G1-8 Mainnet Deployment / Migration: NOT IMPLEMENTED.
+- Overall G1: BLOCKED.
+
+### Next required work
+1. Extend exact-old-binary LiteSVM coverage across every legacy permission, transfer, close/revoke, cancel/resume, Plan and abandoned-account recovery route. Assert expected errors plus unchanged VNext Registry/Authority bytes, source delegate/close-authority, token balances, lamports and destination balances.
+2. Add negative tests for remaining-account injection, wrong token program, wrong ATA/non-ATA pairing and ATA/non-ATA pair for the same subscriber/mint.
+3. Resolve the Program identity path before changing dispatch or generating any Program ID. Under the independent route, make the new VNext binary fail closed on legacy unbound selectors; do not generate keys or deploy without explicit authorization.
+4. Implement and test Subscription close/recovery before claiming close/recreate lifecycle replay coverage.
+5. Complete ABI golden tests, migration fixtures/rehearsal and independent security review.
+
+### Mutation boundary
+- Repository changes in this checkpoint were limited to one integration-test assertion/comment in the Fork and two CI source pins in SolMint.
+- No Production DDL/data/provider settings, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Subscription Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
