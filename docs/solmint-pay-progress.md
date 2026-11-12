@@ -4060,4 +4060,4 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - G1-7 Devnet deployment/rehearsal: NOT IMPLEMENTED.
 - G1-8 separate Program ID/Mainnet deployment/migration: NOT IMPLEMENTED.
 - Overall G1 remains BLOCKED.
-- No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed. Mainnet checks were read-only.
+- No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Subscription Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed by this task. The ordinary Pay Devnet E2E ran separately and is not Subscription transaction evidence; Mainnet checks were read-only.
