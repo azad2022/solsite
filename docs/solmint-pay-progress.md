@@ -4027,3 +4027,37 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - VNext DeletePlan, Plan rent recovery, Subscription close/recovery, full rent sponsorship/quota/refund policy and legacy migration are NOT IMPLEMENTED.
 - No separate VNext Program ID/keypair was generated. `program/src/lib.rs` still declares the legacy Program ID; therefore this source is not an independently deployable Program identity.
 - No Production DDL/data/provider settings, secret/key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet transaction, customer consent, accounting posting or customer funds were changed. The Mainnet ProgramData job was read-only.
+
+
+## 2026-11-12 — VNext LiteSVM compile correction and legacy-dispatch security gate
+
+### Repository and exact refs
+- SolMint: `azad2022/solsite`, branch `feat/pay-subscription-billing`; PR #366 remains OPEN / DRAFT / NOT MERGED; HEAD at this checkpoint: `e8843c23cc49e88d9e6b34a1b1054507abf8abe7`; base `main` HEAD: `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`; PR #1 remains OPEN / DRAFT / NOT MERGED; HEAD: `ba419fbc4167c7ca05e9fd72bf960e5a3cb40a53`; pristine baseline remains `364a41976c33347d092902443bbec2def9227e75`.
+- Local Working Tree remains UNKNOWN through the remote GitHub connection.
+
+### CI failure and narrow correction
+- Previous exact-head CI run `42660602812` on SolMint HEAD `2b952b1e8c9c42ea580173a696792636dee04ff0` failed only in `subscription-vnext-authority-registry` during LiteSVM integration test compilation.
+- Formatting checks, Program unit tests, deterministic VNext SBF build and Token-2022 fixture build had succeeded. Rust failed with E0614 at three expressions in `tests/integration-tests/src/test_vnext_subscription.rs`: `&[&*merchant]`, where `merchant` is an owned `Keypair`.
+- Fork commit `ba419fbc4167c7ca05e9fd72bf960e5a3cb40a53` changes exactly those three expressions in `vnext_subscription_lifecycle_invalidates_delayed_subscribe_and_transfer` to `&[&merchant]`. No runtime instruction, account layout or financial logic changed.
+- SolMint commit `e8843c23cc49e88d9e6b34a1b1054507abf8abe7` updates exactly the two VNext source pins in `.github/workflows/ci.yml` to `ba419fbc4167c7ca05e9fd72bf960e5a3cb40a53`.
+- Exact-head CI run `43265385486` was triggered on `e8843c23cc49e88d9e6b34a1b1054507abf8abe7`; at this checkpoint it remains IN_PROGRESS. Production Build run `43265385224` also remains IN_PROGRESS. On this exact SHA, Mainnet Read-only `43265385231`, Database Security `43265385343` and ordinary Pay Devnet E2E `43265385446` returned SUCCESS. Ordinary Pay Devnet E2E is not a Subscription transaction test; Mainnet work is read-only. No exact-head VNext LiteSVM PASS is claimed.
+- No local Rust/Cargo tests were run in this environment.
+
+### Legacy-dispatch security review
+- Fork `program/src/entrypoint.rs` still dispatches legacy selectors, including `InitSubscriptionAuthority` (0), `Subscribe` (11), and legacy Plan/Subscription/Authority lifecycle handlers, alongside VNext selectors 18–27.
+- Fork `program/src/lib.rs` still declares the legacy Program ID `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`; no independent VNext Program identity is established.
+- The Fork's legacy `initialize_subscription_authority.rs` and `subscribe.rs` contents match the pinned v0.5.0 source at `364a41976c33347d092902443bbec2def9227e75`. The old Init path still validates the canonical ATA and approves the delegate for `u64::MAX`.
+- Existing ignored Legacy Isolation tests prove two bounded properties only: the immutable old binary rejects additive VNext discriminators 18–27, and its legacy Init path rejects the tested non-ATA VNext source without creating a delegate/Authority. They do not prove all legacy instruction paths are isolated from VNext state, nor that an old signed instruction against a legacy ATA is rejected by a new binary retaining the same legacy dispatch.
+- The VNext non-ATA source check is a useful isolation barrier, but it is not proof that all old signed transactions are invalidated or that legacy accounts are migrated. TM-01/legacy isolation must remain BLOCKED pending an explicit Program ID/upgrade and compatibility decision, full adversarial coverage and independent review. Do not describe Cantina's old-signed-transaction risk as fixed.
+
+### Gate status and mutation boundary
+- G1-3 exact current source: BLOCKED pending exact-head full LiteSVM and legacy isolation/IDL CI evidence; earlier successful run `42271881452` applies only to the earlier source SHA recorded above.
+- G1-2 ABI freeze: BLOCKED pending golden byte/account-meta tests and independent protocol review.
+- G1-4 migration/recovery: NOT IMPLEMENTED.
+- G1-5 complete legacy isolation/adversarial proof: BLOCKED.
+- G1-6 independent security audit: NOT IMPLEMENTED.
+- G1-7 Devnet deployment/rehearsal: NOT IMPLEMENTED.
+- G1-8 separate Program ID/Mainnet deployment/migration: NOT IMPLEMENTED.
+- Overall G1 remains BLOCKED.
+- No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed. Mainnet checks were read-only.
