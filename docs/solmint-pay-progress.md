@@ -4123,3 +4123,38 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 ### Mutation boundary
 - Repository changes in this checkpoint were limited to one integration-test assertion/comment in the Fork and two CI source pins in SolMint.
 - No Production DDL/data/provider settings, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Subscription Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
+
+
+## 2026-11-12 — G1-5 Legacy isolation matrix expansion; exact execution pending
+
+### Repository and exact refs
+- SolMint: azad2022/solsite, branch feat/pay-subscription-billing; PR #366 remains OPEN / DRAFT / NOT MERGED; HEAD at this checkpoint: 9e91747ac1abb2dc7447c2a6d36de0e27966df3c; base main HEAD: 514d3401d8d725be106ab0c83557f8e43cdff13e.
+- VNext fork: azad2022/solmint-subscriptions-program, branch feat/solmint-g1-authority-vnext; PR #1 remains OPEN / DRAFT / NOT MERGED; HEAD: 64551866980ffc3b96f99c1234732c5d40d38ac2; immutable v0.5.0 baseline remains 364a41976c33347d092902443bbec2def9227e75.
+- Local Working Tree remains UNKNOWN; no local clone or local Cargo execution was available.
+
+### Test-only source changes
+- Fork changes are limited to tests/integration-tests/src/test_vnext_legacy_isolation.rs; no Program runtime, state encoding, instruction ABI, or IDL source was changed in this slice.
+- The ignored Legacy Isolation suite now contains four scenarios: reject VNext discriminators 18–27; reject Legacy Init against the tested non-ATA source; preserve VNext authority/registry/source across Legacy authority, fixed/recurring permission and transfer paths; preserve VNext Plan, Plan Revision Registry, Subscription, Lifecycle Registry, Authority Registry, Authority and token accounts across Legacy Plan/Subscription lifecycle attempts.
+- The Plan/Subscription test now creates a real legacy Plan and a real ATA-backed legacy Subscription as positive controls. It tests Legacy Create/Update/Delete Plan, Subscribe account substitution, TransferSubscription against VNext Subscription, Cancel, CancelNow, Resume, Revoke and Abandoned Subscription Recovery. After failed attempts it compares account bytes, lamports, owners and executable flags.
+- TransferSubscription coverage additionally supplies a VNext non-ATA source to a valid legacy Subscription, substitutes Token-2022 for the SPL Token Program of an SPL mint, and performs a valid legacy SPL transfer with VNext Registry/Authority as trailing accounts. The test asserts VNext Registry/Authority bytes and lamports and VNext source-token bytes/delegate allowance remain unchanged.
+- A positive control sequence verifies the immutable legacy binary still supports a valid legacy Subscription: Subscribe, TransferSubscription, Cancel, Resume, CancelNow and Revoke. These are assertions in source; they are not yet execution evidence.
+- Fork commit for the current test source: 64551866980ffc3b96f99c1234732c5d40d38ac2.
+- Solsite commit updates exactly the two immutable VNext source pins in .github/workflows/ci.yml to that Fork SHA: 9e91747ac1abb2dc7447c2a6d36de0e27966df3c.
+
+### Validation evidence and CI state
+- Earlier exact-head CI run 43274090146 on Solsite SHA 098ca9b99918831a6d0e20701452a33b064c9cdb passed Program formatting, LiteSVM-test formatting, Program unit tests, deterministic VNext SBF build and Transfer Hook fixture build, but failed compiling the integration test because RevokeDelegation was missing from the test imports (E0433). This was a test-source compile error, not a Runtime failure.
+- The missing import was added in Fork commit 3c6dcaf498bc50afa109a2134f4dfac1d1d0eaeb; subsequent test-only positive controls and Subscription Transfer cases are included in later Fork commit 64551866980ffc3b96f99c1234732c5d40d38ac2.
+- Latest exact-head CI run 43275736240 is IN_PROGRESS on Solsite HEAD 9e91747ac1abb2dc7447c2a6d36de0e27966df3c. At the time of this checkpoint, Quality, SDK compatibility, migration CLI jobs and ordinary Pay Devnet E2E, Database Security, Production Build and Mainnet Read-only workflows have succeeded. Deterministic upstream Program build and other Subscription regression jobs are still running; subscription-vnext-authority-registry has not yet started because it depends on the reproducible build.
+- No exact-head VNext integration compile, Legacy test execution, IDL comparison or Legacy SBF execution PASS is claimed yet. Ordinary Pay Devnet E2E is not Subscription transaction evidence; Mainnet check is read-only.
+- CI: https://github.com/azad2022/solsite/actions/runs/43275736240
+
+### Remaining gaps and disposition
+- G1-5 remains BLOCKED until the latest exact pinned source completes formatting, compilation, full LiteSVM, immutable v0.5.0 build and all ignored Legacy isolation tests.
+- Active Token-2022 Transfer Hook coverage through the Legacy Subscription transfer route remains a separate follow-up; the current new trailing-account test uses a non-hook SPL mint and does not claim to test active-hook account resolution.
+- Complete abandoned-account positive recovery coverage, remaining-account adversarial variants, durable signed-transaction/ABA cases, Program identity decision and migration/recovery design remain open.
+- The Program still uses the legacy Program ID and dispatches the legacy instruction family alongside VNext. Test expansion does not create a separate Program identity or disable the old deployed Program. No Program ID or keypair was generated or changed.
+- G1-4 Legacy Migration/Recovery: NOT IMPLEMENTED. G1-5 Complete Isolation: BLOCKED. G1-6 Independent Audit: NOT IMPLEMENTED. G1-7 Devnet Rehearsal: NOT IMPLEMENTED. G1-8 Mainnet Migration: NOT IMPLEMENTED. Overall G1: BLOCKED.
+
+### Mutation boundary
+- Changes in this checkpoint are limited to Fork integration-test source and Solsite CI source pins / Progress Ledger.
+- No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, Deployment/upgrade, Squads proposal, Subscription Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
