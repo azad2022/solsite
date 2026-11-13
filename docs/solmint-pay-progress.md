@@ -4441,3 +4441,57 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - No Devnet VNext deployment, VNext Subscription transfer, or Mainnet transfer was performed. The Mainnet workflow remained read-only.
 - The only blockchain-like execution for the new Durable Nonce cases was local LiteSVM simulation.
 - This checkpoint records tests against code SHA `11b7f85999fb8cc93085268d7506e8a5027a3fa8`; the following documentation-only checkpoint commit does not change that tested code.
+
+---
+
+## 2026-11-13 — Squads staged-proposal helper and per-suite CI evidence reuse
+
+### Repository and review state
+- Solsite branch: `feat/pay-subscription-billing`; checkpoint tested at `29dc6d5b11699825334bb855dffc96b8ebc8d20c`. A subsequent cleanup-only commit removes the superseded standalone Squads SDK workflow.
+- Solsite PR #366 remains OPEN / DRAFT; base `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- VNext fork branch: `feat/solmint-g1-authority-vnext`, exact SDK helper/test source `cc6211449704704d8bdfe0b988fc4c72916b575c`. Fork PR #1 remains OPEN / DRAFT against immutable baseline `364a41976c33347d092902443bbec2def9227e75`.
+- No direct `main` changes. Local clone Working Tree remains UNKNOWN; work was performed through GitHub branch operations.
+
+### Squads SDK helper — PASS
+- Refactored `clients/typescript/test/smart-wallets/squadsWallet.ts` to expose explicit `stageInstructions`, `approveProposal`, and `executeProposal` phases.
+- Staging reads the current Multisig transaction index from chain state, creates the VaultTransaction and Active Proposal, and returns an immutable handle. It does not vote or execute.
+- Approval is explicit, checks the proposal's Multisig identity and approver membership, and rejects duplicate approvers.
+- Execution is explicit. Existing `sendInstructions` behavior remains as a compatibility wrapper: stage → approve the configured threshold → execute.
+- The configured `vaultIndex` is now used consistently. Creator and fee payer are distinct, and the creator is not redundantly included in the signer list when also the fee payer.
+- Added six Vitest cases covering staging without execution, explicit approval/execution, cross-Multisig rejection, duplicate approvers, compatibility-wrapper ordering, and creator/fee-payer signer deduplication.
+- Exact-source CI run [43408353148](https://github.com/azad2022/solsite/actions/runs/43408353148), job `subscription-vnext-squads-sdk`, checked out fork SHA `cc6211449704704d8bdfe0b988fc4c72916b575c`: **6 passed, 0 failed**.
+- These are mocked SDK-orchestration unit tests. They do not execute the Squads program or the VNext program and do not prove delayed on-chain Proposal behavior.
+
+### CI reuse of prior PASS evidence — PASS
+- Replaced the previous all-PR-diff-only gate with per-suite, per-job evidence lookup in `.github/workflows/ci.yml`.
+- A suite is skipped only when each required job has an actual completed `success` result on this PR, its tested SHA is an ancestor of the current head, the suite-specific source paths have not changed since that PASS, and the relevant job definition is unchanged.
+- Multi-job suites use the oldest successful SHA among their required jobs. If a prior job PASS is missing, the SHA is not on current history, or GitHub Actions evidence cannot be retrieved, the classifier falls back to the full PR diff. This is not a blanket removal of tests.
+- CI run [43408552261](https://github.com/azad2022/solsite/actions/runs/43408552261), exact checkpoint SHA `29dc6d5b11699825334bb855dffc96b8ebc8d20c`: SUCCESS. `subscription-change-scope`, `quality`, `production-migration-cli`, and `subscription-production-migration-cli` passed. Specialized suites were skipped only because their corresponding jobs had prior successful evidence and no relevant code/job-block changes.
+- Scope logs recorded independent prior PASS baselines for SDK compatibility, upstream tests, VNext build/integration, Mainnet read-only checks, and the Squads SDK helper. The helper's previous exact-source PASS was reused; the Rust VNext suite was not rerun merely because unrelated CI-scope logic changed.
+- The obsolete standalone workflow `.github/workflows/solmint-vnext-squads-sdk.yml` was removed; the maintained helper check is now part of the existing PR CI workflow.
+- The per-job evidence reuse path is verified for this PR's current history. First-run, missing-history, and force-push cases intentionally fall back to the full PR diff rather than silently skipping tests.
+
+### Delayed Proposal security gate — BLOCKED / NOT IMPLEMENTED
+- The helper now allows a real delayed-proposal test to stage and retain an approved Authorize Proposal, execute a separate Revoke Proposal, and then attempt the retained Authorize Proposal.
+- The VNext Program must reject the stale instruction using its on-chain expected generation/action nonce and deadline checks. Squads Proposal status or browser state is not a security boundary.
+- The required end-to-end test has not yet been implemented or run against the actual Squads v4 program and VNext program. No on-chain Squads Proposal was created or executed in this checkpoint.
+- Next test: in isolated local Surfpool/validator, create an ephemeral 2-of-3 Squads multisig; stage and approve Authorize without executing; execute a Revoke targeting the pending generation; then execute the retained Authorize and assert `StaleAuthorityGeneration`, Registry remains revoked at the advanced generation, no Authority/delegate is created, and token balance is unchanged. Add an expired-deadline variant and verify failed execution does not mark the Squads Proposal executed.
+- If the local fork does not load the pinned Squads v4 program, resolve that in the isolated test environment; do not substitute a mocked RPC test for program-level proof.
+
+### Gate disposition
+- Durable Nonce LiteSVM cases and configured VNext/Legacy test matrix from the prior checkpoint: **PASS**.
+- Squads staged-helper API and six mocked unit tests: **PASS**.
+- Per-suite reuse of job-specific successful CI evidence: **PASS** for the verified PR history.
+- Real validator proof of durable-nonce state/consumption semantics after a later instruction failure: **BLOCKED**.
+- Real delayed Squads v4 Proposal execution against VNext Program: **NOT IMPLEMENTED**.
+- Full Legacy isolation/security claim (G1-5): **BLOCKED** pending remaining adversarial permutations and approved independent Program identity/deployment decision.
+- G1-4 Legacy migration design/implementation: **NOT IMPLEMENTED**.
+- G1-6 independent security audit: **NOT IMPLEMENTED**.
+- G1-7 VNext Devnet deployment and actual Subscription lifecycle rehearsal: **NOT IMPLEMENTED**.
+- G1-8 Mainnet deployment/migration: **NOT IMPLEMENTED**.
+- Overall G1 / Subscription Production readiness: **BLOCKED**.
+
+### Mutation and access boundary
+- No Production DDL/data/provider setting, Secret, Key, persistent signer, Program ID, Program deployment/upgrade, customer consent, Subscription accounting posting, or customer funds changed.
+- No Devnet deployment/transfer or Mainnet transfer was performed. Mainnet checks remained read-only.
+- The only new executions were local/unit test workflows and GitHub CI; no customer or production blockchain state was mutated.
