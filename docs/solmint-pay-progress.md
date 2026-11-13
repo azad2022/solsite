@@ -4495,3 +4495,60 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - No Production DDL/data/provider setting, Secret, Key, persistent signer, Program ID, Program deployment/upgrade, customer consent, Subscription accounting posting, or customer funds changed.
 - No Devnet deployment/transfer or Mainnet transfer was performed. Mainnet checks remained read-only.
 - The only new executions were local/unit test workflows and GitHub CI; no customer or production blockchain state was mutated.
+
+
+---
+
+## 2026-11-13 — Agave durable nonce runtime and delayed Squads proposal checkpoint
+
+### Repository and immutable source pins
+- Solsite branch: `feat/pay-subscription-billing`; checkpoint CI tested at `4f57ae760e401f8a7416a40faaeb6c154d944545`.
+- Subscription Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, exact source commit `04569d883c2d91ab4b973913266e495f19d034bf`.
+- Solsite PR #366 and Program fork PR #1 remain OPEN / DRAFT. Neither PR was merged.
+- `main` remained at `514d3401d8d725be106ab0c83557f8e43cdff13e`; no direct `main` changes.
+- Local clone Working Tree is **UNKNOWN** because GitHub remote repository inspection does not expose the user's local filesystem state.
+
+### Real Agave durable nonce runtime proof — PASS
+- Added `clients/typescript/test/smart-wallets/durableNonceAgave.integration.test.ts`. It starts an isolated `solana-test-validator` process and loads the exact VNext SBF artifact built by the same CI checkout; no remote RPC, Devnet or Mainnet is used.
+- The fixture creates ephemeral subscriber, nonce-authority, mint and non-ATA source-token accounts. The test creates a real SPL Mint and source token account, mints test units, creates a durable nonce account and derives the exact VNext Registry and Authority PDAs.
+- It submits a single durable-nonce transaction with instruction order: `AdvanceNonceAccount` → `AuthorizeSubscriptionAuthorityVNext` (including the real SPL Token `Approve` CPI) → deliberately failing System Program transfer from a non-signer.
+- The validator confirmed the later instruction failed with `MissingRequiredSignature`, after both SPL Token and VNext instructions had succeeded in execution logs.
+- Post-failure assertions passed: nonce hash advanced; Registry and Authority PDAs were rolled back; source-token amount, delegate option and delegated amount remained unchanged.
+- A second transaction with a fresh signature but the consumed old nonce hash was rejected; the new nonce and all token/Program state remained unchanged.
+- Exact VNext SBF artifact SHA-256: `8534f64cf7051dcb79173e939d17fc22bcea70790ee5b8528ab57925efd4baf3`.
+- The new test's standalone TypeScript typecheck: **PASS**. Agave runtime test: **1 passed, 0 failed**.
+- CI run [43419504416](https://github.com/azad2022/solsite/actions/runs/43419504416), job `subscription-vnext-squads-sdk` [131865823844](https://github.com/azad2022/solsite/actions/runs/43419504416/job/131865823844), checked out the immutable fork source SHA above. The local Agave test completed successfully.
+
+### Delayed Squads proposal integration — PASS for the tested scenarios
+- The Surfpool integration now stages and approves an Authorize proposal without executing it, then executes a separate Revoke proposal, and finally attempts the retained stale Authorize proposal.
+- The VNext Program rejected the old generation with `StaleAuthorityGeneration` (custom error 141); the test verifies the failed execution metadata and that the stale proposal remains Approved, Registry remains revoked at the advanced generation, Authority PDA is absent/closed, and source-token balance/delegate remain unchanged.
+- A separate approved delayed Authorization beyond its on-chain deadline was also rejected; its Proposal was not marked executed.
+- The test now builds the execution transaction with the official Squads SDK transaction builder and submits the serialized transaction directly with `sendRawTransaction(skipPreflight)`, so the failed execution's on-chain metadata can be inspected rather than being converted into an SDK exception before a signature is returned.
+- CI run [43419504416](https://github.com/azad2022/solsite/actions/runs/43419504416), job `subscription-vnext-squads-sdk`: staged Squads SDK unit tests **6 passed**; delayed-proposal Surfpool integration **2 passed**.
+- The earlier run [43418723691](https://github.com/azad2022/solsite/actions/runs/43418723691) exposed a test-harness/API mismatch: custom error 141 was surfaced by the SDK RPC wrapper rather than returned as a signature. The test now observes the serialized RPC transaction directly. No Program security check was weakened.
+
+### Other CI evidence on solsite checkpoint SHA
+- CI run [43419504416](https://github.com/azad2022/solsite/actions/runs/43419504416): overall **SUCCESS**. `quality` passed production-source typecheck, production build, unit tests, fail-closed migration guards and unchanged-source assertions. Scope classifier and both pinned Supabase CLI checks passed.
+- Cloudflare Pages PR preview reported **Deployed successfully**; this is a branch preview, not a Production release.
+- The per-suite evidence policy skipped unrelated specialized suites whose input paths had not changed. Therefore their previous PASS evidence was reused; they are not claimed as freshly rerun on this exact SHA.
+- The separate Devnet E2E workflow run [43419497949](https://github.com/azad2022/solsite/actions/runs/43419497949) failed with **zero jobs created**. Inspection found its `devnet-e2e` job has no `runs-on` declaration. No Devnet test or Devnet transaction was executed. This workflow configuration remains **BLOCKED** and must be corrected and reviewed before relying on funded Devnet CI.
+- Supabase Preview was skipped for this branch; no Preview database or Production schema was mutated.
+
+### Gate disposition after this checkpoint
+- Durable Nonce failure/rollback/replay semantics on a real local Agave validator: **PASS** for the tested transaction sequence.
+- Delayed Squads v4 Proposal generation invalidation and expired-deadline scenarios on isolated Surfpool: **PASS** for the two tested scenarios.
+- Staged Squads SDK helper unit tests: **PASS** (six tests).
+- Full G1 Program security, all delayed-operation permutations and supported smart-wallet matrix: **BLOCKED** pending broader adversarial coverage.
+- Full Legacy isolation / Account Substitution / trailing-account matrix: **BLOCKED**; the configured prior subset is not a complete security claim.
+- Independent Program ID, ownership and deployment/migration decision: **BLOCKED** pending explicit architecture approval; no Program ID was changed.
+- Finite Plans and the remaining capability-preserving lifecycle cases (CancelNow, Resume, reauthorization, Rent Sponsorship, Split/Multi-destination transfer) remain **BLOCKED** or **NOT IMPLEMENTED** according to their implementation status; they were not de-scoped.
+- Subscription API/Database, Collector/Billing Worker, Subscription Verifier, Accounting/Ledger and Devnet Subscription E2E: **NOT IMPLEMENTED** / **BLOCKED**; product backend work remains gated on G1 and G2 contracts.
+- Frontend Subscription UI: **NOT IMPLEMENTED**.
+- Independent Security Audit and VNext Devnet deployment: **NOT IMPLEMENTED**.
+- Overall G1 and Subscription Production readiness: **BLOCKED**.
+
+### Mutation and access boundary
+- No Production DDL/data, Supabase grants/RLS, Secrets, Keys, persistent signers, Program ID, Program deployment/upgrade, customer consent, Subscription ledger posting or customer funds changed.
+- No Devnet or Mainnet transaction was sent. Mainnet was not mutated.
+- Executions in this checkpoint were CI builds, isolated Surfpool tests and a local `solana-test-validator` run using ephemeral test-only keypairs and token accounts.
+- This checkpoint verifies only the exact code/test source pins and scenarios listed above; it does not authorize merge, deployment or Production readiness.
