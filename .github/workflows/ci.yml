@@ -107,6 +107,13 @@ jobs:
               )
               runs = json.loads(response).get("workflow_runs", [])
               for run in runs:
+                  if (
+                      run.get("workflow_id") != 327355582
+                      or run.get("status") != "completed"
+                      or run.get("conclusion") != "success"
+                      or run.get("head_sha") == head
+                  ):
+                      continue
                   if any(
                       int(pr.get("number", 0)) == pr_number
                       for pr in run.get("pull_requests", [])
