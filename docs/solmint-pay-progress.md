@@ -4202,3 +4202,12 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - Fork branch HEAD: `cf512e2fbc17d209107f0c5ade2b7319121c105d`; PR #1 remains OPEN / DRAFT / NOT MERGED. Solsite branch at the time of this entry: `ed7c5ee5c892d1a7d1d1d0178172099bfc725bc7`; PR #366 remains OPEN / DRAFT / NOT MERGED. `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
 - Second exact-head CI has not yet been validated in this entry. Formatting, integration compile, VNext SBF, complete LiteSVM suite, immutable Legacy SBF and all ignored Legacy isolation tests remain pending. G1-5 and overall G1 remain BLOCKED.
 - Local Working Tree: UNKNOWN; no local Rust/Cargo/rustfmt toolchain. No Program runtime/ABI/IDL, Production DDL/configuration, Secret/Key/signer, Program ID, deployment, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
+
+
+## 2026-11-13 — Recovery rent assertion isolated from Authority rent refund
+
+- A second test review found that the Legacy recovery test used the subscriber as both Authority payer and Subscription payer. Recording the subscriber's balance before closing the Authority could let the Authority rent refund contribute to the later Subscription rent assertion.
+- Moved the balance snapshot to after CloseSubscriptionAuthority and advance_slots(1), immediately before RevokeAbandonedSubscription. The final lower-bound assertion now measures only the Subscription recovery rent refund (within the existing 10,000-lamport tolerance).
+- Fork test commit: 6ef7fe87f09a8319fd891a677a2f628c3107633f; only the same integration-test file changed.
+- Solsite CI pin commit: 6f67ebe53eb2fcef3b9747533aa9c465022f3c51; both exact pin occurrences now reference 6ef7fe87f09a8319fd891a677a2f628c3107633f.
+- This correctness refinement is not yet validated by an exact-head CI run. Formatting, compilation, VNext SBF, full LiteSVM and immutable Legacy isolation remain BLOCKED pending CI evidence. No Production or blockchain mutation occurred.
