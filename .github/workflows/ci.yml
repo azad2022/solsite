@@ -731,13 +731,13 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: e2c40d6f498629afdc5298a66b4dbd53ddf44d02
+          ref: 379a609af5d833cab0699a13ec8a33eaa6d93157
           persist-credentials: false
 
       - name: Verify exact fork commit
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="e2c40d6f498629afdc5298a66b4dbd53ddf44d02"
+          expected="379a609af5d833cab0699a13ec8a33eaa6d93157"
           test "$actual" = "$expected"
 
       - name: Install pinned Rust, Solana, pnpm and Surfpool toolchain
@@ -786,6 +786,12 @@ jobs:
           test -s "$program_so"
           printf 'SOLMINT_VNEXT_PROGRAM_SO=%s\n' "$program_so" >> "$GITHUB_ENV"
           sha256sum "$program_so"
+
+      - name: Typecheck the Agave durable nonce regression test
+        working-directory: clients/typescript
+        run: |
+          set -euo pipefail
+          pnpm exec tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --lib ES2022 --types node --strict --skipLibCheck --esModuleInterop --allowImportingTsExtensions test/smart-wallets/durableNonceAgave.integration.test.ts
 
       - name: Prove durable nonce failure semantics on the Agave test validator
         working-directory: clients/typescript
