@@ -4,7 +4,7 @@
 **Repository:** `azad2022/solsite`  
 **Working branch:** `feat/pay-subscription-billing`  
 **Tracking issue:** [#370](https://github.com/azad2022/solsite/issues/370)  
-**Status:** DESIGN / EXECUTION PLAN — NOT IMPLEMENTED  
+**Status:** PARTIAL IMPLEMENTATION — VNext runtime and exact-source CI evidence exist; ABI freeze, full capability set, migration, independent review and deployment remain incomplete  
 **Product decision:** KEEP ALL PLANNED SUBSCRIPTION CAPABILITIES  
 **G1 status:** BLOCKED until protocol implementation, legacy migration, adversarial proof, independent review and deployed verification pass.
 
@@ -171,7 +171,7 @@ Rules:
 - Re-run exact-head CI after the merge; do not reuse green checks from earlier SHAs.
 - Exact-head checks on the reconciled branch passed. G1-1 now uses a dedicated SolMint-owned fork rather than copying the Program source into the React application repository.
 
-## 8. Current status and mutation boundary
+## 8. Historical status and mutation boundary — 2026-11-06 checkpoint
 
 - G0 Production migration governance: **PASS / COMPLETE** on 2026-11-06 by owner confirmation plus three usable post-change log windows; Issue #355 is closed. Historical runner actor remains UNKNOWN.
 - G1 overall: **BLOCKED** — no SolMint-owned Program VNext source, IDL, legacy migration, full adversarial implementation, independent audit or deployment exists yet.
@@ -293,3 +293,33 @@ This proves SolMint cannot unilaterally upgrade the existing Program ID. No Squa
 - Despite workflow files existing in the fork's default `main` and pinned work branch, the connected GitHub Actions workflow-list endpoint returned zero workflows; workflow enable/dispatch calls returned 404 and no fork PR check runs were observed.
 - This is recorded as **FORK CI UNKNOWN / CONNECTOR OR GITHUB WORKFLOW DISCOVERY BLOCKED**, not as proof that GitHub Actions are disabled.
 - The exact pinned baseline build is independently proven by SolMint's active CI run [42233967558](https://github.com/azad2022/solsite/actions/runs/42233967558). For VNext, the SolMint CI in `solsite` must be extended to checkout the SolMint fork branch and build/test its exact commit until fork-native Actions is demonstrably available.
+
+
+## 11. Execution checkpoint — exact VNext and Legacy isolation CI (2026-11-13)
+
+The following evidence supersedes the historical status in §§8–10 for the source and test checkpoint named here; it does not supersede the outstanding security, migration or release gates.
+
+### Exact source and CI result
+- Solsite: `feat/pay-subscription-billing`, code/workflow HEAD `9effc87385dc2ff3596fa8d6353f56ed7061db61`; CI [43424080711](https://github.com/azad2022/solsite/actions/runs/43424080711) **SUCCESS**.
+- VNext fork: `feat/solmint-g1-authority-vnext`, exact source `d20de416b128adef1c03f6bca8a29c576c025cc9`; job [131881826694](https://github.com/azad2022/solsite/actions/runs/43424080711/job/131881826694) **SUCCESS**.
+- Exact VNext SBF SHA-256: `6509cb31cecc9813d3d6abcfea82f01317d03b78b4ff17fc6b10a31991dbe25a`.
+- Program Unit Tests: 98 passed. Exact-SBF LiteSVM: 289 passed, 0 failed (5 Legacy-dependent tests were initially ignored by this command and explicitly executed below). The new same-timestamp Cancel/Resume/CancelNow ABA regression passed.
+- Immutable upstream v0.5.0 source `364a41976c33347d092902443bbec2def9227e75` was built and supplied to the VNext harness. All five `vnext_legacy_program_*` isolation tests then passed: 5 passed, 0 failed.
+- Generated/committed Codama IDL structural equality: **PASS**; canonical SHA-256 `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`.
+- Exact artifact: [CI artifact](https://github.com/azad2022/solsite/actions/runs/43424080711/artifacts/14036760907), uploaded ZIP SHA-256 `a41756061a454f9388d946cc2a40223c293f54c5c7394f59f4a0335a99356bfd`.
+
+### Current phase state
+- G1-0: **PASS**.
+- G1-1: **PASS** — independent MIT source fork and deterministic source/build evidence established.
+- G1-2: **IN PROGRESS / BLOCKED from freeze** — IDL is synchronized, but byte/account-meta golden tests and full ABI/compatibility review remain open.
+- G1-3: **IN PROGRESS** — the tested VNext runtime slice is implemented; finite Plans, VNext fixed/recurring flows and other required capabilities are not complete.
+- G1-4: **NOT IMPLEMENTED** — no migration/cutover tool or fresh-consent migration rehearsal.
+- G1-5: **PARTIAL PASS / BLOCKED overall** — the exact ABA and five named Legacy isolation scenarios pass; remaining account substitution, extra/remaining-account, token-program substitution, full adversarial/fuzz coverage and independent review remain open.
+- G1-6: **NOT IMPLEMENTED** — independent audit.
+- G1-7: **NOT IMPLEMENTED** — VNext Devnet deployment and actual Subscription lifecycle rehearsal.
+- G1-8: **NOT IMPLEMENTED** — separately authorized Mainnet deployment/migration.
+
+### Identity and mutation blocker
+The VNext source still declares the existing Mainnet Program ID `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. The default plan remains an independently controlled Program ID, but its exact public identity and secure upgrade-key custody have not been approved. No Program ID/key was changed or generated for deployment, and this artifact must not be deployed under the existing Mainnet identity. Existing Squads 3-of-5 governance was not bypassed.
+
+No Production, Devnet VNext or Mainnet mutation occurred. G1 and Subscription Production readiness remain **BLOCKED**.

@@ -4552,3 +4552,51 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - No Devnet or Mainnet transaction was sent. Mainnet was not mutated.
 - Executions in this checkpoint were CI builds, isolated Surfpool tests and a local `solana-test-validator` run using ephemeral test-only keypairs and token accounts.
 - This checkpoint verifies only the exact code/test source pins and scenarios listed above; it does not authorize merge, deployment or Production readiness.
+
+
+---
+
+## 2026-11-13 — VNext ABA, exact-SBF LiteSVM and immutable Legacy isolation: verified checkpoint
+
+### Repository pins and scope
+- Solsite branch: `feat/pay-subscription-billing`; tested code/workflow HEAD: `9effc87385dc2ff3596fa8d6353f56ed7061db61`.
+- Subscription Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`; exact pinned source: `d20de416b128adef1c03f6bca8a29c576c025cc9`.
+- Compared with the previously Agave-verified Program source checkpoint `04569d883c2d91ab4b973913266e495f19d034bf`, the four subsequent fork commits change only `tests/integration-tests/src/test_vnext_subscription.rs`; no Program runtime source changed in that interval. The existing Agave durable-nonce failure/rollback/replay proof therefore remains source-applicable; it is not represented as freshly rerun in this checkpoint.
+- Solsite CI run [43424080711](https://github.com/azad2022/solsite/actions/runs/43424080711): **SUCCESS**. Exact VNext job: [131881826694](https://github.com/azad2022/solsite/actions/runs/43424080711/job/131881826694).
+- Solsite PR #366 and Program PR #1 remain OPEN / DRAFT; neither is merged. `main` remains at `514d3401d8d725be106ab0c83557f8e43cdff13e`. No local checkout/working-tree evidence is available through the remote GitHub connector; local Working Tree status remains **UNKNOWN**.
+
+### Exact VNext binary and ABI evidence — PASS for this source pin
+- The job checked out and verified exact fork SHA `d20de416b128adef1c03f6bca8a29c576c025cc9`.
+- Rust 1.92 formatting checks passed for Program and LiteSVM tests; Program unit tests: **98 passed, 0 failed**.
+- Reproducible `solana-verify` artifact and its SHA-256 were verified before building VNext in the pinned Solana verifiable-build container. The exact VNext SBF SHA-256 recorded by CI is `6509cb31cecc9813d3d6abcfea82f01317d03b78b4ff17fc6b10a31991dbe25a`.
+- Token-2022 TransferHook fixture built successfully.
+- LiteSVM integration suite against that exact VNext SBF: **289 passed, 0 failed, 5 ignored**. The five ignored tests require the immutable legacy SBF and were executed in the next explicit step; no security result was inferred from their initial ignored status.
+- New same-timestamp ABA regression passed: `vnext_stale_cancel_now_and_resume_cannot_survive_same_timestamp_aba`. It holds the Program clock constant across Cancel → Resume → Cancel, then proves old Resume and dual-signed CancelNow approvals fail on stale lifecycle revision/nonce, including replay with a fresh blockhash after the Subscription PDA is reused.
+- The job checked out immutable upstream v0.5.0 source `364a41976c33347d092902443bbec2def9227e75`, built its SBF, then ran the five legacy-isolation tests with `SOLMINT_LEGACY_PROGRAM_SO`: **5 passed, 0 failed, 0 ignored**. The five exercised paths cover legacy non-ATA delegation rejection, Token-2022 TransferHook account forwarding, legacy Authority/transfer routes, VNext discriminator rejection, and Plan/Subscription route isolation.
+- Generated Codama IDL is structurally identical to the committed VNext IDL. Canonical IDL SHA-256: `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`.
+- Uploaded exact VNext SBF + IDL artifact: [solmint-vnext-authority-registry-build](https://github.com/azad2022/solsite/actions/runs/43424080711/artifacts/14036760907); artifact ZIP SHA-256: `a41756061a454f9388d946cc2a40223c293f54c5c7394f59f4a0335a99356bfd`.
+
+### Related CI evidence
+- On the same Solsite HEAD, quality/typecheck/unit tests, Production Build, Database Security, Supabase CLI checks, SDK compatibility, reproducible upstream build and Mainnet read-only workflow conclusions were **SUCCESS**.
+- The existing Pay Devnet E2E was successfully executed on the immediately preceding workflow checkpoint and its unchanged-scope evidence was reused; it is **not** a VNext Subscription deployment or lifecycle rehearsal.
+- Specialized upstream TM-06 and atomic split-transfer suites were skipped by the per-suite scope classifier because their inputs were unchanged; their prior PASS evidence was reused, not claimed as freshly rerun on this SHA.
+
+### Gate disposition — strict interpretation
+- G1-0 branch recovery: **PASS**.
+- G1-1 exact MIT source intake, immutable baseline pin and reproducible-build chain: **PASS**.
+- VNext Authority/Registry, Plan revision, Subscription lifecycle, VNext Transfer V2 and the exact tests listed above: **PASS for tested scenarios**; overall VNext capability implementation remains **IN PROGRESS**.
+- G1-5 same-timestamp ABA and five immutable-Legacy non-ATA isolation cases: **PASS for the listed scenarios**. The entire G1-5 adversarial/fuzz/account-substitution/remaining-account/token-program-substitution matrix is **BLOCKED** until every required case is mapped to evidence; this checkpoint does not close G1-5 globally.
+- G1-2 Protocol/ABI freeze: **BLOCKED / IN PROGRESS**. Generated IDL matches source, but golden byte/account-meta tests, full capability/legacy compatibility decisions and independent review are still required.
+- Critical Program identity blocker: `program/src/lib.rs` still declares `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`, the existing Mainnet Program ID. The default independent deployment path requires a separately approved SolMint-owned Program ID and secure upgrade-key custody. No ID was changed and no deployment/upgrade was attempted. Do not deploy this SBF under the currently declared identity.
+- Finite Plans remain rejected by VNext v1; VNext fixed/recurring delegation flows, explicit rent-sponsorship recovery, and the remaining capability-preserving protocol paths are not complete. These are **NOT IMPLEMENTED / BLOCKED**, not permanently de-scoped.
+- G1-4 migration tooling/consent cutover: **NOT IMPLEMENTED**. G1-6 independent security audit: **NOT IMPLEMENTED**. G1-7 VNext Devnet deployment and real Subscription rehearsal: **NOT IMPLEMENTED**. G1-8 Mainnet deployment/migration: **NOT IMPLEMENTED**.
+- Subscription API/Database, Collector/Billing Worker, dedicated Subscription verifier, Accounting/Ledger and Subscription E2E remain **NOT IMPLEMENTED**. Frontend Subscription UI remains **NOT IMPLEMENTED**.
+- Overall G1 and Subscription Production readiness: **BLOCKED**.
+
+### Mutation and authorization boundary
+- No Production DDL/data/RLS/grants, provider setting, Secret, keypair, persistent signer, Program ID, Program deployment/upgrade, customer consent, Subscription ledger posting or customer funds were changed.
+- No VNext Devnet deployment or Mainnet transaction was performed. Mainnet observation remained read-only. The Devnet E2E evidence above concerns existing Pay paths only.
+- The executions in this checkpoint were pinned builds, Program/LiteSVM tests and legacy-program isolation tests with ephemeral fixtures.
+
+### Next bounded step
+- Complete G1-2 golden byte/account-meta tests and freeze a reviewed ABI draft without guessing the deployment Program ID. In parallel, prepare the exact independent-Program identity/key-custody decision for explicit approval. Only after those gates should capability-completion and migration work proceed; no API/DB/UI work is to be represented as ready before its contracts and verifier/accounting controls exist.
