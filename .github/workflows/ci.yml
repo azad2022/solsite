@@ -482,7 +482,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 0e2a191ec15b1b18f5a972c8647a5662e508a9de
+          ref: 25f54ad4224344791b1f8dcf182b8be30b8253c9
           path: vnext-subscriptions
           persist-credentials: false
 
@@ -490,7 +490,7 @@ jobs:
         working-directory: vnext-subscriptions
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="0e2a191ec15b1b18f5a972c8647a5662e508a9de"
+          expected="25f54ad4224344791b1f8dcf182b8be30b8253c9"
           printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
           test "$actual" = "$expected"
 
