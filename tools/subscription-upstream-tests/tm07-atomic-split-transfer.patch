@@ -1,0 +1,150 @@
+diff --git a/tests/integration-tests/src/test_transfer_subscription.rs b/tests/integration-tests/src/test_transfer_subscription.rs
+--- a/tests/integration-tests/src/test_transfer_subscription.rs
++++ b/tests/integration-tests/src/test_transfer_subscription.rs
+@@ -9,8 +9,8 @@ use crate::{
+         constants::{MINT_DECIMALS, PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID},
+         pda::{get_plan_pda, get_subscription_authority_pda},
+         utils::{
+-            build_and_send_transaction, current_ts, days, get_ata_balance, hours, init_ata, init_mint, init_wallet,
+-            initialize_subscription_authority_action, install_transfer_hook_extra_metas, load_transfer_hook_example,
++            build_and_send_transaction, build_and_send_transaction_multi, current_ts, days, get_ata_balance, hours,
++            init_ata, init_mint, init_wallet, initialize_subscription_authority_action, install_transfer_hook_extra_metas, load_transfer_hook_example,
+             move_clock_forward, set_transfer_hook_config, setup, CancelSubscription, CreatePlan, CreateSubscription,
+             DeletePlan, TransferSubscription, UpdatePlan, TRANSFER_HOOK_EXAMPLE_PROGRAM_ID,
+         },
+@@ -834,2 +834,135 @@
+     assert!(result.is_err(), "transfer with incomplete hook accounts must fail via the hook");
+ }
++
++/// Builds the exact pinned v0.5.0 TransferSubscription instruction without
++/// submitting it, so multiple pulls can be exercised in one atomic transaction.
++fn build_transfer_subscription_ix(
++    litesvm: &LiteSVM,
++    caller: &Keypair,
++    delegator: Pubkey,
++    mint: Pubkey,
++    subscription_pda: Pubkey,
++    plan_pda: Pubkey,
++    receiver_ata: Pubkey,
++    amount: u64,
++) -> Instruction {
++    let token_program = litesvm.get_account(&mint).unwrap().owner;
++    let (subscription_authority_pda, _) = get_subscription_authority_pda(&delegator, &mint);
++    let delegator_ata =
++        get_associated_token_address_with_program_id(&delegator, &mint, &token_program);
++    let event_authority = Pubkey::new_from_array(event_authority_pda::ID.to_bytes());
++
++    Instruction {
++        program_id: PROGRAM_ID,
++        accounts: vec![
++            AccountMeta::new(subscription_pda, false),
++            AccountMeta::new_readonly(plan_pda, false),
++            AccountMeta::new_readonly(subscription_authority_pda, false),
++            AccountMeta::new(delegator_ata, false),
++            AccountMeta::new(receiver_ata, false),
++            AccountMeta::new_readonly(caller.pubkey(), true),
++            AccountMeta::new_readonly(mint, false),
++            AccountMeta::new_readonly(token_program, false),
++            AccountMeta::new_readonly(event_authority, false),
++            AccountMeta::new_readonly(PROGRAM_ID, false),
++        ],
++        data: [
++            vec![*crate::instructions::transfer_subscription::DISCRIMINATOR],
++            amount.to_le_bytes().to_vec(),
++            delegator.to_bytes().to_vec(),
++            mint.to_bytes().to_vec(),
++        ]
++        .concat(),
++    }
++}
++
++#[test]
++fn two_subscription_pulls_to_two_whitelisted_destinations_share_period_allowance() {
++    let amount_per_period = 50_000_000u64;
++    let principal_owner = Keypair::new();
++    let fee_owner = Keypair::new();
++    let (mut litesvm, alice, merchant, mint, plan_pda, _, subscription_pda, alice_ata, _merchant_ata) =
++        setup_plan_and_subscription(
++            amount_per_period,
++            1,
++            current_ts() + days(30) as i64,
++            vec![principal_owner.pubkey(), fee_owner.pubkey()],
++            vec![],
++        );
++    let principal_ata = init_ata(&mut litesvm, mint, principal_owner.pubkey(), 0);
++    let fee_ata = init_ata(&mut litesvm, mint, fee_owner.pubkey(), 0);
++
++    let first = build_transfer_subscription_ix(
++        &litesvm, &merchant, alice.pubkey(), mint, subscription_pda, plan_pda, principal_ata, 20_000_000,
++    );
++    let second = build_transfer_subscription_ix(
++        &litesvm, &merchant, alice.pubkey(), mint, subscription_pda, plan_pda, fee_ata, 20_000_000,
++    );
++
++    build_and_send_transaction_multi(
++        &mut litesvm,
++        &[&merchant],
++        &merchant.pubkey(),
++        &[first, second],
++    )
++    .assert_ok();
++
++    assert_eq!(get_ata_balance(&litesvm, &alice_ata), 60_000_000);
++    assert_eq!(get_ata_balance(&litesvm, &principal_ata), 20_000_000);
++    assert_eq!(get_ata_balance(&litesvm, &fee_ata), 20_000_000);
++    let subscription_account = litesvm.get_account(&subscription_pda).unwrap();
++    let subscription = SubscriptionDelegation::load(&subscription_account.data).unwrap();
++    let amount_pulled = subscription.amount_pulled_in_period;
++    assert_eq!(amount_pulled, 40_000_000);
++}
++
++#[test]
++fn failed_second_split_pull_rolls_back_first_destination_and_subscription_state() {
++    let amount_per_period = 50_000_000u64;
++    let principal_owner = Keypair::new();
++    let fee_owner = Keypair::new();
++    let (mut litesvm, alice, merchant, mint, plan_pda, _, subscription_pda, alice_ata, _merchant_ata) =
++        setup_plan_and_subscription(
++            amount_per_period,
++            1,
++            current_ts() + days(30) as i64,
++            vec![principal_owner.pubkey(), fee_owner.pubkey()],
++            vec![],
++        );
++    let principal_ata = init_ata(&mut litesvm, mint, principal_owner.pubkey(), 0);
++    let fee_ata = init_ata(&mut litesvm, mint, fee_owner.pubkey(), 0);
++
++    let (amount_pulled_before, period_start_before) = {
++        let account = litesvm.get_account(&subscription_pda).unwrap();
++        let subscription = SubscriptionDelegation::load(&account.data).unwrap();
++        (subscription.amount_pulled_in_period, subscription.current_period_start_ts)
++    };
++    let alice_before = get_ata_balance(&litesvm, &alice_ata);
++    let principal_before = get_ata_balance(&litesvm, &principal_ata);
++    let fee_before = get_ata_balance(&litesvm, &fee_ata);
++
++    let first = build_transfer_subscription_ix(
++        &litesvm, &merchant, alice.pubkey(), mint, subscription_pda, plan_pda, principal_ata, 30_000_000,
++    );
++    let second = build_transfer_subscription_ix(
++        &litesvm, &merchant, alice.pubkey(), mint, subscription_pda, plan_pda, fee_ata, 30_000_000,
++    );
++
++    build_and_send_transaction_multi(
++        &mut litesvm,
++        &[&merchant],
++        &merchant.pubkey(),
++        &[first, second],
++    )
++    .assert_err_at(1, SubscriptionsError::AmountExceedsPeriodLimit);
++
++    assert_eq!(get_ata_balance(&litesvm, &alice_ata), alice_before, "source debit must roll back");
++    assert_eq!(get_ata_balance(&litesvm, &principal_ata), principal_before, "principal leg must roll back");
++    assert_eq!(get_ata_balance(&litesvm, &fee_ata), fee_before, "fee leg must roll back");
++    let subscription_after_account = litesvm.get_account(&subscription_pda).unwrap();
++    let subscription_after = SubscriptionDelegation::load(&subscription_after_account.data).unwrap();
++    let amount_pulled_after = subscription_after.amount_pulled_in_period;
++    let period_start_after = subscription_after.current_period_start_ts;
++    assert_eq!(amount_pulled_after, amount_pulled_before);
++    assert_eq!(period_start_after, period_start_before);
++}

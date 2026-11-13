@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -53,6 +54,653 @@ jobs:
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all)"
 
+  subscription-change-scope:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      sdk: ${{ steps.scope.outputs.sdk }}
+      upstream: ${{ steps.scope.outputs.upstream }}
+      reproducible: ${{ steps.scope.outputs.reproducible }}
+      vnext: ${{ steps.scope.outputs.vnext }}
+      mainnet: ${{ steps.scope.outputs.mainnet }}
+      squads_sdk: ${{ steps.scope.outputs.squads_sdk }}
+    steps:
+      - name: Checkout exact PR head and history
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify changed paths for focused Subscription checks
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          base = os.environ["BASE_SHA"]
+          head = os.environ["HEAD_SHA"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          head_ref = os.environ["HEAD_REF"]
+          pr_number = int(os.environ["PR_NUMBER"])
+          workflow_id = 327355582
+
+          required_jobs = {
+              "sdk": ["subscription-sdk-compat (24)"],
+              "upstream": [
+                  "subscription-tm06-sponsored-plan-refund",
+                  "subscription-atomic-split-transfer",
+              ],
+              "vnext": [
+                  "subscription-reproducible-build",
+                  "subscription-vnext-authority-registry",
+              ],
+              "mainnet": ["subscription-mainnet-programdata"],
+              "squads_sdk": ["subscription-vnext-squads-sdk"],
+          }
+          workflow_jobs = {
+              "sdk": ["subscription-sdk-compat"],
+              "upstream": [
+                  "subscription-tm06-sponsored-plan-refund",
+                  "subscription-atomic-split-transfer",
+              ],
+              "vnext": [
+                  "subscription-reproducible-build",
+                  "subscription-vnext-authority-registry",
+              ],
+              "mainnet": ["subscription-mainnet-programdata"],
+              "squads_sdk": ["subscription-vnext-squads-sdk"],
+          }
+          found = {suite: {} for suite in required_jobs}
+          jobs_cache = {}
+
+          def api_json(endpoint: str):
+              return json.loads(
+                  subprocess.check_output(["gh", "api", endpoint], text=True)
+              )
+
+          try:
+              runs = api_json(
+                  f"repos/{repository}/actions/runs"
+                  f"?branch={head_ref}&event=pull_request&per_page=100"
+              ).get("workflow_runs", [])
+              runs.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+
+              for run in runs:
+                  if int(run.get("workflow_id", 0)) != workflow_id:
+                      continue
+                  if not any(
+                      int(pr.get("number", 0)) == pr_number
+                      for pr in run.get("pull_requests", [])
+                  ):
+                      continue
+
+                  run_id = int(run["id"])
+                  if run_id not in jobs_cache:
+                      try:
+                          jobs_cache[run_id] = api_json(
+                              f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100"
+                          ).get("jobs", [])
+                      except Exception as error:
+                          print(f"Unable to inspect jobs for run {run_id}: {error}")
+                          jobs_cache[run_id] = []
+
+                  for job in jobs_cache[run_id]:
+                      if job.get("status") != "completed" or job.get("conclusion") != "success":
+                          continue
+                      name = job.get("name", "")
+                      for suite, names in required_jobs.items():
+                          for required_name in names:
+                              if name == required_name and required_name not in found[suite]:
+                                  found[suite][required_name] = run.get("head_sha")
+
+                  if all(
+                      set(required_jobs[suite]).issubset(found[suite])
+                      for suite in required_jobs
+                  ):
+                      break
+          except Exception as error:
+              print(f"Prior per-job PASS lookup unavailable; using full PR diff: {error}")
+
+          def is_ancestor(sha: str) -> bool:
+              return subprocess.run(
+                  ["git", "merge-base", "--is-ancestor", sha, head],
+                  check=False,
+              ).returncode == 0
+
+          def suite_baseline(suite: str) -> str:
+              if not set(required_jobs[suite]).issubset(found[suite]):
+                  print(f"No complete prior PASS evidence for {suite}; using PR base.")
+                  return base
+              shas = list(found[suite].values())
+              if any(not sha or not is_ancestor(sha) for sha in shas):
+                  print(f"Prior {suite} PASS is not on current history; using PR base.")
+                  return base
+              # Use the oldest successful job SHA among the suite's required
+              # jobs so every change since every required PASS is considered.
+              distances = [
+                  (
+                      int(subprocess.check_output(
+                          ["git", "rev-list", "--count", f"{sha}..{head}"],
+                          text=True,
+                      ).strip()),
+                      sha,
+                  )
+                  for sha in shas
+              ]
+              return max(distances)[1]
+
+          current_workflow = Path(".github/workflows/ci.yml").read_text()
+
+          def job_block(source: str, job_name: str):
+              lines = source.splitlines()
+              marker = f"  {job_name}:"
+              try:
+                  start_index = lines.index(marker)
+              except ValueError:
+                  return None
+              end_index = len(lines)
+              for index in range(start_index + 1, len(lines)):
+                  if re.match(r"^  [A-Za-z0-9_-]+:$", lines[index]):
+                      end_index = index
+                      break
+              return "\n".join(lines[start_index:end_index])
+
+          def workflow_block_changed(suite: str, baseline: str) -> bool:
+              try:
+                  previous = subprocess.check_output(
+                      ["git", "show", f"{baseline}:.github/workflows/ci.yml"],
+                      text=True,
+                  )
+              except Exception:
+                  return True
+              return any(
+                  job_block(previous, name) != job_block(current_workflow, name)
+                  for name in workflow_jobs[suite]
+              )
+
+          def changed_paths(baseline: str) -> set[str]:
+              return set(
+                  subprocess.check_output(
+                      ["git", "diff", "--name-only", f"{baseline}...{head}"],
+                      text=True,
+                  ).splitlines()
+              )
+
+          def under(paths: set[str], directory: str) -> bool:
+              return any(
+                  path == directory or path.startswith(directory + "/")
+                  for path in paths
+              )
+
+          suite_paths = {
+              suite: changed_paths(suite_baseline(suite))
+              for suite in required_jobs
+          }
+
+          sdk_paths = suite_paths["sdk"]
+          sdk = (
+              under(sdk_paths, "tools/subscription-sdk-compat")
+              or under(sdk_paths, "src")
+              or under(sdk_paths, "functions")
+              or any(
+                  path in {"package.json", "bun.lock", "bun.lockb", "tsconfig.ci.json"}
+                  or path.startswith("tsconfig.")
+                  for path in sdk_paths
+              )
+              or workflow_block_changed("sdk", suite_baseline("sdk"))
+          )
+          upstream = (
+              under(suite_paths["upstream"], "tools/subscription-upstream-tests")
+              or workflow_block_changed("upstream", suite_baseline("upstream"))
+          )
+          vnext = (
+              under(suite_paths["vnext"], "tools/subscription-vnext-tests")
+              or workflow_block_changed("vnext", suite_baseline("vnext"))
+          )
+          mainnet = (
+              under(suite_paths["mainnet"], "tools/subscription-sdk-compat")
+              or workflow_block_changed("mainnet", suite_baseline("mainnet"))
+          )
+          squads_sdk = workflow_block_changed(
+              "squads_sdk", suite_baseline("squads_sdk")
+          )
+          reproducible = upstream or vnext or sdk
+
+          outputs = {
+              "sdk": sdk,
+              "upstream": upstream,
+              "reproducible": reproducible,
+              "vnext": vnext,
+              "mainnet": mainnet,
+              "squads_sdk": squads_sdk,
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for name, enabled in outputs.items():
+                  output.write(f"{name}={'true' if enabled else 'false'}" + chr(10))
+
+          print("Per-suite prior successful job baselines:")
+          for suite in required_jobs:
+              print(f"{suite}: {suite_baseline(suite)}")
+              print(f"{suite} changed paths: {sorted(suite_paths[suite])}")
+          print("Subscription CI scope:")
+          for name, enabled in outputs.items():
+              print(f"{name}={'true' if enabled else 'false'}")
+          PY
+
+  subscription-sdk-compat:
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.sdk == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [24]
+    defaults:
+      run:
+        working-directory: tools/subscription-sdk-compat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact PR head checkout
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          printf 'EXPECTED_PR_HEAD=%s\nACTUAL_CHECKOUT_HEAD=%s\n' "$EXPECTED_PR_HEAD" "$actual"
+          test "$actual" = "$EXPECTED_PR_HEAD"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Record runtime and package-manager policy
+        run: |
+          node --version
+          npm --version
+          npm config set engine-strict true
+          npm config get engine-strict
+
+      - name: Verify committed lockfile matches the pinned manifest
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git diff --exit-code -- package-lock.json
+
+      - name: Install isolated dependency graph
+        run: npm ci --no-audit --no-fund
+
+      - name: Report installed dependency versions and engine requirements
+        run: |
+          npm ls --depth=0
+          node --input-type=module -e "import { createRequire } from 'node:module'; import { readFileSync } from 'node:fs'; import { dirname, join } from 'node:path'; const require = createRequire(import.meta.url); for (const name of ['@solana/subscriptions','@solana/kit','@solana-program/token','@solana-program/token-2022','@solana/web3.js']) { let dir = dirname(require.resolve(name)); for (;;) { const candidate = join(dir, 'package.json'); try { const pkg = JSON.parse(readFileSync(candidate, 'utf8')); if (pkg.name === name) { console.log(name + '@' + pkg.version + ' engines=' + JSON.stringify(pkg.engines ?? {})); break; } } catch {} const parent = dirname(dir); if (parent === dir) throw new Error('package.json not found: ' + name); dir = parent; } }"
+
+      - name: Setup Bun for repository TypeScript compiler
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+
+      - name: Install pinned root TypeScript toolchain
+        working-directory: .
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck Subscription adapter and SDK builder integration
+        run: npm run typecheck
+
+      - name: Execute SDK / PDA / web3.js transaction compatibility tests
+        run: npm test
+
+      - name: Execute SDK integration in local Cloudflare Pages Workerd runtime
+        run: npm run test:workerd
+
+      - name: Simulate Subscription CreatePlan on dedicated Devnet RPC (no submission)
+        env:
+          SOLANA_DEVNET_RPC_URL: ${{ secrets.SOLANA_DEVNET_RPC_URL }}
+        run: npm run test:devnet-sim
+
+  subscription-tm06-sponsored-plan-refund:
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.upstream == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact SolMint PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: solmint-source
+          persist-credentials: false
+
+      - name: Checkout exact pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Apply test-only regression overlay and verify scope
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euxo pipefail
+          test "$(git -C solmint-source rev-parse HEAD)" = "$EXPECTED_PR_HEAD"
+          test "$(git -C upstream-subscriptions rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          patch="tm06-sponsored-plan-refund.patch"
+          test -s "solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply --check "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions add -N tests/integration-tests/src/test_tm06_sponsored_plan_rent_refund.rs
+          git -C upstream-subscriptions diff --check
+          actual="$(git -C upstream-subscriptions diff --name-only | sort)"
+          expected="$(printf '%s\n' \
+            tests/integration-tests/src/lib.rs \
+            tests/integration-tests/src/test_tm06_sponsored_plan_rent_refund.rs | sort)"
+          test "$actual" = "$expected"
+          echo "Only the test module registration and new regression test are overlaid."
+
+      - name: Suppress ephemeral CI keypair mnemonic output in pinned setup action
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          action = Path("upstream-subscriptions/.github/actions/setup/action.yml")
+          source = action.read_text()
+          original = "[ -f ~/.config/solana/id.json ] || solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json"
+          replacement = "if [ ! -f ~/.config/solana/id.json ]; then solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json >/dev/null 2>&1 || { echo \"::error::Ephemeral CI keypair generation failed; output suppressed.\"; exit 1; }; fi"
+          if source.count(original) != 1:
+              raise SystemExit("Pinned setup action keypair command changed; refusing an ambiguous redaction patch")
+          action.write_text(source.replace(original, replacement))
+          print("PASS: ephemeral CI key generation output is suppressed before setup action execution")
+          PY
+
+      - name: Install pinned upstream Rust / Solana test toolchain
+        uses: ./upstream-subscriptions/.github/actions/setup
+        with:
+          rust-toolchain: '1.92'
+          solana-version: '4.0.0'
+          rust-cache-key: 'solmint-tm06-sponsored-plan-refund'
+          install-pnpm: 'false'
+          install-pnpm-dependencies: 'false'
+          install-just: 'false'
+          install-surfpool: 'false'
+
+      - name: Run sponsored Plan rent refund regression on pinned Program
+        working-directory: upstream-subscriptions
+        run: |
+          set -euo pipefail
+          (cd program && cargo build-sbf)
+          (cd tests/transfer-hook-example && cargo build-sbf)
+          cargo test -p tests-subscriptions sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor
+
+  subscription-atomic-split-transfer:
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.upstream == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact SolMint PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: solmint-source
+          persist-credentials: false
+
+      - name: Checkout exact pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Apply atomic split-transfer test overlay and verify scope
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euxo pipefail
+          test "$(git -C solmint-source rev-parse HEAD)" = "$EXPECTED_PR_HEAD"
+          test "$(git -C upstream-subscriptions rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          patch="tm07-atomic-split-transfer.patch"
+          test -s "solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply --check "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions apply "../solmint-source/tools/subscription-upstream-tests/$patch"
+          git -C upstream-subscriptions diff --check
+          actual="$(git -C upstream-subscriptions diff --name-only)"
+          expected="tests/integration-tests/src/test_transfer_subscription.rs"
+          test "$actual" = "$expected"
+          echo "Only the pinned upstream TransferSubscription integration-test file was changed."
+
+      - name: Suppress ephemeral CI keypair mnemonic output in pinned setup action
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          action = Path("upstream-subscriptions/.github/actions/setup/action.yml")
+          source = action.read_text()
+          original = "[ -f ~/.config/solana/id.json ] || solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json"
+          replacement = "if [ ! -f ~/.config/solana/id.json ]; then solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json >/dev/null 2>&1 || { echo \"::error::Ephemeral CI keypair generation failed; output suppressed.\"; exit 1; }; fi"
+          if source.count(original) != 1:
+              raise SystemExit("Pinned setup action keypair command changed; refusing an ambiguous redaction patch")
+          action.write_text(source.replace(original, replacement))
+          print("PASS: ephemeral CI key generation output is suppressed before setup action execution")
+          PY
+
+      - name: Install pinned upstream Rust / Solana test toolchain
+        uses: ./upstream-subscriptions/.github/actions/setup
+        with:
+          rust-toolchain: '1.92'
+          solana-version: '4.0.0'
+          rust-cache-key: 'solmint-atomic-split-transfer'
+          install-pnpm: 'false'
+          install-pnpm-dependencies: 'false'
+          install-just: 'false'
+          install-surfpool: 'false'
+
+      - name: Run atomic split-transfer and full pinned integration regression suite
+        working-directory: upstream-subscriptions
+        run: |
+          set -euo pipefail
+          (cd program && cargo build-sbf)
+          (cd tests/transfer-hook-example && cargo build-sbf)
+          cargo test -p tests-subscriptions
+
+  subscription-reproducible-build:
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.reproducible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      elf_sha256: ${{ steps.hash.outputs.elf_sha256 }}
+      idl_sha256: ${{ steps.hash.outputs.idl_sha256 }}
+    steps:
+      - name: Checkout pinned upstream Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: upstream-subscriptions
+          persist-credentials: false
+
+      - name: Verify exact upstream source commit and toolchain pins
+        working-directory: upstream-subscriptions
+        run: |
+          test "$(git rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          grep -F 'solana = "3.1.10"' Cargo.toml
+          grep -F 'channel = "1.92"' rust-toolchain.toml
+          grep -F 'name = "subscriptions_program"' program/Cargo.toml
+
+      - name: Download pinned solana-verify CLI from immutable release asset
+        run: |
+          curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 180 \
+            https://github.com/solana-foundation/solana-verifiable-build/releases/download/v0.5.2/solana-verify-0.5.2-linux \
+            --output solana-verify
+          echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
+          chmod 0755 solana-verify
+          ./solana-verify --version
+
+      - name: Build pinned source in deterministic Solana Docker image (no RPC)
+        id: build
+        working-directory: upstream-subscriptions
+        run: |
+          set -o pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/upstream-subscriptions" --workspace-path "$GITHUB_WORKSPACE/upstream-subscriptions" --library-name subscriptions_program 2>&1 | tee "$RUNNER_TEMP/subscription-build.log"
+          container_rust_toolchain="$(sed -n 's/^Using container Rust toolchain: //p' "$RUNNER_TEMP/subscription-build.log" | tail -n 1)"
+          if [ -z "$container_rust_toolchain" ]; then
+            echo "::error::Could not capture the actual Solana build container Rust toolchain"
+            exit 1
+          fi
+          echo "container_rust_toolchain=$container_rust_toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Compute reproducible executable hash
+        id: hash
+        working-directory: upstream-subscriptions
+        env:
+          CONTAINER_RUST_TOOLCHAIN: ${{ steps.build.outputs.container_rust_toolchain }}
+        run: |
+          set -euo pipefail
+          binary="$(find "$GITHUB_WORKSPACE/upstream-subscriptions/target/deploy" -name 'subscriptions_program.so' -type f -print -quit)"
+          if [ -z "$binary" ]; then
+            echo "::error::Pinned verified build did not produce subscriptions_program.so"
+            find "$GITHUB_WORKSPACE/upstream-subscriptions" -name '*.so' -type f -print
+            exit 1
+          fi
+          hash="$(../solana-verify get-executable-hash "$binary")"
+          if ! [[ "$hash" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::solana-verify returned an invalid executable hash"
+            exit 1
+          fi
+          idl_file="$GITHUB_WORKSPACE/upstream-subscriptions/idl/subscriptions.json"
+          if [ ! -s "$idl_file" ]; then
+            echo "::error::Pinned upstream IDL file is missing or empty"
+            exit 1
+          fi
+          idl_hash="$(sha256sum "$idl_file" | awk '{print $1}')"
+          if ! [[ "$idl_hash" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::Pinned source IDL SHA-256 is invalid"
+            exit 1
+          fi
+          echo "elf_sha256=$hash" >> "$GITHUB_OUTPUT"
+          echo "idl_sha256=$idl_hash" >> "$GITHUB_OUTPUT"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          printf '{"source_commit":"364a41976c33347d092902443bbec2def9227e75","solana_verify_version":"0.5.2","solana_cli_build_version":"3.1.10","rust_toolchain_file":"1.92","build_container_rust_toolchain":"%s","docker_image_digest":"sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3","elf_sha256":"%s","idl_sha256":"%s"}\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" "$idl_hash" > "$GITHUB_WORKSPACE/artifacts/subscription-program-reproducible-build.json"
+          printf 'Pinned source commit: 364a41976c33347d092902443bbec2def9227e75\nBuild container Rust toolchain: %s\nReproducible ELF SHA-256: %s\nPinned source IDL SHA-256: %s\n' "$CONTAINER_RUST_TOOLCHAIN" "$hash" "$idl_hash"
+
+      - name: Upload sanitized reproducible build evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-subscription-reproducible-build
+          path: |
+            artifacts/subscription-program-reproducible-build.json
+            solana-verify
+          if-no-files-found: error
+          retention-days: 30
+
+  subscription-mainnet-programdata:
+    needs: [subscription-reproducible-build, subscription-change-scope]
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.mainnet == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/subscription-sdk-compat
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact PR head checkout
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_PR_HEAD"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Require dedicated Mainnet RPC secret without displaying it
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+        run: |
+          if [ -z "$SOLANA_RPC_URL" ]; then
+            echo "::error::Repository secret SOLANA_RPC_URL is required for read-only Mainnet ProgramData verification; no public RPC fallback is permitted."
+            exit 1
+          fi
+          case "$SOLANA_RPC_URL" in
+            https://*) ;;
+            *) echo "::error::SOLANA_RPC_URL must use HTTPS."; exit 1 ;;
+          esac
+
+      - name: Install isolated SDK dependency graph
+        run: npm ci --no-audit --no-fund
+
+      - name: Read Mainnet Program and ProgramData metadata
+        env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+          EXPECTED_PROGRAM_ELF_SHA256: ${{ needs.subscription-reproducible-build.outputs.elf_sha256 }}
+          EXPECTED_SUBSCRIPTION_IDL_SHA256: ${{ needs.subscription-reproducible-build.outputs.idl_sha256 }}
+        run: npm run test:mainnet-programdata
+
+      - name: Upload sanitized ProgramData evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-subscription-mainnet-programdata
+          path: tools/subscription-sdk-compat/artifacts/subscription-mainnet-programdata.json
+          if-no-files-found: error
+          retention-days: 30
+
+
+  subscription-production-migration-cli:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install the pinned Supabase CLI v2
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
+        with:
+          version: 2.122.1
+
+      - name: Verify exact Supabase CLI version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(supabase --version)"
+          printf 'Supabase CLI version: %s\n' "$version"
+          grep -Fq '2.122.1' <<< "$version"
+
+
   production-migration-cli:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -69,3 +717,235 @@ jobs:
           version="$(supabase --version)"
           printf 'Supabase CLI version: %s\n' "$version"
           grep -Fq '2.122.1' <<< "$version"
+
+
+  subscription-vnext-squads-sdk:
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.squads_sdk == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact VNext fork source
+        uses: actions/checkout@v5
+        with:
+          repository: azad2022/solmint-subscriptions-program
+          ref: 04569d883c2d91ab4b973913266e495f19d034bf
+          persist-credentials: false
+
+      - name: Verify exact fork commit
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="04569d883c2d91ab4b973913266e495f19d034bf"
+          test "$actual" = "$expected"
+
+      - name: Install pinned Rust, Solana, pnpm and Surfpool toolchain
+        id: toolchain_setup
+        uses: ./.github/actions/setup
+        with:
+          enable-rust-cache: 'true'
+          save-rust-cache: 'true'
+          install-surfpool: 'true'
+          rust-cache-key: 'solmint-squads-delayed-proposal'
+          solana-version: '4.0.0'
+          surfpool-version: '1.3.1'
+
+      - name: Build VNext program, transfer-hook fixture and generated clients
+        id: vnext_build
+        run: just build-program build-test-hook generate-clients
+
+      - name: Start isolated Surfpool fork
+        run: just _start-surfpool fork
+
+      - name: Run staged Squads SDK unit tests
+        working-directory: clients/typescript
+        run: pnpm exec vitest run --config vitest.config.ts test/smart-wallets/squadsWallet.test.ts
+
+      - name: Run real delayed Squads proposal integration
+        working-directory: clients/typescript
+        env:
+          RUN_SQUADS_DELAYED_PROPOSAL_E2E: '1'
+          SOLANA_RPC_URL: http://127.0.0.1:8899
+        run: pnpm exec vitest run --config vitest.config.ts test/smart-wallets/squadsDelayedProposal.integration.test.ts
+
+      - name: Stop isolated Surfpool
+        if: always()
+        run: just kill-validator
+
+      - name: Verify the pinned Agave local validator is installed
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          command -v solana-test-validator
+          solana-test-validator --version
+
+      - name: Resolve the exact VNext SBF artifact built from this checkout
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          program_so="$(find "$GITHUB_WORKSPACE" -type f -path '*/target/deploy/subscriptions_program.so' -print -quit)"
+          test -n "$program_so"
+          test -s "$program_so"
+          printf 'SOLMINT_VNEXT_PROGRAM_SO=%s\n' "$program_so" >> "$GITHUB_ENV"
+          sha256sum "$program_so"
+
+      - name: Typecheck the Agave durable nonce regression test
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
+        working-directory: clients/typescript
+        run: |
+          set -euo pipefail
+          pnpm exec tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --lib ES2022 --types node --strict --skipLibCheck --esModuleInterop --allowImportingTsExtensions test/smart-wallets/durableNonceAgave.integration.test.ts
+
+      - name: Prove durable nonce failure semantics on the Agave test validator
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
+        working-directory: clients/typescript
+        env:
+          RUN_DURABLE_NONCE_AGAVE_E2E: '1'
+        run: |
+          set -euo pipefail
+          pnpm exec vitest run --config vitest.config.ts test/smart-wallets/durableNonceAgave.integration.test.ts
+
+  subscription-vnext-authority-registry:
+    needs: [subscription-reproducible-build, subscription-change-scope]
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.vnext == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact SolMint VNext fork commit
+        uses: actions/checkout@v5
+        with:
+          repository: azad2022/solmint-subscriptions-program
+          ref: fe2555a5ab358c6dbaee79b3c1ecea736d048098
+          path: vnext-subscriptions
+          persist-credentials: false
+
+      - name: Verify immutable VNext source commit
+        working-directory: vnext-subscriptions
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="fe2555a5ab358c6dbaee79b3c1ecea736d048098"
+          printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
+          test "$actual" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: '1.92'
+          components: rustfmt, clippy
+
+      - name: Restore Rust build cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+        with:
+          workspaces: 'vnext-subscriptions -> vnext-subscriptions/target'
+          shared-key: solmint-vnext-authority-registry
+
+      - name: Check Program Rust formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt -p subscriptions-program -- --check
+
+      - name: Check LiteSVM test Rust formatting
+        working-directory: vnext-subscriptions
+        run: cargo fmt -p tests-subscriptions -- --check
+
+      - name: Run Program unit tests
+        working-directory: vnext-subscriptions
+        run: cargo test -p subscriptions-program
+
+      - name: Download checksum-verified solana-verify artifact from reproducible build
+        uses: actions/download-artifact@v4
+        with:
+          name: solmint-subscription-reproducible-build
+          path: ${{ github.workspace }}
+
+      - name: Re-verify pinned solana-verify CLI checksum
+        run: |
+          test -s solana-verify
+          echo "b9d5ccce9634dc14269cab3e7a58649bc141b3306e7735a94478c936341f211f  solana-verify" | sha256sum --check -
+          chmod 0755 solana-verify
+          ./solana-verify --version
+
+      - name: Build exact VNext SBF artifact in deterministic container
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/vnext-subscriptions" \
+            --workspace-path "$GITHUB_WORKSPACE/vnext-subscriptions" \
+            --library-name subscriptions_program
+          test -s target/deploy/subscriptions_program.so
+          sha256sum target/deploy/subscriptions_program.so
+
+      - name: Build Token-2022 transfer-hook test fixture
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          ../solana-verify build "$GITHUB_WORKSPACE/vnext-subscriptions/tests/transfer-hook-example" \
+            --workspace-path "$GITHUB_WORKSPACE/vnext-subscriptions/tests/transfer-hook-example" \
+            --library-name transfer_hook_example
+          test -s tests/transfer-hook-example/target/deploy/transfer_hook_example.so
+
+      - name: Run complete LiteSVM integration suite against VNext SBF
+        working-directory: vnext-subscriptions
+        run: cargo test -p tests-subscriptions
+
+      - name: Checkout immutable v0.5.0 legacy Program source
+        uses: actions/checkout@v5
+        with:
+          repository: solana-foundation/subscriptions
+          ref: 364a41976c33347d092902443bbec2def9227e75
+          path: legacy-subscriptions
+          persist-credentials: false
+
+      - name: Build immutable legacy Program SBF for isolation testing
+        working-directory: legacy-subscriptions
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "364a41976c33347d092902443bbec2def9227e75"
+          ../solana-verify build "$GITHUB_WORKSPACE/legacy-subscriptions" \
+            --workspace-path "$GITHUB_WORKSPACE/legacy-subscriptions" \
+            --library-name subscriptions_program
+          test -s target/deploy/subscriptions_program.so
+
+      - name: Prove immutable legacy Program cannot delegate a VNext non-ATA source
+        working-directory: vnext-subscriptions
+        env:
+          SOLMINT_LEGACY_PROGRAM_SO: ${{ github.workspace }}/legacy-subscriptions/target/deploy/subscriptions_program.so
+        run: cargo test -p tests-subscriptions vnext_legacy_program_ -- --ignored
+
+      - name: Regenerate Codama IDL from exact Rust source
+        working-directory: vnext-subscriptions
+        run: GENERATE_IDL=1 cargo check -p subscriptions-program
+
+      - name: Verify generated Codama IDL matches committed VNext IDL
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          git show HEAD:idl/subscriptions.json > /tmp/committed-subscriptions-idl.json
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          generated = json.loads(Path("idl/subscriptions.json").read_text())
+          committed = json.loads(Path("/tmp/committed-subscriptions-idl.json").read_text())
+          if generated != committed:
+              raise SystemExit("Generated Codama IDL differs structurally from the committed IDL")
+
+          canonical = json.dumps(generated, sort_keys=True, separators=(",", ":")).encode()
+          print("PASS: generated and committed IDL are structurally identical")
+          print(f"Canonical IDL SHA-256: {hashlib.sha256(canonical).hexdigest()}")
+          print(f"Instructions: {len(generated['program']['instructions'])}")
+          print(f"Accounts: {len(generated['program']['accounts'])}")
+          print(f"Defined types: {len(generated['program']['definedTypes'])}")
+          print(f"PDAs: {len(generated['program']['pdas'])}")
+          PY
+
+      - name: Upload exact VNext SBF, generated IDL and build hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solmint-vnext-authority-registry-build
+          path: |
+            vnext-subscriptions/target/deploy/subscriptions_program.so
+            vnext-subscriptions/idl/subscriptions.json
+          if-no-files-found: warn
+          retention-days: 14

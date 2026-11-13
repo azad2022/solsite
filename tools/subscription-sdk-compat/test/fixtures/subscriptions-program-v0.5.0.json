@@ -1,0 +1,240 @@
+{
+  "source": {
+    "repository": "solana-foundation/subscriptions",
+    "programTag": "program-v0.5.0",
+    "programCommit": "364a41976c33347d092902443bbec2def9227e75",
+    "sdkTag": "ts-client-v0.5.0",
+    "sdkCommit": "5a347ffaa969036061d274d3c91e0277962e2b51",
+    "idlPath": "idl/subscriptions.json",
+    "idlGitBlobSha": "208718e90bf9f8e7f42271b6e93284109b118172",
+    "idlProgramVersion": "0.5.0-beta.1",
+    "programId": "De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44",
+    "accountRoleEncoding": {
+      "readonly": 0,
+      "writable": 1,
+      "readonlySigner": 2,
+      "writableSigner": 3
+    }
+  },
+  "addresses": {
+    "merchant": "SysvarRent111111111111111111111111111111111",
+    "subscriber": "SysvarC1ock11111111111111111111111111111111",
+    "mint": "So11111111111111111111111111111111111111112",
+    "userAta": "Vote111111111111111111111111111111111111111",
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "systemProgram": "11111111111111111111111111111111",
+    "destinationOwner": "Stake11111111111111111111111111111111111111",
+    "zeroAddress": "11111111111111111111111111111111"
+  },
+  "values": {
+    "planId": "17",
+    "amountAtomic": "1250000",
+    "periodHours": "720",
+    "endTs": "0",
+    "planCreatedAt": "0",
+    "expectedCreatedAt": "10000",
+    "expectedSubscriptionAuthorityInitId": "123456",
+    "metadataUri": "https://solmint.ir/sdk-compatibility-fixture.json",
+    "planDestinationCapacity": 4,
+    "planPullerCapacity": 4,
+    "metadataUriBytes": 128
+  },
+  "pdaSeeds": {
+    "plan": [
+      "plan",
+      "merchant",
+      "planId:u64le"
+    ],
+    "subscriptionAuthority": [
+      "SubscriptionAuthority",
+      "subscriber",
+      "mint"
+    ],
+    "subscriptionDelegation": [
+      "subscription",
+      "planPda",
+      "subscriber"
+    ],
+    "eventAuthority": [
+      "event_authority"
+    ]
+  },
+  "instructions": {
+    "initSubscriptionAuthority": {
+      "discriminator": 0,
+      "expectedByteLength": 1,
+      "accounts": [
+        {
+          "name": "owner",
+          "addressRef": "subscriber",
+          "role": 3,
+          "isSigner": true,
+          "isWritable": true
+        },
+        {
+          "name": "subscriptionAuthority",
+          "addressRef": "subscriptionAuthorityPda",
+          "role": 1,
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "tokenMint",
+          "addressRef": "mint",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "userAta",
+          "addressRef": "userAta",
+          "role": 1,
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "systemProgram",
+          "addressRef": "systemProgram",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "tokenProgram",
+          "addressRef": "tokenProgram",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "dataLayout": [
+        "u8 discriminator=0"
+      ]
+    },
+    "createPlan": {
+      "discriminator": 7,
+      "expectedByteLength": 457,
+      "accounts": [
+        {
+          "name": "merchant",
+          "addressRef": "merchant",
+          "role": 3,
+          "isSigner": true,
+          "isWritable": true
+        },
+        {
+          "name": "planPda",
+          "addressRef": "planPda",
+          "role": 1,
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "tokenMint",
+          "addressRef": "mint",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "systemProgram",
+          "addressRef": "systemProgram",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "tokenProgram",
+          "addressRef": "tokenProgram",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "dataLayout": [
+        "u8 discriminator",
+        "u64 planData.planId",
+        "pubkey planData.mint",
+        "u64 planData.terms.amount",
+        "u64 planData.terms.periodHours",
+        "i64 planData.terms.createdAt",
+        "i64 planData.endTs",
+        "pubkey[4] planData.destinations",
+        "pubkey[4] planData.pullers",
+        "utf8[128] planData.metadataUri"
+      ]
+    },
+    "subscribe": {
+      "discriminator": 11,
+      "expectedByteLength": 74,
+      "accounts": [
+        {
+          "name": "subscriber",
+          "addressRef": "subscriber",
+          "role": 3,
+          "isSigner": true,
+          "isWritable": true
+        },
+        {
+          "name": "merchant",
+          "addressRef": "merchant",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "planPda",
+          "addressRef": "planPda",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "subscriptionPda",
+          "addressRef": "subscriptionPda",
+          "role": 1,
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "subscriptionAuthorityPda",
+          "addressRef": "subscriptionAuthorityPda",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "systemProgram",
+          "addressRef": "systemProgram",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "eventAuthority",
+          "addressRef": "eventAuthorityPda",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "selfProgram",
+          "addressRef": "programId",
+          "role": 0,
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "dataLayout": [
+        "u8 discriminator",
+        "u64 subscribeData.planId",
+        "u8 subscribeData.planBump",
+        "pubkey subscribeData.expectedMint",
+        "u64 subscribeData.expectedAmount",
+        "u64 subscribeData.expectedPeriodHours",
+        "i64 subscribeData.expectedCreatedAt",
+        "i64 subscribeData.expectedSubscriptionAuthorityInitId"
+      ]
+    }
+  }
+}

@@ -33,6 +33,7 @@ on:
       - 'src/pay/components/pay-bulk.css'
       - 'package.json'
       - 'bun.lock'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
   push:
     branches: [main]
     paths:
@@ -54,7 +55,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.bypass.outputs.run || steps.reuse.outputs.run }}
+    steps:
+      - name: Checkout exact PR head and full history
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: bypass
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+        shell: bash
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - id: reuse
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: ./.github/actions/pr-job-scope
+        with:
+          workflow-id: '346641662'
+          job-name: 'devnet-e2e'
+          job-id: 'devnet-e2e'
+          workflow-file: '.github/workflows/solmint-pay-devnet-e2e.yml'
+          path-patterns: '[".github/workflows/solmint-pay-devnet-e2e.yml","functions/api/pay/**","src/pay/**","e2e/pay-devnet-native.e2e.ts","e2e/pay-payment-intent-devnet-lifecycle.e2e.ts","e2e/pay-transaction-request-devnet.e2e.ts","e2e/pay-bulk-payout-devnet.e2e.ts","supabase/migrations/**","package.json","bun.lock"]'
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          head-ref: ${{ github.head_ref }}
+          pr-number: ${{ github.event.pull_request.number }}
+          repository: ${{ github.repository }}
+
   devnet-e2e:
+    needs: scope
+    if: needs.scope.outputs.run == 'true' && (github.event_name != 'workflow_dispatch' || inputs.run == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

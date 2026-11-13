@@ -2285,3 +2285,32 @@ Future capability boundary:
 اگر Backend authoritative state را نداده است، Frontend حق تصمیم‌گیری ندارد.
 
 **SolMint Pay فعلاً یک درگاه پرداخت Solana است؛ اما باید از همین امروز به شکلی ساخته شود که فردا بدون بازنویسی بنیادی بتواند به یک زیرساخت پرداخت چندزنجیره‌ای و یک پلتفرم integration واقعی تبدیل شود.**
+
+
+## 139. Project-level AI Operating Instructions
+
+برای جلوگیری از تکرار Prompt و یکسان‌ماندن رفتار عامل در همه نشست‌ها، دستورالعمل اجرایی پایدار پروژه در فایل زیر نگهداری می‌شود:
+
+`docs/solmint-pay-project-instructions.md`
+
+این فایل مکمل Master Specification است و جایگزین آن، Source Code، Backend Contract، Database/RLS/Migrations یا شواهد زنده نیست. هر دو سند باید پیش از تغییر مرتبط، از همان HEAD جاری خوانده شوند. قواعد اختصاصی Subscription در `docs/skills/solmint-pay-subscriptions/SKILL.md` و مهندسی Frontend/Release در Skillهای مربوط باقی می‌مانند. در تعارض، ترتیب تقدم منابع همین سند و شواهد واقعی Repository/Backend حفظ می‌شود.
+
+
+## 140. Subscription capability-preservation owner decision — 2026-11-06
+
+The owner explicitly requires preserving the complete planned Subscription capability set. Do not permanently de-scope finite Plans, CancelNow, Resume, Authority reauthorization, durable-nonce approvals, supported smart-wallet proposals, rent sponsorship, split transfers or multi-destination pulls as a workaround for protocol weaknesses. Any temporary no-launch condition is a **BLOCKED release gate**, not a product requirement to remove the capability. Read `docs/solmint-pay-subscription-upstream-v06-capability-preserving-remediation.md` alongside the Threat Model and Subscription Skill. Enable a capability only after its protocol controls, compatibility migration, adversarial tests, independent review and deployed evidence pass.
+
+
+## 141. Fail-closed Production migration workflow
+
+The repository-owned Production migration workflow must enforce an exact commit and exact target before mutation:
+
+- Checkout the event's exact `GITHUB_SHA`.
+- For `APPLY`, accept only `workflow_dispatch` on `refs/heads/main`, with a supplied full 40-character SHA identical to `GITHUB_SHA`.
+- For `DRY_RUN` / `APPLY`, bind the connection to SolMint's Session Pooler, exact project-specific database user, port 5432 and database `postgres`; require TLS and reject unknown query parameters.
+- If a password is embedded in the URI, compare it with the standalone password secret; strip it and use only `PGPASSWORD`. Never log either value.
+- Keep guard logic pure and covered by negative unit tests. Never execute `APPLY` as part of code validation.
+- This source-controlled guard does not govern the separate Supabase Dashboard GitHub Integration. Issue #355 remains BLOCKED until that provider-side setting and the historical triggering actor are verified through independent evidence. Do not change the provider setting without explicit authorization.
+
+
+The Production migration workflow also pins Supabase CLI to 2.122.1. Do not use `latest`; CLI v3 requires a separately tested command-contract migration before the controlled Production workflow upgrades.
