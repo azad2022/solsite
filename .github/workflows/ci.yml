@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -62,6 +63,7 @@ jobs:
       reproducible: ${{ steps.scope.outputs.reproducible }}
       vnext: ${{ steps.scope.outputs.vnext }}
       mainnet: ${{ steps.scope.outputs.mainnet }}
+      squads_sdk: ${{ steps.scope.outputs.squads_sdk }}
     steps:
       - name: Checkout exact PR head and history
         uses: actions/checkout@v5
@@ -75,15 +77,62 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
+          import json
           import os
           import subprocess
 
           base = os.environ["BASE_SHA"]
           head = os.environ["HEAD_SHA"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          head_ref = os.environ["HEAD_REF"]
+          pr_number = int(os.environ["PR_NUMBER"])
+
+          # Reuse prior PASS evidence only when it is for this exact PR and
+          # its tested commit is an ancestor of the current head. If lookup
+          # fails, or the branch was force-pushed, fall back to the full PR
+          # diff. This never suppresses a first run or an unverified change.
+          previous_success = None
+          try:
+              response = subprocess.check_output(
+                  [
+                      "gh", "api",
+                      f"repos/{repository}/actions/workflows/ci.yml/runs",
+                      "-f", f"branch={head_ref}",
+                      "-f", "event=pull_request",
+                      "-f", "status=success",
+                      "-F", "per_page=100",
+                  ],
+                  text=True,
+              )
+              runs = json.loads(response).get("workflow_runs", [])
+              for run in runs:
+                  if any(
+                      int(pr.get("number", 0)) == pr_number
+                      for pr in run.get("pull_requests", [])
+                  ):
+                      previous_success = run.get("head_sha")
+                      break
+          except Exception as error:
+              print(f"Previous successful CI lookup unavailable; using full PR diff: {error}")
+
+          diff_base = base
+          if previous_success:
+              ancestor = subprocess.run(
+                  ["git", "merge-base", "--is-ancestor", previous_success, head],
+                  check=False,
+              ).returncode == 0
+              if ancestor:
+                  diff_base = previous_success
+              else:
+                  print("Previous successful SHA is not an ancestor; using full PR diff.")
+
           changed = subprocess.check_output(
-              ["git", "diff", "--name-only", f"{base}...{head}"],
+              ["git", "diff", "--name-only", f"{diff_base}...{head}"],
               text=True,
           ).splitlines()
 
@@ -99,15 +148,19 @@ jobs:
               or path.startswith("tsconfig.")
               for path in changed
           )
-          upstream = workflow_changed or any(
+          upstream = any(
               under(path, "tools/subscription-upstream-tests") for path in changed
           )
-          vnext = workflow_changed or any(
+          vnext = any(
               under(path, "tools/subscription-vnext-tests") for path in changed
           )
           mainnet = any(
               under(path, "tools/subscription-sdk-compat") for path in changed
           )
+          # The SDK helper is a separate, cheap check. Run it when this
+          # workflow definition or its exact external source pin changes;
+          # do not rebuild the Rust Program matrix for that alone.
+          squads_sdk = workflow_changed
           reproducible = upstream or vnext or sdk
 
           outputs = {
@@ -116,12 +169,14 @@ jobs:
               "reproducible": reproducible,
               "vnext": vnext,
               "mainnet": mainnet,
+              "squads_sdk": squads_sdk,
           }
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               for name, enabled in outputs.items():
-                  output.write(f"{name}={'true' if enabled else 'false'}\n")
+                  output.write(f"{name}={'true' if enabled else 'false'}\\n")
 
-          print("Changed paths:")
+          print(f"Diff baseline: {diff_base}")
+          print("Changed paths since last successful CI (or full PR fallback):")
           for path in changed:
               print(f"- {path}")
           print("Subscription CI scope:")
@@ -551,6 +606,48 @@ jobs:
           printf 'Supabase CLI version: %s\n' "$version"
           grep -Fq '2.122.1' <<< "$version"
 
+
+  subscription-vnext-squads-sdk:
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.squads_sdk == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact VNext fork source
+        uses: actions/checkout@v5
+        with:
+          repository: azad2022/solmint-subscriptions-program
+          ref: cc6211449704704d8bdfe0b988fc4c72916b575c
+          path: vnext-source
+          persist-credentials: false
+
+      - name: Verify exact fork commit
+        working-directory: vnext-source
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="cc6211449704704d8bdfe0b988fc4c72916b575c"
+          test "$actual" = "$expected"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Activate pinned pnpm
+        working-directory: vnext-source
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.13.0 --activate
+          node --version
+          pnpm --version
+
+      - name: Install filtered TypeScript SDK workspace
+        working-directory: vnext-source
+        run: pnpm install --frozen-lockfile --filter @solana/subscriptions...
+
+      - name: Run staged Squads proposal helper tests
+        working-directory: vnext-source
+        run: pnpm --filter @solana/subscriptions exec vitest run --config vitest.config.ts test/smart-wallets/squadsWallet.test.ts
 
   subscription-vnext-authority-registry:
     needs: [subscription-reproducible-build, subscription-change-scope]
