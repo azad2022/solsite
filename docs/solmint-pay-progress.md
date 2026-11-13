@@ -4191,3 +4191,14 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 ### Mutation boundary
 - Repository changes were limited to the Fork integration-test source and Solsite CI pin / Progress Ledger.
 - No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
+
+
+## 2026-11-13 — G1-5 formatting correction after exact-head CI; second validation pending
+
+- Exact CI run `43379766767` on Solsite HEAD `95e4db69a0c600e0e35133c8e0f24ec790c15cb4` reached `subscription-vnext-authority-registry` after the deterministic VNext reproducible build succeeded. The Program format check passed, but `cargo fmt -p tests-subscriptions -- --check` failed. The step did not compile or execute the integration tests.
+- The failure was strictly Rustfmt output in `tests/integration-tests/src/test_vnext_legacy_isolation.rs`: it reflowed two `assert_eq!` invocations, the abandoned-recovery builder chain, Token-2022 Hook setup, Plan/Subscribe builder calls, and Hook transfer builder calls. No semantic or runtime defect was reported by this failed step.
+- Applied the exact formatting shown by the CI diff in Fork commit `cf512e2fbc17d209107f0c5ade2b7319121c105d`. The recovery and active Hook test logic was not changed in this style-only commit.
+- Updated both immutable Fork SHA pins in Solsite `.github/workflows/ci.yml` from `49c0744c937a1e2e9b9bd63ca007481d0ffba4ee` to `cf512e2fbc17d209107f0c5ade2b7319121c105d`. Solsite pin commit: `ed7c5ee5c892d1a7d1d1d0178172099bfc725bc7`.
+- Fork branch HEAD: `cf512e2fbc17d209107f0c5ade2b7319121c105d`; PR #1 remains OPEN / DRAFT / NOT MERGED. Solsite branch at the time of this entry: `ed7c5ee5c892d1a7d1d1d0178172099bfc725bc7`; PR #366 remains OPEN / DRAFT / NOT MERGED. `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Second exact-head CI has not yet been validated in this entry. Formatting, integration compile, VNext SBF, complete LiteSVM suite, immutable Legacy SBF and all ignored Legacy isolation tests remain pending. G1-5 and overall G1 remain BLOCKED.
+- Local Working Tree: UNKNOWN; no local Rust/Cargo/rustfmt toolchain. No Program runtime/ABI/IDL, Production DDL/configuration, Secret/Key/signer, Program ID, deployment, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
