@@ -731,13 +731,13 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: df635e9a8ce24cdd23ba37cd865c1530852a5c49
+          ref: dc14499e21a9ddcb119f618a0bc806fbd360886c
           persist-credentials: false
 
       - name: Verify exact fork commit
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="df635e9a8ce24cdd23ba37cd865c1530852a5c49"
+          expected="dc14499e21a9ddcb119f618a0bc806fbd360886c"
           test "$actual" = "$expected"
 
       - name: Install pinned Rust, Solana, pnpm and Surfpool toolchain

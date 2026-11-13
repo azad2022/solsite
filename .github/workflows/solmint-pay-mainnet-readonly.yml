@@ -25,7 +25,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.bypass.outputs.run || steps.reuse.outputs.run }}
+    steps:
+      - name: Checkout exact PR head and full history
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: bypass
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+        shell: bash
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - id: reuse
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: ./.github/actions/pr-job-scope
+        with:
+          workflow-id: '354993543'
+          job-name: 'mainnet-readonly'
+          job-id: 'mainnet-readonly'
+          workflow-file: '.github/workflows/solmint-pay-mainnet-readonly.yml'
+          path-patterns: '["src/pay/**","e2e/pay-mainnet-readonly.e2e.ts","package.json","bun.lock"]'
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          head-ref: ${{ github.head_ref }}
+          pr-number: ${{ github.event.pull_request.number }}
+          repository: ${{ github.repository }}
+
   mainnet-readonly:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

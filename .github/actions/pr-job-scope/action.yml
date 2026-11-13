@@ -1,0 +1,61 @@
+name: Reuse successful PR job evidence
+description: Skip a workflow job only when its own prior successful result still covers all relevant inputs.
+inputs:
+  workflow-id:
+    description: GitHub Actions workflow ID.
+    required: true
+  job-name:
+    description: Exact Actions job name from the prior run.
+    required: true
+  job-id:
+    description: YAML job key whose execution definition must remain unchanged.
+    required: true
+  workflow-file:
+    description: Workflow file containing the job definition.
+    required: true
+  path-patterns:
+    description: JSON array of repository-relative source and test path patterns.
+    required: true
+  base-sha:
+    description: Pull request base commit SHA.
+    required: true
+  head-sha:
+    description: Pull request head commit SHA.
+    required: true
+  head-ref:
+    description: Pull request source branch.
+    required: true
+  pr-number:
+    description: Pull request number.
+    required: true
+  repository:
+    description: Repository in owner/name form.
+    required: true
+outputs:
+  run:
+    description: Whether the heavy job must run.
+    value: ${{ steps.classify.outputs.run }}
+  baseline-sha:
+    description: Commit SHA of the prior successful job used as the baseline.
+    value: ${{ steps.classify.outputs.baseline_sha }}
+  reason:
+    description: Classification reason.
+    value: ${{ steps.classify.outputs.reason }}
+runs:
+  using: composite
+  steps:
+    - id: classify
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        WORKFLOW_ID: ${{ inputs.workflow-id }}
+        JOB_NAME: ${{ inputs.job-name }}
+        JOB_ID: ${{ inputs.job-id }}
+        WORKFLOW_FILE: ${{ inputs.workflow-file }}
+        PATH_PATTERNS: ${{ inputs.path-patterns }}
+        BASE_SHA: ${{ inputs.base-sha }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        HEAD_REF: ${{ inputs.head-ref }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        REPOSITORY: ${{ inputs.repository }}
+      run: python3 "$GITHUB_ACTION_PATH/../../scripts/pr-job-scope.py"
