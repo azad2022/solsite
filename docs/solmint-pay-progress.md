@@ -4158,3 +4158,36 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 ### Mutation boundary
 - Changes in this checkpoint are limited to Fork integration-test source and Solsite CI source pins / Progress Ledger.
 - No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, Deployment/upgrade, Squads proposal, Subscription Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
+
+
+## 2026-11-13 — G1-5: abandoned-subscription recovery and Token-2022 Hook coverage added; exact execution pending
+
+### Repository and exact refs
+- Solsite: `azad2022/solsite`, branch `feat/pay-subscription-billing`; at this ledger update the pin commit was `8f08e5bca1ce482788384c4b992510975302a708`; PR #366 OPEN / DRAFT / NOT MERGED. `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- VNext fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`; test commit `49c0744c937a1e2e9b9bd63ca007481d0ffba4ee`; PR #1 OPEN / DRAFT / NOT MERGED; immutable v0.5.0 baseline remains `364a41976c33347d092902443bbec2def9227e75`.
+- Local Working Tree remains UNKNOWN; no local Cargo/rustfmt toolchain was available in the execution environment.
+
+### Test-only changes in the Fork
+- Updated only `tests/integration-tests/src/test_vnext_legacy_isolation.rs`; no Program runtime, state, instruction ABI, Program ID, or IDL was changed.
+- Added a positive Legacy abandoned-Subscription recovery control to the existing legacy Plan/Subscription isolation test: create a real Legacy Subscription, close the subscriber's Legacy SubscriptionAuthority, advance the LiteSVM slot beyond the Subscription's recorded `init_id`, invoke the existing `RevokeAbandonedSubscription` helper, assert the Subscription account closes, assert rent returns to its recorded payer, and re-assert the VNext Authority Registry/Authority/source lineage remains unchanged.
+- Added ignored test `vnext_legacy_program_executes_token_2022_transfer_hook_with_extra_accounts`: loads the immutable v0.5.0 binary and the existing TransferHook fixture; creates a Token-2022 mint with an active Hook and canonical ATA-backed Legacy Subscription; verifies a TransferSubscription attempt without the hook accounts fails without changing Subscription/source/destination/counter account bytes or lamports; then supplies the exact Hook program, validation PDA and writable counter accounts, verifies transfer balances, and verifies the Hook counter increments exactly once.
+- These are source-level test additions only; none of the new test cases has been claimed as executed or passing.
+- Fork test commit: `49c0744c937a1e2e9b9bd63ca007481d0ffba4ee`.
+
+### CI pin and observed validation state
+- Solsite CI workflow `.github/workflows/ci.yml` has both immutable Fork SHA references updated from `64551866980ffc3b96f99c1234732c5d40d38ac2` to `49c0744c937a1e2e9b9bd63ca007481d0ffba4ee`; both exact occurrences were verified in the fetched file.
+- Solsite pin commit: `8f08e5bca1ce482788384c4b992510975302a708`.
+- Prior exact-head CI run `43276087433` on Solsite `95a60ae99e718195896b9cfbd83d8132e458dc03` failed at `cargo fmt -p tests-subscriptions -- --check`; no integration compile, LiteSVM, immutable Legacy build or ignored Legacy test execution occurred in that job. The formatter-only changes for the reported diffs were included in Fork commit `49c0744...`.
+- CI run `43379718765` for pin commit `8f08e5b...` was QUEUED when this entry was written. Production Build `43379718372` and Mainnet Read-only `43379718721` were IN_PROGRESS. This ledger checkpoint must not be interpreted as exact-head CI PASS.
+- No local Rust formatting, compilation or test execution occurred. Exact-head CI is the validation authority for this change.
+
+### Remaining gaps and disposition
+- G1-5 remains BLOCKED until a CI run against the final exact pinned source passes formatting, integration compilation, VNext SBF build, complete LiteSVM suite, immutable v0.5.0 SBF build and all ignored `vnext_legacy_program_` isolation tests, including the new recovery and active Token-2022 Hook scenario.
+- The new Hook case is specifically a positive/negative Legacy Subscription transfer fixture; it does not establish full Token-2022 compatibility for all mint extensions or all Legacy transfer instructions.
+- Broader Legacy adversarial remaining-account variants, durable signed-transaction/ABA cases, Program identity resolution, migration/recovery design and independent security review remain open.
+- The Program still retains the legacy Program ID and dispatches the Legacy instruction family alongside VNext. These tests do not close the old Program or prove compatibility safety for a same-ID upgrade.
+- G1-4 Legacy Migration/Recovery: NOT IMPLEMENTED. G1-5 Complete Legacy Isolation: BLOCKED. G1-6 Independent Security Audit: NOT IMPLEMENTED. G1-7 Devnet Rehearsal: NOT IMPLEMENTED. G1-8 Mainnet Migration: NOT IMPLEMENTED. Overall G1: BLOCKED.
+
+### Mutation boundary
+- Repository changes were limited to the Fork integration-test source and Solsite CI pin / Progress Ledger.
+- No Production DDL/data/provider setting, Secret/Key/signer, Program ID/keypair, deployment/upgrade, Squads proposal, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
