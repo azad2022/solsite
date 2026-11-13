@@ -4211,3 +4211,11 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - Fork test commit: 6ef7fe87f09a8319fd891a677a2f628c3107633f; only the same integration-test file changed.
 - Solsite CI pin commit: 6f67ebe53eb2fcef3b9747533aa9c465022f3c51; both exact pin occurrences now reference 6ef7fe87f09a8319fd891a677a2f628c3107633f.
 - This correctness refinement is not yet validated by an exact-head CI run. Formatting, compilation, VNext SBF, full LiteSVM and immutable Legacy isolation remain BLOCKED pending CI evidence. No Production or blockchain mutation occurred.
+
+
+## 2026-11-13 — Closed-account assertion aligned with immutable upstream tests
+
+- The official immutable v0.5.0 abandoned-Subscription integration tests accept either a missing account or a zero-lamport closed account after recovery. The isolation test had required only get_account(...).is_none(), which was stricter than the upstream contract and could make the assertion depend on LiteSVM's closed-account representation.
+- Updated both the existing Legacy Revoke positive control and the new Abandoned Subscription Recovery positive control to accept the two canonical closed-account representations (None or zero lamports), matching the immutable upstream test convention. No Program/runtime code changed.
+- Fork commit: 183f187d2e637b4b93ab5515918bfbd0a324565c. Solsite CI pin commit: e42451e86cf1fcf0e8b93f1e85b101651c86db94. Both CI pin occurrences point to the exact Fork commit.
+- Exact-head validation for this final source revision has not yet completed. G1-5 remains BLOCKED until CI passes formatting, compile, VNext build, complete LiteSVM and immutable Legacy isolation execution. No Production or on-chain mutation occurred.
