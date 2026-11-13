@@ -784,7 +784,7 @@ jobs:
           program_so="$(find "$GITHUB_WORKSPACE" -type f -path '*/target/deploy/subscriptions_program.so' -print -quit)"
           test -n "$program_so"
           test -s "$program_so"
-          printf 'SOLMINT_VNEXT_PROGRAM_SO=%s\\n' "$program_so" >> "$GITHUB_ENV"
+          printf 'SOLMINT_VNEXT_PROGRAM_SO=%s\n' "$program_so" >> "$GITHUB_ENV"
           sha256sum "$program_so"
 
       - name: Prove durable nonce failure semantics on the Agave test validator
