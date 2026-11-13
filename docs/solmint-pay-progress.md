@@ -4235,3 +4235,49 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - PR #366 OPEN / DRAFT / NOT MERGED; PR #1 OPEN / DRAFT / NOT MERGED. `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
 - Exact-head CI for Solsite commit `6e68775...` has not yet completed at this checkpoint. The next required proof is formatting PASS, then integration compile, VNext SBF and hook-fixture builds, full LiteSVM suite, immutable v0.5.0 build and all five ignored `vnext_legacy_program_` tests.
 - G1-5 and overall G1 remain BLOCKED. No local Cargo/rustfmt run was available; local Working Tree remains UNKNOWN. No Production DDL/data/provider setting, secrets/keys/signers, Program ID/keypair, deployment, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
+
+
+## 2026-11-13 — Exact-head validation of VNext SBF and complete configured Legacy isolation matrix
+
+### Exact repository refs and PR state
+- SolMint: `azad2022/solsite`, branch `feat/pay-subscription-billing`, validated PR HEAD `aa91473b2e49915efff7244ff2292781f8a8664b`; PR #366 OPEN / DRAFT / NOT MERGED.
+- Fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, exact immutable source pin `25f54ad4224344791b1f8dcf182b8be30b8253c9`; PR #1 OPEN / DRAFT / NOT MERGED.
+- Solsite `main` remained `514d3401d8d725be106ab0c83557f8e43cdff13e`; no direct main change. Solsite PR base SHA remained `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+
+### Exact-head CI evidence — PASS
+- CI run `43387621362` on Solsite HEAD `aa91473b2e49915efff7244ff2292781f8a8664b`: **SUCCESS**. All nine jobs passed: `quality`, `subscription-tm06-sponsored-plan-refund`, `subscription-atomic-split-transfer`, `subscription-sdk-compat (24)`, `subscription-production-migration-cli`, `production-migration-cli`, `subscription-reproducible-build`, `subscription-mainnet-programdata`, and `subscription-vnext-authority-registry`.
+- Companion workflows on the same exact HEAD: Production Build run `43387621284` SUCCESS; Database Security run `43387621356` SUCCESS; ordinary Pay Devnet E2E run `43387621377` SUCCESS; Mainnet Read-only run `43387621566` SUCCESS.
+- The ordinary Pay Devnet E2E is not a real Subscription charge or Subscription lifecycle rehearsal. Mainnet checks are read-only.
+
+### Fork test ownership compile correction
+- The prior CI run `43385520080` identified three Rust `E0382` moved-value compile errors in `tests/integration-tests/src/test_vnext_legacy_isolation.rs`: the account snapshots `authority_registry_before`, `authority_before`, and `source_before` were moved into an array and then read again by later assertions.
+- Fork commit `25f54ad4224344791b1f8dcf182b8be30b8253c9` changes only that test file: the account snapshots are borrowed by reference in the comparison loop and byte buffers are compared as slices. No Program/runtime/ABI/IDL source changed.
+- Solsite commit `aa91473b2e49915efff7244ff2292781f8a8664b` changes only `.github/workflows/ci.yml`; both immutable Fork checkout and expected-SHA assertions were updated to `25f54ad4224344791b1f8dcf182b8be30b8253c9`.
+
+### VNext and immutable Legacy evidence — PASS
+- Job `subscription-vnext-authority-registry` (`131760211859`) completed successfully on the exact Fork pin. Both Rust formatting checks, Program Unit Tests, checksum verification of `solana-verify`, deterministic VNext SBF build and Token-2022 transfer-hook fixture build passed.
+- Program Unit Tests: **98 passed, 0 failed**.
+- Complete VNext LiteSVM integration suite: **282 passed, 0 failed, 5 intentionally ignored** in the normal run. The five ignored tests were then explicitly executed by `cargo test -p tests-subscriptions vnext_legacy_program_ -- --ignored`: **5 passed, 0 failed, 0 ignored**.
+- The five passing immutable-Legacy cases were: non-ATA source delegation rejection; Authority/Transfer non-ATA lineage preservation; Plan/Subscription route isolation with Legacy abandoned-Subscription recovery and Rent assertion; active Token-2022 TransferHook with missing-account atomic failure and successful exact extra-account execution; and rejection of all tested VNext instruction discriminators.
+- The Legacy binary was built from immutable upstream v0.5.0 source commit `364a41976c33347d092902443bbec2def9227e75`, not from a mutable branch.
+- This proves the configured five-case test matrix against that exact immutable Legacy binary and exact VNext SBF. It does not prove every possible Legacy adversarial account permutation, durable signed-transaction/ABA behavior, an independent Program identity, or a safe migration.
+
+### IDL and build artifacts — PASS
+- Codama IDL regeneration and structural comparison passed: generated IDL equals committed VNext IDL.
+- Canonical IDL SHA-256: `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`.
+- Counts: 28 instructions, 12 accounts, 20 defined types, 12 PDAs.
+- Exact VNext SBF and generated IDL were uploaded as CI artifact `solmint-vnext-authority-registry-build`, artifact ID `14019442444`; artifact ZIP digest `d4bea7a546e952caeed765e6e9a44cb56603b89035de6a53371df57e2299c624`.
+
+### Gate disposition after this checkpoint
+- Configured VNext formatting, unit, SBF, Hook fixture, LiteSVM and five-case immutable Legacy CI matrix: **PASS**.
+- G1-5 complete Legacy isolation/security claim: **BLOCKED** pending broader remaining-account adversarial variants, durable signed-transaction/ABA coverage, and the independent Program identity/deployment decision. The five configured CI cases passing is not a blanket proof of all isolation properties.
+- G1-4 Legacy migration design/implementation: **NOT IMPLEMENTED** (the passing abandoned-account recovery case is an on-chain test of the existing Legacy instruction, not a customer-data migration plan).
+- G1-6 Independent Security Audit: **NOT IMPLEMENTED**.
+- G1-7 Devnet deployment/rehearsal of the VNext Program and real Subscription lifecycle: **NOT IMPLEMENTED**.
+- G1-8 Mainnet deployment/migration: **NOT IMPLEMENTED**.
+- Overall G1 and Subscription Production readiness: **BLOCKED**.
+
+### Mutation and access boundary
+- No Production DDL/data/provider setting, Secret, Key, persistent signer, Program ID, Program deployment/upgrade, Squads proposal, customer consent, Subscription accounting posting or customer funds changed.
+- The Mainnet ProgramData workflow was read-only. The Devnet workflow validated ordinary existing Pay flows, not a Subscription charge; no VNext Subscription Program deployment or Subscription transfer was performed.
+- Local Working Tree remains **UNKNOWN** because the connected GitHub interface does not expose the local clone state.
