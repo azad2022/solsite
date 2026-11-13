@@ -4387,3 +4387,57 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - No Production DDL/data/provider setting, Secret, Key, persistent signer, Program ID, Program deployment/upgrade, Squads proposal, customer consent, Subscription accounting posting or customer funds changed.
 - No VNext Devnet deployment, VNext Subscription transfer, or Mainnet transfer was performed. Mainnet verification remained read-only.
 - This checkpoint supersedes the previous 2026-11-13 partial exact-head checkpoint, which was written while LiteSVM/Legacy/IDL jobs were still in progress.
+
+
+## 2026-11-13 — Exact-head Durable Nonce LiteSVM coverage and scoped CI validation
+
+### Exact repositories, branches, PRs and source pins
+- Solsite: `azad2022/solsite`, branch `feat/pay-subscription-billing`, validated code/workflow HEAD `11b7f85999fb8cc93085268d7506e8a5027a3fa8`.
+- Solsite PR #366: OPEN / DRAFT / NOT MERGED; head `11b7f85999fb8cc93085268d7506e8a5027a3fa8`, base `main` at `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- VNext fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, exact CI source pin `08b82167f1470867a026d34e1bdf3f1647cd2f6b`.
+- Fork PR #1: OPEN / DRAFT / NOT MERGED; head `08b82167f1470867a026d34e1bdf3f1647cd2f6b`; immutable Legacy baseline remains `364a41976c33347d092902443bbec2def9227e75`.
+- Solsite `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`; no direct main change. Local Working Tree remains UNKNOWN because the connected GitHub interface does not expose the local clone.
+
+### Added genuine Durable Nonce integration coverage
+- Fork changes are confined to `tests/integration-tests/Cargo.toml`, `Cargo.lock`, and `tests/integration-tests/src/test_vnext_authority_consent.rs`. Direct test dependencies pin `bincode 1.3.3`, `solana-hash 4.3.0`, `solana-nonce 3.2.0`, and `solana-system-interface 3.2.0` with the required features.
+- The test helper creates and initializes a rent-exempt System Program Nonce Account, checks its owner and nonce authority, and reads the persisted nonce hash from the actual account state.
+- Durable authorization transactions place System Program `AdvanceNonceAccount` at instruction index 0 and the VNext authorization at index 1, use the stored durable nonce as the message blockhash, and are signed by both the customer and nonce authority.
+- Added tests:
+  - `vnext_durable_nonce_authorization_is_rejected_after_generation_invalidation`: retains an actual nonce-backed authorization, revokes the authority first, invalidates the ordinary recent blockhash, and verifies the delayed authorization reaches VNext at instruction index 1 and fails with `StaleAuthorityGeneration`. Registry generation/status, authority absence and token-account state are checked.
+  - `vnext_durable_nonce_authorization_is_rejected_after_onchain_deadline`: retains an actual nonce-backed authorization, invalidates the ordinary blockhash, advances the on-chain Clock past `not_after_ts`, and verifies the VNext instruction fails at index 1 with `AuthorityActionExpired`. No Registry/Authority/delegate or token amount mutation is accepted.
+  - `vnext_durable_nonce_advance_persists_on_success_and_rejects_replay`: positive control. A successful System Program nonce-advance transaction changes the stored nonce hash; the old nonce-backed transaction is then rejected.
+- LiteSVM source was inspected at the exact pinned `v0.12.0` version. Its `warp_to_slot()` only changes Clock.slot, so tests use `expire_blockhash()` to invalidate the ordinary recent blockhash. The simulator's failed-instruction path records included signatures but does not synchronize `post_accounts`; consequently these two failure tests explicitly assert LiteSVM's nonce account remains unchanged after the simulated failed transaction. The replay rejection on that failed attempt is transaction-history behavior, not evidence that the nonce account was consumed. This test does **not** claim to prove real-validator nonce persistence/consumption after an instruction failure; that requires a validator/Devnet integration proof.
+- No Program runtime, instruction ABI, IDL, Program ID, SDK, Backend, Database or migration source changed in this checkpoint.
+
+### Exact-head CI evidence — PASS
+- CI run [43404979138](https://github.com/azad2022/solsite/actions/runs/43404979138), exact Solsite SHA `11b7f85999fb8cc93085268d7506e8a5027a3fa8`: SUCCESS; all ten jobs passed:
+  `subscription-change-scope`, `quality`, `production-migration-cli`, `subscription-production-migration-cli`, `subscription-sdk-compat (24)`, `subscription-tm06-sponsored-plan-refund`, `subscription-atomic-split-transfer`, `subscription-reproducible-build`, `subscription-mainnet-programdata`, and `subscription-vnext-authority-registry`.
+- VNext job passed both Rust formatting checks, Program Unit Tests (**98 passed, 0 failed**), checksum-pinned `solana-verify` validation, deterministic VNext SBF build, Token-2022 TransferHook fixture build, complete LiteSVM integration suite (**288 passed, 0 failed, 5 ignored**), immutable Legacy v0.5.0 build, configured Legacy isolation proof, Codama IDL regeneration and structural comparison.
+- All three new Durable Nonce tests are present as successful test cases in the LiteSVM log (`... ok`).
+- The five intentionally ignored Legacy cases were then explicitly executed against the immutable v0.5.0 binary: **5 passed, 0 failed, 0 ignored**.
+- Canonical IDL SHA-256: `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`. IDL regeneration matched the committed VNext IDL.
+- Exact VNext SBF/IDL artifact: [artifact 14027885014](https://github.com/azad2022/solsite/actions/runs/43404979138/artifacts/14027885014); artifact ZIP SHA-256: `5e41cb0701b0c7bc0272d743b67a70a75dd6e529f8a9907c9809dfee63b2beeb`.
+- Companion workflows on the same exact Solsite SHA all completed SUCCESS: Production Build [43404979244](https://github.com/azad2022/solsite/actions/runs/43404979244), Database Security [43404979219](https://github.com/azad2022/solsite/actions/runs/43404979219), ordinary Pay Devnet E2E [43404979131](https://github.com/azad2022/solsite/actions/runs/43404979131), and Mainnet Read-only [43404979178](https://github.com/azad2022/solsite/actions/runs/43404979178). The ordinary Pay Devnet E2E is not a VNext Subscription lifecycle/charge rehearsal; Mainnet validation was read-only.
+
+### CI duration strategy
+- Added `subscription-change-scope`, which classifies the full PR diff and gates specialized suites according to changed test-input paths. The classifier itself passed on the exact CI run.
+- For this PR, the full cumulative diff reported `sdk=true`, `upstream=true`, `reproducible=true`, `vnext=true`, and `mainnet=true`; therefore the relevant heavy suites correctly ran. This avoids irrelevant suites for genuinely docs-only or narrowly scoped PRs, but does not yet reuse previous passing test evidence across successive commits.
+- Content-addressed reuse of prior test evidence (with fingerprints covering the exact source, workflow, dependency lock and test harness) is **NOT IMPLEMENTED**. Successful tests were not deleted or weakened.
+
+### Gate disposition after this checkpoint
+- Three bounded VNext Durable Nonce LiteSVM cases (delayed stale-generation rejection, on-chain deadline rejection, and successful nonce advancement/replay rejection): **PASS**.
+- Complete configured VNext LiteSVM suite and configured five-case immutable Legacy isolation matrix: **PASS** on the exact source pin above.
+- Real validator/Devnet proof of durable nonce state/consumption semantics when a later instruction fails: **BLOCKED**; LiteSVM 0.12.0's rollback behavior is a documented harness limitation and cannot prove this production-runtime property.
+- Delayed Squads/supported smart-wallet proposal semantics remain **BLOCKED** and are the next distinct test task. No Squads proposal was created or executed.
+- G1-5 full Legacy isolation/security claim remains **BLOCKED** pending broader adversarial permutations and an approved independent Program identity/deployment decision.
+- G1-4 Legacy migration design/implementation: **NOT IMPLEMENTED**.
+- G1-6 Independent Security Audit: **NOT IMPLEMENTED**.
+- G1-7 VNext Devnet deployment and real Subscription lifecycle rehearsal: **NOT IMPLEMENTED**.
+- G1-8 Mainnet deployment/migration: **NOT IMPLEMENTED**.
+- Overall G1 and Subscription Production readiness: **BLOCKED**.
+
+### Mutation and access boundary
+- No Production DDL/data/provider setting, Secret, Key, persistent signer, Program ID, Program deployment/upgrade, customer consent, Subscription accounting posting or customer funds changed.
+- No Devnet VNext deployment, VNext Subscription transfer, or Mainnet transfer was performed. The Mainnet workflow remained read-only.
+- The only blockchain-like execution for the new Durable Nonce cases was local LiteSVM simulation.
+- This checkpoint records tests against code SHA `11b7f85999fb8cc93085268d7506e8a5027a3fa8`; the following documentation-only checkpoint commit does not change that tested code.
