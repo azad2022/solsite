@@ -323,3 +323,35 @@ The following evidence supersedes the historical status in §§8–10 for the so
 The VNext source still declares the existing Mainnet Program ID `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. The default plan remains an independently controlled Program ID, but its exact public identity and secure upgrade-key custody have not been approved. No Program ID/key was changed or generated for deployment, and this artifact must not be deployed under the existing Mainnet identity. Existing Squads 3-of-5 governance was not bypassed.
 
 No Production, Devnet VNext or Mainnet mutation occurred. G1 and Subscription Production readiness remain **BLOCKED**.
+
+
+## 13. Execution checkpoint — VNext golden ABI + exact-SBF and Legacy isolation (2026-11-13)
+
+This checkpoint supersedes the earlier G1-2 test status for the exact source and test pins below. It records evidence for the tested ABI surface; it does not mean all G1-2 protocol decisions or the broader G1-5 matrix are closed.
+
+### Exact source and successful CI
+- Solsite `feat/pay-subscription-billing`: `ae38704e9fef52cc916e51d295c0ec12e84dcd96`.
+- Program fork `feat/solmint-g1-authority-vnext`: exact source `fe2555a5ab358c6dbaee79b3c1ecea736d048098`; changes since `d20de416b128adef1c03f6bca8a29c576c025cc9` are test-only (`tests/integration-tests/src/lib.rs`, `tests/integration-tests/src/test_vnext_abi.rs`), no runtime source changes.
+- Solsite CI [43428831763](https://github.com/azad2022/solsite/actions/runs/43428831763) and VNext job [131897542019](https://github.com/azad2022/solsite/actions/runs/43428831763/job/131897542019): **SUCCESS**.
+- Exact VNext SBF SHA-256: `6509cb31cecc9813d3d6abcfea82f01317d03b78b4ff17fc6b10a31991dbe25a`.
+
+### ABI and runtime results
+- 98 Program unit tests: **PASS**.
+- New Golden ABI tests: all 3 **PASS** — ten VNext instruction discriminator/parser/account-meta contracts, payload lengths/offsets, and little-endian golden bytes.
+- Full exact-SBF LiteSVM: **292 passed, 0 failed, 5 ignored**. The ignored items require the immutable legacy SBF and were executed in the dedicated follow-on step.
+- Same-timestamp stale CancelNow/Resume ABA regression: **PASS**.
+- Immutable upstream Legacy v0.5.0 source `364a41976c33347d092902443bbec2def9227e75`: built separately; all five Legacy-isolation tests: **5 passed, 0 failed, 0 ignored**.
+- Generated Codama IDL and committed IDL structurally identical: **PASS**. Canonical IDL SHA-256 `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`.
+- Exact SBF/IDL artifact [ID 14038750925](https://github.com/azad2022/solsite/actions/runs/43428831763/artifacts/14038750925), ZIP SHA-256 `de3d6252200b6a9549a209641c175bf1100f4a6802863c63631433df14356fa1`.
+
+### Gate interpretation
+- G1-2 tested payload/discriminator/parser/account-meta contract: **PASS for the ten VNext instruction definitions and the tested payload layouts**; full ABI freeze / protocol compatibility decision remains **IN PROGRESS / BLOCKED**.
+- G1-3 VNext runtime slice and listed tests: **PASS for tested scenarios**; the full required capability set is incomplete.
+- G1-5 same-time ABA and five named Legacy isolation cases: **PASS**; remaining adversarial and fuzz matrix remains **BLOCKED**.
+- G1-4 migration/cutover: **NOT IMPLEMENTED**; G1-6 independent audit: **NOT IMPLEMENTED**; G1-7 VNext Devnet rehearsal: **NOT IMPLEMENTED**; G1-8 Mainnet deployment/migration: **NOT IMPLEMENTED**.
+
+### Remaining blockers
+- Finite Plans, fixed/recurring VNext delegation and remaining rent-sponsorship/recovery capabilities are not complete.
+- VNext still declares the current Mainnet Program ID `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. Separate Program ID and upgrade-key custody require explicit architecture approval. No identity/key/deployment changes were made.
+- Subscription API/DB, Collector/Billing worker, dedicated verifier, ledger/accounting, Subscription E2E and frontend remain **NOT IMPLEMENTED**.
+- No Production, Devnet VNext or Mainnet mutation occurred; overall G1/Production readiness remains **BLOCKED**.

@@ -4600,3 +4600,70 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 
 ### Next bounded step
 - Complete G1-2 golden byte/account-meta tests and freeze a reviewed ABI draft without guessing the deployment Program ID. In parallel, prepare the exact independent-Program identity/key-custody decision for explicit approval. Only after those gates should capability-completion and migration work proceed; no API/DB/UI work is to be represented as ready before its contracts and verifier/accounting controls exist.
+
+
+---
+
+## 2026-11-13 — VNext Golden ABI, exact-SBF LiteSVM and Legacy isolation: verified checkpoint
+
+### Exact repository pins and workflow result
+- Solsite: branch `feat/pay-subscription-billing`, tested HEAD `ae38704e9fef52cc916e51d295c0ec12e84dcd96`.
+- Subscription Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, exact source `fe2555a5ab358c6dbaee79b3c1ecea736d048098`.
+- Program-fork changes since the prior exact-SBF runtime checkpoint `d20de416b128adef1c03f6bca8a29c576c025cc9` are test-only: `tests/integration-tests/src/lib.rs` and `tests/integration-tests/src/test_vnext_abi.rs`. No Program runtime source changed in that interval.
+- Solsite CI [43428831763](https://github.com/azad2022/solsite/actions/runs/43428831763): **SUCCESS**. Exact VNext job [131897542019](https://github.com/azad2022/solsite/actions/runs/43428831763/job/131897542019): **SUCCESS**.
+- Solsite PR #366 and Program PR #1 remain OPEN / DRAFT. Neither was merged. Solsite `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`; no direct main changes.
+- Local clone Working Tree cannot be observed through the remote GitHub connector and remains **UNKNOWN**.
+
+### VNext test-only ABI golden contract — PASS
+- Added `tests/integration-tests/src/test_vnext_abi.rs`, registered in the integration test crate.
+- The new golden tests cover the ten VNext instruction discriminators and Codama instruction definitions, exact payload type/length, parser route, account-meta order and signer/writable/optional flags; they also freeze payload struct lengths/offsets and a little-endian byte vector.
+- The actual generated Codama schema uses `arguments`, not `args`. This was established by inspecting the CI-generated artifact; the test now reads the real schema field. No assertions or account-meta checks were removed.
+- All three golden test cases passed:
+  - `vnext_idl_account_meta_and_discriminator_contract_is_golden`
+  - `vnext_instruction_payload_lengths_and_offsets_are_frozen`
+  - `vnext_integer_payloads_are_little_endian_golden_bytes`
+- Rust formatting checks for Program and integration-test code: **PASS**. Program unit tests: **98 passed, 0 failed**.
+
+### Exact-SBF VNext runtime and legacy isolation — PASS for tested scenarios
+- Reproducible tool/build chain passed. The pinned `solana-verify 0.5.2` binary checksum was checked; baseline upstream source/toolchain/container pins were verified.
+- Exact VNext SBF SHA-256: `6509cb31cecc9813d3d6abcfea82f01317d03b78b4ff17fc6b10a31991dbe25a`.
+- Token-2022 TransferHook fixture built successfully.
+- Full LiteSVM integration suite against that exact SBF: **292 passed, 0 failed, 5 ignored**. The 5 ignored entries are specifically Legacy-binary-dependent tests, not unexecuted VNext golden/runtime assertions.
+- The same-time ABA regression `vnext_stale_cancel_now_and_resume_cannot_survive_same_timestamp_aba` passed in this suite.
+- The job then checked out immutable upstream v0.5.0 source commit `364a41976c33347d092902443bbec2def9227e75`, built its SBF, and reran all five Legacy-isolation cases with `SOLMINT_LEGACY_PROGRAM_SO`: **5 passed, 0 failed, 0 ignored**. Cases cover non-ATA delegation rejection, Token-2022 TransferHook extra-account forwarding, Authority/transfer route lineage, Plan/Subscription route isolation and VNext discriminator rejection.
+- Codama IDL regeneration and structural equality with the committed IDL: **PASS**. Canonical IDL SHA-256: `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`.
+- Uploaded exact SBF/IDL artifact: [solmint-vnext-authority-registry-build](https://github.com/azad2022/solsite/actions/runs/43428831763/artifacts/14038750925), artifact ZIP SHA-256 `de3d6252200b6a9549a209641c175bf1100f4a6802863c63631433df14356fa1`.
+- Reproducible-build artifact ID `14039345041`, artifact digest `92e1aea0766cce879627ee73c9ea7c22062d2a4fff2cd055628ad585474a7226`.
+
+### Other CI evidence on the same Solsite HEAD
+- Quality/typecheck/unit tests and pinned Supabase CLI checks: **PASS**.
+- Production Build: **PASS**.
+- Database Security: **PASS**.
+- Mainnet Read-only: **PASS**.
+- Existing Pay Devnet E2E: **PASS**. This is the existing Pay workflow only; it is not a VNext Subscription deployment or a Subscription lifecycle rehearsal.
+- Specialized TM-06 and atomic split-transfer suites were skipped by the per-suite change-scope classifier because their inputs were unchanged and their prior PASS evidence was reused. They are not claimed as freshly rerun on this exact SHA.
+
+### G1 disposition after this checkpoint
+- G1-0 branch recovery: **PASS**.
+- G1-1 immutable source intake, pinned toolchain and reproducible baseline evidence: **PASS**.
+- G1-2 payload lengths/offsets, little-endian representation, ten VNext instruction discriminators, parser routes, and Codama account-meta contract covered by new golden tests: **PASS for the tested ABI surface**. Full protocol/ABI freeze and compatibility review remain **IN PROGRESS / BLOCKED** pending independent review and remaining capability decisions.
+- G1-3 VNext Authority/Registry, Plan revision, Subscription lifecycle, Transfer V2, same-timestamp ABA, exact-SBF runtime tests: **PASS for tested scenarios**; full capability implementation remains **IN PROGRESS**.
+- G1-5: same-time ABA plus the five listed Legacy isolation cases: **PASS**. The broader adversarial/fuzz/account-substitution/remaining-account/token-program-substitution matrix is still **BLOCKED**; this checkpoint is not a claim that the entire G1-5 matrix is closed.
+- G1-4 Legacy migration and fresh-consent cutover tooling: **NOT IMPLEMENTED**.
+- G1-6 independent security audit: **NOT IMPLEMENTED**.
+- G1-7 VNext Devnet deployment and real Subscription lifecycle rehearsal: **NOT IMPLEMENTED**.
+- G1-8 Mainnet deployment/migration: **NOT IMPLEMENTED**.
+
+### Remaining implementation / Production blockers
+- Finite Plans remain fail-closed/rejected by the current VNext v1 path; fixed/recurring VNext delegation and the remaining capability-preserving lifecycle/rent-sponsorship paths are not complete. They are **NOT IMPLEMENTED / BLOCKED**, not permanently de-scoped.
+- The VNext source still declares the existing Mainnet Program ID `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. The separate SolMint Program ID and secure upgrade-key custody decision are not approved. Do not deploy this SBF under the existing identity. No Program ID or key was changed.
+- Subscription API/Database, Collector/Billing Worker, dedicated Subscription verifier, Accounting/Ledger and Subscription E2E remain **NOT IMPLEMENTED**. Frontend Subscription UI remains **NOT IMPLEMENTED**.
+- Overall G1 and Subscription Production readiness remain **BLOCKED**.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grants, provider settings, Secrets, keys, persistent signers, Program ID, deployment/upgrade, customer consent, Subscription ledger posting or customer funds changed.
+- No VNext Devnet deployment or Mainnet transaction occurred. Mainnet verification remained read-only.
+- CI executions used pinned source, reproducible builds and ephemeral test fixtures only.
+
+### Next bounded step
+- Close the remaining G1-2 review by completing the protocol compatibility decision against the existing capability matrix (finite Plans, fixed/recurring flows, rent sponsorship/recovery and Legacy coexistence), then address remaining G1-5 adversarial cases. Program identity/key custody requires a separately approved decision before any deployment. Backend Subscription contracts, verifier and accounting must be implemented/tested before API/DB/Collector/UI can be treated as ready.
