@@ -731,16 +731,17 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 379a609af5d833cab0699a13ec8a33eaa6d93157
+          ref: 04569d883c2d91ab4b973913266e495f19d034bf
           persist-credentials: false
 
       - name: Verify exact fork commit
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="379a609af5d833cab0699a13ec8a33eaa6d93157"
+          expected="04569d883c2d91ab4b973913266e495f19d034bf"
           test "$actual" = "$expected"
 
       - name: Install pinned Rust, Solana, pnpm and Surfpool toolchain
+        id: toolchain_setup
         uses: ./.github/actions/setup
         with:
           enable-rust-cache: 'true'
@@ -751,6 +752,7 @@ jobs:
           surfpool-version: '1.3.1'
 
       - name: Build VNext program, transfer-hook fixture and generated clients
+        id: vnext_build
         run: just build-program build-test-hook generate-clients
 
       - name: Start isolated Surfpool fork
@@ -772,12 +774,14 @@ jobs:
         run: just kill-validator
 
       - name: Verify the pinned Agave local validator is installed
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
         run: |
           set -euo pipefail
           command -v solana-test-validator
           solana-test-validator --version
 
       - name: Resolve the exact VNext SBF artifact built from this checkout
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -788,12 +792,14 @@ jobs:
           sha256sum "$program_so"
 
       - name: Typecheck the Agave durable nonce regression test
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
         working-directory: clients/typescript
         run: |
           set -euo pipefail
           pnpm exec tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --lib ES2022 --types node --strict --skipLibCheck --esModuleInterop --allowImportingTsExtensions test/smart-wallets/durableNonceAgave.integration.test.ts
 
       - name: Prove durable nonce failure semantics on the Agave test validator
+        if: ${{ always() && steps.toolchain_setup.outcome == 'success' && steps.vnext_build.outcome == 'success' }}
         working-directory: clients/typescript
         env:
           RUN_DURABLE_NONCE_AGAVE_E2E: '1'
