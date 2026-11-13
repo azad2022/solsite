@@ -53,8 +53,85 @@ jobs:
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all)"
 
-  subscription-sdk-compat:
+  subscription-change-scope:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      sdk: ${{ steps.scope.outputs.sdk }}
+      upstream: ${{ steps.scope.outputs.upstream }}
+      reproducible: ${{ steps.scope.outputs.reproducible }}
+      vnext: ${{ steps.scope.outputs.vnext }}
+      mainnet: ${{ steps.scope.outputs.mainnet }}
+    steps:
+      - name: Checkout exact PR head and history
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify changed paths for focused Subscription checks
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+
+          base = os.environ["BASE_SHA"]
+          head = os.environ["HEAD_SHA"]
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", f"{base}...{head}"],
+              text=True,
+          ).splitlines()
+
+          def under(path: str, directory: str) -> bool:
+              return path == directory or path.startswith(directory + "/")
+
+          workflow_changed = ".github/workflows/ci.yml" in changed
+          sdk = any(
+              under(path, "tools/subscription-sdk-compat")
+              or under(path, "src")
+              or under(path, "functions")
+              or path in {"package.json", "bun.lock", "bun.lockb", "tsconfig.ci.json"}
+              or path.startswith("tsconfig.")
+              for path in changed
+          )
+          upstream = workflow_changed or any(
+              under(path, "tools/subscription-upstream-tests") for path in changed
+          )
+          vnext = workflow_changed or any(
+              under(path, "tools/subscription-vnext-tests") for path in changed
+          )
+          mainnet = any(
+              under(path, "tools/subscription-sdk-compat") for path in changed
+          )
+          reproducible = upstream or vnext or sdk
+
+          outputs = {
+              "sdk": sdk,
+              "upstream": upstream,
+              "reproducible": reproducible,
+              "vnext": vnext,
+              "mainnet": mainnet,
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for name, enabled in outputs.items():
+                  output.write(f"{name}={'true' if enabled else 'false'}\n")
+
+          print("Changed paths:")
+          for path in changed:
+              print(f"- {path}")
+          print("Subscription CI scope:")
+          for name, enabled in outputs.items():
+              print(f"{name}={'true' if enabled else 'false'}")
+          PY
+
+  subscription-sdk-compat:
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.sdk == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -128,7 +205,8 @@ jobs:
         run: npm run test:devnet-sim
 
   subscription-tm06-sponsored-plan-refund:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.upstream == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -204,7 +282,8 @@ jobs:
           cargo test -p tests-subscriptions sponsored_plan_rent_is_refunded_to_merchant_on_delete_not_sponsor
 
   subscription-atomic-split-transfer:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.upstream == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -277,7 +356,8 @@ jobs:
           cargo test -p tests-subscriptions
 
   subscription-reproducible-build:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: subscription-change-scope
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.reproducible == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
@@ -370,8 +450,8 @@ jobs:
           retention-days: 30
 
   subscription-mainnet-programdata:
-    needs: subscription-reproducible-build
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: [subscription-reproducible-build, subscription-change-scope]
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.mainnet == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -473,8 +553,8 @@ jobs:
 
 
   subscription-vnext-authority-registry:
-    needs: subscription-reproducible-build
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: [subscription-reproducible-build, subscription-change-scope]
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.vnext == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -482,7 +562,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 21323dd0a7cd141bf95b0a668d5c1b722c051a96
+          ref: d200e91cb6793fb2f1fd3e226e42d608f8c2379a
           path: vnext-subscriptions
           persist-credentials: false
 
@@ -490,7 +570,7 @@ jobs:
         working-directory: vnext-subscriptions
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="21323dd0a7cd141bf95b0a668d5c1b722c051a96"
+          expected="d200e91cb6793fb2f1fd3e226e42d608f8c2379a"
           printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
           test "$actual" = "$expected"
 
