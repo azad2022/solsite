@@ -84,86 +84,197 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import re
           import subprocess
+          from pathlib import Path
 
           base = os.environ["BASE_SHA"]
           head = os.environ["HEAD_SHA"]
           repository = os.environ["GITHUB_REPOSITORY"]
           head_ref = os.environ["HEAD_REF"]
           pr_number = int(os.environ["PR_NUMBER"])
+          workflow_id = 327355582
 
-          # Reuse prior PASS evidence only when it is for this exact PR and
-          # its tested commit is an ancestor of the current head. If lookup
-          # fails, or the branch was force-pushed, fall back to the full PR
-          # diff. This never suppresses a first run or an unverified change.
-          previous_success = None
-          try:
-              response = subprocess.check_output(
-                  [
-                      "gh", "api",
-                      f"repos/{repository}/actions/runs?branch={head_ref}&event=pull_request&status=success&per_page=100",
-                  ],
-                  text=True,
+          required_jobs = {
+              "sdk": ["subscription-sdk-compat (24)"],
+              "upstream": [
+                  "subscription-tm06-sponsored-plan-refund",
+                  "subscription-atomic-split-transfer",
+              ],
+              "vnext": [
+                  "subscription-reproducible-build",
+                  "subscription-vnext-authority-registry",
+              ],
+              "mainnet": ["subscription-mainnet-programdata"],
+              "squads_sdk": ["subscription-vnext-squads-sdk"],
+          }
+          workflow_jobs = {
+              "sdk": ["subscription-sdk-compat"],
+              "upstream": [
+                  "subscription-tm06-sponsored-plan-refund",
+                  "subscription-atomic-split-transfer",
+              ],
+              "vnext": [
+                  "subscription-reproducible-build",
+                  "subscription-vnext-authority-registry",
+              ],
+              "mainnet": ["subscription-mainnet-programdata"],
+              "squads_sdk": ["subscription-vnext-squads-sdk"],
+          }
+          found = {suite: {} for suite in required_jobs}
+          jobs_cache = {}
+
+          def api_json(endpoint: str):
+              return json.loads(
+                  subprocess.check_output(["gh", "api", endpoint], text=True)
               )
-              runs = json.loads(response).get("workflow_runs", [])
+
+          try:
+              runs = api_json(
+                  f"repos/{repository}/actions/runs"
+                  f"?branch={head_ref}&event=pull_request&per_page=100"
+              ).get("workflow_runs", [])
+              runs.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+
               for run in runs:
-                  if (
-                      run.get("workflow_id") != 327355582
-                      or run.get("status") != "completed"
-                      or run.get("conclusion") != "success"
-                      or run.get("head_sha") == head
-                  ):
+                  if int(run.get("workflow_id", 0)) != workflow_id:
                       continue
-                  if any(
+                  if not any(
                       int(pr.get("number", 0)) == pr_number
                       for pr in run.get("pull_requests", [])
                   ):
-                      previous_success = run.get("head_sha")
+                      continue
+
+                  run_id = int(run["id"])
+                  if run_id not in jobs_cache:
+                      try:
+                          jobs_cache[run_id] = api_json(
+                              f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100"
+                          ).get("jobs", [])
+                      except Exception as error:
+                          print(f"Unable to inspect jobs for run {run_id}: {error}")
+                          jobs_cache[run_id] = []
+
+                  for job in jobs_cache[run_id]:
+                      if job.get("status") != "completed" or job.get("conclusion") != "success":
+                          continue
+                      name = job.get("name", "")
+                      for suite, names in required_jobs.items():
+                          for required_name in names:
+                              if name == required_name and required_name not in found[suite]:
+                                  found[suite][required_name] = run.get("head_sha")
+
+                  if all(
+                      set(required_jobs[suite]).issubset(found[suite])
+                      for suite in required_jobs
+                  ):
                       break
           except Exception as error:
-              print(f"Previous successful CI lookup unavailable; using full PR diff: {error}")
+              print(f"Prior per-job PASS lookup unavailable; using full PR diff: {error}")
 
-          diff_base = base
-          if previous_success:
-              ancestor = subprocess.run(
-                  ["git", "merge-base", "--is-ancestor", previous_success, head],
+          def is_ancestor(sha: str) -> bool:
+              return subprocess.run(
+                  ["git", "merge-base", "--is-ancestor", sha, head],
                   check=False,
               ).returncode == 0
-              if ancestor:
-                  diff_base = previous_success
-              else:
-                  print("Previous successful SHA is not an ancestor; using full PR diff.")
 
-          changed = subprocess.check_output(
-              ["git", "diff", "--name-only", f"{diff_base}...{head}"],
-              text=True,
-          ).splitlines()
+          def suite_baseline(suite: str) -> str:
+              if not set(required_jobs[suite]).issubset(found[suite]):
+                  print(f"No complete prior PASS evidence for {suite}; using PR base.")
+                  return base
+              shas = list(found[suite].values())
+              if any(not sha or not is_ancestor(sha) for sha in shas):
+                  print(f"Prior {suite} PASS is not on current history; using PR base.")
+                  return base
+              # Use the oldest successful job SHA among the suite's required
+              # jobs so every change since every required PASS is considered.
+              distances = [
+                  (
+                      int(subprocess.check_output(
+                          ["git", "rev-list", "--count", f"{sha}..{head}"],
+                          text=True,
+                      ).strip()),
+                      sha,
+                  )
+                  for sha in shas
+              ]
+              return max(distances)[1]
 
-          def under(path: str, directory: str) -> bool:
-              return path == directory or path.startswith(directory + "/")
+          current_workflow = Path(".github/workflows/ci.yml").read_text()
 
-          workflow_changed = ".github/workflows/ci.yml" in changed
-          sdk = any(
-              under(path, "tools/subscription-sdk-compat")
-              or under(path, "src")
-              or under(path, "functions")
-              or path in {"package.json", "bun.lock", "bun.lockb", "tsconfig.ci.json"}
-              or path.startswith("tsconfig.")
-              for path in changed
+          def job_block(source: str, job_name: str):
+              lines = source.splitlines()
+              marker = f"  {job_name}:"
+              try:
+                  start_index = lines.index(marker)
+              except ValueError:
+                  return None
+              end_index = len(lines)
+              for index in range(start_index + 1, len(lines)):
+                  if re.match(r"^  [A-Za-z0-9_-]+:$", lines[index]):
+                      end_index = index
+                      break
+              return "\n".join(lines[start_index:end_index])
+
+          def workflow_block_changed(suite: str, baseline: str) -> bool:
+              try:
+                  previous = subprocess.check_output(
+                      ["git", "show", f"{baseline}:.github/workflows/ci.yml"],
+                      text=True,
+                  )
+              except Exception:
+                  return True
+              return any(
+                  job_block(previous, name) != job_block(current_workflow, name)
+                  for name in workflow_jobs[suite]
+              )
+
+          def changed_paths(baseline: str) -> set[str]:
+              return set(
+                  subprocess.check_output(
+                      ["git", "diff", "--name-only", f"{baseline}...{head}"],
+                      text=True,
+                  ).splitlines()
+              )
+
+          def under(paths: set[str], directory: str) -> bool:
+              return any(
+                  path == directory or path.startswith(directory + "/")
+                  for path in paths
+              )
+
+          suite_paths = {
+              suite: changed_paths(suite_baseline(suite))
+              for suite in required_jobs
+          }
+
+          sdk_paths = suite_paths["sdk"]
+          sdk = (
+              under(sdk_paths, "tools/subscription-sdk-compat")
+              or under(sdk_paths, "src")
+              or under(sdk_paths, "functions")
+              or any(
+                  path in {"package.json", "bun.lock", "bun.lockb", "tsconfig.ci.json"}
+                  or path.startswith("tsconfig.")
+                  for path in sdk_paths
+              )
+              or workflow_block_changed("sdk", suite_baseline("sdk"))
           )
-          upstream = any(
-              under(path, "tools/subscription-upstream-tests") for path in changed
+          upstream = (
+              under(suite_paths["upstream"], "tools/subscription-upstream-tests")
+              or workflow_block_changed("upstream", suite_baseline("upstream"))
           )
-          vnext = any(
-              under(path, "tools/subscription-vnext-tests") for path in changed
+          vnext = (
+              under(suite_paths["vnext"], "tools/subscription-vnext-tests")
+              or workflow_block_changed("vnext", suite_baseline("vnext"))
           )
-          mainnet = any(
-              under(path, "tools/subscription-sdk-compat") for path in changed
+          mainnet = (
+              under(suite_paths["mainnet"], "tools/subscription-sdk-compat")
+              or workflow_block_changed("mainnet", suite_baseline("mainnet"))
           )
-          # The SDK helper is a separate, cheap check. Run it when this
-          # workflow definition or its exact external source pin changes;
-          # do not rebuild the Rust Program matrix for that alone.
-          squads_sdk = workflow_changed
+          squads_sdk = workflow_block_changed(
+              "squads_sdk", suite_baseline("squads_sdk")
+          )
           reproducible = upstream or vnext or sdk
 
           outputs = {
@@ -178,10 +289,10 @@ jobs:
               for name, enabled in outputs.items():
                   output.write(f"{name}={'true' if enabled else 'false'}" + chr(10))
 
-          print(f"Diff baseline: {diff_base}")
-          print("Changed paths since last successful CI (or full PR fallback):")
-          for path in changed:
-              print(f"- {path}")
+          print("Per-suite prior successful job baselines:")
+          for suite in required_jobs:
+              print(f"{suite}: {suite_baseline(suite)}")
+              print(f"{suite} changed paths: {sorted(suite_paths[suite])}")
           print("Subscription CI scope:")
           for name, enabled in outputs.items():
               print(f"{name}={'true' if enabled else 'false'}")
