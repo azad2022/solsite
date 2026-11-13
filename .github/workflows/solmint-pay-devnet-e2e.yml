@@ -33,6 +33,7 @@ on:
       - 'src/pay/components/pay-bulk.css'
       - 'package.json'
       - 'bun.lock'
+      - '.github/workflows/solmint-pay-devnet-e2e.yml'
   push:
     branches: [main]
     paths:
@@ -94,6 +95,7 @@ jobs:
   devnet-e2e:
     needs: scope
     if: needs.scope.outputs.run == 'true' && (github.event_name != 'workflow_dispatch' || inputs.run == 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
