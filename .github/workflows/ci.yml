@@ -725,43 +725,50 @@ jobs:
     needs: subscription-change-scope
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/pay-subscription-billing' && github.event.pull_request.head.repo.full_name == github.repository && needs.subscription-change-scope.outputs.squads_sdk == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - name: Checkout exact VNext fork source
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: cc6211449704704d8bdfe0b988fc4c72916b575c
-          path: vnext-source
+          ref: 1e07f504e592de85e6ca63d553b621ee50eb7f40
           persist-credentials: false
 
       - name: Verify exact fork commit
-        working-directory: vnext-source
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="cc6211449704704d8bdfe0b988fc4c72916b575c"
+          expected="1e07f504e592de85e6ca63d553b621ee50eb7f40"
           test "$actual" = "$expected"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - name: Install pinned Rust, Solana, pnpm and Surfpool toolchain
+        uses: ./.github/actions/setup
         with:
-          node-version: 24
+          enable-rust-cache: 'false'
+          install-surfpool: 'true'
+          rust-cache-key: 'solmint-squads-delayed-proposal'
+          solana-version: '4.0.0'
+          surfpool-version: '1.3.1'
 
-      - name: Activate pinned pnpm
-        working-directory: vnext-source
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.13.0 --activate
-          node --version
-          pnpm --version
+      - name: Build VNext program, transfer-hook fixture and generated clients
+        run: just build-program build-test-hook generate-clients
 
-      - name: Install filtered TypeScript SDK workspace
-        working-directory: vnext-source
-        run: pnpm install --frozen-lockfile --filter @solana/subscriptions...
+      - name: Start isolated Surfpool fork
+        run: just _start-surfpool fork
 
-      - name: Run staged Squads proposal helper tests
-        working-directory: vnext-source
-        run: pnpm --filter @solana/subscriptions exec vitest run --config vitest.config.ts test/smart-wallets/squadsWallet.test.ts
+      - name: Run staged Squads SDK unit tests
+        working-directory: clients/typescript
+        run: pnpm exec vitest run --config vitest.config.ts test/smart-wallets/squadsWallet.test.ts
+
+      - name: Run real delayed Squads proposal integration
+        working-directory: clients/typescript
+        env:
+          RUN_SQUADS_DELAYED_PROPOSAL_E2E: '1'
+          SOLANA_RPC_URL: http://127.0.0.1:8899
+        run: pnpm exec vitest run --config vitest.config.ts test/smart-wallets/squadsDelayedProposal.integration.test.ts
+
+      - name: Stop isolated Surfpool
+        if: always()
+        run: just kill-validator
 
   subscription-vnext-authority-registry:
     needs: [subscription-reproducible-build, subscription-change-scope]
