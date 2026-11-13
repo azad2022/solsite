@@ -4219,3 +4219,19 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - Updated both the existing Legacy Revoke positive control and the new Abandoned Subscription Recovery positive control to accept the two canonical closed-account representations (None or zero lamports), matching the immutable upstream test convention. No Program/runtime code changed.
 - Fork commit: 183f187d2e637b4b93ab5515918bfbd0a324565c. Solsite CI pin commit: e42451e86cf1fcf0e8b93f1e85b101651c86db94. Both CI pin occurrences point to the exact Fork commit.
 - Exact-head validation for this final source revision has not yet completed. G1-5 remains BLOCKED until CI passes formatting, compile, VNext build, complete LiteSVM and immutable Legacy isolation execution. No Production or on-chain mutation occurred.
+
+
+## 2026-11-13 — Exact CI rustfmt follow-up; second formatting correction pinned
+
+### Exact-head evidence on Solsite commit fdbed5bc184e2fee4a04019d37f056564398a483
+- CI run `43380393066` reached the VNext authority-registry job. Program Rust formatting passed. The integration-test formatting check failed on one line break in the closed-account assertion at line 868; this was a Rustfmt-only failure. The job did not proceed to Program unit tests, VNext SBF build, Token-2022 fixture build, LiteSVM suite, immutable Legacy SBF build or ignored Legacy isolation execution.
+- The same run passed the deterministic pinned Program reproducible build, general quality, SDK compatibility, atomic split-transfer/full pinned integration regression, sponsored-plan rent-refund regression, and both migration CLI jobs. Mainnet ProgramData check also passed. Those passes do not establish the ignored Legacy matrix, which was skipped because the VNext job stopped at formatting.
+- Applied the exact formatter line break to `tests/integration-tests/src/test_vnext_legacy_isolation.rs` in Fork commit `0e2a191ec15b1b18f5a972c8647a5662e508a9de`. Only this test source file changed in the formatter correction.
+- Solsite CI pin commit: `6e68775e1b346da0f0d56f7609afd660529c80d5`; both immutable Fork references in `.github/workflows/ci.yml` now point to Fork SHA `0e2a191ec15b1b18f5a972c8647a5662e508a9de`.
+
+### Current refs and state at this ledger entry
+- Solsite branch `feat/pay-subscription-billing`: `6e68775e1b346da0f0d56f7609afd660529c80d5`.
+- VNext fork branch `feat/solmint-g1-authority-vnext`: `0e2a191ec15b1b18f5a972c8647a5662e508a9de`.
+- PR #366 OPEN / DRAFT / NOT MERGED; PR #1 OPEN / DRAFT / NOT MERGED. `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Exact-head CI for Solsite commit `6e68775...` has not yet completed at this checkpoint. The next required proof is formatting PASS, then integration compile, VNext SBF and hook-fixture builds, full LiteSVM suite, immutable v0.5.0 build and all five ignored `vnext_legacy_program_` tests.
+- G1-5 and overall G1 remain BLOCKED. No local Cargo/rustfmt run was available; local Working Tree remains UNKNOWN. No Production DDL/data/provider setting, secrets/keys/signers, Program ID/keypair, deployment, Devnet/Mainnet mutating transaction, customer consent, accounting posting or customer funds were changed.
