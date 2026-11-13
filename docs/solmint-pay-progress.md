@@ -4318,3 +4318,34 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 - No Production DDL/data/provider setting, Secret, Key, persistent signer, Program ID, Program deployment/upgrade, Squads proposal, customer consent, Subscription accounting posting, or customer funds changed.
 - No VNext Subscription transfer or deployment was performed. The Mainnet workflow remained read-only.
 - No local clone or local Working Tree evidence was available.
+
+
+## 2026-11-13 — Partial exact-head evidence: source-bound Authority consent adversarial coverage
+
+### Scope and immutable source pins
+- Solsite branch: `feat/pay-subscription-billing`, HEAD `236a25c20a02c04675697fc02c142cbd23cb89ee`; PR #366 is OPEN / DRAFT / NOT MERGED.
+- VNext Fork branch: `feat/solmint-g1-authority-vnext`, HEAD `30d732b9e2ba1f6011fbe5c35d40407c3cfd2fd3`; PR #1 is OPEN / DRAFT / NOT MERGED.
+- Solsite `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`; no direct main change. Local Working Tree is still **UNKNOWN** through the GitHub-only interface.
+- CI run [43397664121](https://github.com/azad2022/solsite/actions/runs/43397664121) targets the exact Solsite HEAD above and is currently **IN_PROGRESS**; no overall CI conclusion is recorded yet.
+
+### Added test-only adversarial cases
+- Fork commit `30d732b9e2ba1f6011fbe5c35d40407c3cfd2fd3` changes only `tests/integration-tests/src/test_vnext_authority_consent.rs`.
+- `vnext_authority_consent_is_bound_to_exact_non_ata_source_account` checks cross-bound Registry/Authority substitution, source-account substitution in Authorize and Revoke, independent authorization of two same-owner/same-mint non-ATA source accounts, and independent revocation/generation state.
+- `vnext_authority_consent_rejects_multiple_remaining_accounts_atomically` checks that more than one trailing account is rejected on both Authorize and Revoke with `InvalidInstructionData`, without partial Registry/Authority/delegate mutation.
+- Packed Registry fields are copied into aligned local values before assertions. CI's exact rustfmt output was applied after a prior run rejected formatting; the final pin is the Fork SHA above.
+- Solsite commit `236a25c20a02c04675697fc02c142cbd23cb89ee` changes only `.github/workflows/ci.yml`, pinning both the Fork checkout and expected SHA to the exact Fork commit above. No Program runtime, ABI, IDL, Program ID, Client, Backend or Database source changed.
+
+### Exact-head evidence available so far — partial PASS only
+- Companion workflows on exact Solsite HEAD: Production Build [43397664075] SUCCESS; Database Security [43397664060] SUCCESS; ordinary Pay Devnet E2E [43397664371] SUCCESS; Mainnet Read-only [43397664064] SUCCESS. Ordinary Pay Devnet E2E is not a real Subscription lifecycle/charge; Mainnet is read-only.
+- CI run `43397664121`: `quality`, `subscription-sdk-compat (24)`, `subscription-reproducible-build`, `subscription-tm06-sponsored-plan-refund`, `production-migration-cli`, `subscription-production-migration-cli` and `subscription-mainnet-programdata` have completed SUCCESS.
+- VNext job `subscription-vnext-authority-registry` has passed Program Rust formatting, LiteSVM test Rust formatting, Program Unit Tests, pinned `solana-verify` download and checksum re-verification. The deterministic VNext SBF build was still running at checkpoint time; Token-2022 fixture, complete LiteSVM suite, immutable Legacy matrix and IDL generation/comparison had not yet completed. Therefore the two newly added adversarial tests are **NOT YET EXECUTED** at this checkpoint.
+- `subscription-atomic-split-transfer` remained IN_PROGRESS. Overall CI remained IN_PROGRESS; the partial Job successes above do not make the CI run green.
+
+### Remaining security/product gates
+- G1-5 complete Legacy isolation: **BLOCKED** pending the full remaining-account/adversarial matrix, durable-nonce and delayed supported smart-wallet proposal semantics, plus an approved independent Program ID/deployment identity.
+- Durable Nonce / Squads / supported smart-wallet delayed proposal capability remains **BLOCKED**, not de-scoped. Current Squads helper creates, approves and immediately executes; current Swig helper uses recent-blockhash submission. Neither proves stale signed proposal rejection after state invalidation/deadline.
+- Legacy migration: **NOT IMPLEMENTED**. Independent security audit: **NOT IMPLEMENTED**. VNext Devnet deployment and real Subscription lifecycle rehearsal: **NOT IMPLEMENTED**. Mainnet deployment/migration: **NOT IMPLEMENTED**. Overall G1 and Subscription Production readiness: **BLOCKED**.
+
+### Mutation boundary
+- No Production DDL/data/provider setting, Secret, Key, persistent signer, Program ID, Program deployment/upgrade, Squads proposal, customer consent, Subscription accounting posting or customer funds changed.
+- No VNext Devnet deployment or Subscription transfer was performed. Mainnet check remained read-only.
