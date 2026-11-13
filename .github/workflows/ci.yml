@@ -173,7 +173,7 @@ jobs:
           }
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               for name, enabled in outputs.items():
-                  output.write(f"{name}={'true' if enabled else 'false'}\\n")
+                  output.write(f"{name}={'true' if enabled else 'false'}" + chr(10))
 
           print(f"Diff baseline: {diff_base}")
           print("Changed paths since last successful CI (or full PR fallback):")
