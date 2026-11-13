@@ -101,7 +101,7 @@ jobs:
               response = subprocess.check_output(
                   [
                       "gh", "api",
-                      f"repos/{repository}/actions/workflows/ci.yml/runs",
+                      f"repos/{repository}/actions/workflows/327355582/runs",
                       "-f", f"branch={head_ref}",
                       "-f", "event=pull_request",
                       "-f", "status=success",
