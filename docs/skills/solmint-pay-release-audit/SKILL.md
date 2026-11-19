@@ -74,7 +74,7 @@ Billing retry must distinguish rejected, retryable, submitted-unknown and verifi
 - Require negative tests for implicit payer append, cross-user sponsorship abuse, non-expiring rent lock, and Plan sponsor refund destination. If future sponsorship is approved, require atomically enforced per-user/global rent exposure quotas and a recorded sponsor-to-account/refund ledger before enabling it.
 - One SPL Token account has one approved delegate slot; replacing an existing delegate needs explicit customer disclosure/consent. Revoke of the shared customer+mint authority affects other subscriptions.
 - **PASS (evidence identity/review only):** the complete 12-page Cantina PDF and eight-commit post-remediation release delta were reviewed on 2026-10-31; the delta contains no program/src/** changes. Finalized read-only Mainnet ProgramData confirms the deployed ELF hash equals the reproducible pinned-source build hash, and the canonical on-chain Program Metadata/IDL hash equals the pinned source IDL hash. The ProgramData upgrade authority resolves to the inspected Squads v4 Vault/State pair (3-of-5, zero-second timelock). The five Cantina Acknowledged findings remain residual risks; Squads member identity/custody remains UNKNOWN. These PASS results do not close Stage 2 or authorize Production Subscription.
-- No Production DDL while issue #355 migration-runner provenance is open. No Production signer, live consent, Mainnet transfer or migration without explicit authorization and documented recovery.
+- G0 migration-runner governance is **PASS / COMPLETE** as of 2026-11-06; Issue #355 is closed on the owner's confirmation of Deploy to production = OFF plus three post-change main-push log windows with zero independent runner/DDL matches. Direct provider-setting read-back and historical initiating human actor remain UNKNOWN audit limitations. No Production DDL without the controlled manual workflow, exact main SHA, DRY_RUN, explicit APPLY authorization and documented recovery. No Production signer, live consent or Mainnet transfer without separate explicit authorization.
  
 ## 2026-10-31 Subscription v1 threat-model release gate
 
@@ -99,7 +99,7 @@ The source-controlled Production migration workflow must enforce:
 - Negative unit tests for off-main refs, stale/malformed SHA, wrong project/host/port/database, non-TLS URI, credential mismatch and credential leakage.
 - `AUTH_PROBE` remains read-only; `DRY_RUN` performs no schema/data writes; the Production APPLY command is not dispatched during code review.
 
-This guard protects the controlled GitHub workflow only. It cannot assert or change the separate Supabase Dashboard GitHub Integration `Deploy to production` option. Keep Issue #355 **OPEN / BLOCKED** until the historical runner provenance and live provider setting have verified evidence. Do not alter provider settings without explicit owner approval.
+This guard protects the controlled GitHub workflow only. It cannot read or change the separate Supabase Dashboard GitHub Integration Deploy to production option. The owner confirmed that option OFF on 2026-11-06, and three subsequent main-push log windows showed normal ingestion with zero independent runner/DDL matches; Issue #355 is **CLOSED** and G0 is **PASS / COMPLETE**. Direct connector read-back of the saved provider setting and the historical initiating human actor remain UNKNOWN, but are not current G0 blockers. Do not alter provider settings without explicit owner approval.
 
 
 ### Supabase CLI version pin

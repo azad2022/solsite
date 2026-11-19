@@ -283,7 +283,7 @@ Devnet mutating tests وMainnet read-only جدا باشند. Public RPC fallback
 - هیچ Production DDL، تغییر RLS/Grant، Runtime/Secret/Key، ایجاد/چرخش Collector Key، Plan زنده، Consent مشتری واقعی، Mainnet Transfer، Merge/Release غیرقابل‌بازگشت بدون شواهد و مجوز صریح انجام نشود.
 - Production Migration فقط از مسیر Source-controlled موجود در .github/workflows/solmint-pay-production-migration.yml و مطابق docs/solmint-pay-production-migration-policy.md: ابتدا DRY_RUN، سپس تأیید صریح APPLY، اجرا، بررسی Migration Ledger و تست پس از اجرا. نسخه CLI باید ثابت و با تست سازگار باشد؛ تا پایان مهاجرت کنترل‌شده v3، از Supabase CLI 2.122.1 استفاده شود و `latest` ممنوع است.
 - Guardهای workflow برای APPLY و Session Pooler target مطابق بخش Fail-closed در همان Policy الزامی‌اند؛ APPLY فقط برای workflow_dispatch روی refs/heads/main با expected SHA برابر GITHUB_SHA مجاز است. این guard مسیر جداگانه Supabase Dashboard Integration را خاموش نمی‌کند.
-- Issue #355 درباره منشأ Migration Runner تا زمان حل با شواهد معتبر، Production DDL را مسدود می‌کند. از زمان‌بندی Log برای حدس Actor استفاده نکن. تنظیم Provider را بدون تأیید تغییر نده.
+- G0 مهاجرت در 2026-11-06 با تأیید مستقیم مالک مبنی بر خاموش‌بودن Supabase GitHub Integration / Deploy to production و مشاهدهٔ سه Push متوالی پس از آن در main (با پوشش Log در هر چهار منبع، صفر marker مربوط به Migration Runner و صفر DDL) **PASS / COMPLETE** شد؛ Issue #355 در همان تاریخ بسته شد. بازخوانی مستقل مستقیم تنظیم Dashboard از API متصل همچنان UNKNOWN است و هویت انسانی آغازکنندهٔ اجراهای تاریخی اکتبر نیز UNKNOWN باقی می‌ماند، اما این دو مورد طبق تصمیم مالک مانع G0 جاری نیستند. از زمان‌بندی Log برای حدس Actor استفاده نکن و تنظیم Provider را بدون تأیید صریح تغییر نده. این وضعیت، مجوز اجرای Production DDL نیست؛ فقط مسیر controlled migration را معتبر می‌کند.
 - Devnet E2E فقط از RPC مخصوص Devnet؛ Mainnet Read-only از RPC مخصوص Mainnet. Cluster را از Evidence بررسی کن.
 - Deploy فقط طبق مسیر موجود Repository/Cloudflare Pages. Worker قدیمی یا Integration جانبی را Deployment اصلی فرض نکن؛ دقیقاً مشخص کن کدام Workflow و Deployment اجرا شده است.
 - Production Smoke و Live Smoke باید بعد از Deploy همان Commit اجرا و SHA/Run ID/نتیجه ثبت شوند.
@@ -328,7 +328,7 @@ Devnet mutating tests وMainnet read-only جدا باشند. Public RPC fallback
 - Collector ایزوله؛ Cloudflare Secret HSM نیست.
 - Verifier عادی Pay را تضعیف نکن؛ Subscription adapter جدا.
 - Cycle unique + atomic lock + durable attempt + reconciliation قبل از retry.
-- Production migration فقط Controlled Workflow و APPLY مجاز؛ #355 blocker جاری تا رفع Evidence.
+- Production migration فقط Controlled Workflow مجاز است: workflow_dispatch روی refs/heads/main، SHA کامل و برابر GITHUB_SHA، ابتدا DRY_RUN و سپس APPLY با مجوز صریح مالک. G0 / Issue #355 در 2026-11-06 بسته و PASS شد؛ وضعیت provider به‌صورت owner-confirmed OFF است، نه connector-read-back. هیچ Production Apply بدون درخواست و مجوز صریح همین Task انجام نشود.
 - Unknown را PASS نکن؛ Rollout را فقط با شواهد واقعی تأیید کن.
 
  
@@ -365,7 +365,7 @@ TM-01 private disclosure: `GHSA-hvvh-pvqw-g3gx`, current state TRIAGE. This is s
 - `APPLY` must run only through `workflow_dispatch` on exact `refs/heads/main`, with a full `expected_main_sha` equal to the event's `GITHUB_SHA`; the workflow checks out that exact SHA. Feature branches, tags, PR events, missing/malformed/stale confirmations fail closed.
 - Before `DRY_RUN` or `APPLY`, validate the exact SolMint Session Pooler host family, project-specific user `postgres.nvopkbiedorfshwbmyhn`, port 5432, database `postgres`, TLS, and embedded-password equality. Strip URI password and pass the standalone secret only through `PGPASSWORD`.
 - Do not log connection URIs or credentials. Keep `AUTH_PROBE` read-only and do not require the Session Pooler URI for it.
-- This repository guard does **not** disable Supabase Dashboard GitHub Integration. Issue #355 remains open until actor/trigger and the current `Deploy to production` provider setting have independent evidence. Provider settings still require explicit owner authorization.
+- This repository guard does **not** itself control the separate Supabase Dashboard GitHub Integration. The owner confirmed Deploy to production = OFF on 2026-11-06; three subsequent main-push log windows showed normal log ingestion with zero independent migration-runner markers and zero PostgreSQL DDL matches. Issue #355 was closed and G0 marked **PASS / COMPLETE** on that evidence. Direct connector read-back of the saved Dashboard setting remains UNKNOWN, as does the historical initiating human actor; these are retained as audit limitations, not current G0 blockers. Provider settings still require explicit owner authorization.
 
 
 ### Supabase CLI version control — 2026-11-06

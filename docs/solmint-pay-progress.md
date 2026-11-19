@@ -4768,3 +4768,51 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation and authorization boundary
 - No Production DDL/data/RLS/grants, Cloudflare/Supabase provider setting, Secret/keypair, persistent signer, customer consent, ledger posting, customer funds, Program ID or deployment was changed.
 - No Devnet transaction/deployment, Mainnet transaction or Program upgrade occurred. Tests used pinned source builds and ephemeral local LiteSVM fixtures only.
+
+
+## 2026-11-19 — Database Cycle/Attempt contract and recovery hardening: verified checkpoint
+
+### Repository and code evidence
+- Repository: azad2022/solsite; branch: feat/pay-subscription-billing; source commit: 7abbc556b05a1f2a56d339303f1bd393bb6c0b28.
+- PR #366 remains OPEN / DRAFT / NOT MERGED. Main was not changed. Local clone Working Tree remains UNKNOWN through the remote connector.
+- Updated tools/subscription-sdk-compat/src/subscription-attempt-recovery-policy.ts and test/subscription-attempt-recovery-policy.test.mjs.
+- Recovery now requires an explicit proof that the database returned a complete Attempt history for the claimed Cycle. Missing/partial history is not interpreted as an empty history and cannot authorize a first Attempt.
+- Each persisted Attempt must carry and match the exact server-derived Cycle identity. Cross-Cycle Attempt recovery and missing/malformed Cycle identity fail closed.
+- Added regressions for incomplete Attempt history, cross-Cycle Attempt reuse, and malformed Cycle identity. The policy remains pure; it does not call the database, claim a Cycle, create an Attempt, sign, submit or retry transactions.
+
+### Read-only Production Database inventory
+- Project nvopkbiedorfshwbmyhn: ACTIVE_HEALTHY; PostgreSQL 17.6.1.147.
+- 106 migration records; latest 20261029140401 (solmint_pay_payment_link_rpc_service_role_revoke).
+- 33 public pay_* base tables.
+- No Subscription, Billing Cycle or Billing Attempt table or corresponding routine was found in public/private.
+- Existing pay_idempotency_keys is Merchant command idempotency; pay_payout_transaction_requests is a Payout Builder transaction lease; pay_webhook_deliveries is an at-least-once delivery queue. None is interchangeable with Subscription Cycle/Attempt claims.
+- pay_apply_verified_observation and the PaymentIntent-bound ledgers remain unchanged. They are not a valid Subscription accounting boundary.
+
+### Cycle/Attempt contract design
+- Added §8.1 to docs/solmint-pay-subscription-contract-design.md.
+- The section distinguishes command idempotency, Cycle identity, Attempt identity and independent Pull observation identity.
+- It specifies Cycle PDA + actual on-chain period-start uniqueness; short DB claim transactions; a unique fencing generation/lease for every worker transition; complete Attempt-history proof; persisting signed message/signature before broadcast; exact-transaction reconciliation after timeout; external Plan Owner/Puller observation reconciliation; one atomic idempotent accounting/outbox commit; RLS/grant/SECDEF boundaries; and a 12-case disposable-Postgres adversarial acceptance matrix.
+- No concrete SQL names, API routes/payloads, enums, RPC names, lease duration, fees, roles or grants were invented. The section remains design-only; G2 is PARTIAL / BLOCKED.
+
+### Exact-head CI — PASS for executed jobs
+- CI run [44545618986](https://github.com/azad2022/solsite/actions/runs/44545618986) completed SUCCESS on exact code HEAD 7abbc556b05a1f2a56d339303f1bd393bb6c0b28.
+- Quality job 135635252100: PASS.
+- Subscription SDK compatibility job 135635467208: PASS; TypeScript adapter typecheck; SDK Harness 137 passed, 0 failed; Pages/Workerd 1 passed, 0 failed; non-mutating Devnet CreatePlan simulation 1 passed, 0 failed.
+- Subscription reproducible Program build job 135635467617: PASS.
+- Mainnet ProgramData read-only job 135636160908: PASS.
+- Both pinned Supabase CLI install/version jobs and subscription-change-scope: PASS.
+- TM-06 sponsored Plan refund, atomic split-transfer, VNext Squads SDK and VNext authority-registry suites were skipped by changed-path scope; no fresh PASS is claimed for them.
+- Companion Production Build, Database Security, Mainnet Read-only and ordinary Pay Devnet E2E wrappers completed successfully, but their underlying suite jobs were SKIPPED by scope. No fresh Production Build/DB security/ordinary Pay Devnet result is claimed from those wrapper successes. The Devnet CreatePlan test above is simulation-only; it did not sign or submit a transaction.
+
+### G0 / Issue #355 current status correction
+- Issue #355 is CLOSED (2026-11-06), and G0 migration-runner governance is PASS / COMPLETE.
+- The owner confirmed Supabase GitHub Integration Deploy to production was OFF. Three subsequent main-branch pushes had normal log ingestion across all four Supabase sources, zero independent migration-runner markers and zero PostgreSQL DDL/migration-apply matches.
+- Direct connector read-back of the saved provider setting remains UNKNOWN; the historical initiating human actor for October runs remains UNKNOWN. These are recorded as audit limitations, not current G0 blockers.
+- Closing G0 does not authorize Production DDL. Any Production Apply still requires the controlled manual workflow, exact main SHA, DRY_RUN and explicit owner APPLY authorization.
+
+### Gate disposition and mutation boundary
+- PASS: current read-only DB inventory, isolated recovery-policy regressions, exact-head Quality, SDK Harness, Workerd, simulation-only Devnet CreatePlan, reproducible build, Mainnet ProgramData read-only and pinned CLI checks.
+- BLOCKED: G2 schema/API/RLS/Grant/RBAC/Consent/Accounting contract freeze; actual Cycle/Attempt database objects/unique constraints/fencing RPC; durable Attempt writes; Pull observation persistence; atomic Subscription ledger/outbox implementation; disposable PostgreSQL security/concurrency tests; G1 upstream protocol/audit/migration gates.
+- NOT IMPLEMENTED: production Subscription Cycle/Attempt tables, worker claim RPC, durable Attempt persistence, Pull observation storage, dedicated atomic accounting commit/outbox, real Subscription lifecycle Devnet E2E.
+- UNKNOWN: direct provider Dashboard setting read-back, historical October initiating actor, local Working Tree.
+- No Production DDL/data/RLS/Grant, provider setting, Secret/Key, signer, Customer consent, ledger posting, Devnet transaction/deployment, Mainnet transaction or Program upgrade was performed.

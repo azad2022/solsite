@@ -187,7 +187,7 @@ If any validation, uniqueness, balance, posting, or outbox insert fails, the ent
 - A typed Subscription financial origin and exact FK/ledger extension have not been designed/frozen.
 - Subscription fee rate/destination/payer, referral applicability, network-cost attribution, refund treatment and settlement semantics are not approved.
 - Entitlement start/grace/delinquency/catch-up/termination rules are not approved.
-- Production migration-runner provenance Issue #355 remains a DDL blocker.
+- G0 migration-runner governance / Issue #355 is PASS / COMPLETE and Issue #355 is closed (2026-11-06) based on owner confirmation and three post-change main-push log windows with zero independent runner/DDL matches. Direct provider-setting connector read-back and historical initiating human actor remain UNKNOWN audit limitations, not current G0 blockers. Production Apply still requires the controlled manual workflow and explicit owner authorization.
 
 Therefore the accounting database function/table/RPC and its schema are NOT IMPLEMENTED. No fee or ledger semantics are invented in this document.
 

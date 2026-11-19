@@ -6,7 +6,7 @@
 **Design source HEAD:** `${oldHead}`  
 **Pinned upstream Program:** `solana-foundation/subscriptions@364a41976c33347d092902443bbec2def9227e75` (`program-v0.5.0`)  
 **Document status:** DESIGN DRAFT — NOT FROZEN, NOT AN IMPLEMENTATION  
-**Gate status:** G0 inventory segment PASS; overall G0 BLOCKED by its unresolved evidence items. G1 approval NOT RECORDED. G2 PARTIAL / BLOCKED.
+**Current gate status (revalidated 2026-11-19):** G0 PASS / COMPLETE under the owner-confirmed 2026-11-06 provider setting and three post-change main-push log windows; Issue #355 is closed. Direct provider-setting read-back and historical initiating human actor remain UNKNOWN audit limitations. G1 approval NOT RECORDED and upstream TM-01 remediation remains BLOCKED. G2 PARTIAL / BLOCKED.
 
 This document records the first typed domain and lifecycle design derived from the current SolMint Pay source, the current read-only Production contract, and the exact pinned Subscription Program source. It intentionally does **not** define SQL table names, migration identifiers, API routes, request/response payloads, or new runtime enums. Those remain Contract Freeze work and require review before implementation.
 
@@ -316,6 +316,129 @@ The atomic accounting contract must not reuse Payment Intent IDs to satisfy curr
 
 Amounts remain integer atomic units. If a multi-leg transfer/accounting commit cannot be made atomic and balanced, the charge is not reported as paid or entitled.
 
+
+### 8.1 Database Cycle/Attempt claim, idempotency and recovery contract — G2 draft (2026-11-19)
+
+**Status:** architecture/security invariants only; not a frozen SQL/API contract and not an implementation. No table, column, enum, RPC name, lease duration, index name or grant is authorized by this section.
+
+#### Current read-only inventory
+
+Rechecked on 2026-11-19 against Supabase project nvopkbiedorfshwbmyhn (PostgreSQL 17.6.1.147, ACTIVE_HEALTHY):
+
+- 106 migration records; latest 20261029140401 (solmint_pay_payment_link_rpc_service_role_revoke).
+- 33 public pay_* base tables.
+- No Subscription, Billing Cycle or Billing Attempt base table was found in public or private; no corresponding routines were found in those schemas.
+- pay_idempotency_keys is Merchant command idempotency keyed by merchant_id, scope, idempotency_key, with request hash and stored response. It is not a chain-period identity or worker lease.
+- pay_payout_transaction_requests is one row per payout batch with claim token/expiry and prepared transaction/blockhash. Its claim RPC is scoped to the Payout Builder capability and Merchant owner/admin/finance roles.
+- pay_webhook_deliveries uses SKIP LOCKED and an expiring worker lease. It is an at-least-once delivery queue, downstream of accounting, and cannot establish financial truth.
+- Existing Pay ledgers remain Payment-Intent-centric. pay_apply_verified_observation remains unchanged and is not a Subscription accounting boundary.
+
+These mechanisms solve different bounded-context problems. Do not rename, repurpose or generalize them into a Subscription Billing Cycle queue.
+
+#### Four separate identities
+
+1. **Command idempotency:** one authenticated Merchant/API command with a canonical request hash. Same key with a different hash is conflict. It does not identify an on-chain billing period.
+2. **Cycle identity:** exact SubscriptionDelegation PDA plus the actual period start read from finalized chain state. Scheduler date, calendar month, retry count and API idempotency key cannot replace it.
+3. **Attempt identity:** one exact prepared/signed/submitted transaction associated with one Cycle. A retry is a new Attempt only after proof the previous Attempt cannot have charged.
+4. **Pull observation identity:** one independently verified on-chain TransferSubscription instruction/transaction. Cluster identity and signature are unique in the Subscription observation domain and cannot be rebound across Merchant, Customer, Plan, Subscription, Cycle or Attempt.
+
+A Cycle is NOT synonymous with one chain transfer. The Plan Owner is an implicit Puller and other authorized Pullers can act outside SolMint. One on-chain period may therefore have multiple legitimate Pull observations under the same cumulative allowance. Database uniqueness must prevent duplicate SolMint work/accounting without suppressing independent Pull observations.
+
+#### Cycle identity and claim invariants
+
+- Canonical Cycle identity is the exact Subscription PDA plus the actual on-chain current_period_start_ts. The server derives and validates both; a browser, scheduler or Worker cannot choose the period start.
+- A database uniqueness constraint must prevent two Cycle records for the same identity under concurrent schedulers/Workers.
+- Claim serializes SolMint Workers only. It is not a reservation of Solana token allowance and cannot prevent Plan Owner/external Pullers from submitting directly.
+- A successful claim must return an unguessable fencing token/generation tied to the Cycle and a bounded lease. Concrete storage type, generation rule and lease duration remain unfrozen.
+- Every later write (Attempt create/update, signed transaction persistence, reconciliation result and accounting finalization) must validate the current fencing token and lease in the same short DB transaction. Expired/replaced tokens cannot write, finalize or release a new claimant lease.
+- Reclaim must create a new token. A stale token must never become current again (ABA prohibited).
+- Unknown claim outcome is not a claim. Re-read/reconcile; do not create or submit a new Attempt.
+- DB lease/fence protects DB state only. It cannot revoke a signed Solana transaction or stop an external Puller. Once a signer or RPC side effect may have begun, reconcile the exact original Attempt before any new charge.
+
+#### Attempt durability and external side-effect boundary
+
+1. In one short DB transaction, acquire/revalidate Cycle claim, prove Attempt history is complete, and create/recover one eligible Attempt with immutable Cycle/Customer/Merchant/Plan/Subscription correlation.
+2. Persist exact transaction intent and immutable message/account plan (Program/IDL pin, accounts/instructions, signer roles, Merchant-funded fee payer, blockhash and validity boundary) before any signer/RPC side effect.
+3. Signing service returns the signed transaction/signature WITHOUT broadcasting. Persist exact signature, message hash and signed transaction evidence under the current fencing token before broadcast.
+4. Only then may a trusted submission adapter broadcast that exact signed transaction. Timeout, crash or missing RPC response means UNKNOWN; reconcile the same signature/message/blockhash and finalized chain/account state. Never rebuild with a fresh blockhash or new signature while the prior Attempt may have landed.
+5. Persist observation outcome in a short DB transaction, checking current fencing token and exact Cycle/Attempt binding. Do not hold row locks/transactions across RPC, simulation, HSM/KMS signing or network submission.
+6. On successful verification, pass the immutable observation to the dedicated atomic accounting boundary. If its response is lost, reconcile the same accounting identity; never post again or create a new chain charge.
+
+Attempt history is a security input. Recovery must receive explicit proof that the DB returned a complete Attempt history for the locked Cycle. Failed/partial query or missing row in incomplete results is not "no prior Attempt". Reject an Attempt whose Cycle identity differs from the currently claimed Cycle.
+
+#### Recovery matrix
+
+| Evidence under current Cycle claim | Permitted action | Prohibited action |
+|---|---|---|
+| Complete Attempt history proves none exists | Create one durable Attempt, then prepare | Sign/submit before Attempt persistence |
+| Existing pre-submit Attempt; no signer/submission side effect occurred | Resume that exact Attempt | Create a second Attempt |
+| Submission may have occurred; outcome missing/not final/unknown | Reconcile exact signature/message | Retry with new message/blockhash/signature |
+| Finalized transaction verified; accounting not committed | Retry same atomic accounting operation with same observation key | Create second charge/posting |
+| Accounting response unknown | Reconcile same accounting identity | Treat timeout as rollback |
+| Finalized execution error proves no state changes and approved retry policy allows | New Attempt/new correlation under a fresh valid claim | Reuse prior Attempt identity |
+| Verifier/identity rejection, malformed evidence, incomplete Puller discovery or contradictory history | Stop/manual reconciliation | Treat as no-charge or auto-retry |
+| Claim or Attempt history incomplete/unknown | Block and reconcile | Treat absent response as empty history |
+
+Verifier rejection is not proof no transfer occurred. Retry requires positive finalized execution-failure evidence plus a separate approved retry decision.
+
+#### Pull observation and allowance reconciliation
+
+- Persist independently verified Pull observations separately from SolMint Worker Attempts. Plan Owner and other authorized Pullers may create valid transfers without a SolMint Attempt.
+- Before a Collector pull, rediscover successful pulls for the Subscription and reconcile finalized SubscriptionDelegation cumulative amount/period. Incomplete discovery or a possible external Pull blocks submission.
+- Cycle claim is not an on-chain allowance lock. Another Puller may act after the read. Program transfer validation remains the final allowance enforcement; backend fails closed on stale/ambiguous state and never claims DB lease reserves chain capacity.
+- Multiple verified Pull observations in one Cycle need independent signature-idempotent accounting treatment. Exact fee/entitlement effects remain open; do not assume a second observation is duplicate merely because Cycle identity is unchanged.
+- Signature and cluster genesis identity bind once and cannot be credited to another financial origin.
+
+#### Atomic accounting and lost-response recovery
+
+The future DB commit is one all-or-nothing transaction. Its immutable input is a server-generated verified observation, not browser payload, caller-supplied RPC JSON, event or boolean.
+
+It must, in the same commit:
+- validate trusted server/Worker principal and immutable Cycle/Attempt/observation correlation;
+- revalidate current claim/fencing ownership and reject stale workers;
+- enforce uniqueness of chain observation and financial origin;
+- validate typed Subscription origin, Merchant, Customer, asset and integer atomic amounts;
+- post balanced principal/fee/referral/network-cost/reversal entries only under separately approved fee/accounting rules;
+- transition accounting evidence without changing ordinary Pay Payment Intent states;
+- enqueue the durable outbox event after the same accounting writes are valid.
+
+The commit is idempotent on the exact verified observation identity. Identical retries return the existing committed result; differing evidence under the same identity conflicts. A timeout is UNKNOWN until the same key is read back; it cannot authorize new ledger inserts or a new Solana transaction. Never synthesize Payment Intent IDs. Exact ledger/FK shape and gateway fee/split-transfer decisions remain open for G2.
+
+#### Authorization, RLS, grants and function boundary
+
+- No browser/client direct INSERT/UPDATE/DELETE on Cycle, Attempt, Pull observation, accounting or outbox data.
+- Merchant/Customer reads must be tenant/customer scoped through Auth -> application identity -> internal JWT and an approved RBAC matrix. Application superadmin does not implicitly bypass DB membership RLS.
+- Worker claim, Attempt write and accounting commit are server-mediated. Payout-specific solmint_pay_payout_builder is not a generic Collector/Subscription capability.
+- Privileged SQL routines require fully qualified objects, empty/fixed search_path, explicit owner, narrow EXECUTE ACL and validation of tenant/Customer/Attempt relationships. They must not be exposed to anon/ordinary authenticated unless a reviewed route contract explicitly requires it.
+- Service-role bypass of RLS still requires identity/ownership validation inside the Server/Database boundary. Do not grant direct authenticated DML to simplify PostgREST.
+- Whether records belong in a non-Data-API schema or public with function-only access remains an open G2 decision.
+
+#### Required disposable-Postgres and adversarial acceptance tests
+
+1. Two Workers concurrently claim the same Subscription PDA + period-start key: exactly one current fencing token.
+2. Worker A lease expires; Worker B reclaims with a new token; every late A write/release/Attempt persist/accounting finalize is rejected.
+3. Same idempotency key/different canonical request hash conflicts; identical request replays without a second Cycle.
+4. Incomplete Attempt-history query never permits a first Attempt.
+5. Attempt from another Subscription/period/merchant/customer cannot be resumed.
+6. Crash before signing resumes same pre-submit Attempt; crash after signing/before broadcast persists/reconciles exact signature/message.
+7. Timeout after broadcast reconciles exact signature; no new blockhash/Attempt while outcome may have landed.
+8. Duplicate signature/message hash binding across Cycle/Attempt/tenant identities is rejected within configured cluster.
+9. Verified observation plus accounting timeout reconciles exactly once; different payload under same key conflicts.
+10. Stale fencing token cannot write observations, ledger or outbox after a newer claimant takes over.
+11. Cross-Merchant/Cross-Customer reads/writes fail through server RPC and DB policy; ordinary authenticated callers cannot invoke Worker/accounting mutations.
+12. Plan Owner/external Pull consumes the same on-chain cumulative allowance; incomplete discovery blocks Collector; DB lease never reserves chain capacity.
+
+These tests complement (not replace) exact Program/LiteSVM adversarial tests, dedicated Subscription transaction verification, real Subscription Devnet E2E and independent security review.
+
+#### Current disposition
+
+- PASS — read-only inventory: Supabase version/status, latest migration, 33 public Pay tables, no Subscription/Cycle/Attempt objects, and existing Idempotency/Payout/Webhook patterns were inspected on 2026-11-19.
+- PASS — isolated policy tests: recovery requires complete Attempt history and exact Cycle identity matching, in addition to a current acquired claim/fencing token. No DB mutation occurs.
+- NOT IMPLEMENTED — Subscription Cycle/Attempt tables, unique constraints, DB fencing/lease RPC, durable Attempt persistence, Pull observation storage, dedicated accounting commit and outbox.
+- BLOCKED — schema/API/RLS/Grant/role freeze remains G2 work. G0 and Issue #355 are closed; Production DDL remains prohibited without separately authorized controlled Apply on exact main SHA.
+- No Production DDL/data mutation, provider/configuration/Secret/key change, signing, Customer consent, ledger posting, Devnet transaction or Mainnet mutation occurred.
+
+
 ## 9. v1 restrictions carried into the domain contract
 
 The following are exclusions, not runtime capabilities:
@@ -352,7 +475,7 @@ These decisions cannot be inferred from the existing code or Program. They must 
 8. **Operational freshness/finality:** the exact finalized read policy, cluster/RPC availability gate, Program drift monitoring/kill switch, discovery coverage for external Pullers and stale observation recovery.
 9. **Accounting origin and settlement:** typed ledger relationships, atomic write set, referral applicability, network-fee accounting, reversal and outbox semantics.
 10. **Upstream residual risk decisions:** on 2026-11-05 the owner explicitly rejected accepting TM-01 (High old-signed-create) as a residual risk; upstream protocol remediation, independent review, deployment and finalized Mainnet verification are mandatory before launch. The other five detailed Cantina Acknowledged items and the remaining v1 exclusions still require separate dispositions; no blanket risk acceptance is recorded.
-11. **Migration governance:** the Production migration runner provenance remains unresolved (Issue #355). This blocks Production DDL; it does not authorize bypassing the controlled migration workflow.
+11. **Migration governance:** G0 migration-runner governance and Issue #355 were closed as PASS / COMPLETE on 2026-11-06 after owner confirmation and three post-change main-push log windows. Historical initiating human actor and direct provider-setting connector read-back remain UNKNOWN audit limitations. Production DDL still requires the controlled manual workflow, exact main SHA, DRY_RUN and explicit APPLY authorization; G0 closure does not authorize an Apply.
 
 ## 11. Contract Freeze exit criteria
 
@@ -368,7 +491,7 @@ G2 cannot be marked PASS until every item below has an approved, source-linked d
 - Entitlement, retry, grace, catch-up and termination policies.
 - Threat-model residual decisions and applicable adversarial tests.
 - Disposable DB contract-security tests and exact pinned Program/LiteSVM test plan.
-- Production DDL only after Issue #355 evidence is resolved and the explicit controlled Apply approval is obtained.
+- G0 is now PASS / COMPLETE and Issue #355 is closed; any Production DDL still requires the controlled manual workflow and explicit controlled Apply approval on exact main SHA.
 
 Until then: G2 remains PARTIAL / BLOCKED; no migration, API runtime, Collector signer, recurring charge or UI may be described as ready.
 

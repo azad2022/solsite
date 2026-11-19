@@ -2310,7 +2310,7 @@ The repository-owned Production migration workflow must enforce an exact commit 
 - For `DRY_RUN` / `APPLY`, bind the connection to SolMint's Session Pooler, exact project-specific database user, port 5432 and database `postgres`; require TLS and reject unknown query parameters.
 - If a password is embedded in the URI, compare it with the standalone password secret; strip it and use only `PGPASSWORD`. Never log either value.
 - Keep guard logic pure and covered by negative unit tests. Never execute `APPLY` as part of code validation.
-- This source-controlled guard does not govern the separate Supabase Dashboard GitHub Integration. Issue #355 remains BLOCKED until that provider-side setting and the historical triggering actor are verified through independent evidence. Do not change the provider setting without explicit authorization.
+- This source-controlled guard does not itself govern the separate Supabase Dashboard GitHub Integration. The owner confirmed Deploy to production = OFF on 2026-11-06; three subsequent main-push log windows showed normal log ingestion, zero independent migration-runner markers and zero PostgreSQL DDL matches. Issue #355 was closed and G0 marked **PASS / COMPLETE** on that evidence. Direct connector read-back of the Dashboard setting remains UNKNOWN, as does the historical initiating human actor; these are audit limitations, not current G0 blockers. Do not change the provider setting without explicit authorization.
 
 
 The Production migration workflow also pins Supabase CLI to 2.122.1. Do not use `latest`; CLI v3 requires a separately tested command-contract migration before the controlled Production workflow upgrades.
