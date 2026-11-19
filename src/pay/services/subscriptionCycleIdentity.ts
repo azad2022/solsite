@@ -5,7 +5,8 @@ import { PublicKey } from '@solana/web3.js';
  *
  * currentPeriodStartTs MUST come from the same finalized Subscription account
  * snapshot used by the trusted server-side caller. Scheduler/calendar time is
- * never a valid input. This helper does not perform RPC or claim a DB Cycle.
+ * never a valid input. This helper validates key encoding and identity format;
+ * it does not prove PDA derivation, account ownership, or RPC finality.
  */
 export interface SubscriptionCycleIdentityInput {
   subscriptionPda: string;
