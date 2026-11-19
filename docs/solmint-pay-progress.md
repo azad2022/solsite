@@ -4975,3 +4975,58 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - NOT IMPLEMENTED: Subscription API/runtime, Cycle/Attempt tables and DB fencing/lease RPC, durable Attempt and Pull-observation persistence, Billing worker, isolated Collector signer, dedicated finalized Subscription verifier, typed atomic Subscription ledger/outbox and real Subscription Billing E2E/UI. Existing Pay verifier and PaymentIntent-bound accounting remain unchanged.
 - No Product runtime code, Production DDL/data/RLS/grants, provider setting, Secret/key, signer, Customer consent, ledger posting, Devnet transaction/deployment, Mainnet transaction, Program ID or Program upgrade was changed.
 - Conclusion: this checkpoint closes the three named VNext negative-test gaps and verifies the test/build pipeline; it does **not** close G1 TM-01 and does **not** authorize G2 Production implementation. G2 Contract Freeze remains BLOCKED.
+
+
+
+## 2026-11-19 — G2 pure policy foundations: verified implementation checkpoint
+
+### Repository and scope
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`.
+- Code/test commit: `a8061886d99c843bc80dd635dc6390342dd7ce9a`.
+- PR #366 remains OPEN / DRAFT / NOT MERGED. Main was not changed.
+- This checkpoint implements three isolated pure-policy foundations derived from existing owner decisions and the G2 Cycle/Attempt contract. They are not wired to API routes, database objects, RLS/grants, worker, signing service, Collector, UI or entitlement persistence.
+
+### Three implemented G2 slices
+1. **Canonical Billing Cycle identity**
+   - Added `src/pay/services/subscriptionCycleIdentity.ts`.
+   - Constructs the deterministic identity from the exact Subscription PDA and the actual on-chain `current_period_start_ts`; it does not use scheduler/calendar time.
+   - Rejects malformed/non-canonical public keys, signed/fractional/leading-zero timestamps and values outside positive i64.
+   - Explicit boundary: it validates key encoding and identity format only. It does not prove PDA derivation, account ownership, finalized RPC provenance or acquire a database Cycle claim; the trusted server caller must validate those independently.
+2. **Subscription merchant authorization policy**
+   - Added `src/pay/services/subscriptionAuthorizationPolicy.ts`, using existing Merchant principal/membership types.
+   - Encodes the recorded D-008–D-013 capability selection: Owner has all selected capabilities; Admin excludes refund/reversal; Finance is limited to Subscription administration and ledger/report read; Developer/Viewer receive none of these new Subscription capabilities.
+   - Requires active user, active Merchant, active membership, exact user/tenant binding and valid Owner identity. Platform `superadmin` does not bypass the Subscription role matrix or missing membership.
+   - Customer self-service remains deliberately absent because its permission contract is still undecided. This helper is not yet called by a server route and does not replace live DB/RLS enforcement.
+3. **Entitlement activation gate**
+   - Added `src/pay/services/subscriptionEntitlementPolicy.ts`.
+   - Returns eligibility only when an independently verified observation is finalized and the accounting evidence is committed for the exact same cluster genesis, signature, transaction-message hash, Cycle identity and Attempt identity.
+   - Verification UNKNOWN/REJECTED, missing evidence, accounting UNKNOWN/not committed or cross-Cycle/Attempt correlation mismatch fail closed.
+   - The helper does not grant or persist entitlement and cannot prove that a caller's evidence came from the trusted verifier/atomic DB commit; those integrations remain unimplemented.
+
+### Tests and exact-head evidence
+- Added:
+  - `tests/pay-subscription-cycle-identity.test.ts`
+  - `tests/pay-subscription-authorization-policy.test.ts`
+  - `tests/pay-subscription-entitlement-policy.test.ts`
+- All **19 new focused test cases** passed in the exact-head root Unit Test run.
+- Exact-head CI run [44582360399](https://github.com/azad2022/solsite/actions/runs/44582360399), head `a8061886d99c843bc80dd635dc6390342dd7ce9a`:
+  - `quality` job `135766245532`: SUCCESS — production-source TypeScript typecheck, Production build, Unit tests (**444 total, 442 passed, 0 failed, 2 skipped**), migration-guard tests (**30 passed, 0 failed**) and source-tree cleanliness check.
+  - `subscription-sdk-compat (24)` job `135766454802`: SUCCESS — SDK adapter typecheck, SDK/PDA/transaction compatibility suite (**141 passed, 0 failed**), Workerd (**1 passed**) and non-mutating Devnet CreatePlan simulation (**1 passed; no transaction submitted**).
+  - Exact-head Production Build [44582360405]: SUCCESS.
+  - Exact-head Database Security [44582360390]: SUCCESS.
+  - Exact-head Mainnet Read-only [44582360406]: SUCCESS.
+  - Existing ordinary Pay Devnet E2E [44582360492]: SUCCESS; it is not Subscription Billing E2E and is not evidence of a Subscription charge.
+  - Subscription change-scope and both pinned Supabase CLI validation jobs: SUCCESS.
+  - At the time this checkpoint was written, `subscription-reproducible-build` job `135766454865` and `subscription-vnext-squads-sdk` job `135766454302` were still IN_PROGRESS; TM-06 and atomic split-transfer jobs were SKIPPED by changed-path scope. No overall exact-head CI PASS is claimed until all applicable non-skipped jobs conclude.
+- The exact Subscription CreatePlan RPC check was simulation-only; it did not sign or submit a transaction. Mainnet validation was read-only.
+
+### Gate disposition
+- **PASS:** three pure-policy implementations and their 19 focused tests; exact-head root Quality/Production Build; SDK compatibility tests; Workerd and simulation-only CreatePlan checks; Database Security and Mainnet Read-only wrappers.
+- **PARTIAL / BLOCKED:** G2 Contract Freeze remains BLOCKED. No schema/API/RLS/grants contract, database Cycle claim/fencing RPC, durable Attempt/Pull-observation persistence, dedicated accounting/outbox, worker, isolated signing/Collector, production entitlement update, or Subscription Devnet charge flow is implemented.
+- **BLOCKED:** G1 is still not closed. The VNext fork PR remains draft; legacy discriminator paths including old Init/Subscribe/Authority controls remain dispatched, so the rejected TM-01 delayed signed legacy flow is not yet proven disabled. Independent Program identity, complete Legacy migration, ABI freeze, full adversarial matrix, independent audit, Devnet migration/rehearsal and authorized deployment remain outstanding.
+- **NOT IMPLEMENTED:** production Subscription API/runtime, database objects and grants/RLS, Billing worker, Merchant-funded fee-payer custody, isolated Collector signer, production VNext transaction verifier/atomic accounting integration and customer-facing Subscription UI.
+- **UNKNOWN:** local developer Working Tree remains unobservable through the remote GitHub connector.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grant, provider configuration, Secret/Key, persistent signer, Customer consent, accounting/ledger write, Mainnet transaction or Program deployment/upgrade was performed by this code change.
+- The Subscription Devnet CreatePlan check was simulation-only. The separate existing ordinary Pay Devnet E2E workflow completed successfully; it is not a Subscription transaction/deployment and its own transaction effects remain scoped to that workflow.
