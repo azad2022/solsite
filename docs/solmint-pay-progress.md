@@ -4711,3 +4711,60 @@ No Production DDL/data/provider setting, secret/key/signer, customer consent, ac
 ### Mutation and authorization boundary
 - No Production DDL/data/RLS/grants, Cloudflare/Supabase provider setting, Secret/keypair, persistent signer, customer consent, ledger posting, customer funds, Program ID or deployment was changed.
 - No Devnet transaction/deployment, Mainnet transaction or Program upgrade occurred. Tests used ephemeral local LiteSVM fixtures and pinned source builds only.
+
+
+## 2026-11-19 — G1-5 VNext Mint and source-account substitution: verified checkpoint
+
+### Exact source pins and CI evidence
+- Solsite repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; tested PR HEAD: `89a3e05498e2c276c5b49421fd70afa6ca17bb48`.
+- Subscription Program fork: `azad2022/solmint-subscriptions-program`; branch: `feat/solmint-g1-authority-vnext`; exact tested source commit: `c1c968ddbcee817c2e892b9d002e1e174bf6b74f`.
+- Solsite CI run [44512041331](https://github.com/azad2022/solsite/actions/runs/44512041331): **SUCCESS**. Exact VNext job [135519266036](https://github.com/azad2022/solsite/actions/runs/44512041331/job/135519266036): **SUCCESS**.
+- Solsite PR #366 remains OPEN / DRAFT / NOT MERGED; Program fork PR #1 remains OPEN / DRAFT / NOT MERGED. Solsite base/main SHA remains `514d3401d8d725be106ab0c83557f8e43cdff13e`; no direct main changes.
+- Local clone Working Tree remains **UNKNOWN** because the remote GitHub connector cannot inspect it.
+
+### Two selected G1-5 blockers — PASS for both tested cases
+The VNext `TransferSubscriptionV2` handler already binds the supplied Mint and source Token Account to the stored Subscription/Authority identity and fails closed on mismatch. The actual blocker was missing executable negative coverage for two separate substitution cases. No runtime handler logic was changed.
+
+1. **Mint substitution**
+   - Added `vnext_transfer_rejects_mint_substitution_without_state_mutation`.
+   - Creates a valid Subscription against Mint A, then submits an otherwise valid transfer while supplying a different initialized SPL Mint B.
+   - The transfer must fail with `LifecycleRegistryIdentityMismatch`.
+   - Asserts that the original source balance, destination balance and complete Subscription account data remain unchanged.
+
+2. **Source Token Account substitution**
+   - Added `vnext_transfer_rejects_source_account_substitution_without_state_mutation`.
+   - Creates two distinct non-ATA token accounts with the same subscriber owner and same Mint; Consent and Subscription bind only the original source account.
+   - Attempts a transfer using the other account as source.
+   - The transfer must fail with `LifecycleRegistryIdentityMismatch`.
+   - Asserts that both source balances, the destination balance and complete Subscription account data remain unchanged.
+
+Both exact test names are reported **ok** by the complete LiteSVM run. These close two specific missing negative-test cases; they do not close the entire G1-5 adversarial matrix or claim a newly discovered runtime exploit.
+
+### Exact-source build and test results — PASS
+- Source SHA and pinned toolchain verification: **PASS**.
+- Rust formatting for Program and integration tests: **PASS**.
+- Program unit tests: **98 passed, 0 failed, 0 ignored**.
+- `solana-verify 0.5.2` immutable-release download and checksum verification: **PASS**.
+- Deterministic exact-source SBF build: **PASS**. SBF SHA-256: `6509cb31cecc9813d3d6abcfea82f01317d03b78b4ff17fc6b10a31991dbe25a`.
+- Token-2022 TransferHook fixture: **PASS**.
+- Full LiteSVM suite against the exact VNext SBF: **295 passed, 0 failed, 5 ignored**. The two new Mint/source-account substitution regressions both passed. The five Legacy-dependent cases were then run separately using the immutable Legacy binary.
+- Immutable upstream v0.5.0 Legacy source `364a41976c33347d092902443bbec2def9227e75` was checked out and built; all five Legacy-isolation tests: **5 passed, 0 failed, 0 ignored**.
+- Codama IDL was regenerated from exact Rust source and compared structurally to the committed IDL: **PASS**. Canonical IDL SHA-256: `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`.
+- Exact SBF/IDL artifact: [solmint-vnext-authority-registry-build](https://github.com/azad2022/solsite/actions/runs/44512041331/artifacts/14522489477), ZIP SHA-256 `f19c338c02a491c15cc4724769cfcaa7b697651a216ffa81fac9309800a511ec`.
+
+### Solsite CI scope and interpretation
+- `subscription-change-scope`, `quality`, `subscription-reproducible-build`, `subscription-vnext-authority-registry`, both pinned Supabase CLI checks, and Cloudflare Pages check: **PASS**.
+- Production Build, Database Security, Mainnet Read-only and ordinary Pay Devnet E2E jobs were **SKIPPED** by the existing changed-path classifier for this Program test/workflow-pin change. Their wrappers are not claimed as fresh PASS evidence. No Subscription Devnet transaction or Mainnet mutation was performed.
+- Specialized SDK compatibility, Squads SDK, TM-06, atomic split-transfer and Mainnet ProgramData suites were also skipped by scope; no new PASS is claimed for them on this HEAD.
+
+### G1 disposition and remaining blockers
+- G1-5 VNext Transfer **Mint substitution** negative test: **PASS** for the tested case.
+- G1-5 VNext Transfer **source-account substitution** negative test: **PASS** for the tested case.
+- The broader G1-5 fuzz/account-substitution/remaining-account/owner/PDA/discriminator matrix remains **BLOCKED**; these two tests close only the cases listed above.
+- G1-2 full protocol/ABI freeze and independent compatibility review remain **IN PROGRESS / BLOCKED**. G1-4 Legacy migration/consent cutover, G1-6 independent security audit, G1-7 VNext Devnet deployment/rehearsal and G1-8 Mainnet deployment/migration remain **NOT IMPLEMENTED**.
+- Subscription production API/Database/RLS, Billing worker/cycle processing, isolated Collector, dedicated Subscription verifier, atomic typed accounting/ledger, real Subscription E2E and customer-facing UI remain **NOT IMPLEMENTED**. Overall Subscription Production readiness remains **BLOCKED**.
+- VNext Program identity must be separately approved; do not deploy this SBF under the existing legacy Program ID.
+
+### Mutation and authorization boundary
+- No Production DDL/data/RLS/grants, Cloudflare/Supabase provider setting, Secret/keypair, persistent signer, customer consent, ledger posting, customer funds, Program ID or deployment was changed.
+- No Devnet transaction/deployment, Mainnet transaction or Program upgrade occurred. Tests used pinned source builds and ephemeral local LiteSVM fixtures only.
