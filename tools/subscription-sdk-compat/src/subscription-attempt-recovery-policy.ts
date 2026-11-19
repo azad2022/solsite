@@ -11,12 +11,16 @@ export type SubscriptionAttemptRejectionProof =
 
 export interface SubscriptionCycleClaimEvidence {
   readonly outcome: 'acquired' | 'not_acquired' | 'unknown';
+  /** Stable, server-derived identity for Subscription PDA + actual on-chain period start. */
+  readonly cycleIdentity: string | null;
   /** Opaque fencing token returned by the database claim operation. */
   readonly fencingToken: string | null;
 }
 
 export interface SubscriptionDurableAttemptEvidence {
   readonly attemptId: string;
+  /** Exact Cycle identity this Attempt was atomically attached to. */
+  readonly cycleIdentity: string;
   /** True once the request may have reached an RPC submit boundary. */
   readonly submissionMayHaveOccurred: boolean;
   /** Exact signature and serialized-message hash persisted before submission. */
@@ -32,6 +36,12 @@ export interface SubscriptionDurableAttemptEvidence {
 
 export interface ResolveSubscriptionAttemptRecoveryInput {
   readonly cycleClaim: SubscriptionCycleClaimEvidence;
+  /**
+   * True only when the database read was complete for this locked Cycle,
+   * including every Attempt that may still have an external side effect.
+   * A failed/partial read is never equivalent to "no prior Attempt".
+   */
+  readonly attemptHistoryComplete: boolean;
   readonly priorAttempt: SubscriptionDurableAttemptEvidence | null;
 }
 
@@ -91,14 +101,14 @@ export type SubscriptionAttemptRecoveryDecision =
       readonly action: 'wait_for_cycle_claim';
     }
   | {
-      readonly action: 'blocked_claim_unknown' | 'blocked_inconsistent_attempt_history' |
-        'blocked_retry_policy' | 'manual_review_required';
+      readonly action: 'blocked_claim_unknown' | 'blocked_attempt_history_unknown' |
+        'blocked_inconsistent_attempt_history' | 'blocked_retry_policy' | 'manual_review_required';
       readonly reasons: readonly string[];
     };
 
 function blocked(
-  action: 'blocked_claim_unknown' | 'blocked_inconsistent_attempt_history' |
-    'blocked_retry_policy' | 'manual_review_required',
+  action: 'blocked_claim_unknown' | 'blocked_attempt_history_unknown' |
+    'blocked_inconsistent_attempt_history' | 'blocked_retry_policy' | 'manual_review_required',
   reason: string,
 ): SubscriptionAttemptRecoveryDecision {
   return { action, reasons: [reason] };
@@ -106,6 +116,10 @@ function blocked(
 
 function validAttemptId(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
+}
+
+function validCycleIdentity(value: string | null): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/.test(value);
 }
 
 function validSignature(value: string | null): value is string {
@@ -142,6 +156,15 @@ export function resolveSubscriptionAttemptRecovery(
   if (typeof claim.fencingToken !== 'string' || claim.fencingToken.trim().length === 0) {
     return blocked('blocked_claim_unknown', 'An acquired Cycle claim without a fencing token is incomplete.');
   }
+  if (!validCycleIdentity(claim.cycleIdentity)) {
+    return blocked('blocked_claim_unknown', 'An acquired Cycle claim is not bound to a valid server-derived Cycle identity.');
+  }
+  if (input.attemptHistoryComplete !== true) {
+    return blocked(
+      'blocked_attempt_history_unknown',
+      'The database did not prove a complete Attempt history for this Cycle; absence of a returned Attempt cannot authorize a new charge.',
+    );
+  }
 
   const attempt = input.priorAttempt;
   if (attempt === null) {
@@ -162,6 +185,15 @@ export function resolveSubscriptionAttemptRecovery(
   }
   if (!validAttemptId(attempt.attemptId)) {
     return blocked('blocked_inconsistent_attempt_history', 'The persisted Attempt identity is missing or malformed.');
+  }
+  if (
+    !validCycleIdentity(attempt.cycleIdentity) ||
+    attempt.cycleIdentity !== claim.cycleIdentity
+  ) {
+    return blocked(
+      'blocked_inconsistent_attempt_history',
+      'The persisted Attempt is not bound to the exact Cycle currently claimed; cross-Cycle recovery is prohibited.',
+    );
   }
   if (
     !['not_committed', 'unknown', 'committed'].includes(attempt.accountingOutcome) ||

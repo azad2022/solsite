@@ -4,13 +4,25 @@ import {
   resolveSubscriptionAttemptRecovery,
 } from '../dist/subscription-attempt-recovery-policy.js';
 
-const CLAIM = { outcome: 'acquired', fencingToken: 'db-fence-42' };
+const CLAIM = {
+  outcome: 'acquired',
+  cycleIdentity: 'cycle:subscription-pda:1800000000',
+  fencingToken: 'db-fence-42',
+};
 const SIGNATURE = '1'.repeat(88);
 const MESSAGE_HASH = 'a'.repeat(64);
+
+function decide(input) {
+  return resolveSubscriptionAttemptRecovery({
+    attemptHistoryComplete: true,
+    ...input,
+  });
+}
 
 function attempt(overrides = {}) {
   return {
     attemptId: 'attempt-42',
+    cycleIdentity: CLAIM.cycleIdentity,
     submissionMayHaveOccurred: true,
     signature: SIGNATURE,
     messageHash: MESSAGE_HASH,
@@ -23,7 +35,7 @@ function attempt(overrides = {}) {
 }
 
 test('permits a first Attempt only after an acquired fenced Cycle claim', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: null,
   });
@@ -33,7 +45,7 @@ test('permits a first Attempt only after an acquired fenced Cycle claim', () => 
 });
 
 test('does not permit an Attempt when another worker owns the Cycle claim', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: { outcome: 'not_acquired', fencingToken: null },
     priorAttempt: null,
   });
@@ -41,7 +53,7 @@ test('does not permit an Attempt when another worker owns the Cycle claim', () =
 });
 
 test('fails closed when the database claim outcome is unknown', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: { outcome: 'unknown', fencingToken: null },
     priorAttempt: null,
   });
@@ -49,7 +61,7 @@ test('fails closed when the database claim outcome is unknown', () => {
 });
 
 test('resumes an existing pre-submission Attempt without creating a new Attempt', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({
       submissionMayHaveOccurred: false,
@@ -64,7 +76,7 @@ test('resumes an existing pre-submission Attempt without creating a new Attempt'
 });
 
 test('reconciles the exact same signature and message hash after timeout or restart', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ chainObservation: 'unknown' }),
   });
@@ -76,7 +88,7 @@ test('reconciles the exact same signature and message hash after timeout or rest
 });
 
 test('also reconciles an Attempt whose submit outcome was never recorded', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ chainObservation: 'not_checked' }),
   });
@@ -86,7 +98,7 @@ test('also reconciles an Attempt whose submit outcome was never recorded', () =>
 });
 
 test('blocks automatic recovery if a submitted Attempt lost its signature or message hash', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ signature: null }),
   });
@@ -94,7 +106,7 @@ test('blocks automatic recovery if a submitted Attempt lost its signature or mes
 });
 
 test('does not create a new charge when a verified observation awaits atomic accounting', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ chainObservation: 'verified_observation' }),
   });
@@ -103,7 +115,7 @@ test('does not create a new charge when a verified observation awaits atomic acc
 });
 
 test('does not create a new charge after the verified observation has been atomically accounted', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({
       chainObservation: 'verified_observation',
@@ -115,7 +127,7 @@ test('does not create a new charge after the verified observation has been atomi
 });
 
 test('reconciles an unknown atomic accounting outcome without creating a new charge', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({
       chainObservation: 'verified_observation',
@@ -131,7 +143,7 @@ test('reconciles an unknown atomic accounting outcome without creating a new cha
 });
 
 test('permits a fresh Attempt only after a finalized execution error and explicit retry authorization', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({
       chainObservation: 'rejected',
@@ -145,7 +157,7 @@ test('permits a fresh Attempt only after a finalized execution error and explici
 });
 
 test('does not automatically retry an identity or verifier rejection even when a retry flag is true', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({
       chainObservation: 'rejected',
@@ -157,7 +169,7 @@ test('does not automatically retry an identity or verifier rejection even when a
 });
 
 test('blocks a retry after finalized execution failure when the approved policy denies retry', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({
       chainObservation: 'rejected',
@@ -169,7 +181,7 @@ test('blocks a retry after finalized execution failure when the approved policy 
 });
 
 test('blocks contradictory history where accounting is marked committed without verification', () => {
-  const result = resolveSubscriptionAttemptRecovery({
+  const result = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ accountingOutcome: 'committed' }),
   });
@@ -177,13 +189,13 @@ test('blocks contradictory history where accounting is marked committed without 
 });
 
 test('blocks malformed Attempt identity and malformed signature/message correlation', () => {
-  const badId = resolveSubscriptionAttemptRecovery({
+  const badId = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ attemptId: '../attempt' }),
   });
   assert.equal(badId.action, 'blocked_inconsistent_attempt_history');
 
-  const badHash = resolveSubscriptionAttemptRecovery({
+  const badHash = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ messageHash: 'not-a-hash' }),
   });
@@ -192,15 +204,43 @@ test('blocks malformed Attempt identity and malformed signature/message correlat
 
 
 test('blocks malformed Cycle claim and Attempt state values instead of treating them as acquired', () => {
-  const malformedClaim = resolveSubscriptionAttemptRecovery({
+  const malformedClaim = decide({
     cycleClaim: { outcome: 'acquired-ish', fencingToken: 'db-fence-42' },
     priorAttempt: null,
   });
   assert.equal(malformedClaim.action, 'blocked_claim_unknown');
 
-  const malformedAttempt = resolveSubscriptionAttemptRecovery({
+  const malformedAttempt = decide({
     cycleClaim: CLAIM,
     priorAttempt: attempt({ chainObservation: 'probably-ok' }),
   });
   assert.equal(malformedAttempt.action, 'blocked_inconsistent_attempt_history');
+});
+
+
+test('does not interpret an incomplete Attempt read as proof that no prior Attempt exists', () => {
+  const result = decide({
+    cycleClaim: CLAIM,
+    attemptHistoryComplete: false,
+    priorAttempt: null,
+  });
+  assert.equal(result.action, 'blocked_attempt_history_unknown');
+  assert.match(result.reasons.join(' '), /complete Attempt history/);
+});
+
+test('rejects recovery when a durable Attempt belongs to another Cycle', () => {
+  const result = decide({
+    cycleClaim: CLAIM,
+    priorAttempt: attempt({ cycleIdentity: 'cycle:another-subscription:1800000000' }),
+  });
+  assert.equal(result.action, 'blocked_inconsistent_attempt_history');
+  assert.match(result.reasons.join(' '), /exact Cycle currently claimed/);
+});
+
+test('fails closed when the claimed Cycle identity is missing or malformed', () => {
+  const result = decide({
+    cycleClaim: { ...CLAIM, cycleIdentity: ' ' },
+    priorAttempt: null,
+  });
+  assert.equal(result.action, 'blocked_claim_unknown');
 });
