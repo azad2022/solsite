@@ -4845,3 +4845,43 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - Audit caveat: current Payment Intent route passes 100 bps directly; the helper uses ceiling division. Master Specification §105 separately flags the hard-coded 100 bps vs the `gateway_fee_bps` domain concept. No claim of merchant-configurable fee is made; Subscription must reuse only the currently approved policy and must not invent/change a rate.
 - Subscription split-fee billing remains BLOCKED: the pinned instruction has one destination per instruction; production requires two-leg Plan allowlisting, dedicated finalized verifier, exact extra/duplicate transfer rejection, typed balanced atomic accounting/outbox and real Subscription Devnet E2E. Existing Pay verifier unchanged.
 - No runtime code or tests changed; no tests were executed for this documentation-only amendment. No Production DDL/data/RLS/grant, configuration, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction or Program upgrade changed.
+
+
+## 2026-11-19 — Isolated Subscription Attempt Recovery regression checkpoint
+
+### Repository and implementation scope
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; executable/test commit: `3229175777f5a3c2756c811cac8087e55f4f4ede`; PR #366 remains OPEN / DRAFT / NOT MERGED, base `main` at `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- The change is limited to `tools/subscription-sdk-compat/test/subscription-attempt-recovery-policy.test.mjs`. It adds three focused regression tests:
+  1. An acquired Cycle claim without a non-empty string fencing token cannot authorize a first Attempt.
+  2. A pre-submission Attempt with an incomplete or malformed signature/message-hash pair cannot be resumed.
+  3. A pre-submission Attempt with a Chain observation or any Accounting side effect is inconsistent and must fail closed.
+- The tests exercise the existing pure recovery decision helper. No production/runtime source, API, database object, migration, RLS/grant, Auth/RBAC, fee, business rule, normal Pay verifier, Collector, signer or UI was changed. The isolated compatibility harness remains outside the production application bundle.
+- The helper still does not claim a Cycle, create an Attempt, sign, submit or retry a transaction. The tests do not authorize a first charge by themselves; database-enforced complete history and Cycle fencing remain external prerequisites.
+- Local clone Working Tree remains UNKNOWN because this task used the remote GitHub connection.
+
+### Exact-head CI evidence — PASS for executed jobs
+- GitHub Actions CI run [44561725412](https://github.com/azad2022/solsite/actions/runs/44561725412) completed SUCCESS on exact executable/test commit `3229175777f5a3c2756c811cac8087e55f4f4ede`.
+- `subscription-change-scope`: SUCCESS.
+- `quality`: SUCCESS — production-source typecheck, root Production Build, unit tests, fail-closed Production migration guard tests and unchanged production-source tree check all completed successfully.
+- `subscription-sdk-compat (24)` job `135692749803`: SUCCESS — exact-head checkout, package-lock/manifest consistency, `npm ci`, pinned adapter/SDK TypeScript typecheck, complete SDK/PDA/web3.js and Recovery test suite (`npm test`), local Pages/Workerd runtime test, and dedicated Devnet CreatePlan simulation without transaction submission.
+- `subscription-reproducible-build` job `135692749870`: SUCCESS — exact pinned upstream source/toolchain validation, deterministic Solana Docker build without RPC, executable hash generation and sanitized evidence artifact upload.
+- `subscription-mainnet-programdata` job `135693487563`: SUCCESS — finalized Mainnet ProgramData/ELF/IDL identity check using the read-only workflow path. No Mainnet transaction or Program mutation.
+- Both pinned Production migration CLI validation jobs: SUCCESS; these validate CLI/toolchain only and did not apply a Production migration.
+- Cloudflare Pages preview check: SUCCESS.
+- The overall CI workflow result is SUCCESS on the exact commit.
+
+### Explicitly skipped / not claimed
+- Database Security, ordinary Pay Devnet E2E, the separate Mainnet Read-only wrapper, and the separate Production Build wrapper were skipped by changed-path scope. The root Production Build step inside the CI `quality` job did run and pass.
+- Subscription VNext Squads SDK, atomic split-transfer and TM-06 sponsored-Plan tests, plus the VNext authority-registry job, were skipped. Supabase Preview was skipped.
+- Devnet validation in the SDK harness was simulation-only; no transaction was signed or submitted. This checkpoint is not Subscription billing E2E, Database/RLS Security PASS, or a Release Audit.
+
+### Gate disposition and mutation boundary
+- PASS: the three new Recovery regression cases within the isolated harness; exact-head CI jobs listed above.
+- BLOCKED: G1 upstream protocol remediation/compatibility, remaining G1-5 adversarial coverage, G1 independent audit and migration/deployment evidence; G2 Subscription Contract Freeze; Database/RLS Security and real Subscription billing E2E were not run by this change.
+- NOT IMPLEMENTED: production Subscription API/schema/RLS/grants, durable Cycle/Attempt persistence and fencing RPC, Billing worker, isolated Collector signer, dedicated finalized Subscription verifier, atomic typed Subscription accounting/outbox, real Subscription billing E2E and Subscription UI.
+- UNKNOWN: local Working Tree; no fresh direct Production database inventory or provider Dashboard read-back was performed in this test-only checkpoint.
+- G0 migration-runner governance remains recorded as PASS / COMPLETE in the current project ledger; this task made no G0 or provider-setting change.
+- No Production DDL/data/RLS/grants, Cloudflare/Supabase provider setting, Secret/Key/persistent signer, customer consent, ledger posting, Devnet transaction/deployment, Mainnet transaction or Program upgrade occurred. The only Devnet call was a non-submitting simulation; Mainnet ProgramData inspection was read-only.
+
+### Next bounded step
+- Continue the G1 protocol compatibility/adversarial remediation and close the remaining G2 contract decisions. Do not begin Production-intended Subscription API/DB/Collector/verifier/accounting or frontend implementation until their exact contracts and required upstream/security gates are approved and evidenced.
