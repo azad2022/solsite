@@ -883,9 +883,12 @@ jobs:
             --library-name transfer_hook_example
           test -s tests/transfer-hook-example/target/deploy/transfer_hook_example.so
 
-      - name: Run complete LiteSVM integration suite against VNext SBF
+      - name: Run VNext and Legacy migration LiteSVM suites against VNext SBF
         working-directory: vnext-subscriptions
-        run: cargo test -p tests-subscriptions
+        run: |
+          set -euo pipefail
+          cargo test -p tests-subscriptions test_vnext_ -- --nocapture
+          cargo test -p tests-subscriptions test_legacy_authority_generation -- --nocapture
 
       - name: Checkout immutable v0.5.0 legacy Program source
         uses: actions/checkout@v5
@@ -904,6 +907,25 @@ jobs:
             --workspace-path "$GITHUB_WORKSPACE/legacy-subscriptions" \
             --library-name subscriptions_program
           test -s target/deploy/subscriptions_program.so
+
+      - name: Run historical Legacy integration suite against immutable v0.5.0 Program
+        working-directory: vnext-subscriptions
+        run: |
+          set -euo pipefail
+          vnext_so="$PWD/target/deploy/subscriptions_program.so"
+          backup="$(mktemp)"
+          cp "$vnext_so" "$backup"
+          restore_vnext_so() {
+            cp "$backup" "$vnext_so"
+            rm -f "$backup"
+          }
+          trap restore_vnext_so EXIT
+
+          cp "$GITHUB_WORKSPACE/legacy-subscriptions/target/deploy/subscriptions_program.so" "$vnext_so"
+          cargo test -p tests-subscriptions -- --skip test_vnext_ --skip test_legacy_authority_generation
+
+          restore_vnext_so
+          trap - EXIT
 
       - name: Prove immutable legacy Program cannot delegate a VNext non-ATA source
         working-directory: vnext-subscriptions
