@@ -16,7 +16,7 @@ function attempt(overrides = {}) {
     messageHash: MESSAGE_HASH,
     chainObservation: 'unknown',
     rejectionProof: 'unknown',
-    accountingCommitted: false,
+    accountingOutcome: 'not_committed',
     retryAuthorized: false,
     ...overrides,
   };
@@ -107,10 +107,26 @@ test('does not create a new charge after the verified observation has been atomi
     cycleClaim: CLAIM,
     priorAttempt: attempt({
       chainObservation: 'verified_observation',
-      accountingCommitted: true,
+      accountingOutcome: 'committed',
     }),
   });
   assert.equal(result.action, 'cycle_accounted');
+  assert.equal(result.mustNotCreateNewAttempt, true);
+});
+
+test('reconciles an unknown atomic accounting outcome without creating a new charge', () => {
+  const result = resolveSubscriptionAttemptRecovery({
+    cycleClaim: CLAIM,
+    priorAttempt: attempt({
+      chainObservation: 'verified_observation',
+      accountingOutcome: 'unknown',
+    }),
+  });
+  assert.equal(result.action, 'reconcile_atomic_accounting_commit');
+  assert.equal(result.attemptId, 'attempt-42');
+  assert.equal(result.signature, SIGNATURE);
+  assert.equal(result.messageHash, MESSAGE_HASH);
+  assert.equal(result.mustReuseExactObservation, true);
   assert.equal(result.mustNotCreateNewAttempt, true);
 });
 
@@ -155,7 +171,7 @@ test('blocks a retry after finalized execution failure when the approved policy 
 test('blocks contradictory history where accounting is marked committed without verification', () => {
   const result = resolveSubscriptionAttemptRecovery({
     cycleClaim: CLAIM,
-    priorAttempt: attempt({ accountingCommitted: true }),
+    priorAttempt: attempt({ accountingOutcome: 'committed' }),
   });
   assert.equal(result.action, 'blocked_inconsistent_attempt_history');
 });

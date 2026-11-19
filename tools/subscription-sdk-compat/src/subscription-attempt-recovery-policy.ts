@@ -24,8 +24,8 @@ export interface SubscriptionDurableAttemptEvidence {
   readonly messageHash: string | null;
   readonly chainObservation: SubscriptionAttemptChainObservation;
   readonly rejectionProof?: SubscriptionAttemptRejectionProof;
-  /** True only after the atomic DB accounting commit is confirmed. */
-  readonly accountingCommitted: boolean;
+  /** A lost DB response is UNKNOWN, not proof that the atomic commit did not occur. */
+  readonly accountingOutcome: 'not_committed' | 'unknown' | 'committed';
   /** Result of a separately approved retry/entitlement policy, not inferred here. */
   readonly retryAuthorized: boolean;
 }
@@ -65,6 +65,15 @@ export type SubscriptionAttemptRecoveryDecision =
       readonly messageHash: string;
       readonly fencingToken: string;
       readonly mustNotCreateNewAttempt: true;
+    }
+  | {
+      readonly action: 'reconcile_atomic_accounting_commit';
+      readonly attemptId: string;
+      readonly signature: string;
+      readonly messageHash: string;
+      readonly fencingToken: string;
+      readonly mustNotCreateNewAttempt: true;
+      readonly mustReuseExactObservation: true;
     }
   | {
       readonly action: 'cycle_accounted';
@@ -146,12 +155,15 @@ export function resolveSubscriptionAttemptRecovery(
   if (!validAttemptId(attempt.attemptId)) {
     return blocked('blocked_inconsistent_attempt_history', 'The persisted Attempt identity is missing or malformed.');
   }
-  if (attempt.accountingCommitted && attempt.chainObservation !== 'verified_observation') {
-    return blocked('blocked_inconsistent_attempt_history', 'Accounting is marked committed without a verified transaction observation.');
+  if (
+    !['not_committed', 'unknown', 'committed'].includes(attempt.accountingOutcome) ||
+    (attempt.accountingOutcome !== 'not_committed' && attempt.chainObservation !== 'verified_observation')
+  ) {
+    return blocked('blocked_inconsistent_attempt_history', 'Accounting is unknown or committed without a verified transaction observation, or its outcome is malformed.');
   }
 
   if (!attempt.submissionMayHaveOccurred) {
-    if (attempt.chainObservation !== 'not_checked') {
+    if (attempt.chainObservation !== 'not_checked' || attempt.accountingOutcome !== 'not_committed') {
       return blocked('blocked_inconsistent_attempt_history', 'A pre-submission Attempt cannot already have a chain observation.');
     }
     const hasSignature = attempt.signature !== null;
@@ -192,12 +204,23 @@ export function resolveSubscriptionAttemptRecovery(
   }
 
   if (attempt.chainObservation === 'verified_observation') {
-    if (attempt.accountingCommitted) {
+    if (attempt.accountingOutcome === 'committed') {
       return {
         action: 'cycle_accounted',
         attemptId: attempt.attemptId,
         fencingToken: claim.fencingToken,
         mustNotCreateNewAttempt: true,
+      };
+    }
+    if (attempt.accountingOutcome === 'unknown') {
+      return {
+        action: 'reconcile_atomic_accounting_commit',
+        attemptId: attempt.attemptId,
+        signature: attempt.signature,
+        messageHash: attempt.messageHash,
+        fencingToken: claim.fencingToken,
+        mustNotCreateNewAttempt: true,
+        mustReuseExactObservation: true,
       };
     }
     return {
