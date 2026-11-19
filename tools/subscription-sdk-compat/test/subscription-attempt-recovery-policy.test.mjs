@@ -244,3 +244,62 @@ test('fails closed when the claimed Cycle identity is missing or malformed', () 
   });
   assert.equal(result.action, 'blocked_claim_unknown');
 });
+
+
+test('does not permit a first Attempt without a non-empty database fencing token', () => {
+  const invalidTokens = [null, undefined, '', '  \t  ', 42];
+
+  for (const fencingToken of invalidTokens) {
+    const result = decide({
+      cycleClaim: { ...CLAIM, fencingToken },
+      priorAttempt: null,
+    });
+    assert.equal(result.action, 'blocked_claim_unknown');
+  }
+});
+
+test('does not resume a pre-submission Attempt with an incomplete or malformed signature/message pair', () => {
+  const invalidCorrelations = [
+    { signature: SIGNATURE, messageHash: null },
+    { signature: null, messageHash: MESSAGE_HASH },
+    { signature: 'not-a-solana-signature', messageHash: MESSAGE_HASH },
+    { signature: SIGNATURE, messageHash: 'not-a-sha256-hash' },
+  ];
+
+  for (const correlation of invalidCorrelations) {
+    const result = decide({
+      cycleClaim: CLAIM,
+      priorAttempt: attempt({
+        submissionMayHaveOccurred: false,
+        chainObservation: 'not_checked',
+        accountingOutcome: 'not_committed',
+        ...correlation,
+      }),
+    });
+    assert.equal(result.action, 'blocked_inconsistent_attempt_history');
+  }
+});
+
+test('does not resume a pre-submission Attempt with a chain observation or accounting side effect', () => {
+  const inconsistentStates = [
+    { chainObservation: 'unknown' },
+    { chainObservation: 'verified_observation' },
+    { accountingOutcome: 'unknown' },
+    { accountingOutcome: 'committed' },
+  ];
+
+  for (const state of inconsistentStates) {
+    const result = decide({
+      cycleClaim: CLAIM,
+      priorAttempt: attempt({
+        submissionMayHaveOccurred: false,
+        signature: null,
+        messageHash: null,
+        chainObservation: 'not_checked',
+        accountingOutcome: 'not_committed',
+        ...state,
+      }),
+    });
+    assert.equal(result.action, 'blocked_inconsistent_attempt_history');
+  }
+});
