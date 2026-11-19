@@ -5066,3 +5066,49 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation boundary
 - No Product runtime/Program source was changed by this checkpoint; only the CI workflow pin was updated.
 - No Production DDL/data/RLS/grant, provider configuration, Secret/Key, persistent signer, Customer consent, ledger write, Devnet transaction/deployment, Mainnet transaction, Program deployment/upgrade or release action was performed.
+
+
+## 2026-11-19 — G1 Legacy Authority migration implementation and exact-source validation checkpoint
+
+### Repository / branch / PR evidence
+- Product repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`, PR [#366](https://github.com/azad2022/solsite/pull/366), current checkpoint head `036f38b21b27f0831c47c37339e7d162967ccc5d`; PR remains **OPEN / DRAFT / NOT MERGED**.
+- On-chain source repository: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, PR [#1](https://github.com/azad2022/solmint-subscriptions-program/pull/1), exact source head `52d165b1d15b7c0dcee886e9e7ec44117adeed65`; PR remains **OPEN / DRAFT / NOT MERGED** and GitHub reports `mergeable=true`.
+- Program default branch is currently `bbf9c41a8f84d26f75132a51a640fe4429dbc5f5`. Its tree was checked: the new Legacy migration handler and test file are absent from main. An earlier omitted-branch create-file call briefly added the handler on main; it was immediately deleted/reverted in `bbf9c41...`. The accidental add/delete exists in main's history and is explicitly disclosed; current main tree has no such files. All subsequent Program writes explicitly targeted `feat/solmint-g1-authority-vnext`.
+- The four VNext source pin references (two checkout refs and two exact-SHA assertions) in `.github/workflows/ci.yml` point to `52d165b1d15b7c0dcee886e9e7ec44117adeed65`.
+
+### Implemented source slice — not a release
+- Added `program/src/instructions/legacy_subscription_authority_vnext.rs`:
+  - discriminator 28 is a migration-only bootstrap for an already-existing, correctly-owned legacy Authority whose canonical ATA currently delegates to that exact Authority PDA. It creates the permanent Registry at generation 1 / ACTIVE without changing the legacy Authority bytes, its old non-negative slot `init_id`, the Token delegate, or existing Subscription account bytes.
+  - discriminator 29 advances the persistent generation, revokes only the matching legacy delegate (SPL Token or Token-2022), and closes the legacy Authority atomically. An unrelated/foreign delegate is not revoked. A tombstone can be created when the Authority is absent, pre-empting a previously-signed authorization.
+  - Legacy Authorize cannot create or reauthorize an old ATA Authority. Once a Registry is revoked, replay of an obsolete signed action is rejected by generation; a fresh old Legacy reauthorization is deliberately fail-closed. Fresh consent must use the separate VNext non-ATA route.
+- Added discriminator 30, `LegacySubscriptionTransferV2Data`, and a Registry-gated transfer adapter in `transfer_subscription.rs`. It validates Registry identity/status/generation, signed action deadline, canonical ATA, Authority identity and old Subscription `init_id`, Plan mint/expiry and the expected billing-period snapshot, then delegates to the existing Legacy TransferSubscription core. Snapshot projection was aligned with the Legacy recurring-period catch-up rule at finite Plan expiry, including the last in-bounds period.
+- Added instruction variants/parser/dispatcher wiring in `instructions/mod.rs`; added error 157 `LegacyInstructionDisabled`. Dispatcher now rejects the nine unversioned Legacy permission routes: Init (0), Fixed/Recurring creation (1/2), Fixed/Recurring transfer (4/5), Authority Close (6), Subscription transfer (10), Subscribe (11), and Authority Revoke (14). New generation-bound Legacy migration/Revoke/Transfer paths are 28/29/30.
+- Updated `idl/subscriptions.json` with the three new instructions, the Legacy transfer payload type and Error 157. Generated-vs-committed Codama verification is still pending.
+- Added `tests/integration-tests/src/test_legacy_authority_generation.rs` and registered it. Its two targeted LiteSVM cases build disposable, byte-valid v0.5.0-shaped fixtures with the Program's production state encoders (not captured Mainnet account bytes): preserve legacy Authority/Subscription bytes through bootstrap; collect an active old Subscription through discriminator 30 at the finite Plan end boundary; revoke; prove old Subscription remains readable but can no longer collect; reject stale replay even with a fresh blockhash; reject Legacy reauthorization; and reject all nine unversioned Legacy permission discriminators with valid payload lengths. Extended the existing VNext authority consent test to exercise explicit new-generation reauthorization after revoke.
+- Compatibility boundary: old Legacy Fixed/Recurring creation and transfer routes are also fail-closed by this dispatcher change. Their generation-bound replacements are **NOT IMPLEMENTED** in this checkpoint; those capabilities remain BLOCKED for use until separately versioned routes and tests exist. This is not claimed as a feature-complete migration.
+
+### Exact-head CI evidence — Run [44599716867](https://github.com/azad2022/solsite/actions/runs/44599716867), Product SHA `036f38b21b27f0831c47c37339e7d162967ccc5d`, Program SHA `52d165b1d15b7c0dcee886e9e7ec44117adeed65`
+- **PASS:** Product Quality — TypeScript typecheck, Production Build, ordinary unit tests, fail-closed Production migration guard tests and source-tree cleanliness.
+- **PASS:** Subscription change-scope — `vnext=true`, `reproducible=true`, `squads_sdk=true`.
+- **PASS:** pinned Supabase Production CLI version checks only; no migration was applied.
+- **PASS:** reproducible upstream Program build in deterministic container and executable hash.
+- **PASS:** Squads SDK staged unit tests, isolated Surfpool delayed proposal integration, and Agave durable-nonce typecheck/regression on this run. Historical delayed-proposal error 141 on an earlier run remains unexplained, although this and the immediately preceding run passed; deterministic long-run stability is not asserted.
+- **PASS:** Program Rust formatting and Integration/LiteSVM Rust formatting.
+- **PASS:** Program unit tests.
+- **PASS:** exact VNext SBF build in deterministic container.
+- **PASS:** Token-2022 TransferHook test fixture build.
+- **IN PROGRESS at this checkpoint:** complete LiteSVM suite against the exact VNext SBF, including the new Legacy migration/revoke/replay tests.
+- **PENDING:** immutable v0.5.0 Legacy binary isolation check; regenerated Codama IDL; generated-vs-committed IDL comparison. These steps are downstream of LiteSVM and have not yet run.
+- Separate SDK compatibility, TM-06 and atomic split-transfer jobs were SKIPPED by change scope in this run, not freshly passed. Mainnet ProgramData wrapper was also skipped; this checkpoint made no Mainnet reads or writes.
+
+### Gate disposition
+- **PASS:** source/branch/PR re-check; explicit new discriminator/parser/dispatcher wiring; nine unversioned Legacy permission routes fail-closed in source; Registry + migration/revoke code compiles; Program Unit Tests; Product Quality; Program rustfmt and test rustfmt; deterministic VNext SBF build; TransferHook fixture build; reproducible upstream build; Squads SDK and Agave nonce tests on the exact source run.
+- **BLOCKED:** complete G1/TM-01 acceptance until LiteSVM suite, immutable Legacy binary isolation, generated IDL comparison, actual archived v0.5.0 account-byte migration rehearsal, and broader adversarial lifecycle matrix all pass. Independent Program identity/deployment decision and separate authorized Devnet migration rehearsal are not complete.
+- **BLOCKED / NOT IMPLEMENTED:** generation-bound replacement paths for Legacy Fixed/Recurring permissions; those old routes are currently disabled, not migrated.
+- **UNKNOWN:** no independent security audit of this new implementation and no real captured customer/Mainnet legacy state fixture has been tested.
+- **NOT IMPLEMENTED:** Subscription backend API, DB Cycle/Attempt/fencing/accounting, isolated Collector, verifier/entitlement integration and production UI enablement remain outside this checkpoint.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grant, provider setting, Secret/Key, persistent signer, customer consent, accounting/ledger write, Devnet transaction/deployment, Mainnet transaction, Program deployment/upgrade or release was performed.
+- CI operated on disposable runner fixtures. Ordinary SolMint Pay Devnet workflow, where run by the existing wrapper, is not Subscription E2E and is not evidence of a Subscription charge.
+- GitHub connector cannot observe the developer's local working tree; that remains **UNKNOWN**.
