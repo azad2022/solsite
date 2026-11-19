@@ -5112,3 +5112,40 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - No Production DDL/data/RLS/grant, provider setting, Secret/Key, persistent signer, customer consent, accounting/ledger write, Devnet transaction/deployment, Mainnet transaction, Program deployment/upgrade or release was performed.
 - CI operated on disposable runner fixtures. Ordinary SolMint Pay Devnet workflow, where run by the existing wrapper, is not Subscription E2E and is not evidence of a Subscription charge.
 - GitHub connector cannot observe the developer's local working tree; that remains **UNKNOWN**.
+
+
+## 2026-11-19 — Legacy vs VNext LiteSVM separation after intentional Legacy route closure
+
+### Exact-source CI evidence
+- Product PR #366 Run [44599716867](https://github.com/azad2022/solsite/actions/runs/44599716867), Product source `036f38b21b27f0831c47c37339e7d162967ccc5d`, VNext Program source `52d165b1d15b7c0dcee886e9e7ec44117adeed65`.
+- **PASS:** product Quality, TypeScript typecheck, Production Build, ordinary Unit Tests, fail-closed Production migration guards and clean-source assertion.
+- **PASS:** Scope outputs `vnext=true`, `reproducible=true`, `squads_sdk=true`.
+- **PASS:** Program formatting and Integration-test formatting; Program unit tests; exact VNext SBF build; Token-2022 TransferHook fixture build; reproducible upstream Program build; Squads staged unit/integration tests; Agave durable-nonce typecheck and real-validator semantics regression.
+- **PASS:** 24 VNext/ABI/Authority/Subscription LiteSVM tests in the combined run; all 3 tests in `test_legacy_authority_generation` also passed:
+  - `legacy_registry_bootstrap_preserves_old_authority_then_revoke_and_reauthorize_do_not_revive_it`
+  - `legacy_revoke_tombstone_invalidates_a_previously_signed_unsubmitted_authorization`
+  - `unversioned_legacy_authority_and_permission_paths_are_closed_at_dispatch`
+- The combined `cargo test -p tests-subscriptions` step failed: **77 passed, 224 failed, 5 ignored**. The 224 failures group entirely under 16 historical Legacy test modules whose setup/operations still invoke the now-disabled unversioned Legacy instructions. Their common error is custom code 157 (`LegacyInstructionDisabled`), not distinct downstream business-rule regressions. The three new migration tests and all 24 selected VNext tests passed. The failures correctly exposed a CI test-harness boundary error: historical v0.5.0 tests were being run against the new Program after the Legacy dispatch was intentionally closed.
+- LiteSVM failure prevented the downstream immutable Legacy Program isolation and Codama generated-vs-committed IDL steps from running in this attempt.
+
+### CI harness correction
+- Updated `.github/workflows/ci.yml` in PR #366, commit `dcedd8a0654e5113817a86e33b97bca81f2d2d60`, to separate the runtime contracts:
+  1. Run `test_vnext_` tests against the exact new VNext SBF.
+  2. Run `test_legacy_authority_generation` against that same new SBF.
+  3. Build the immutable v0.5.0 baseline Program and run historical Legacy integration tests against that old binary, skipping only VNext and new migration-specific modules.
+  4. Restore the exact VNext SBF in an EXIT-trapped shell before subsequent upload/IDL checks.
+  5. Separately run the ignored immutable-Legacy-vs-VNext non-ATA isolation tests with `SOLMINT_LEGACY_PROGRAM_SO` pointing to the independently built baseline artifact.
+- This separates historical v0.5.0 behavior from new Program policy without reopening any disabled Legacy discriminator.
+- Product and Program PRs remain OPEN / DRAFT / NOT MERGED. Program PR #1 exact source head remains `52d165b1d15b7c0dcee886e9e7ec44117adeed65`; Product PR #366 now includes the CI test-scope correction at `dcedd8a0654e5113817a86e33b97bca81f2d2d60`.
+- New CI Run after the correction: [44600790911](https://github.com/azad2022/solsite/actions/runs/44600790911) was queued/pending at checkpoint creation. It must prove both separated LiteSVM suites, immutable Legacy isolation and IDL generation/comparison before these gates can be marked PASS.
+
+### Gate disposition
+- **PASS:** exact Program source checkout/build, Program Unit Tests, both Rust format checks, 24 VNext LiteSVM cases, 3 Legacy migration LiteSVM cases, exact SBF build, TransferHook fixture, reproducible upstream build, Squads and Agave Durable Nonce tests.
+- **BLOCKED:** overall LiteSVM integration gate because the combined test harness wrongly ran historical Legacy tests against the new closed-dispatch Program; split CI retry is pending.
+- **BLOCKED:** immutable Legacy binary integration/replay isolation and generated-vs-committed IDL checks were skipped after the combined suite failed; new split run must execute them.
+- **BLOCKED:** actual archived v0.5.0 customer account-byte migration rehearsal; current migration fixtures are generated with exact production encoders but are not captured deployed state.
+- **BLOCKED / NOT IMPLEMENTED:** generation-bound replacements for old Fixed/Recurring permission create/transfer routes. Those Legacy operations are intentionally disabled at the new Program dispatcher, but the corresponding versioned replacements are not implemented in this checkpoint.
+- **UNKNOWN:** independent security audit, final Program identity decision, separate authorized Devnet migration rehearsal, and developer-local working-tree state.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grants, provider config, secrets/keys, persistent signer, customer consent, accounting/ledger writes, Devnet or Mainnet transaction, Program deployment/upgrade or release was performed. No chain state was modified by this patch.
