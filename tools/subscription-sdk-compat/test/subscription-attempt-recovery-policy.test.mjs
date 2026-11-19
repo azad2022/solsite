@@ -9,7 +9,7 @@ const CLAIM = {
   cycleIdentity: 'cycle:subscription-pda:1800000000',
   fencingToken: 'db-fence-42',
 };
-const SIGNATURE = '1'.repeat(88);
+const SIGNATURE = '1'.repeat(64);
 const MESSAGE_HASH = 'a'.repeat(64);
 
 function decide(input) {
@@ -186,6 +186,22 @@ test('blocks contradictory history where accounting is marked committed without 
     priorAttempt: attempt({ accountingOutcome: 'committed' }),
   });
   assert.equal(result.action, 'blocked_inconsistent_attempt_history');
+});
+
+test('accepts only a Base58 signature that decodes to exactly 64 bytes', () => {
+  const valid = decide({
+    cycleClaim: CLAIM,
+    priorAttempt: attempt({ signature: SIGNATURE }),
+  });
+  assert.equal(valid.action, 'reconcile_existing_attempt');
+
+  // A Base58 string's character count is not its decoded byte length.
+  const invalid = decide({
+    cycleClaim: CLAIM,
+    priorAttempt: attempt({ signature: '2'.repeat(64) }),
+  });
+  assert.equal(invalid.action, 'blocked_inconsistent_attempt_history');
+  assert.match(invalid.reasons.join(' '), /signature\/message hash/);
 });
 
 test('blocks malformed Attempt identity and malformed signature/message correlation', () => {

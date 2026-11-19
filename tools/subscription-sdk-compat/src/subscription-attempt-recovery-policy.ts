@@ -122,8 +122,39 @@ function validCycleIdentity(value: string | null): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/.test(value);
 }
 
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const SOLANA_SIGNATURE_BYTES = 64;
+
 function validSignature(value: string | null): value is string {
-  return typeof value === 'string' && /^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(value);
+  if (
+    typeof value !== 'string' ||
+    value.length < SOLANA_SIGNATURE_BYTES ||
+    value.length > 88
+  ) {
+    return false;
+  }
+
+  let leadingZeroBytes = 0;
+  while (value[leadingZeroBytes] === '1') {
+    leadingZeroBytes += 1;
+  }
+
+  let decoded = 0n;
+  for (const character of value) {
+    const digit = BASE58_ALPHABET.indexOf(character);
+    if (digit < 0) {
+      return false;
+    }
+    decoded = decoded * 58n + BigInt(digit);
+  }
+
+  let decodedBytes = 0;
+  while (decoded > 0n) {
+    decodedBytes += 1;
+    decoded >>= 8n;
+  }
+
+  return leadingZeroBytes + decodedBytes === SOLANA_SIGNATURE_BYTES;
 }
 
 function validMessageHash(value: string | null): value is string {
