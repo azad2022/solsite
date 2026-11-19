@@ -4885,3 +4885,41 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 
 ### Next bounded step
 - Continue the G1 protocol compatibility/adversarial remediation and close the remaining G2 contract decisions. Do not begin Production-intended Subscription API/DB/Collector/verifier/accounting or frontend implementation until their exact contracts and required upstream/security gates are approved and evidenced.
+
+
+## 2026-11-19 — Isolated Base58 signature-length validation hardening: verified checkpoint
+
+### Repository and exact implementation
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; code/test commit: `74295a3be21ef9a4a02577ff01335817df93fe16`.
+- PR #366 remains OPEN / DRAFT / NOT MERGED; base `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Changed only:
+  - `tools/subscription-sdk-compat/src/subscription-attempt-recovery-policy.ts`
+  - `tools/subscription-sdk-compat/test/subscription-attempt-recovery-policy.test.mjs`
+- Recovery's persisted Signature shape check now Base58-decodes the string length using BigInt and counts leading zero bytes, requiring exactly 64 decoded bytes. Character count alone is not accepted as byte-length proof.
+- Updated the deterministic test fixture to a 64-byte Base58 representation and added a regression that accepts a 64-byte decoded representation while rejecting a 64-character Base58 string that decodes to fewer than 64 bytes.
+- This is a serialization-shape check only. It does not cryptographically verify an Ed25519 signature or prove a transaction exists; exact finalized transaction/Program evidence remains the independent verification boundary.
+- The helper remains pure and isolated. It does not claim a DB Cycle, read or write Attempt history, create a DB record, sign, submit, retry or authorize a charge. No production application source, API, database contract, fee, role, business rule, normal Pay verifier, Collector, signer or UI was changed.
+
+### Exact-head CI and test evidence
+- CI run [44563786798](https://github.com/azad2022/solsite/actions/runs/44563786798), run #3907, completed SUCCESS on the exact code/test commit.
+- Quality job 135699894981: PASS — production-source TypeScript check, Production Build, unit tests, fail-closed Production migration guards and unchanged production-source tree assertion.
+- Subscription scope job 135699895259: PASS.
+- Subscription SDK compatibility job 135700109806: PASS — pinned dependency/lockfile check, adapter typecheck, full isolated SDK/PDA/web3.js/Recovery suite (**141 passed, 0 failed**, including the new decoded-64-byte regression), Workerd runtime test (**1 passed**) and dedicated Devnet CreatePlan simulation (**1 passed, no transaction submission**).
+- Reproducible Program build job 135700109720: PASS — exact pinned upstream Program source/toolchain built in deterministic container without RPC; executable hash generated and sanitized build artifact uploaded.
+- Mainnet ProgramData job 135700854102: PASS — read-only finalized Mainnet Program/ProgramData/IDL inspection. The observed deployed ELF SHA-256 matched the exact pinned-source build hash `056ca97cf3ee6586650275ce819d026f7369de0172dc54010fa6dc58180e0318`; the on-chain IDL SHA-256 matched the pinned source hash `1522580389fe155633e37682b91488df7cf6c7b3ba5a6cb3ba0e5ae00ffe89aa`. This is binary/IDL identity evidence only, not proof that the Program is secure or that acknowledged findings are fixed.
+- Production Build workflow [44563786718](https://github.com/azad2022/solsite/actions/runs/44563786718): PASS; Cloudflare Pages check: PASS.
+- Pinned Supabase CLI installation/version checks: PASS. They did not apply a migration.
+
+### Explicitly skipped / not claimed
+- Database Security wrapper, ordinary Pay Devnet E2E wrapper and separate Mainnet Read-only wrapper were SKIPPED by changed-path scope. Their wrapper/workflow names are not claimed as fresh PASS evidence.
+- Atomic split-transfer, TM-06 sponsored-Plan refund, VNext Squads SDK and VNext authority-registry jobs were SKIPPED. Supabase Preview was also skipped.
+- No Database/RLS Security PASS, ordinary Pay Devnet E2E PASS, Subscription Billing E2E, release audit or Production readiness claim is made from this checkpoint.
+- The Mainnet ProgramData job above was read-only. The Devnet CreatePlan step was simulation-only and did not sign or submit a transaction.
+
+### Gate disposition and mutation boundary
+- PASS: isolated Recovery decoded-signature-length regression; exact-head Quality/Production Build; Subscription SDK compatibility suite; Workerd test; non-submitting Devnet CreatePlan simulation; reproducible pinned Program build; read-only Mainnet ProgramData/ELF/IDL identity check; Cloudflare Pages check.
+- BLOCKED: G1 upstream protocol remediation and TM-01 High old-signed-create risk; G2 Subscription Contract Freeze, including split fee/verifier/accounting, custody/signing, retry/grace, RBAC, wallet lifecycle, refund and outbox contracts.
+- NOT IMPLEMENTED: production Subscription API/domain/schema/RLS/grants, durable DB Cycle/Attempt persistence and fencing RPC, Billing worker, isolated Collector Signing Service, dedicated production finalized verifier, atomic typed Subscription ledger/outbox and real Subscription billing E2E/UI.
+- UNKNOWN: local clone Working Tree; it was not accessible through the remote repository connection.
+- No Production DDL/data/RLS/grant, provider setting, Secret/Key, persistent signer, customer consent, financial ledger posting, Devnet transaction/deployment, Mainnet transaction or Program upgrade occurred. Only the two isolated harness files and this Progress record changed; Mainnet inspection was read-only.
+- Overall Subscription Production readiness remains **BLOCKED**. The next work must continue G1 protocol remediation/compatibility and complete G2 contract freeze; this test hardening does not authorize Production-intended Subscription implementation.
