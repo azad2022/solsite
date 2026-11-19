@@ -4923,3 +4923,55 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - UNKNOWN: local clone Working Tree; it was not accessible through the remote repository connection.
 - No Production DDL/data/RLS/grant, provider setting, Secret/Key, persistent signer, customer consent, financial ledger posting, Devnet transaction/deployment, Mainnet transaction or Program upgrade occurred. Only the two isolated harness files and this Progress record changed; Mainnet inspection was read-only.
 - Overall Subscription Production readiness remains **BLOCKED**. The next work must continue G1 protocol remediation/compatibility and complete G2 contract freeze; this test hardening does not authorize Production-intended Subscription implementation.
+
+
+## 2026-11-19 — VNext Puller / destination / period-limit regressions and exact-head CI verification
+
+### Repository and immutable source identity
+- SolMint repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; checkpoint source HEAD before this progress-only commit: `d337ee333361a5a15428967a4bc297a2191fcc78`.
+- Program test source: fork `azad2022/solmint-subscriptions-program`; branch: `feat/solmint-g1-authority-vnext`; exact source HEAD: `a06a77e4ec6ed41fef5b5ec0c6aafd11e7e5179c`. The fork parent/source is `solana-foundation/subscriptions`; this is not an accepted upstream merge.
+- SolMint PR #366 remains OPEN / DRAFT / NOT MERGED, base `main` at `514d3401d8d725be106ab0c83557f8e43cdff13e`. Program fork PR #1 remains OPEN / DRAFT / NOT MERGED, base pinned `solmint/v0.5.0-baseline` at `364a41976c33347d092902443bbec2def9227e75`.
+- SolMint `main` remains unchanged at `514d3401d8d725be106ab0c83557f8e43cdff13e`. Remote connector cannot inspect a local clone; local Working Tree remains UNKNOWN.
+- Three test-only LiteSVM regressions were added to the Program fork:
+  1. `vnext_rejects_unapproved_puller_without_state_mutation` — an unapproved instruction caller/Puller is rejected; source/destination balances and Subscription state remain unchanged. The test uses a transaction fee payer distinct from the instruction caller, preserving that principal distinction.
+  2. `vnext_rejects_destination_outside_plan_allowlist_without_state_mutation` — a destination owner outside the Plan allowlist is rejected without state mutation.
+  3. `vnext_rejects_cumulative_period_overdraft_without_state_mutation` — a request above the cumulative per-period allowance is rejected without state mutation.
+- The first exact-head CI attempt on `fc3f7b7e452c0c0aebb8ff221211b6d6957dd753` stopped at `cargo fmt --check` for formatting only; no Unit/LiteSVM execution was claimed from that failed run. The formatting was corrected on the Program branch at `a06a77e4ec6ed41fef5b5ec0c6aafd11e7e5179c`, and both exact VNext source pins in `.github/workflows/ci.yml` were updated on the SolMint branch.
+
+### Exact-head CI and test evidence
+- CI run [44572354193](https://github.com/azad2022/solsite/actions/runs/44572354193) completed SUCCESS on exact SolMint HEAD `d337ee333361a5a15428967a4bc297a2191fcc78`.
+- `subscription-change-scope`: PASS.
+- `quality`: PASS — production-source TypeScript checks, root Production Build, unit tests, fail-closed Production migration guard tests and source-tree integrity check completed successfully.
+- Program Unit Tests: **98 passed, 0 failed, 0 ignored**.
+- Program and integration-test Rust formatting: PASS.
+- Exact pinned VNext SBF deterministic build: PASS; Token-2022 TransferHook fixture build: PASS.
+- Full LiteSVM integration suite against the exact VNext SBF: **298 passed, 0 failed, 5 ignored**. The three named new regressions above each appear as `ok` in the exact job log.
+- The five Legacy-dependent tests were then executed against the immutable v0.5.0 source `364a41976c33347d092902443bbec2def9227e75` and built Legacy SBF: **5 passed, 0 failed, 0 ignored**. This includes the Legacy-vs-VNext source-account isolation case and rejection of all VNext instruction discriminators by the old Program binary.
+- Codama IDL was regenerated from the exact Rust source and compared with the committed VNext IDL: PASS. Canonical IDL SHA-256: `18dd91a3c3d51d8d1579c0e82f6c037410c2fe0312f91521e490daa2c0707215`.
+- Exact VNext SBF/IDL artifact [solmint-vnext-authority-registry-build](https://github.com/azad2022/solsite/actions/runs/44572354193/artifacts/14554093977), artifact ZIP SHA-256 `6800394cf2a4559262b34387310e6a52a51ae92d404ef95a437c986856f04a59`.
+- Exact pinned `subscription-reproducible-build`: PASS. Both pinned Supabase CLI install/version jobs: PASS; they installed/verified the CLI only and did not apply a migration.
+- Separate exact-HEAD wrappers: [Production Build 44572354115](https://github.com/azad2022/solsite/actions/runs/44572354115) PASS; [Database Security 44572354097](https://github.com/azad2022/solsite/actions/runs/44572354097) PASS; [ordinary Pay Devnet E2E 44572355434](https://github.com/azad2022/solsite/actions/runs/44572355434) PASS; [Pay Mainnet Read-only 44572354129](https://github.com/azad2022/solsite/actions/runs/44572354129) PASS. The ordinary Pay Devnet workflow is not Subscription Billing E2E and the Mainnet workflow was read-only.
+- Specialized `subscription-sdk-compat`, `subscription-vnext-squads-sdk`, `subscription-tm06-sponsored-plan-refund`, `subscription-atomic-split-transfer` and `subscription-mainnet-programdata` jobs were SKIPPED by changed-path scope. No fresh PASS is claimed for those suites or for Subscription billing Devnet E2E.
+
+### Live Production Database / Security inventory — read-only
+- Supabase project `nvopkbiedorfshwbmyhn`: ACTIVE_HEALTHY; PostgreSQL `17.6.1.147`; region `eu-central-1`.
+- Live catalog: 103 table objects across queried schemas; 33 `public.pay_*` tables, all with RLS enabled. No Production Subscription / Billing Cycle / Attempt / Pull-observation tables were found.
+- Latest applied Migration: `20261029140401`; 106 migration records.
+- `pay_idempotency_keys`, `pay_payout_transaction_requests` and `pay_webhook_deliveries` remain distinct mechanisms and are not reused as Subscription Cycle/Attempt claims or fencing.
+- Current `pay_apply_verified_observation` remains PaymentIntent-bound, SECURITY DEFINER with empty search_path and executable by `service_role` only. It is not a Subscription accounting boundary and was not modified.
+- `pay_request_user_id()` and `pay_has_merchant_access(...)` are SECURITY DEFINER with empty search_path; live grants observed: no `anon` EXECUTE, `authenticated` and `service_role` EXECUTE. Existing merchant/member/payment/ledger RLS policies remain Pay-specific; operation-level Subscription RBAC is not thereby solved.
+- Supabase catalog/advisor reported RLS disabled on seven internal tables across `private` and `better_auth`. Follow-up read-only privilege checks showed `anon` and `authenticated` have neither Schema USAGE nor table SELECT/INSERT/UPDATE/DELETE on those seven tables. Therefore direct access through those two roles was NOT established; the disabled-RLS state remains an internal security/audit finding, not a proven public exposure. No blanket RLS change was made because Better Auth/internal worker access and policy design require a separate review.
+
+### G1 disposition — targeted test PASS, overall G1 BLOCKED
+- The three new VNext transfer regressions and the exact VNext build/test/IDL workflow: PASS for their tested scopes only.
+- **TM-01 remains BLOCKED by direct source inspection.** On the exact fork HEAD, `program/src/entrypoint.rs` still dispatches legacy `InitSubscriptionAuthority`, `CloseSubscriptionAuthority`, `Subscribe` and `RevokeSubscriptionAuthority` to the legacy handlers; `program/src/instructions/mod.rs` still parses legacy discriminators 0, 6, 11 and 14 rather than rejecting or generation-binding them.
+- The Legacy Init handler still creates the legacy Authority using the current slot and approves `u64::MAX` token allowance. The legacy Subscribe path still calls `SubscriptionAuthority::check_init_id`; the Legacy `UNKNOWN_INIT_ID` implementation substitutes the current slot. A held signed same-transaction Init+Subscribe bundle can therefore still traverse the old route and does not become stale merely because VNext Registry code exists. This is the exact protocol-level condition the owner rejected as residual risk; off-chain rejection does not invalidate an already signed transaction.
+- VNext code is in a personal fork PR, not accepted upstream. Full protocol/ABI and capability compatibility, all Legacy migration/rejection paths, remaining adversarial matrix, independent audit, Devnet migration/rehearsal, authorized Program identity/upgrade and finalized Mainnet deployment verification remain BLOCKED or NOT IMPLEMENTED.
+- The old Program binary rejecting VNext discriminators proves one Legacy isolation direction; it does not prove that the new VNext binary has disabled or safely invalidated all old Legacy instruction formats.
+
+### G2 disposition and next safe boundary
+- G2 remains PARTIAL / BLOCKED; only read-only fact-finding and design work are permitted until G1 release conditions and the G2 Contract Freeze exit criteria are met.
+- Open decisions still include exact Subscription gateway-fee rate/formula and split-transfer design; separate Merchant-funded network fee-payer custody/signing from Collector/Puller; grace-clock origin, retry intervals/backoff and retryable error classes; operation-by-operation RBAC against live Auth/member/RLS; Customer self-service and wallet-link lifecycle; supported Smart Wallet/Multisig proposal workflow; refund/reversal semantics; finality/RPC freshness/Program drift monitoring/kill switch/all-Puller reconciliation; and typed accounting, atomic commit and outbox contracts.
+- NOT IMPLEMENTED: Subscription API/runtime, Cycle/Attempt tables and DB fencing/lease RPC, durable Attempt and Pull-observation persistence, Billing worker, isolated Collector signer, dedicated finalized Subscription verifier, typed atomic Subscription ledger/outbox and real Subscription Billing E2E/UI. Existing Pay verifier and PaymentIntent-bound accounting remain unchanged.
+- No Product runtime code, Production DDL/data/RLS/grants, provider setting, Secret/key, signer, Customer consent, ledger posting, Devnet transaction/deployment, Mainnet transaction, Program ID or Program upgrade was changed.
+- Conclusion: this checkpoint closes the three named VNext negative-test gaps and verifies the test/build pipeline; it does **not** close G1 TM-01 and does **not** authorize G2 Production implementation. G2 Contract Freeze remains BLOCKED.
