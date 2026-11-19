@@ -189,3 +189,18 @@ test('blocks malformed Attempt identity and malformed signature/message correlat
   });
   assert.equal(badHash.action, 'blocked_inconsistent_attempt_history');
 });
+
+
+test('blocks malformed Cycle claim and Attempt state values instead of treating them as acquired', () => {
+  const malformedClaim = resolveSubscriptionAttemptRecovery({
+    cycleClaim: { outcome: 'acquired-ish', fencingToken: 'db-fence-42' },
+    priorAttempt: null,
+  });
+  assert.equal(malformedClaim.action, 'blocked_claim_unknown');
+
+  const malformedAttempt = resolveSubscriptionAttemptRecovery({
+    cycleClaim: CLAIM,
+    priorAttempt: attempt({ chainObservation: 'probably-ok' }),
+  });
+  assert.equal(malformedAttempt.action, 'blocked_inconsistent_attempt_history');
+});

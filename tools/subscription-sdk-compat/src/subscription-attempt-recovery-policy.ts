@@ -136,8 +136,8 @@ export function resolveSubscriptionAttemptRecovery(
   if (claim.outcome === 'not_acquired') {
     return { action: 'wait_for_cycle_claim' };
   }
-  if (claim.outcome === 'unknown') {
-    return blocked('blocked_claim_unknown', 'The database Cycle claim outcome is unknown; no Attempt may be created or retried.');
+  if (claim.outcome !== 'acquired') {
+    return blocked('blocked_claim_unknown', 'The database Cycle claim outcome is unknown or malformed; no Attempt may be created or retried.');
   }
   if (typeof claim.fencingToken !== 'string' || claim.fencingToken.trim().length === 0) {
     return blocked('blocked_claim_unknown', 'An acquired Cycle claim without a fencing token is incomplete.');
@@ -152,6 +152,14 @@ export function resolveSubscriptionAttemptRecovery(
     };
   }
 
+  if (
+    typeof attempt.submissionMayHaveOccurred !== 'boolean' ||
+    typeof attempt.retryAuthorized !== 'boolean' ||
+    !['not_checked', 'unknown', 'rejected', 'verified_observation'].includes(attempt.chainObservation) ||
+    !['not_committed', 'unknown', 'committed'].includes(attempt.accountingOutcome)
+  ) {
+    return blocked('blocked_inconsistent_attempt_history', 'The persisted Attempt contains an unknown or malformed recovery state.');
+  }
   if (!validAttemptId(attempt.attemptId)) {
     return blocked('blocked_inconsistent_attempt_history', 'The persisted Attempt identity is missing or malformed.');
   }
