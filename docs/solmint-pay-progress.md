@@ -5030,3 +5030,39 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation boundary
 - No Production DDL/data/RLS/grant, provider configuration, Secret/Key, persistent signer, Customer consent, accounting/ledger write, Mainnet transaction or Program deployment/upgrade was performed by this code change.
 - The Subscription Devnet CreatePlan check was simulation-only. The separate existing ordinary Pay Devnet E2E workflow completed successfully; it is not a Subscription transaction/deployment and its own transaction effects remain scoped to that workflow.
+
+## 2026-11-19 — G1/VNext CI source alignment and protocol compatibility audit
+
+### Repository and change scope
+- Repository: `azad2022/solsite`; branch: `feat/pay-subscription-billing`; PR #366 remains OPEN / DRAFT / NOT MERGED. Main was not changed.
+- CI-only commit: `1971082d88b09c0830df0de631fe4dfdb6ddbe2e` (`ci(pay): pin Squads checks to current VNext source`).
+- Updated the two source pins in `.github/workflows/ci.yml` for `subscription-vnext-squads-sdk` from `04569d883c2d91ab4b973913266e495f19d034bf` to the exact current VNext Program source `a06a77e4ec6ed41fef5b5ec0c6aafd11e7e5179c`. The VNext authority-registry job already used that same SHA. This makes both focused jobs check out and verify the same immutable VNext source commit.
+- Source comparison: `a06a77e` is 14 commits ahead of `04569d8`; the delta contains only three Rust integration-test files (`test_vnext_abi.rs`, `test_vnext_subscription.rs`, and their test module registration). Program runtime and TypeScript client sources are unchanged in that 14-commit range. The old Squads job therefore did not exercise the newest VNext regression tests.
+
+### Exact-head CI evidence
+- CI workflow run: [44584668199](https://github.com/azad2022/solsite/actions/runs/44584668199), commit `1971082d88b09c0830df0de631fe4dfdb6ddbe2e`.
+- `quality`: SUCCESS — production TypeScript typecheck, Production Build, Unit Tests, migration-guard tests and source-tree cleanliness all completed successfully.
+- `subscription-production-migration-cli` and `production-migration-cli`: SUCCESS — pinned Supabase CLI version checks only; no migration was applied.
+- `subscription-change-scope`: SUCCESS — classified the workflow-block change and enabled the focused Squads job.
+- `subscription-vnext-squads-sdk`, retry job `135776013437`: SUCCESS on exact Program SHA `a06a77e4ec6ed41fef5b5ec0c6aafd11e7e5179c`. Exact checkout verification, pinned toolchain installation, VNext Program + transfer-hook build, generated clients, isolated Surfpool startup, staged Squads SDK unit tests (6/6), delayed Squads proposal integration (2/2), Agave durable-nonce TypeScript typecheck, and Agave durable-nonce regression test (1/1) passed. The Agave regression observed nonce advancement while rolling back the successful VNext authorization and SPL Token Approve after a later failure.
+- Reproducibility note: the first attempt of the same Squads job on the same CI run failed one delayed-proposal test with Program error 141 (`StaleAuthorityGeneration`); the second attempt of that exact job and exact Program SHA passed both integration tests. No source change occurred between those attempts. The intermittent first failure has not been root-caused; record the latest retry as PASS, but deterministic repeatability of this integration path remains BLOCKED/UNKNOWN and must not be claimed as fully stable.
+- Devnet E2E, Database Security, Production Build wrapper, Mainnet Read-only wrapper, SDK compatibility, TM-06, atomic split-transfer and VNext authority-registry jobs were SKIPPED by path/change-scope in this run, not freshly passed. Earlier exact-SHA VNext authority-registry evidence remains a separate run and does not close TM-01.
+
+### Protocol compatibility audit — G1/TM-01 remains BLOCKED
+- Re-read the VNext fork at `azad2022/solmint-subscriptions-program@a06a77e4ec6ed41fef5b5ec0c6aafd11e7e5179c` and the immutable upstream v0.5.0 baseline.
+- `program/src/entrypoint.rs` still dispatches legacy `InitSubscriptionAuthority` (discriminator 0), `CloseSubscriptionAuthority` (6), `Subscribe` (11) and `RevokeSubscriptionAuthority` (14), alongside VNext operations.
+- Legacy `initialize_subscription_authority.rs` still approves the legacy ATA delegate for `u64::MAX` after the optional account creation block, including when the legacy Authority PDA already exists. Legacy `SubscriptionAuthority::check_init_id` still maps `UNKNOWN_INIT_ID` to the current slot. These legacy operations are not generation-bound to the new persistent VNext Registry.
+- VNext Authority/Registry uses the tuple `(subscriber, mint, source_token_account)` and deliberately rejects the canonical ATA (`NonAssociatedSourceAccountRequired`) to isolate the new authority from the legacy program. The VNext revoke instruction operates on that VNext non-ATA Authority/delegate; it does not migrate, revoke, or close the legacy ATA Authority/delegate.
+- Consequently, the additive VNext implementation does not yet invalidate held legacy Init/Subscribe instructions and does not preserve/migrate existing v0.5.0 ATA-backed active subscriptions through a protocol-enforced generation transition. Simply deleting/rejecting all legacy handlers would risk breaking active legacy subscriptions and is not an acceptable shortcut.
+- No safe protocol patch was made in this checkpoint. A complete capability-preserving migration design and adversarial tests are still required: validated bootstrap for existing legacy Authority state, safe treatment of active legacy SubscriptionDelegation records, stale held legacy message rejection after invalidation, legacy permission-creation/control closure, atomic delegate revoke/state transition, and full lifecycle tests. The upstream private vulnerability disclosure was not submitted; the connected GitHub actions available here do not expose private security-advisory creation.
+
+### Gate disposition
+- PASS — exact CI source-pin alignment; Quality; CLI-only migration validation; latest exact-SHA Squads/VNext wallet test retry including staged SDK tests, delayed Proposal (2/2) and Agave durable nonce (1/1).
+- BLOCKED — deterministic repeatability of the delayed Squads Proposal E2E due to the unexplained first-attempt error 141 followed by a passing retry.
+- BLOCKED — G1/TM-01. Legacy authority creation/Subscribe/close/revoke dispatch remains enabled and is not covered by the new VNext non-ATA Registry.
+- PARTIAL / BLOCKED — G2 Contract Freeze. Subscription Cycle/Attempt database objects, fencing/lease RPC, durable Attempt/Pull-observation persistence, dedicated finalized verifier, atomic Subscription accounting/outbox, API/RLS/grants/RBAC freeze, Merchant-funded fee-payer custody, isolated Collector signer and entitlement persistence remain NOT IMPLEMENTED. Fee model, fee custody, entitlement/retry/catch-up and other product decisions remain open in the existing contract draft.
+- UNKNOWN — local developer Working Tree remains unobservable through the remote GitHub connector.
+
+### Mutation boundary
+- No Product runtime/Program source was changed by this checkpoint; only the CI workflow pin was updated.
+- No Production DDL/data/RLS/grant, provider configuration, Secret/Key, persistent signer, Customer consent, ledger write, Devnet transaction/deployment, Mainnet transaction, Program deployment/upgrade or release action was performed.
