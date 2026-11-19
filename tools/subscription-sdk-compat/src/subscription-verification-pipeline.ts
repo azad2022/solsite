@@ -201,7 +201,7 @@ export async function verifySubscriptionAttemptPipeline(
   }
 
   const amountAtomic = input.expectedTransaction.expectedAmountAtomic;
-  const periodHours = snapshot.plan.data.terms.periodHours;
+  const periodHours = snapshot.plan.data.data.terms.periodHours;
   if (
     typeof amountAtomic !== 'bigint' ||
     amountAtomic <= 0n ||
@@ -218,7 +218,7 @@ export async function verifySubscriptionAttemptPipeline(
   if (
     periodStartTs < 0n ||
     periodEndTs > i64Max ||
-    cumulativeAfter > snapshot.plan.data.terms.amount
+    cumulativeAfter > snapshot.plan.data.data.terms.amount
   ) {
     return reject('period_capacity', ['period_cumulative_allowance_exceeded']);
   }
