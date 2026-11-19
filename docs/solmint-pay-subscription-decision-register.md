@@ -1,11 +1,11 @@
 # SolMint Pay — Subscription Decision Register
 
-**Register version:** 1.0  
+**Register version:** 1.1  
 **Decision date:** 2026-11-19  
 **Repository:** `azad2022/solsite`  
 **Branch:** `feat/pay-subscription-billing`  
 **Recorded from:** explicit owner selections submitted in ChatGPT on 2026-11-19  
-**Source HEAD reviewed before this register:** `1159454468e2b9c4b4aa940f22e314c9efc67816`  
+**Source HEAD reviewed for v1.1 amendment:** `962f532e254cb8d609a6c23916b8c6fa2283e3a2` (v1.0 was created from `1159454468e2b9c4b4aa940f22e314c9efc67816`)  
 **PR:** #366 — OPEN / DRAFT / NOT MERGED  
 **Register status:** OWNER SELECTIONS RECORDED; CONTRACT FREEZE **BLOCKED**  
 **Scope:** design and product policy only. This register does not authorize runtime implementation, Production DDL/data changes, secrets/keys/signers, customer consent, Devnet mutation, Mainnet mutation or release.
@@ -25,7 +25,7 @@ A recorded product preference is not evidence that the feature exists or is safe
 | ID | Area | Owner selection | Disposition |
 |---|---|---|---|
 | D-001 | Gateway fee model | Reuse the existing SolMint Pay gateway-fee policy; do not introduce a new Subscription-specific commission/rate. | CONDITIONALLY ACCEPTED |
-| D-002 | Gateway fee bearer | Customer bears the approved gateway fee. | RECORDED; implementation BLOCKED |
+| D-002 | Gateway fee bearer | Merchant bears the approved gateway fee; it is deducted from Merchant settlement, not added to Customer total. | RECORDED; Subscription implementation BLOCKED |
 | D-003 | Signing architecture | Dedicated Merchant-related wallet/signing path with an isolated Signing Service. | CONDITIONALLY ACCEPTED; custody and signer implementation BLOCKED |
 | D-004 | Activation | Subscription/entitlement becomes active only after independent finalized verification and atomic accounting commit. | RECORDED |
 | D-005 | Grace period | 7 days. | RECORDED; exact clock and state transitions OPEN |
@@ -49,9 +49,9 @@ The existing Pay system has a configured gateway-fee recipient and authoritative
 
 The owner selection means:
 - Reuse only an already-approved, currently authoritative Pay gateway-fee policy.
-- The Customer is the intended economic bearer of that gateway fee.
+- The Merchant is the intended economic bearer of that gateway fee. The existing Pay fee calculation distinguishes this commercial bearer from the transaction network-fee payer: for `merchant`, `customerTotalAtomic = amountAtomic` and `merchantNetAtomic = amountAtomic - gatewayFeeAtomic`.
 - Do not invent a new rate, formula, markup, fee field, destination or ledger rule.
-- Snapshot the exact fee and payer in immutable, server-authoritative consent and billing data only after the existing policy and contract are verified.
+- Snapshot the exact fee and commercial bearer in immutable, server-authoritative consent and billing data only after the existing policy and contract are verified.
 - Use integer/atomic-unit arithmetic only.
 
 **Implementation BLOCKED:** the pinned Subscription `TransferSubscription` instruction has one destination and one amount. A separate gateway-fee recipient requires a second instruction/transfer leg and explicit Plan destination allowlisting. The two-destination shared-allowance/atomic-rollback LiteSVM regression is a narrow PASS, but it does not prove the production verifier, accounting, settlement mapping, or the commercial fee formula. A dedicated Subscription verifier and atomic accounting/outbox path plus Devnet Subscription E2E are still required. The existing Pay verifier must remain unchanged.
@@ -63,7 +63,7 @@ The owner selection means:
 - The Collector may be an isolated, separately authorized Plan Puller; it must not spend SolMint-funded SOL or be silently conflated with the transaction fee payer.
 - If the Merchant-funded recurring fee payer cannot sign, do not submit the pull.
 
-Therefore “Customer pays gateway fee” does **not** change the Merchant-funded recurring network-fee rule.
+Therefore “Merchant bears gateway fee” does **not** mean Merchant's gateway commission is the same thing as the recurring Solana transaction network fee. The recurring pull still requires a Merchant-owned or explicitly Merchant-funded transaction fee payer.
 
 ## 4. Signing and custody boundary
 
@@ -137,7 +137,7 @@ D-016 selects permanent archival and preservation of history. Archival is not ph
 ## 10. Unresolved decisions and evidence gates
 
 The following remain OPEN or BLOCKED and prevent G2 Contract Freeze:
-1. Confirm the exact existing Pay gateway-fee formula/rate and whether its current customer-total semantics can be reused for Subscription without inventing or silently changing policy.
+1. Confirm the exact existing Pay gateway-fee formula/rate and whether its current customer-total/merchant-net semantics can be reused for Subscription without inventing or silently changing policy. The current `payment-intents.ts` path passes 100 bps to `calculateGatewayFee`; the helper uses integer ceiling division. The Master Specification separately flags the hard-coded 100 bps vs `gateway_fee_bps` domain/configuration as an audit item, so do not claim merchant-configurable pricing or silently change the rate.
 2. Approve the exact split-transfer instruction/accounting design, including fee recipient allowlisting, duplicate/extra-leg rejection and balanced atomic ledger mapping.
 3. Resolve Merchant recurring fee-payer custody and how it signs independently of the isolated Collector/Puller.
 4. Define the grace clock, retry schedule/backoff, retryable errors and terminal states.
@@ -163,3 +163,15 @@ The following remain OPEN or BLOCKED and prevent G2 Contract Freeze:
 This register is versioned. Amend it only with an explicit owner decision or newly verified source evidence, record the previous decision and reason for change, and update the project progress ledger after the Git commit is verified.
 
 No Production database/schema/data/RLS/grant, Cloudflare/Supabase setting, secret/key, persistent signer, customer consent, ledger, Devnet transaction/deployment, Mainnet transaction or Program upgrade is authorized or performed by this register.
+
+
+## 13. Version history
+
+### v1.1 — 2026-11-19
+- Owner explicitly revised D-002 from **Customer** to **Merchant** as gateway-fee bearer and confirmed the revision (“این درسته”).
+- This supersedes only D-002 in v1.0; all other owner selections remain unchanged.
+- Re-read the current Master Specification, Subscription Skill, Subscription contract design, gateway-fee recipient record, current Payment Intent API and fee calculation helper at source HEAD `962f532e254cb8d609a6c23916b8c6fa2283e3a2`.
+- Confirmed current Payment Intent creation calls `calculateSnapshot(amountAtomic, feePayer, 100)`; the fee helper uses integer ceiling division. With commercial payer `merchant`, customer total remains the original amount and merchant net is reduced by the gateway fee. This is distinct from the separate Solana transaction network fee payer.
+- Important open audit item: Master Specification flags the hard-coded 100 bps in Payment Intent creation against the `gateway_fee_bps` domain concept. D-001 means reuse the currently approved Pay policy, not assert configurability or authorize changing that rate.
+- Subscription still requires a second transfer leg for the separate gateway-fee recipient, Plan destination allowlisting, dedicated finalized verifier and atomic accounting/outbox. The existing normal Pay verifier remains unchanged. Production Subscription fee collection remains BLOCKED.
+- No code, database, RLS/grants, secrets/keys/signers, customer consent, ledger, Devnet or Mainnet state was changed by this amendment.
