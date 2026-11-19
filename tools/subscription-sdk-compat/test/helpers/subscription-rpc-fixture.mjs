@@ -100,8 +100,9 @@ export function makeFixture({ versioned = false } = {}) {
   const subscriber = Keypair.generate();
   const mint = new PublicKey('So11111111111111111111111111111111111111112');
 
+  const planId = 7_301_030n;
   const planIdBytes = Buffer.alloc(8);
-  planIdBytes.writeBigUInt64LE(7_301_030n);
+  planIdBytes.writeBigUInt64LE(planId);
   const planPda = derivePda([Buffer.from('plan'), merchant.publicKey.toBuffer(), planIdBytes]);
   const subscriptionPda = derivePda([
     Buffer.from('subscription'),
@@ -325,6 +326,15 @@ export function makeFixture({ versioned = false } = {}) {
     rawResponse,
     provenance,
     expected,
+    expectedAccountIdentity: {
+      clusterGenesisHash: GENESIS,
+      merchant: merchant.publicKey.toBase58(),
+      planId,
+      subscriber: subscriber.publicKey.toBase58(),
+      mint: mint.toBase58(),
+      tokenAccount: sourceAta.toBase58(),
+      mintDecimals: 9,
+    },
     signature,
     messageHash,
     destinationAccountIndex: index(destinationAta),
