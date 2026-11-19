@@ -181,8 +181,8 @@ export async function verifySubscriptionAttemptPipeline(
     return reject('attempt_correlation', ['attempt_historical_account_identity_mismatch']);
   }
   if (
-    snapshot.plan.owner !== input.expectedAccountIdentity.merchant ||
-    snapshot.plan.owner !== input.expectedTransaction.merchant
+    snapshot.plan.data.owner !== input.expectedAccountIdentity.merchant ||
+    snapshot.plan.data.owner !== input.expectedTransaction.merchant
   ) {
     return reject('historical_account_state', ['plan_owner_merchant_identity_mismatch']);
   }
@@ -235,7 +235,7 @@ export async function verifySubscriptionAttemptPipeline(
     ...input.expectedTransaction,
     // These authorization facts come from the finalized on-chain Plan
     // snapshot, never from caller-supplied backend/browser lists.
-    planOwner: snapshot.plan.owner,
+    planOwner: snapshot.plan.data.owner,
     authorizedPullers: validation.authorizedPullers,
     allowedDestinationOwners: validation.allowedDestinationOwners,
     expectedPeriodStartTs: periodStartTs,
