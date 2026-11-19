@@ -178,6 +178,9 @@ function expectedTransaction(fixture) {
     expectedPeriodStartTs,
     expectedPeriodEndTs,
     expectedCumulativeAmountAtomic,
+    planOwner,
+    authorizedPullers,
+    allowedDestinationOwners,
     ...expected
   } = fixture.expected;
   return expected;
@@ -291,4 +294,25 @@ test('rejects a signature that is not the one persisted on the trusted Attempt',
   assert.equal(result.outcome, 'rejected');
   assert.equal(result.stage, 'attempt_correlation');
   assert.deepEqual(result.failures, ['attempt_signature_mismatch']);
+});
+
+
+test('derives Puller and destination authorization from the historical Plan, not a supplied allowlist', async () => {
+  const fixture = makeFixture({ unauthorizedPuller: true });
+  const archive = await makeHistoricalArchive(fixture);
+  const expected = expectedTransaction(fixture);
+  // Simulate an untrusted/stale API list attempting to authorize this Puller.
+  expected.authorizedPullers = [fixture.caller];
+  expected.allowedDestinationOwners = [fixture.expected.merchant];
+  const result = await verifySubscriptionAttemptPipeline({
+    expectedAccountIdentity: fixture.expectedAccountIdentity,
+    expectedTransaction: expected,
+    rpcProvenance: fixture.provenance,
+    rawTransactionResponseBody: fixture.rawResponse,
+    historicalAccountEvidence: archive,
+  });
+
+  assert.equal(result.outcome, 'rejected');
+  assert.equal(result.stage, 'transaction_policy');
+  assert.ok(result.failures.includes('puller_not_authorized'));
 });

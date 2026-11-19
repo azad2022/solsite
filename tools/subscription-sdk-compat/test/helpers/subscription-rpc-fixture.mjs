@@ -94,10 +94,11 @@ export function derivePda(seeds, programId = PROGRAM) {
   )[0];
 }
 
-export function makeFixture({ versioned = false } = {}) {
+export function makeFixture({ versioned = false, unauthorizedPuller = false } = {}) {
   const merchant = Keypair.generate();
   const merchantFeePayer = Keypair.generate();
   const subscriber = Keypair.generate();
+  const caller = unauthorizedPuller ? Keypair.generate() : merchant;
   const mint = new PublicKey('So11111111111111111111111111111111111111112');
 
   const planId = 7_301_030n;
@@ -143,7 +144,7 @@ export function makeFixture({ versioned = false } = {}) {
       { pubkey: authorityPda, isSigner: false, isWritable: false },
       { pubkey: sourceAta, isSigner: false, isWritable: true },
       { pubkey: destinationAta, isSigner: false, isWritable: true },
-      { pubkey: merchant.publicKey, isSigner: true, isWritable: false },
+      { pubkey: caller.publicKey, isSigner: true, isWritable: false },
       { pubkey: mint, isSigner: false, isWritable: false },
       { pubkey: tokenProgram, isSigner: false, isWritable: false },
       { pubkey: eventAuthority, isSigner: false, isWritable: false },
@@ -172,7 +173,7 @@ export function makeFixture({ versioned = false } = {}) {
   eventView.setBigUint64(161, AMOUNT, true);
   putAddress(merchant.publicKey, 169);
   putAddress(destinationAta, 201);
-  putAddress(merchant.publicKey, 233);
+  putAddress(caller.publicKey, 233);
 
   let transaction;
   let message;
@@ -196,7 +197,7 @@ export function makeFixture({ versioned = false } = {}) {
       instructions: [instruction],
     }).compileToV0Message([lookupTable]);
     transaction = new VersionedTransaction(message);
-    transaction.sign([merchantFeePayer, merchant]);
+    transaction.sign([merchantFeePayer, caller]);
     staticKeys = message.staticAccountKeys;
     loadedAddresses = { writable: [destinationAta.toBase58()], readonly: [] };
   } else {
@@ -204,7 +205,7 @@ export function makeFixture({ versioned = false } = {}) {
       feePayer: merchantFeePayer.publicKey,
       recentBlockhash,
     }).add(instruction);
-    transaction.sign(merchantFeePayer, merchant);
+    transaction.sign(merchantFeePayer, caller);
     message = transaction.compileMessage();
     staticKeys = message.accountKeys;
   }
@@ -326,6 +327,7 @@ export function makeFixture({ versioned = false } = {}) {
     rawResponse,
     provenance,
     expected,
+    caller: caller.publicKey.toBase58(),
     expectedAccountIdentity: {
       clusterGenesisHash: GENESIS,
       merchant: merchant.publicKey.toBase58(),

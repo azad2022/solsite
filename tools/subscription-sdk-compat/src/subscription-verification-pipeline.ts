@@ -27,7 +27,8 @@ export interface SubscriptionVerificationRpcProvenance {
 
 export type ExpectedSubscriptionTransactionWithoutPeriod = Omit<
   ExpectedSubscriptionTransaction,
-  'expectedPeriodStartTs' | 'expectedPeriodEndTs' | 'expectedCumulativeAmountAtomic'
+  'expectedPeriodStartTs' | 'expectedPeriodEndTs' | 'expectedCumulativeAmountAtomic' |
+    'planOwner' | 'authorizedPullers' | 'allowedDestinationOwners'
 >;
 
 export type SubscriptionVerificationPipelineStage =
@@ -163,6 +164,29 @@ export async function verifySubscriptionAttemptPipeline(
 
   const snapshot = snapshotResult.snapshot;
   const validation = snapshotResult.validation;
+
+  // Merchant, subscriber, Plan/Subscription/Authority PDAs, source ATA and Mint
+  // must be the same identities in the Attempt and the independently decoded
+  // historical account set. A stale backend snapshot must not redirect a pull.
+  if (
+    input.expectedTransaction.merchant !== input.expectedAccountIdentity.merchant ||
+    input.expectedTransaction.subscriber !== input.expectedAccountIdentity.subscriber ||
+    input.expectedTransaction.mint !== input.expectedAccountIdentity.mint ||
+    input.expectedTransaction.mintDecimals !== snapshot.mint.decimals ||
+    input.expectedTransaction.planPda !== snapshot.plan.address ||
+    input.expectedTransaction.subscriptionPda !== snapshot.subscription.address ||
+    input.expectedTransaction.authorityPda !== snapshot.authority.address ||
+    input.expectedTransaction.sourceAta !== snapshot.tokenAccount.address
+  ) {
+    return reject('attempt_correlation', ['attempt_historical_account_identity_mismatch']);
+  }
+  if (
+    snapshot.plan.owner !== input.expectedAccountIdentity.merchant ||
+    snapshot.plan.owner !== input.expectedTransaction.merchant
+  ) {
+    return reject('historical_account_state', ['plan_owner_merchant_identity_mismatch']);
+  }
+
   const periodStartTs = validation.effectivePeriodStartTs;
   const cumulativeBefore = validation.amountPulledInEffectivePeriodAtomic;
   const remainingBefore = validation.remainingPeriodAllowanceAtomic;
@@ -209,6 +233,11 @@ export async function verifySubscriptionAttemptPipeline(
 
   const expectedTransaction: ExpectedSubscriptionTransaction = {
     ...input.expectedTransaction,
+    // These authorization facts come from the finalized on-chain Plan
+    // snapshot, never from caller-supplied backend/browser lists.
+    planOwner: snapshot.plan.owner,
+    authorizedPullers: validation.authorizedPullers,
+    allowedDestinationOwners: validation.allowedDestinationOwners,
     expectedPeriodStartTs: periodStartTs,
     expectedPeriodEndTs: periodEndTs,
     expectedCumulativeAmountAtomic: cumulativeAfter,
