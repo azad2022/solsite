@@ -5629,3 +5629,22 @@ Only feature-branch Rust source/tests/design documentation and Product feature-b
 
 ### Mutation boundary
 Only Product and Program feature branches were changed. No main/baseline branch, Production schema/data/RLS/grants, API, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, deployment, merge or release changed. Local Working Tree remains UNKNOWN through the remote GitHub connection.
+
+
+## 2026-11-20 — Follow-up CI diagnosis: Program rustfmt
+
+### Failure evidence
+- Product CI run `44735020008`, Job `136284994110` (`subscription-vnext-authority-registry`) failed at step `Check Program Rust formatting`: `cargo fmt -p subscriptions-program -- --check`.
+- The exact failure was formatting in the new internal `program/src/state/fixed_recurring_lifecycle.rs` (line wrapping of Registry PDA construction and method signatures). The LiteSVM test-format, Program unit tests, SBF build and integration tests were skipped as downstream steps. This run used the then-pinned Program commit `6f3b98cad60f1dfd60c0817d285e62e89e4c5330`.
+- This is a second, separate formatting failure from the earlier `tests-subscriptions` formatting failure fixed in Program commit `a815c40...`. Neither failure is evidence of a Program test assertion or business-logic failure because those tests did not run.
+
+### Correction and source pin
+- Applied the Rustfmt line-wrap corrections in Program commit `5f4d6072169c17043103f22d258db32eb1e5684b`.
+- Product `.github/workflows/ci.yml` commit `161454125ff3ec13e7672c6addca767669ad656c` now pins all four existing Program source references to `5f4d6072169c17043103f22d258db32eb1e5684b`; the older `f86dabe...` pin is superseded.
+- No CI job was bypassed or weakened. A run on the immediately previous Product commit was cancelled when the next pin update superseded it; no result for the corrected exact Program HEAD is claimed.
+
+### Status
+- PASS: two concrete CI formatting defects identified from logs and corresponding source corrections committed; Product CI references are exact-pinned to the current Program source.
+- UNKNOWN: Rustfmt result for Program commit `5f4d607...`, Program unit tests, LiteSVM, SBF and exact-current-head Product CI. No test result is inferred from source formatting or queued workflow state.
+- BLOCKED: runtime ABI/Program identity/per-delegation persistent tombstone and old-Revoke integration remain unresolved.
+- No Production/Devnet/Mainnet mutation, key/signer change, merge or release occurred.
