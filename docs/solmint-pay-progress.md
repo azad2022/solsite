@@ -5603,3 +5603,29 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 
 ### Mutation boundary
 Only feature-branch Rust source/tests/design documentation and Product feature-branch CI/progress documentation changed. No Production database/schema/RLS/grants, API, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed. Local Working Tree remains UNKNOWN via the remote GitHub connection.
+
+
+## 2026-11-20 — Live Authority Registry validation tightened for Fixed/Recurring model
+
+### Exact source identity
+- Product branch: `feat/pay-subscription-billing`; latest Program source pin update commit `b37eafadc65d0d3f9c2c17f56d8a0e89839398ba`.
+- Program branch: `feat/solmint-g1-authority-vnext`; exact Program source commit `f86dabe67e7be05880c869f0388cc62341b1e9f6`.
+- Product PR #366 and Program PR #1 remain OPEN / DRAFT / NOT MERGED. Product main and immutable Program baseline remain unchanged.
+
+### Security hardening
+- Tightened the internal Fixed/Recurring lifecycle model so construction and every subsequent transfer/revoke transition validate an actual supplied `AuthorityConsentRegistry`, rather than trusting only a captured or caller-supplied generation number.
+- Validation checks the canonical Registry PDA, subscriber/mint/exact source-account tuple, exact token-program identity, ACTIVE status and current Authority generation against both the stored permission identity and signed expected generation.
+- Added test coverage for rejecting Registry construction while revoked and token-program substitution; existing coverage also exercises generation changes after revocation/reauthorization.
+- Removed any implied decision that the permanent lifecycle record must be customer-funded. Rent payer, sponsor eligibility, recovery and refund policy remain OPEN and are not guessed.
+- Updated the Program design checkpoint to accurately record ten unit tests in source and the remaining handler/account-ownership obligations.
+- Updated all four Product CI references to the exact Program commit `f86dabe67e7be05880c869f0388cc62341b1e9f6`.
+
+### Validation and status
+- PASS: remote source inspection confirms the transition model revalidates the live Authority Registry and binds token-program identity; all four Product CI pins match the current Program source commit.
+- UNKNOWN: `cargo fmt`, Program unit tests, LiteSVM, and the exact-head Program CI job were not executed locally or awaited. The ten added unit tests are source present, not test-result PASS.
+- BLOCKED: persistent on-chain Fixed/Recurring lifecycle Registry, public ABI and runtime activation still require the Program identity/key custody decision, account version/PDA contract, rent-sponsorship policy and atomic V2 revoke/legacy-Revoke boundary.
+- NOT IMPLEMENTED: serialized Registry, Fixed/Recurring VNext account types, Create/Transfer/Revoke handlers, token CPI/allowance atomic integration, IDL/client and adversarial LiteSVM suite.
+- Overall G1 and Subscription Production readiness remain BLOCKED.
+
+### Mutation boundary
+Only Product and Program feature branches were changed. No main/baseline branch, Production schema/data/RLS/grants, API, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, deployment, merge or release changed. Local Working Tree remains UNKNOWN through the remote GitHub connection.
