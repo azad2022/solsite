@@ -5715,3 +5715,26 @@ Only Product and Program feature branches were changed. No Product main, Program
 
 ### Mutation boundary
 Only Product and Program feature branches changed. No `main`, immutable baseline, Production schema/data/RLS/grants, API, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed. Local Working Tree remains UNKNOWN via the remote GitHub connection.
+
+
+## 2026-11-20 — Squads delayed tombstone-revoke diagnostic stage
+
+### Scope and evidence
+- This stage is limited to the failing integration test `executes a revocation before an approved delayed authorization and rejects the stale proposal atomically` in `clients/typescript/test/smart-wallets/squadsDelayedProposal.integration.test.ts`.
+- Before the change, Product CI run `44756939192`, job `136360241204` (`subscription-vnext-squads-sdk`), failed again with `InstructionError: [0, { Custom: 141 }]`. The deadline-expiry test and the separate Agave durable-nonce regression passed in that job. Earlier run `44754893723` showed the same failure.
+- The failure came back as a bare SDK `InstructionError`; the test never received the revoke execution signature, so its intended `getTransaction` diagnostic branch could not run. The exact on-chain cause is not inferred from the numeric error alone.
+
+### Single-scope correction
+- Program commit `70fd25aa9110982f65c0d49c02f2a3edd93bf130` replaces only the revoke proposal's execution submission in the integration test: it constructs the same Squads Vault execution transaction, signs with the same authorized member and fee payer, submits raw with preflight skipped, confirms against the exact blockhash/last-valid-height, and reads confirmed transaction metadata/logs.
+- Program documentation commit `acf9316470ba165f7647946dcf1ac9dcc88ad509` records why the previous helper prevented diagnostics and the preserved acceptance assertions.
+- The security assertions are unchanged: revoke must succeed; the previously approved delayed authorization must fail with `StaleAuthorityGeneration`; proposal status, Registry tombstone generation/nonces, Authority absence and token delegate/balance must remain as expected. No assertion or protocol check was removed.
+- Product CI workflow commit `eb6d0d178a8b6675f02391040faf6987d3e059bc` updates exactly the four existing VNext source pins to Program HEAD `acf9316470ba165f7647946dcf1ac9dcc88ad509`. No pin was added or removed.
+
+### Status and limits
+- PASS: existing two repositories/branches/PRs rechecked; the failure was reproduced on current Product CI evidence; exact Program CI pin count (four) was verified before replacement; the test now submits the same approved Vault transaction through the raw RPC path and captures confirmed execution diagnostics.
+- UNKNOWN: whether the new test passes and the actual on-chain cause of Custom(141); no local test was run in this remote-only session, and the new exact-head CI result is not yet accepted as evidence.
+- BLOCKED: delayed Squads tombstone-revoke integration remains a release gate until the new exact-source job either passes all preserved assertions or exposes logs sufficient to fix the underlying Program behavior.
+- NOT IMPLEMENTED: persistent Fixed/Recurring lifecycle Registry/account serialization, V2 Create/Transfer/Revoke handlers, ABI/IDL/client routes and LiteSVM state-transition proof remain a separate future stage. They were deliberately not started here.
+
+### Mutation boundary
+Only the Program feature branch and Product Subscription feature branch were changed. Product `main`, Program immutable baseline, Production DB/DDL/data/RLS/grants, APIs, Secrets/Keys/signers, customer consent, accounting, Devnet/Mainnet state, Program deployment/upgrade, merge and release were not changed. Local Working Tree remains UNKNOWN through the remote GitHub connection.
