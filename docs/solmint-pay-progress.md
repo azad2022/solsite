@@ -5245,3 +5245,40 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation boundary
 - No Production DDL/data/RLS/grants, provider configuration, Secret/Key, signer, customer consent, accounting/ledger write, Devnet/Mainnet transaction, Program deployment/upgrade, or release was performed.
 - Product PR #366 and Program PR #1 remain OPEN / DRAFT / NOT MERGED; `main` remains unchanged.
+
+
+## 2026-11-20 — Exact-head IDL/Program validation checkpoint
+
+### Source identity
+- Product: `azad2022/solsite`, `feat/pay-subscription-billing`, HEAD `c307a43474dad93decd8ffa7a717ec46e629e5db`, PR #366 OPEN / DRAFT / NOT MERGED.
+- Program fork: `azad2022/solmint-subscriptions-program`, `feat/solmint-g1-authority-vnext`, HEAD `7d1cd6d109999c10585e5c617e1ed89c8294922c`, PR #1 OPEN / DRAFT / NOT MERGED.
+- Product PR base and current `main` remain `514d3401d8d725be106ab0c83557f8e43cdff13e`. No `main` commit was made.
+
+### Exact-head CI — Run [44688261292](https://github.com/azad2022/solsite/actions/runs/44688261292)
+- **PASS:** Product Quality (TypeScript typecheck, Production Build, Unit Tests, fail-closed Production migration guards, clean source tree).
+- **PASS:** Production Build [44688261226](https://github.com/azad2022/solsite/actions/runs/44688261226).
+- **PASS:** Database Security [44688261249](https://github.com/azad2022/solsite/actions/runs/44688261249).
+- **PASS:** ordinary Pay Devnet E2E [44688261232](https://github.com/azad2022/solsite/actions/runs/44688261232). This is **not** Subscription charge E2E.
+- **PASS:** Mainnet Read-only [44688261216](https://github.com/azad2022/solsite/actions/runs/44688261216). No Mainnet write occurred.
+- **PASS:** Subscription reproducible build and immutable upstream/toolchain verification.
+- **PASS:** `subscription-vnext-authority-registry`: Rust formatting, Program unit tests, exact VNext SBF build, Token-2022 fixture, VNext + Legacy migration LiteSVM, immutable v0.5.0 Legacy build/integration, Legacy-vs-VNext isolation, Codama IDL regeneration, and generated-vs-committed structural IDL comparison.
+- **PASS:** `subscription-vnext-squads-sdk` substeps: VNext Program/TransferHook/client generation, six Squads wallet unit tests, and Agave durable-nonce rollback integration test.
+- **BLOCKED:** the same Squads job overall failed because one of two delayed-proposal integration scenarios failed. The expired-deadline case passed. The stale-generation/revoke ordering case returned `InstructionError: Custom(141)` (`StaleAuthorityGeneration`), but the test output does not identify which assertion/transaction stage produced the reported error. Do not suppress the test or reinterpret this as a pass; the exact failure point remains unresolved. CI overall therefore remains **FAILURE**, not green.
+
+### Corrected IDL / SDK defects
+- The original structural mismatch was corrected by aligning Codama type ordering and generated optional-account metadata.
+- Instructions 28/29 now derive the legacy Authority from the actual `subscriber` and `token_mint` accounts, and the Registry PDA from the actual tuple accounts; the invalid references to absent or semantically wrong account names were removed.
+- Instruction 30 carries the subscriber in payload data, not an AccountMeta. Its Registry account is therefore explicit; the unsupported auto-default was removed rather than adding a new ABI account. The on-chain handler continues to validate the Registry PDA and exact subscriber/mint/source identity.
+- The final rustfmt-only correction was applied without changing account order, discriminator, payload layout, PDA seeds or runtime semantics.
+- Exact-source generated-client build and generated-vs-committed IDL structural comparison now both **PASS** on the pinned final Program SHA.
+
+### Remaining release gates
+- **BLOCKED:** delayed Squads proposal revoke/authorization integration scenario, due to the unresolved Custom 141 test failure described above.
+- **BLOCKED / NOT IMPLEMENTED:** generation-bound VNext replacements for legacy Fixed and Recurring delegation creation/transfer; the unversioned Legacy paths remain fail-closed and must not be advertised as available.
+- **BLOCKED:** migration rehearsal using verified captured v0.5.0 customer on-chain account bytes; current tests use disposable/synthetic fixtures.
+- **UNKNOWN / BLOCKED:** independent security audit of the new VNext Program delta and final external Program identity/deployment/governance decision.
+- **NOT IMPLEMENTED:** Subscription application API/domain, database lifecycle schema/RLS/grants, Billing Cycle/Attempt/atomic claim/recovery, isolated Collector, dedicated Subscription verifier/accounting adapter, customer entitlement integration, and real Subscription charge Devnet E2E.
+- Overall Subscription production readiness remains **BLOCKED**. Passing build/IDL/LiteSVM gates do not authorize production charging.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grant, provider configuration, Secret/Key, persistent signer, customer consent, financial ledger, Devnet transaction/deployment, Mainnet transaction/deployment, Program upgrade or release was performed.
