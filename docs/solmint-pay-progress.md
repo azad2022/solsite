@@ -5448,6 +5448,7 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 
 ### Validation and interpretation
 - PASS — repository/branch/PR and exact source references were inspected; the targeted existing test text was unique and updated on the intended feature branches.
+- PASS — the Product CI source contains the existing Legacy isolation runner step: it sets `SOLMINT_LEGACY_PROGRAM_SO` to the immutable v0.5.0 build and runs `cargo test -p tests-subscriptions vnext_legacy_program_ -- --ignored`; the expanded test is wired into that gate. This confirms workflow wiring only, not execution on the new HEAD.
 - UNKNOWN — local Rust/LiteSVM test execution was not performed in this checkpoint.
 - UNKNOWN — CI result for the new Program/Product commits is not claimed. CI was not awaited; any resulting workflow must be inspected at exact HEAD before its executed jobs can be called PASS.
 - The broader Legacy Fixed/Recurring V2 instructions, ABI freeze, full adversarial suite, and real-account migration remain NOT IMPLEMENTED / BLOCKED. This test extension does not close those gates.
