@@ -916,12 +916,14 @@ jobs:
           backup="$(mktemp)"
           cp "$vnext_so" "$backup"
           restore_vnext_so() {
-            cp "$backup" "$vnext_so"
+            sudo cp "$backup" "$vnext_so"
             rm -f "$backup"
           }
           trap restore_vnext_so EXIT
 
-          cp "$GITHUB_WORKSPACE/legacy-subscriptions/target/deploy/subscriptions_program.so" "$vnext_so"
+          # The deterministic SBF builder creates root-owned files/directories.
+          # Use sudo only for the temporary binary swap, then restore VNext.
+          sudo cp "$GITHUB_WORKSPACE/legacy-subscriptions/target/deploy/subscriptions_program.so" "$vnext_so"
           cargo test -p tests-subscriptions -- --skip test_vnext_ --skip test_legacy_authority_generation
 
           restore_vnext_so
