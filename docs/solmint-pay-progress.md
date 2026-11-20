@@ -5648,3 +5648,39 @@ Only Product and Program feature branches were changed. No main/baseline branch,
 - UNKNOWN: Rustfmt result for Program commit `5f4d607...`, Program unit tests, LiteSVM, SBF and exact-current-head Product CI. No test result is inferred from source formatting or queued workflow state.
 - BLOCKED: runtime ABI/Program identity/per-delegation persistent tombstone and old-Revoke integration remain unresolved.
 - No Production/Devnet/Mainnet mutation, key/signer change, merge or release occurred.
+
+
+## 2026-11-20 — Bounded deadlines on Fixed/Recurring lifecycle transitions
+
+### Exact source identity
+- Product: `azad2022/solsite`, `feat/pay-subscription-billing`; CI source-pin commit `2f9404b3bc2b1b535230578db42b60b3fc43b371`.
+- Program: `azad2022/solmint-subscriptions-program`, `feat/solmint-g1-authority-vnext`; exact Program commit pinned by Product CI: `6b8b83960b2057edd835cefd5c988db12b000238`.
+- Product PR #366 and Program PR #1 remain OPEN / DRAFT / NOT MERGED. Product main and Program immutable baseline remain unchanged.
+
+### CI failure and correction
+- Latest pre-fix Product run `44736009842`, Job `136288168329` (`subscription-vnext-authority-registry`), failed at `Check Program Rust formatting` using Program pin `5f4d6072169c17043103f22d258db32eb1e5684b`.
+- Exact rustfmt differences were limited to the multiline `validate_live_authority_registry` call and one `assert!` block in `program/src/state/fixed_recurring_lifecycle.rs`; LiteSVM formatting, Program unit tests, SBF build, and integration jobs were skipped downstream. The same run's Quality, Reproducible Build, Squads SDK/durable-nonce, TM-06 and atomic split-transfer jobs succeeded; the SDK compatibility job was skipped.
+- Applied the exact two rustfmt differences in Program commit `32fc2fbada7bbc5f27aced455766f485fae76e86`, then made the bounded-deadline change and updated the design note. Product CI now has exactly four pins to Program commit `6b8b83960b2057edd835cefd5c988db12b000238`; the prior pin has been superseded.
+- No Job was bypassed or weakened. The exact-pinned post-change CI result remains UNKNOWN until the corresponding run is inspected.
+
+### Additional implementation step — bind V2 lifecycle actions to deadlines
+- The existing `AuthorityConsentRegistry::validate_action_deadline` already enforces expired-action rejection and a maximum 24-hour execution window with an inclusive boundary. The lifecycle model now reuses this exact function rather than adding a second time policy.
+- Deadline parameters are now mandatory for model creation, transfer-revision consumption and terminal revoke. Each path validates the deadline before advancing state.
+- Added one focused test covering expired and overlong create/transfer/revoke actions, rejection without revision change, and acceptance at the inclusive 24-hour maximum.
+- The internal model now has eleven unit tests in source. No test execution is claimed in this checkpoint.
+
+### Current implementation boundary
+- The deadline change is still an internal transition-model step. It does not create a persistent Registry PDA, serialize the lifecycle struct, allocate a discriminator/seed/account order, activate V2 dispatcher routes, or call a token CPI.
+- The five candidate V2 payload structs remain crate-private and outside Codama/IDL/generated clients. Their `not_after_ts` fields now have matching deadline enforcement in the transition model, but no public ABI is frozen.
+- On-chain Registry lifecycle, Fixed/Recurring Create/Transfer/Revoke handlers, atomic token CPI + allowance + revision commit, old-Revoke bypass closure, and LiteSVM adversarial coverage remain NOT IMPLEMENTED / BLOCKED pending Program-ID/key custody and the unresolved rent payer/sponsor/recovery contract.
+- Existing Legacy Fixed/Recurring Create/Transfer routes remain fail-closed. No prior Authority/Plan/Subscription registry was recreated.
+
+### Validation and status
+- PASS: run logs identified the exact current failure as Program Rust formatting; both reported formatting blocks were corrected; source signatures and existing 24-hour deadline helper were inspected; four Product CI pins now match the latest Program design/source commit.
+- UNKNOWN: exact-HEAD `cargo fmt`, Program unit-test execution (11 new tests are source-present only), SBF/LiteSVM execution, and post-change Product CI. These are not marked PASS.
+- BLOCKED: persistent on-chain Registry, ABI freeze, instruction handlers, old-Revoke atomic integration and production Subscription remain blocked.
+- NOT IMPLEMENTED: persistent Fixed/Recurring lifecycle Registry and callable V2 Fixed/Recurring flow.
+- Overall G1 and Subscription Production readiness remain BLOCKED.
+
+### Mutation boundary
+Only Product and Program feature branches were changed. No Product main, Program baseline, Production DB/DDL/data/RLS/grants, API, Secret/Key/signer, customer consent, accounting ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed. Local Working Tree remains UNKNOWN through the remote GitHub connection.
