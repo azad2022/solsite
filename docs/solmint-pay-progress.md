@@ -5492,3 +5492,33 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation boundary
 - No Program runtime/IDL/account layout, API, SQL schema/migration/RLS/grant, Production data, provider setting, Secret/Key/signer, customer consent, accounting/ledger, Devnet/Mainnet transaction, Program deployment, merge or release changed.
 - Both PRs remain Draft; no main branch was modified.
+
+
+## 2026-11-20 — Legacy Fixed/Recurring fail-closed dispatcher regression
+
+### Source identity and commits
+- Product branch: feat/pay-subscription-billing; Product PR #366 OPEN / DRAFT / NOT MERGED.
+- Program branch: feat/solmint-g1-authority-vnext; Program PR #1 OPEN / DRAFT / NOT MERGED.
+- Program design/spec commit: 73cd0243d17706bbc33712fca055c5191b265598.
+- Program test commit: 0cf55bf12da920680aecce7838047b431ba8bcf5.
+- Product CI pin commit: b048607d56ef6cfc0e67c3ab8a40b1fd0a111ff1.
+- Product main remains 514d3401d8d725be106ab0c83557f8e43cdff13e; no main or Program baseline branch change.
+
+### Test change
+- Extended existing tests/integration-tests/src/test_vnext_subscription.rs with vnext_dispatch_keeps_legacy_fixed_recurring_routes_disabled.
+- The integration test sends correctly sized legacy payloads with discriminators 1/2/4/5 and no accounts, and asserts the VNext dispatcher returns LegacyInstructionDisabled before account processing.
+- Payload lengths used are source-derived: Fixed Create 32 bytes; Recurring Create 48 bytes; Fixed and Recurring TransferData 72 bytes each.
+- The test preserves the existing security boundary while V2 create/transfer/revoke handlers remain absent. It does not prove V2 functionality, tombstone semantics or successful Legacy migration.
+- Product .github/workflows/ci.yml now pins the Program test commit in all four existing checkout/exact-SHA references.
+
+### Validation and status
+- PASS: test source and exact payload lengths inspected; no pre-existing test with this name or the same fail-closed assertion was present in the target file.
+- PASS: Product CI source contains four exact pins to Program commit 0cf55bf12da920680aecce7838047b431ba8bcf5; no old cbbe895d4900593e456b20f689244d117b632e5b pin remains.
+- PASS: Program protocol design §8.4, Product G1 plan §14 and this progress checkpoint are present on their intended feature branches.
+- UNKNOWN: Rust/LiteSVM test execution and exact-head CI. No test was executed and CI was not awaited in this checkpoint.
+- BLOCKED: Fixed/Recurring ABI freeze and runtime pending Program-ID path, persistent per-delegation tombstone/account version/revoke design and lifecycle Registry rent policy.
+- NOT IMPLEMENTED: Fixed/Recurring VNext runtime and generated IDL/client.
+
+### Mutation boundary
+- This was a test/documentation/CI-pin change only. No Program runtime handler, instruction ABI, account layout, IDL, API, SQL migration, Production data/RLS/grants, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, deployment, merge or release changed.
+- Both PRs remain Draft; local Working Tree remains UNKNOWN through the GitHub connection.
