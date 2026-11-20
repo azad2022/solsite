@@ -5352,3 +5352,41 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation boundary
 - No Production DDL/data/RLS/grants, provider configuration, Secret/Key/signer changes, customer consent, accounting/ledger writes, Devnet/Mainnet transactions, Program deployment/upgrade, merge, or release was performed.
 - Working Tree state cannot be read through the GitHub connector and remains **UNKNOWN**.
+
+
+## 2026-11-20 — Legacy Fixed/Recurring + real-account migration + Backend contract gate revalidation
+
+### Source identity
+- Product repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`, HEAD `949c8e080d89244b9838109a2756157b3f7b5273`, PR #366 OPEN / DRAFT / NOT MERGED.
+- Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, HEAD `a05353aac1b8847003231ec8772b57dcb9978f7e`, PR #1 OPEN / DRAFT / NOT MERGED.
+- Product PR base and current `main`: `514d3401d8d725be106ab0c83557f8e43cdff13e`. No main changes. GitHub connector cannot inspect the local Working Tree: UNKNOWN.
+- Re-read the current project instructions, Master Specification, Subscription Skill, Build Web Apps Skill and Release Audit Skill from the exact Product branch HEAD.
+
+### Stage 1 — Generation-bound Legacy Fixed/Recurring routes
+- **NOT IMPLEMENTED / BLOCKED.** Program dispatcher explicitly fails closed for legacy `CreateFixedDelegation`, `CreateRecurringDelegation`, `TransferFixed` and `TransferRecurring` with `LegacyInstructionDisabled`.
+- The current VNext fork contains a generation-bound compatibility bootstrap/revoke for the legacy ATA Authority (discriminators 28/29) and one generation/snapshot-bound legacy Subscription transfer route (discriminator 30). It does not contain corresponding V2 Fixed/Recurring create or transfer instructions/discriminators.
+- Existing Fixed/Recurring create payloads contain `expected_subscription_authority_init_id`, and old transfer handlers compare the delegation's slot-scoped `init_id`; neither is a persistent Registry-generation guard. The VNext Authority uses a different non-ATA source lineage and cannot be substituted into the old Fixed/Recurring account path without an explicit migration design.
+- Existing Program integration tests cover Subscription Legacy/VNext isolation and the generation-bound legacy Subscription transfer, but no Fixed/Recurring V2 route or capability-preserving regression exists in the current source tree.
+- No Program source or ABI was changed in this checkpoint. Do not re-enable the old unbound routes as a workaround.
+
+### Stage 2 — Compatibility/migration against real recorded customer accounts
+- **BLOCKED / UNKNOWN.** The existing archive RPC client and snapshot decoder are present and constrain methods to read-only historical block/account queries. Repository search found no captured real customer account snapshot, signed transaction signature fixture, or byte-for-byte archived v0.5.0 customer-account evidence artifact to feed into the decoder/rehearsal.
+- Existing LiteSVM migration fixtures seed synthetic byte-valid legacy Authority/Plan/Subscription state using production encoders. They are useful regression fixtures, not real deployed customer bytes and cannot satisfy this gate.
+- Live Production Supabase read-only recheck: project `nvopkbiedorfshwbmyhn` is ACTIVE_HEALTHY on PostgreSQL 17.6.1.147; 52 public base tables, 33 `pay_*` base tables, zero public Subscription/Billing/Collector/Consent-named tables, zero public Subscription/Billing/Collector-named functions, and 106 migration records. Latest migration is `20261029140401_solmint_pay_payment_link_rpc_service_role_revoke`.
+- No customer/account bytes, signatures, balances, consent, ledger or database rows were exported or mutated. No Mainnet archive request was attempted because no verified customer signature/address fixture and no approved archive credential source were available in this read-only session. Do not infer a migration result from an empty or synthetic fixture.
+
+### Stage 3 — Billing / Collector / Verification / Accounting backend contracts
+- **DESIGN DRAFT / G2 CONTRACT FREEZE BLOCKED; runtime NOT IMPLEMENTED.** Existing design artifacts already exist: `docs/solmint-pay-subscription-contract-design.md`, `docs/solmint-pay-subscription-verification-accounting-contract.md`, `docs/solmint-pay-subscription-decision-register.md`, implementation plan and threat model. Existing pure TypeScript authorization, cycle-identity, Plan and entitlement policy helpers are not API/database/runtime implementations.
+- Decision Register v1.1 still leaves material contract inputs unresolved: Merchant recurring fee-payer custody; approved split-transfer/fee-recipient/accounting design; grace clock and retry schedule/error classes; complete operation-level RBAC/RLS mapping; customer self-service and wallet-link lifecycle; supported smart-wallet/pending-proposal policy; refund/reversal accounting; all-Puller discovery/finality/Program-drift controls; and typed Subscription accounting origin/outbox/reconciliation.
+- Live database access/advisor recheck is read-only. Supabase Security Advisor currently reports 26 RLS-enabled/no-policy findings (12 are Pay tables, including intentionally service-only tables; each needs privilege/context review, not blanket policy creation) and 19 SECURITY DEFINER functions executable by `authenticated` (including several Pay RPCs). These are existing live findings, not introduced by this task; no grant or RLS was changed. They must be reconciled against exact route/RPC contracts before adding new Subscription grants or definer routines.
+- The live Pay schema is Payment-Intent-centric. Preserve `pay_apply_verified_observation` and existing one-off accounting invariants; do not create synthetic Payment Intent IDs or route Subscription pulls through the one-off verifier.
+
+### Decision and safe next implementation boundary
+1. Freeze a V2 ABI for Legacy Fixed/Recurring create/transfer that gates on the persistent legacy Authority Registry generation and signed deadlines, snapshots mutable Fixed/Recurring state for replay rejection, and preserves existing PDA/account bytes. Add adversarial LiteSVM tests before dispatching any new discriminator. The exact account list, data layout, error behavior, and IDL must be reviewed together; old discriminators remain disabled.
+2. Obtain a verified, privacy-minimized archive fixture (customer public addresses + transaction signature/slot + raw account bytes/hashes/provenance) through the approved archive credential path, then replay migration offline against the exact v0.5.0 binary and new fork. Until then, real-account migration remains blocked.
+3. Complete the outstanding owner/security decisions in the existing Decision Register before freezing schema/API contracts. Then implement a separate Subscription DB/API adapter with database-enforced unique Cycle/Attempt claims, fencing/recovery, isolated Collector authorization/signing, exact transaction verifier, atomic typed accounting/outbox, and adversarial RLS/grant tests. Keep ordinary Pay verifier unchanged.
+
+### Mutation and test boundary
+- This checkpoint is an evidence/documentation update only. No Program source, Product runtime/API, SQL migration, Production DDL/data/RLS/grant, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, deployment, merge or release was changed.
+- No CI was dispatched or awaited, per the requested short-feedback workflow. No local Unit/LiteSVM/Build test was executed in this session; status is UNKNOWN, not PASS.
+- Overall Legacy Fixed/Recurring capability parity, real-account migration, G2 backend Contract Freeze and Subscription Production readiness remain **BLOCKED**.
