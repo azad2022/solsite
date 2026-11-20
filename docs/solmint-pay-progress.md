@@ -5282,3 +5282,25 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 
 ### Mutation boundary
 - No Production DDL/data/RLS/grant, provider configuration, Secret/Key, persistent signer, customer consent, financial ledger, Devnet transaction/deployment, Mainnet transaction/deployment, Program upgrade or release was performed.
+
+## 2026-11-20 — Squads delayed-authority integration regression correction
+
+### Evidence and root cause
+- Product PR #366 was at HEAD `39813194eb4127c8c448c315996aa11b71de80d4`; the exact-head CI run [44689049302](https://github.com/azad2022/solsite/actions/runs/44689049302) failed only in `subscription-vnext-squads-sdk`. Product Quality, Production Build, Database Security, ordinary Pay Devnet E2E and Mainnet Read-only passed on that SHA.
+- The failing scenario is `executes a revocation before an approved delayed authorization and rejects the stale proposal atomically`. The exact failure was Program custom error 141 = `StaleAuthorityGeneration`.
+- Source review established the approved delayed authorization is generation 0 but is deliberately not executed, so the Registry remains at generation 0 before the separate revoke instruction. The test incorrectly encoded revoke with expected generation 1, causing the revoke itself to fail before it could invalidate the delayed proposal. Its final Registry generation assertion was also incorrectly set to 2.
+
+### Correction
+- Program fork branch `feat/solmint-g1-authority-vnext`: changed the revoke instruction's expected generation from 1 to 0, corrected the scenario comment, and changed the resulting Registry generation assertion from 2 to 1.
+- Program fix commit: `85bb5d317eee292f5625da00deefc94b67075c06`.
+- Product CI workflow now pins both exact VNext fork checkout references in `.github/workflows/ci.yml` to that commit. Product workflow-pin commit: `fc03fd21dd9f0f59d15748e0d55e5b14be0f6bb6`.
+- No Program runtime logic, instruction ABI, PDA seeds, account ordering or deployed Program was changed; this correction is to the integration-test fixture and the immutable source pin used by CI.
+
+### Validation status at checkpoint
+- **PASS:** source-level diagnosis is consistent with the Program's error mapping and the actual expected-generation sequence.
+- **PENDING:** rerun of the exact pinned Squads delayed-proposal integration test and the resulting exact-head Product CI. Do not mark the integration test or overall CI PASS until the new run completes.
+- **PASS on prior Product SHA only:** Quality, Production Build, Database Security, ordinary Pay Devnet E2E and Mainnet Read-only from run `44689049302`; these are not inherited as exact-head checks after the workflow pin update.
+- **BLOCKED / NOT IMPLEMENTED:** Subscription production API/domain/schema/RLS/grants, durable Cycle/Attempt claims and accounting, isolated Collector, dedicated Subscription verification/accounting, entitlement integration and real Subscription billing Devnet E2E remain unimplemented. VNext Legacy compatibility and the separate account-migration rehearsal/security-audit gates remain open.
+
+### Mutation boundary
+- No `main` change, merge, Production DDL/data/provider setting, Secret/Key/signer change, customer consent, ledger posting, Devnet/Mainnet transaction, Program deployment/upgrade or release was performed.
