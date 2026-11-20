@@ -355,3 +355,32 @@ This checkpoint supersedes the earlier G1-2 test status for the exact source and
 - VNext still declares the current Mainnet Program ID `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. Separate Program ID and upgrade-key custody require explicit architecture approval. No identity/key/deployment changes were made.
 - Subscription API/DB, Collector/Billing worker, dedicated verifier, ledger/accounting, Subscription E2E and frontend remain **NOT IMPLEMENTED**.
 - No Production, Devnet VNext or Mainnet mutation occurred; overall G1/Production readiness remains **BLOCKED**.
+
+
+## 14. 2026-11-20 — Fixed/Recurring VNext ABI security review
+
+### Exact source reviewed
+- Program work branch: `feat/solmint-g1-authority-vnext`, source HEAD at review start `cbbe895d4900593e456b20f689244d117b632e5b`.
+- Immutable legacy baseline: `364a41976c33347d092902443bbec2def9227e75`.
+- Exact current Program design document: `docs/solmint-vnext-protocol-design.md`; new §8.4 records the source facts, replay analysis, proposed payload fields and freeze gates. Program design checkpoint commit: `73cd0243d17706bbc33712fca055c5191b265598`.
+- Product PR #366 remains OPEN / DRAFT / NOT MERGED; Program PR #1 remains OPEN / DRAFT / NOT MERGED.
+
+### Source-derived security finding
+The legacy create helper blocks only while the derived delegation account has non-zero data. The v0.5.0 `RevokeDelegation` closes the Fixed/Recurring delegation account. Therefore an account-closeable PDA is not a sufficient replay tombstone: a delayed signed Create within the same still-active Authority generation/deadline could recreate a permission if a future V2 route relied only on Authority generation and `not_after_ts`.
+
+**Required control:** a persistent per-logical-delegation lifecycle tombstone/revision that survives closure of the delegation account, is atomically terminalized by the V2 revoke path, and cannot be bypassed by the old `RevokeDelegation` route. Fresh-blockhash replay must remain rejected.
+
+### Program-identity compatibility decision remains open
+The Product G1 plan names a new independent Program ID as the default deployment route; the current Program fork still declares the old Mainnet Program ID. In-place upgrade and independent Program ID require different Fixed/Recurring ownership, PDA, Authority and migration contracts. The new Program ID path cannot reinterpret old Program-owned PDAs or use the old Program's Authority signer; it requires a VNext source-account/Authority lineage and explicit customer-consented cutover. Do not blend the two paths in one assumed ABI.
+
+### Candidate ABI review material
+The Program design §8.4 records candidate packed payloads for Fixed Create (40 bytes), Recurring Create (56 bytes), Fixed Transfer (104 bytes), Recurring Transfer (112 bytes) and V2 Revoke (16 bytes), including field offsets. These are **proposal-only** review artifacts: no discriminator, state discriminator, PDA seed, account order, optional payer location or IDL assignment has been made. They must not be implemented or generated as if frozen.
+
+### Gate disposition
+- **PASS:** source inspection of legacy data sizes, payload widths, PDA seeds, close/recreate behavior, existing Registry tuple and current fail-closed Fixed/Recurring dispatch.
+- **BLOCKED:** ABI freeze pending explicit Program identity path and persistent tombstone/account-version/revoke design.
+- **NOT IMPLEMENTED:** Fixed/Recurring VNext runtime/account types/lifecycle registry/create-transfer-revoke routes and adversarial tests.
+- **UNKNOWN:** new Rust/LiteSVM execution; no code test was run in this documentation checkpoint.
+
+### Mutation boundary
+No Program runtime, IDL, account data, migration, Production/Devnet/Mainnet state, Program ID/key, signer, customer consent, ledger, deployment, merge or release changed. Both feature PRs remain Draft; local Working Tree remains UNKNOWN.
