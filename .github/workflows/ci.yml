@@ -729,13 +729,13 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 418a655f334e39d2989edf3355c1db4ba87ca201
+          ref: acf9316470ba165f7647946dcf1ac9dcc88ad509
           persist-credentials: false
 
       - name: Verify exact fork commit
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="418a655f334e39d2989edf3355c1db4ba87ca201"
+          expected="acf9316470ba165f7647946dcf1ac9dcc88ad509"
           test "$actual" = "$expected"
 
       - name: Install pinned Rust, Solana, pnpm and Surfpool toolchain
@@ -815,7 +815,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 418a655f334e39d2989edf3355c1db4ba87ca201
+          ref: acf9316470ba165f7647946dcf1ac9dcc88ad509
           path: vnext-subscriptions
           persist-credentials: false
 
@@ -823,7 +823,7 @@ jobs:
         working-directory: vnext-subscriptions
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="418a655f334e39d2989edf3355c1db4ba87ca201"
+          expected="acf9316470ba165f7647946dcf1ac9dcc88ad509"
           printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
           test "$actual" = "$expected"
 
