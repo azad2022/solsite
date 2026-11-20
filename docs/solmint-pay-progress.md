@@ -5566,3 +5566,40 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - Only Program feature-branch source/tests/docs and Product feature-branch CI/progress documentation were changed.
 - No Production DB/DDL/data/RLS/grants, API route, Secret, keypair, signer, customer consent, ledger/accounting, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed.
 - Both PRs remain Draft; local Working Tree is UNKNOWN through the remote GitHub connection.
+
+
+## 2026-11-20 — Draft V2 payload models and strict parser guards
+
+### Exact source identity
+- Product: `azad2022/solsite`, `feat/pay-subscription-billing`; CI pin update commit `dd93f00fe2e10bfeb9514cbe280de8addca8118c`.
+- Program: `azad2022/solmint-subscriptions-program`, `feat/solmint-g1-authority-vnext`; current source commit for this checkpoint `6f3b98cad60f1dfd60c0817d285e62e89e4c5330`.
+- Product PR #366 and Program PR #1 remain OPEN / DRAFT / NOT MERGED. Product `main` and Program immutable baseline remain unchanged.
+
+### Additional implementation
+- Added five crate-private candidate payload structs to the existing internal Fixed/Recurring lifecycle module:
+  - Fixed Create V2 candidate: 40 bytes.
+  - Recurring Create V2 candidate: 56 bytes.
+  - Fixed Transfer V2 candidate: 104 bytes.
+  - Recurring Transfer V2 candidate: 112 bytes.
+  - V2 Revoke candidate: 16 bytes.
+- Each parser accepts exactly its declared payload length; truncated and trailing-byte inputs are rejected.
+- Added golden field-offset and exact-size tests for each candidate plus a shared strict-length regression across all five candidate parsers.
+- Updated the Program protocol design to distinguish these code-level candidates from a frozen/public ABI.
+- Updated all four Product CI checkout/source-assertion pins from Program `7f310dfdf6a77801c9cec644166487e39fbacb97` to current Program `6f3b98cad60f1dfd60c0817d285e62e89e4c5330`.
+
+### Important boundary
+- The new payload structs are crate-private, are not registered with Codama, are not members of `SubscriptionsInstruction`, and have no discriminator or account metas. No IDL or generated client was changed.
+- Their layouts are guarded as internal candidate wire shapes only; this does not freeze the V2 ABI or make a callable VNext Fixed/Recurring route.
+- Persistent Registry serialization/PDA, VNext Fixed/Recurring account layouts, Create/Transfer/Revoke handlers, CPI atomicity, old-Revoke integration and LiteSVM adversarial scenarios remain NOT IMPLEMENTED. Legacy Fixed/Recurring Create/Transfer remain fail-closed.
+- Exact independent Program ID/key custody and the permanent Registry funding contract remain unresolved. Current Program source still declares the legacy Mainnet Program ID; no key was generated and no deployment was attempted.
+
+### Validation and status
+- PASS: candidate field order/lengths match the existing Program design proposal; exact parsers reject truncation/trailing bytes by construction; eight unit tests now cover lifecycle transitions, identity binding, replay/generation/terminal behavior, overflow, offsets and strict parsers.
+- PASS: Product CI contains exactly four pins to Program commit `6f3b98cad60f1dfd60c0817d285e62e89e4c5330`; prior Program pin `7f310dfdf6a77801c9cec644166487e39fbacb97` is replaced.
+- UNKNOWN: Rust formatter/test execution, LiteSVM execution and current-head CI. No local Rust toolchain/test run was possible in this environment, and CI was not awaited.
+- BLOCKED: persistent on-chain Fixed/Recurring Registry and runtime ABI freeze pending Program identity/key custody, durable account layout, rent policy and V2 revoke/old-Revoke atomic design.
+- NOT IMPLEMENTED: on-chain Fixed/Recurring VNext create/transfer/revoke, IDL/client exposure and Production Subscription backend/verifier/accounting/Collector integration.
+- Overall G1 and Subscription Production readiness remain BLOCKED.
+
+### Mutation boundary
+Only feature-branch Rust source/tests/design documentation and Product feature-branch CI/progress documentation changed. No Production database/schema/RLS/grants, API, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed. Local Working Tree remains UNKNOWN via the remote GitHub connection.
