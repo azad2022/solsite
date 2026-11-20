@@ -729,7 +729,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 7d1cd6d109999c10585e5c617e1ed89c8294922c
+          ref: 85bb5d317eee292f5625da00deefc94b67075c06
           persist-credentials: false
 
       - name: Verify exact fork commit
@@ -815,7 +815,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: azad2022/solmint-subscriptions-program
-          ref: 7d1cd6d109999c10585e5c617e1ed89c8294922c
+          ref: 85bb5d317eee292f5625da00deefc94b67075c06
           path: vnext-subscriptions
           persist-credentials: false
 
