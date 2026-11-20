@@ -5738,3 +5738,10 @@ Only Product and Program feature branches changed. No `main`, immutable baseline
 
 ### Mutation boundary
 Only the Program feature branch and Product Subscription feature branch were changed. Product `main`, Program immutable baseline, Production DB/DDL/data/RLS/grants, APIs, Secrets/Keys/signers, customer consent, accounting, Devnet/Mainnet state, Program deployment/upgrade, merge and release were not changed. Local Working Tree remains UNKNOWN through the remote GitHub connection.
+
+
+### Follow-up — exact transaction evidence and final source pin (2026-11-20)
+- Program test commit `187102f87eaf6235e5ebb76bd435d44ef8f5612b` now fails closed if a confirmed revoke signature cannot be read back with non-null transaction metadata; this prevents missing RPC indexing from being interpreted as a successful operation.
+- Program design checkpoint commit `c70424da57f0f1a2f5238a6a8025b89f3f03812e` records this additional evidence requirement. Current Program PR #1 HEAD is `c70424da57f0f1a2f5238a6a8025b89f3f03812e`.
+- Product CI commit `a3d4fda6dbe6710c5d42119f9be9c27ec8c45ef2` updates the same four existing VNext source pins from the intermediate checkpoint to the final Program HEAD above. The four-pin count was checked before the replacement; no new source pin or workflow job was introduced.
+- The new exact-head run is not available in the workflow-run lookup at this checkpoint. The prior failure is not relabeled as fixed; new test execution and the actual on-chain failure cause remain UNKNOWN until the CI run reports.
