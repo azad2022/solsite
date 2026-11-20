@@ -5304,3 +5304,12 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 
 ### Mutation boundary
 - No `main` change, merge, Production DDL/data/provider setting, Secret/Key/signer change, customer consent, ledger posting, Devnet/Mainnet transaction, Program deployment/upgrade or release was performed.
+
+## 2026-11-20 — VNext immutable SHA assertion alignment
+
+- The first rerun after the test correction exposed a second CI wiring defect: `.github/workflows/ci.yml` had two `actions/checkout.ref` values updated to Program commit `85bb5d317eee292f5625da00deefc94b67075c06`, but the adjacent exact-checkout assertions still expected the previous SHA `7d1cd6d109999c10585e5c617e1ed89c8294922c`.
+- The job therefore failed at source identity verification before building or running the corrected integration test; the `just: command not found` cleanup message was secondary because setup had stopped before installing the toolchain.
+- Corrected both expected-SHA literals to the same immutable Program commit. Product CI workflow commit: `6742582e5f62c0bc29b94299de7f2a5f4ce19bbe`.
+- **PASS:** workflow source now contains four matching VNext Program SHA references (two checkout refs and two exact-SHA assertions) and zero references to the previous Program SHA.
+- **PENDING:** a fresh exact-head Product CI run is required to validate source checkout, build, delayed-proposal integration and all other applicable gates. The failed intermediate run is not a validation of the code fix.
+- No Production/Devnet/Mainnet mutation, secret/key/signer change, customer consent, ledger posting, merge or release occurred.
