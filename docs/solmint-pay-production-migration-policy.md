@@ -99,26 +99,60 @@ Workflow قبل از اتصال و mutation، credential guard را اجرا م�
 مسیر پیش‌فرض این پروژه برای Production migration همان GitHub Actions + Supabase CLI + `supabase db push` است، مگر اینکه یک محدودیت واقعی و مستند جدید خلاف آن را نشان دهد.
 
 
-## 2026-11-06 — Fail-closed Production migration governance
+## Fail-closed Production APPLY and target binding — 2026-11-06
 
-The repository-controlled Production migration path is deliberately manual and SHA-bound. The workflow at \`.github/workflows/solmint-pay-production-migration.yml\` is the only approved repository workflow for applying pending Production migrations.
+The controlled workflow now separates read-only authentication/preview from the mutating Production apply path.
 
-For \`confirm=APPLY\`, it requires:
-1. A \`workflow_dispatch\` event.
-2. \`refs/heads/main\` as the exact selected ref.
-3. A full 40-character \`expected_main_sha\` equal to the event's \`GITHUB_SHA\`.
-4. Checkout of that exact commit.
-5. An immediate \`supabase db push --dry-run\` before the mutating \`supabase db push\`.
-6. A subsequent \`supabase migration list\` read-back.
+### APPLY commit guard
 
-For \`DRY_RUN\` and \`APPLY\`, the connection guard accepts only this project's Supabase Session Pooler host family, project-specific database user, port 5432, database \`postgres\`, and TLS-required connection. It strips an embedded URI password and uses the standalone \`SUPABASE_DB_PASSWORD\` through \`PGPASSWORD\`; URI values and credentials must never be logged. Supabase CLI is pinned to 2.122.1; do not replace it with \`latest\` or CLI v3 without a separate reviewed migration.
+For `confirm=APPLY`, all of the following are mandatory before Production database credentials are exposed to a step:
 
-### Independent Supabase GitHub Integration — separate hard gate
+1. The GitHub event is `workflow_dispatch`.
+2. The selected ref is exactly `refs/heads/main`.
+3. `expected_main_sha` is a full 40-character commit SHA and equals `GITHUB_SHA` for the exact event commit.
+4. Checkout uses that exact `GITHUB_SHA`, not a moving branch name.
+5. The run still performs `supabase db push --dry-run` immediately before `supabase db push`.
 
-Supabase Dashboard's Project Settings → Integrations → GitHub Integration has a separate \`Deploy to production\` option. When enabled, Supabase can apply repository migrations on pushes/merges to its configured production branch independently of this GitHub Actions workflow. No repository guard can disable or inspect that provider-side option.
+A dispatch from a feature branch, tag, pull request, push event, missing confirmation, malformed SHA or stale/different SHA fails closed. This is an application-level guard in this repository; it does not itself merge code or authorize a Production run.
 
-Historical Production logs show internal Supabase branch runner \`fabf1ac3-5428-45a1-a707-f466ee49eaed\` (the connected project's \`main\` branch) applying migrations on 2026-10-27 and 2026-10-28. The exact historical initiating human/actor is not exposed by the observed logs. The setting's current state must be read directly in the Supabase Dashboard and, if automatic Production deployment is not the approved policy, set to OFF. Read the setting back and retain the provider deployment-history evidence before closing Issue #355.
+### Exact database target
 
-**Release rule:** until the current provider toggle is verified OFF and the post-change deployment history confirms no independent migration-apply path, G0 remains **BLOCKED / UNKNOWN**. Passing GitHub CI, the manual workflow guard, a no-op Supabase runner, or zero recent log rows does not prove the provider toggle is off. Do not close Issue #355 on those signals alone.
+For `DRY_RUN` and `APPLY`, the guard accepts only the SolMint Production Session Pooler target:
 
-The controlled workflow's \`APPLY\` path is not automatically dispatched by CI and does not authorize a Production migration by itself. Each Production migration remains a separate explicit release operation after reviewed PR merge and migration-lineage/DRY_RUN evidence.
+- Host under `.pooler.supabase.com` (no direct database or arbitrary host).
+- Exact user `postgres.nvopkbiedorfshwbmyhn`.
+- Port `5432`.
+- Database `postgres`.
+- TLS required (`sslmode=require` by default; stronger `verify-ca` / `verify-full` modes are preserved).
+- Only the SSL mode query parameter is accepted.
+- If the connection URI contains an embedded password, it must exactly match `SUPABASE_DB_PASSWORD`; otherwise the run aborts.
+- The password is removed from the URI and passed only as `PGPASSWORD`. The original URI and password are never printed.
+
+The direct `AUTH_PROBE` remains read-only and uses the known direct project endpoint; it requires the standalone password but does not require a Session Pooler URI. `DRY_RUN` remains non-mutating and may be run to inspect a candidate migration set. `APPLY` still applies every pending repository migration, not an arbitrary selected SQL statement.
+
+### External Supabase GitHub Integration boundary
+
+The repository guard protects only the source-controlled GitHub Actions workflow. Supabase Dashboard's separate GitHub Integration `Deploy to production` setting can independently apply pending migrations on pushes/merges. The repository and connected Supabase APIs available to this project do not expose a verified read/write operation for that Dashboard setting. Do not represent this code change as disabling it. Issue #355 stays **OPEN / BLOCKED** until the historical runner actor/trigger and current provider toggle are verified. No Production provider setting is changed by this workflow guard.
+
+
+### Supabase CLI release pin
+
+The controlled Production workflow pins Supabase CLI to **2.122.1** instead of `latest`. Supabase CLI v3 became the default release on 2026-11-02 and changes hosted-command targeting/confirmation behavior; the current workflow has not completed a dedicated v3 migration. Keep the established v2 command contract stable until a separate upgrade updates every command (including explicit hosted targeting/confirmation), tests it against a non-Production environment and verifies the migration plan. The CI job `subscription-production-migration-cli` installs the exact v2 version and checks the reported version without connecting to Production.
+
+Official references:
+- [Supabase CLI v3 breaking-change notice](https://supabase.com/changelog/supabase-cli-v3)
+- [Supabase setup-cli action and version input](https://github.com/supabase/setup-cli)
+- [Supabase CLI v2.122.1 release](https://github.com/supabase/cli/releases/tag/v2.122.1)
+
+
+## 2026-11-06 — G0 closed by explicit owner confirmation
+
+**Current disposition: PASS / COMPLETE.** This section supersedes the interim OPEN/BLOCKED wording above, which described the state before the project owner completed the Dashboard action and before the three post-change log windows were available.
+
+- The project owner explicitly confirms that Supabase Project Settings → Integrations → GitHub Integration → `Deploy to production` is OFF.
+- Three subsequent main pushes (`d06c0546...`, `a39e1e0c...`, `514d3401...`) had normal records in all four Supabase log sources and zero independent migration-runner markers / PostgreSQL DDL or migration-apply matches.
+- Repository-controlled Production migration guard, exact-main CI, Production Build, Authentication Build Verification and Cloudflare Production deployment evidence passed.
+- Issue [#355](https://github.com/azad2022/solsite/issues/355) is CLOSED / COMPLETED.
+- The connected Supabase API still cannot independently read the provider toggle; this is recorded as **OWNER-CONFIRMED OFF**, not connector-read. Historical October runner actor remains UNKNOWN and is not a current G0 blocker.
+
+No Production DDL, migration APPLY, provider-setting mutation, credential/Secret/Key change or blockchain transaction was performed to close G0.
