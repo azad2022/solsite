@@ -5199,9 +5199,9 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - The exact-head CI failure was isolated to the generated Codama IDL comparison; preceding Program formatting, unit tests, deterministic SBF build, VNext/Legacy migration LiteSVM, immutable Legacy integration and isolation steps had passed in Run `44684058018`.
 - Corrected the Legacy VNext PDA metadata in Rust so derivations point to the actual instruction accounts:
   - Authority PDA uses `subscriber` + `token_mint`.
-  - Consent Registry uses the canonical ATA account for instructions 28/29 and `subscriber_ata` for instruction 30.
+  - Consent Registry PDA defaults are declared only where all seeds are available as instruction accounts. Instruction 30 keeps an explicit Registry account because the subscriber is carried in instruction data rather than an AccountMeta; the Program validates its exact subscriber/mint/source tuple and PDA.
 - Added the missing optional-account serialization strategy to the relevant generated instruction definitions.
-- Aligned the committed IDL type order with Codama discovery order and corrected the Registry PDA seed in instruction 30. This removes references to absent account names from the committed client metadata.
+- Aligned the committed IDL type order with Codama discovery order, corrected Authority PDA defaults for instructions 28/29, and removed the unsupported auto-default from instruction 30. The runtime still validates the Registry tuple/PDA; clients supply that account explicitly.
 - Updated the Product CI's four immutable VNext Program pins to the corrected Program commit `8f737d910e037dfbea5420f9bfa3a681bd91796b`.
 
 ### Validation status
@@ -5215,3 +5215,12 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation boundary
 - No Production DDL/data/RLS/grants, provider setting, Secret/Key, persistent signer, customer consent, accounting/ledger write, Devnet/Mainnet transaction, Program deployment/upgrade or release was performed.
 - The ordinary Pay Devnet workflow is not Subscription charge E2E. Mainnet checks are read-only.
+
+
+## 2026-11-20 — Codama client dependency correction
+
+- The first post-fix run [44687577988](https://github.com/azad2022/solsite/actions/runs/44687577988), job `subscription-vnext-squads-sdk`, reached exact-source Codama client generation but failed because instruction 30 tried to derive `consentRegistry` from a `subscriber` account that does not exist in that instruction's account list; subscriber is encoded in `transfer_data`.
+- No new account was inserted into the instruction ABI. The invalid auto-default was removed from the Rust Codama annotation and committed IDL; the caller supplies the Registry PDA explicitly, while the on-chain Program continues to verify the full subscriber/mint/source tuple and PDA.
+- Corrected Program branch commit: `0d9f8969acd3509001c70406e15e24f724bfc56b`. Product CI's four immutable VNext source pins now target this exact commit.
+- **PENDING:** the subsequent exact-source Squads SDK and VNext Authority Registry CI jobs. The preceding failure is recorded and not treated as a PASS.
+- **Mutation boundary:** no Production, Devnet or Mainnet chain state, database, provider configuration, secret/key, signer, customer consent or ledger was changed.
