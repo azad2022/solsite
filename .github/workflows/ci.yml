@@ -952,6 +952,48 @@ jobs:
           generated = json.loads(Path("idl/subscriptions.json").read_text())
           committed = json.loads(Path("/tmp/committed-subscriptions-idl.json").read_text())
           if generated != committed:
+              def describe(value):
+                  try:
+                      text = json.dumps(value, sort_keys=True, ensure_ascii=False)
+                  except TypeError:
+                      text = repr(value)
+                  return text[:240]
+
+              differences = []
+
+              def walk(left, right, path="$"):
+                  if len(differences) >= 80:
+                      return
+                  if type(left) is not type(right):
+                      differences.append(f"{path}: type {type(left).__name__} != {type(right).__name__}; generated={describe(left)} committed={describe(right)}")
+                      return
+                  if isinstance(left, dict):
+                      for key in sorted(set(left) | set(right)):
+                          child = f"{path}.{key}"
+                          if key not in left:
+                              differences.append(f"{child}: missing from generated; committed={describe(right[key])}")
+                          elif key not in right:
+                              differences.append(f"{child}: missing from committed; generated={describe(left[key])}")
+                          else:
+                              walk(left[key], right[key], child)
+                          if len(differences) >= 80:
+                              return
+                  elif isinstance(left, list):
+                      if len(left) != len(right):
+                          differences.append(f"{path}: list length generated={len(left)} committed={len(right)}")
+                      for index, (left_item, right_item) in enumerate(zip(left, right)):
+                          walk(left_item, right_item, f"{path}[{index}]")
+                          if len(differences) >= 80:
+                              return
+                  elif left != right:
+                      differences.append(f"{path}: generated={describe(left)} committed={describe(right)}")
+
+              walk(generated, committed)
+              print("Codama IDL structural differences (generated versus committed):")
+              for difference in differences:
+                  print(f"  {difference}")
+              if len(differences) >= 80:
+                  print("  ... truncated after 80 differences")
               raise SystemExit("Generated Codama IDL differs structurally from the committed IDL")
 
           canonical = json.dumps(generated, sort_keys=True, separators=(",", ":")).encode()
