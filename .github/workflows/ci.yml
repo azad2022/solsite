@@ -735,7 +735,7 @@ jobs:
       - name: Verify exact fork commit
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="7d1cd6d109999c10585e5c617e1ed89c8294922c"
+          expected="85bb5d317eee292f5625da00deefc94b67075c06"
           test "$actual" = "$expected"
 
       - name: Install pinned Rust, Solana, pnpm and Surfpool toolchain
@@ -823,7 +823,7 @@ jobs:
         working-directory: vnext-subscriptions
         run: |
           actual="$(git rev-parse HEAD)"
-          expected="7d1cd6d109999c10585e5c617e1ed89c8294922c"
+          expected="85bb5d317eee292f5625da00deefc94b67075c06"
           printf 'EXPECTED_VNEXT_SHA=%s\nACTUAL_VNEXT_SHA=%s\n' "$expected" "$actual"
           test "$actual" = "$expected"
 
