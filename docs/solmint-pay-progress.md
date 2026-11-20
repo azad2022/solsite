@@ -5457,3 +5457,38 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - No Program runtime handler, instruction ABI, account layout, IDL, deployed Program, Program ID, key, signer, Production database/schema/RLS/grant, provider setting, customer consent, ledger, Devnet transaction, Mainnet transaction, deployment, merge or release was changed.
 - `main` was not modified. Both PRs remain Draft.
 - Local Working Tree remains UNKNOWN through the remote GitHub connection.
+
+
+## 2026-11-20 — Fixed/Recurring VNext ABI replay and Program-identity gate
+
+### Exact source identity
+- Product: azad2022/solsite, feat/pay-subscription-billing; Product PR #366 remains OPEN / DRAFT / NOT MERGED.
+- Program: azad2022/solmint-subscriptions-program, feat/solmint-g1-authority-vnext; Program PR #1 remains OPEN / DRAFT / NOT MERGED.
+- Immutable v0.5.0 baseline: 364a41976c33347d092902443bbec2def9227e75.
+- Program design checkpoint: 73cd0243d17706bbc33712fca055c5191b265598, updating existing docs/solmint-vnext-protocol-design.md §8.4.
+- Product G1 plan checkpoint: 4cfdd0de8f2d071d835e2ae90c89114c0b67a120, updating existing docs/solmint-pay-g1-local-program-remediation-plan.md §14.
+- Product main remains 514d3401d8d725be106ab0c83557f8e43cdff13e; Program baseline branch remains 364a41976c33347d092902443bbec2def9227e75.
+
+### Source review and security result
+- Re-read current project instructions, Master Specification, Subscription Skill, Build Web Apps Skill, Release Audit Skill, G1 plan, protocol design, current Legacy/VNext instruction dispatcher, Authority Registry, Fixed/Recurring account structs, create/transfer/revoke processors and transfer validation helpers.
+- Confirmed legacy Fixed/Recurring create discriminators 1/2, transfer 4/5, legacy create payload sizes 32/48 bytes, shared transfer payload 72 bytes, V1 frozen account minima 187/211 bytes, and PDA seeds delegation / SubscriptionAuthority / delegator / delegatee / nonce.
+- New security finding: legacy Create rejects only a delegation account that currently has data; legacy Revoke closes the Fixed/Recurring PDA. The same derived PDA can therefore be reinitialized after close. A V2 Create protected only by Authority generation and a deadline would still be replayable after per-delegation revoke while the Authority generation remains active and the signed deadline is valid.
+- Required design control: a persistent per-logical-delegation lifecycle tombstone/revision that survives closure, is atomically terminalized by V2 revoke, and cannot be bypassed by the old Revoke route. Fresh-blockhash replay must remain rejected.
+- Program identity blocker: the Product G1 plan names a new independent Program ID as the default route, while the current Program fork still declares the legacy Mainnet Program ID. In-place upgrade and new-ID deployment require different Authority/PDA/source-account/migration contracts. A new Program ID cannot reinterpret old Program-owned legacy PDAs or use the legacy Authority signer.
+- The existing Program source intentionally keeps Legacy Fixed/Recurring create/transfer fail-closed. No old discriminator was re-enabled.
+
+### Design artifact
+- Existing Program protocol design §8.4 now records the exact source-derived layouts, the close/recreate replay finding, the mutually exclusive Program-identity paths, the persistent per-delegation lifecycle requirements, candidate payload field/length proposals and adversarial acceptance matrix.
+- Candidate payloads are explicitly review material only (Fixed Create 40 bytes; Recurring Create 56; Fixed Transfer 104; Recurring Transfer 112; V2 Revoke 16). No instruction discriminator, account discriminator, PDA seed, account ordering, optional payer slot, IDL or generated client was allocated or frozen.
+- Product G1 remediation plan §14 links the new Program design and records the same blocker boundaries. No parallel design file or duplicate API/migration was created.
+
+### Validation and status
+- PASS: exact repository/branch/PR/source identity rechecked; the relevant source behavior and V1 layouts were read from the pinned Program branch; the design and G1 plan were updated on their intended feature branches.
+- BLOCKED: G1-2 Fixed/Recurring ABI freeze pending the explicit Program-ID deployment path and the persistent tombstone/account-version/V2-revoke design, including the permanent lifecycle record's funding policy.
+- NOT IMPLEMENTED: Fixed/Recurring VNext account/state types, lifecycle registry, create/transfer/revoke runtime, generated IDL/client and adversarial LiteSVM matrix.
+- UNKNOWN: Rust/LiteSVM execution, current-head CI, and local Working Tree. No test or CI was run or awaited in this checkpoint.
+- Overall G1 and Subscription Production readiness remain BLOCKED.
+
+### Mutation boundary
+- No Program runtime/IDL/account layout, API, SQL schema/migration/RLS/grant, Production data, provider setting, Secret/Key/signer, customer consent, accounting/ledger, Devnet/Mainnet transaction, Program deployment, merge or release changed.
+- Both PRs remain Draft; no main branch was modified.
