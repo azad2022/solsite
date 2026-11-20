@@ -5149,3 +5149,40 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 
 ### Mutation boundary
 - No Production DDL/data/RLS/grants, provider config, secrets/keys, persistent signer, customer consent, accounting/ledger writes, Devnet or Mainnet transaction, Program deployment/upgrade or release was performed. No chain state was modified by this patch.
+
+
+## 2026-11-20 — G1 Authority Registry adversarial replay and exact Program/IDL gate
+
+### Repository and source checkpoint
+- Product repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`, exact source before this progress entry: `54975ec4020b7dbd36538af774c9f80a9d621b8c`.
+- Program repository: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, exact source: `ad77244127388fb517183e29945e31e36aa04cef`.
+- Product PR #366 and Program PR #1 remain OPEN / DRAFT / NOT MERGED. Main remains `514d3401d8d725be106ab0c83557f8e43cdff13e`. Developer-local Working Tree remains UNKNOWN because GitHub API cannot inspect it.
+
+### Verified implementation and adversarial evidence
+- **PASS:** Legacy authority bootstrap on first use preserves the existing v0.5 Authority account bytes, old `init_id`, existing token delegate approval (`u64::MAX`) and Subscription account bytes; it does not force a fresh Subscribe or replace the legacy Authority. The Subscriber must sign the one-time Registry bootstrap and pay its rent; an unmigrated legacy account is not yet chargeable through the new generation-bound collector path.
+- **PASS:** versioned Legacy transfer checks the active Registry generation and the existing Subscription/Authority `init_id` relationship before invoking the existing transfer logic.
+- **PASS:** explicit Legacy revoke creates/advances the Registry tombstone, revokes only the matching VNext/Legacy delegate, and closes the corresponding Authority. Subscription records are not deleted, but after explicit revoke they are no longer chargeable; a later VNext consent does not automatically revive the old Legacy Subscription.
+- **PASS:** the new adversarial test `vnext_delayed_revoke_cannot_revoke_a_newer_authority_generation` retains a customer-signed durable-nonce Revoke for generation 1, applies a current Revoke, reauthorizes generation 3, then submits the delayed old Revoke. It is rejected with `VNextAuthorityIdentityMismatch`; Registry generation 3, the VNext Authority, the delegate and token balance remain unchanged.
+- **PASS:** VNext/Legacy migration LiteSVM suite against the exact VNext SBF; Program unit tests; Program/test `rustfmt`; deterministic VNext SBF build; Token-2022 TransferHook fixture build.
+- **PASS:** immutable v0.5.0 Legacy source checkout and binary build; historical Legacy integration suite against that immutable old binary; isolation test proving the immutable Legacy Program cannot delegate a VNext non-ATA source.
+- The dispatcher closes the old unversioned Legacy Init/Subscribe/Revoke, Fixed and Recurring permission routes. This also makes old unversioned signed transactions fail closed after a same-Program-ID upgrade; that protection is contingent on an authorized in-place upgrade of the existing Program ID, not deployment under a new ID.
+
+### Exact-head CI evidence
+- Product Run [44683004035](https://github.com/azad2022/solsite/actions/runs/44683004035), Product SHA `498ba4f3bd245b0d000bb8dfea00e542a2933ff8`, Program SHA `ad77244127388fb517183e29945e31e36aa04cef`:
+  - **PASS:** Product Quality, Production Build, Database Security, Devnet workflow wrapper, Mainnet read-only wrapper, Production migration CLI version checks and Subscription migration CLI version checks. These CLI jobs verify pinned CLI versions only; they do not apply Production migrations.
+  - **PASS:** Program unit tests, both Rust formatting checks, deterministic SBF build, VNext and Legacy migration LiteSVM tests (including the delayed-Revoke test), immutable v0.5.0 historical Legacy integration suite, and immutable-Legacy-vs-VNext non-ATA isolation.
+  - **BLOCKED:** Generated Codama IDL and committed `idl/subscriptions.json` were not structurally identical. The Program job failed only at the generated-vs-committed IDL comparison after the preceding checks above succeeded. The IDL was not overwritten blindly.
+- Product Commit `54975ec4020b7dbd36538af774c9f80a9d621b8c` adds a bounded structural-difference report to the same IDL CI assertion. Diagnostic Run [44683742957](https://github.com/azad2022/solsite/actions/runs/44683742957) was still running at checkpoint time; its IDL comparison result is therefore PENDING, not PASS.
+
+### Remaining design and release blockers
+- **BLOCKED / NOT IMPLEMENTED:** generation-bound replacements for the old Fixed and Recurring delegation creation/transfer paths. The new dispatcher intentionally closes those legacy routes, but the corresponding capability-preserving VNext routes are not implemented. Do not describe this as a complete feature-preserving program migration.
+- **BLOCKED:** rehearsal against a verified archived/captured v0.5.0 on-chain customer account fixture. Current LiteSVM fixtures exercise production encoders and synthetic state; they are not evidence of byte-for-byte migration of real deployed customer accounts.
+- **BLOCKED:** generated-vs-committed Codama IDL mismatch pending exact structural diagnostics and reviewed correction.
+- **UNKNOWN / BLOCKED:** final same-Program-ID upgrade decision and authorization; no Mainnet ProgramData / upgrade-authority state was verified in this checkpoint.
+- **UNKNOWN:** independent security audit of the new VNext delta; no external audit report is available for this implementation.
+- **NOT IMPLEMENTED:** Subscription backend APIs, Billing Cycle/Attempt/fencing/accounting, isolated Collector, independent verifier/entitlement integration, and production UI enablement are not proved by this Program-only checkpoint.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grants, Supabase migration application, provider configuration, Secret/Key, persistent signer, customer consent, accounting/ledger write, Devnet or Mainnet transaction, Program deployment/upgrade, or release was performed.
+- Devnet/Program CI used disposable test fixtures. The ordinary SolMint Pay Devnet workflow is not a Subscription charge E2E.
+- Both PRs remain Draft and unmerged. No change was made to `main`.
