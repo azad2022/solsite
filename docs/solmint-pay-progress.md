@@ -5186,3 +5186,32 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - No Production DDL/data/RLS/grants, Supabase migration application, provider configuration, Secret/Key, persistent signer, customer consent, accounting/ledger write, Devnet or Mainnet transaction, Program deployment/upgrade, or release was performed.
 - Devnet/Program CI used disposable test fixtures. The ordinary SolMint Pay Devnet workflow is not a Subscription charge E2E.
 - Both PRs remain Draft and unmerged. No change was made to `main`.
+
+
+## 2026-11-20 — Codama IDL drift correction checkpoint
+
+### Exact source and branch
+- Product repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`, pre-change HEAD `003a19c751ffa031eab15a188ede03864d807c04`.
+- Program repository: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, pre-change source `ad77244127388fb517183e29945e31e36aa04cef`, corrected source `8f737d910e037dfbea5420f9bfa3a681bd91796b`.
+- Both PRs remain OPEN / DRAFT / NOT MERGED. No change was made to either default branch.
+
+### Corrected issue
+- The exact-head CI failure was isolated to the generated Codama IDL comparison; preceding Program formatting, unit tests, deterministic SBF build, VNext/Legacy migration LiteSVM, immutable Legacy integration and isolation steps had passed in Run `44684058018`.
+- Corrected the Legacy VNext PDA metadata in Rust so derivations point to the actual instruction accounts:
+  - Authority PDA uses `subscriber` + `token_mint`.
+  - Consent Registry uses the canonical ATA account for instructions 28/29 and `subscriber_ata` for instruction 30.
+- Added the missing optional-account serialization strategy to the relevant generated instruction definitions.
+- Aligned the committed IDL type order with Codama discovery order and corrected the Registry PDA seed in instruction 30. This removes references to absent account names from the committed client metadata.
+- Updated the Product CI's four immutable VNext Program pins to the corrected Program commit `8f737d910e037dfbea5420f9bfa3a681bd91796b`.
+
+### Validation status
+- **PASS:** branch-head lease checks; source/IDL diffs were scoped to the three Legacy VNext instruction metadata definitions plus the exact generated type ordering.
+- **PENDING:** exact-source CI rerun on the Product branch after pin update. Do not mark the IDL gate PASS until the VNext job completes successfully on the new Product HEAD.
+- **BLOCKED / NOT IMPLEMENTED:** generation-bound replacements for legacy Fixed and Recurring create/transfer routes remain absent; those old routes are fail-closed and must not be presented as supported.
+- **BLOCKED:** captured, verified v0.5.0 customer-account migration rehearsal; current LiteSVM fixtures are synthetic state.
+- **NOT IMPLEMENTED:** Subscription application APIs, database lifecycle/Cycle/Attempt/fencing/accounting, isolated Collector, dedicated verification adapter, entitlement integration and production UI enablement.
+- **UNKNOWN:** independent security audit of the VNext delta and developer-local working-tree state.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grants, provider setting, Secret/Key, persistent signer, customer consent, accounting/ledger write, Devnet/Mainnet transaction, Program deployment/upgrade or release was performed.
+- The ordinary Pay Devnet workflow is not Subscription charge E2E. Mainnet checks are read-only.
