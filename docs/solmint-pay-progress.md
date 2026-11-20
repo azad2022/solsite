@@ -5522,3 +5522,47 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 ### Mutation boundary
 - This was a test/documentation/CI-pin change only. No Program runtime handler, instruction ABI, account layout, IDL, API, SQL migration, Production data/RLS/grants, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, deployment, merge or release changed.
 - Both PRs remain Draft; local Working Tree remains UNKNOWN through the GitHub connection.
+
+
+## 2026-11-20 — CI format repair + Fixed/Recurring lifecycle transition groundwork
+
+### Exact repository and PR identity
+- Product: `azad2022/solsite`, branch `feat/pay-subscription-billing`; review-start HEAD `6bd8b75a6acc3cffed9f0e2529fafcf351aac4c4`.
+- Product PR #366 remains OPEN / DRAFT / NOT MERGED; base `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Program: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`; updated HEAD `7f310dfdf6a77801c9cec644166487e39fbacb97`.
+- Program PR #1 remains OPEN / DRAFT / NOT MERGED; base remains immutable `solmint/v0.5.0-baseline` at `364a41976c33347d092902443bbec2def9227e75`.
+- No change was made to either repository's `main` or baseline branch.
+
+### 1. CI failure diagnosis and repair
+- Inspected Product CI run `44732072925`, failed Job `136274849695`: only `subscription-vnext-authority-registry` failed in the reported run.
+- Exact failure was `cargo fmt -p tests-subscriptions -- --check` on `tests/integration-tests/src/test_vnext_subscription.rs`; Program crate formatting passed in that run. The failing call was only line-wrapping in the recently added fail-closed dispatcher test; test logic was not changed.
+- Applied the exact rustfmt-formatted call in Program commit `a815c40d0ad5cb0c30f7f1c610bc5cc7ab7fc36e`.
+- Product workflow `.github/workflows/ci.yml` was updated in commit `77f39bb1fa431e252cf6d86949f3f47cce7dab5e`; all four existing Program source pins now point to exact Program HEAD `7f310dfdf6a77801c9cec644166487e39fbacb97`. No Job was disabled, skipped, or weakened.
+- The other jobs observed on the failed Product run—Production Build, Database Security, Mainnet Read-only, Devnet E2E and the independent Squads/reproducible-build jobs—were successful. The run's other conditional skips remain skips, not passes.
+- CI was not awaited after the fix, as requested. The current-head rerun result is UNKNOWN until inspected; the historical failed run is not relabelled green.
+
+### 2. Fixed/Recurring lifecycle transition model
+- Added internal, non-serialized transition model `program/src/state/fixed_recurring_lifecycle.rs` (Program commit `d73a347c8b5b335195ca6ba1924a5ea8ef0ba4fe`) and registered it internally in `program/src/state/mod.rs` (commit `da9d9b3bfd5a02051c45c388504d60b35a288695`).
+- The model captures exact delegation kind/PDA, subscriber, delegatee, mint, source token account, canonical Authority Consent Registry and immutable Authority generation.
+- Successful transfers consume a checked monotonic lifecycle revision. Terminal revoke consumes the revision and permanently blocks subsequent transfer/revoke transitions. Stale Authority generations, tuple substitution, duplicate revision use and overflow fail closed.
+- This reuses the existing `AuthorityConsentRegistry` identity/generation model; it does not recreate that Registry or the existing Subscription/Plan lifecycle registries.
+- The model is explicitly a pure transition foundation only. It is NOT a serialized account and must not be persisted by transmuting the Rust struct.
+
+### 3. Focused state-machine tests and implementation boundary
+- Added six unit tests covering canonical Authority Registry/generation, substitution of every identity component, one-shot transfer revision, stale generation after reauthorization, irreversible terminal revoke/replay, and overflow without partial state mutation.
+- Updated Program `docs/solmint-vnext-protocol-design.md` in commit `7f310dfdf6a77801c9cec644166487e39fbacb97` to record this exact boundary.
+- Deliberately did not allocate an account discriminator, PDA seed, persistent account layout, instruction discriminator/account order, payer/sponsor/refund policy, IDL/client changes, or new dispatcher handler. The Program identity executable key is not available/approved; the source still declares the legacy Mainnet Program ID. The old `RevokeDelegation` route remains unchanged and Legacy Fixed/Recurring create/transfer remain fail-closed.
+- The fixed/recurring on-chain Registry, VNext account layouts, create/transfer/revoke handlers, atomic token CPI integration, old-Revoke bypass closure, golden IDL/client bytes and LiteSVM adversarial matrix remain NOT IMPLEMENTED. This is not a working Fixed/Recurring subscription feature.
+
+### Validation and status
+- PASS: exact CI failure step and file were identified; the formatter-only source correction was applied; four Product CI pins match the updated Program source SHA; current branches and PR heads were re-read.
+- PASS: non-duplicate source review confirmed existing Authority Consent, Plan and Subscription registries/tests are reused rather than recreated; the new model has six targeted unit tests and an explicit non-ABI boundary.
+- UNKNOWN: execution of `cargo fmt`, Rust unit tests, LiteSVM, exact-current-HEAD CI rerun and local Working Tree. No test suite or CI was awaited after edits.
+- BLOCKED: Fixed/Recurring ABI/runtime activation pending the independent Program ID/key custody, persistent Registry/account layout, rent policy and V2 revoke/old-Revoke atomic boundary.
+- NOT IMPLEMENTED: on-chain Fixed/Recurring VNext create/transfer/revoke and production Subscription backend/verification/accounting/Collector integration.
+- Overall G1 and Subscription Production readiness remain BLOCKED.
+
+### Mutation boundary
+- Only Program feature-branch source/tests/docs and Product feature-branch CI/progress documentation were changed.
+- No Production DB/DDL/data/RLS/grants, API route, Secret, keypair, signer, customer consent, ledger/accounting, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed.
+- Both PRs remain Draft; local Working Tree is UNKNOWN through the remote GitHub connection.
