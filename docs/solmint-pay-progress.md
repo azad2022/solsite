@@ -5224,3 +5224,24 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - Corrected Program branch commit: `0d9f8969acd3509001c70406e15e24f724bfc56b`. Product CI's four immutable VNext source pins now target this exact commit.
 - **PENDING:** the subsequent exact-source Squads SDK and VNext Authority Registry CI jobs. The preceding failure is recorded and not treated as a PASS.
 - **Mutation boundary:** no Production, Devnet or Mainnet chain state, database, provider configuration, secret/key, signer, customer consent or ledger was changed.
+
+
+## 2026-11-20 — Exact-head VNext follow-up: Rustfmt correction
+
+### CI evidence on Product SHA `322575d41c0ea8556f4d63839a6780e65ce57b12`
+- Run [44687914248](https://github.com/azad2022/solsite/actions/runs/44687914248) completed the Product `quality` job successfully: TypeScript typecheck, Production Build, repository Unit Tests, fail-closed Production migration guard tests and clean source-tree assertion.
+- **PASS:** `subscription-change-scope`, `subscription-reproducible-build`, and `subscription-vnext-squads-sdk`. The latter completed generated-client build, staged Squads SDK tests, delayed proposal integration, and Agave durable-nonce semantics regression.
+- **BLOCKED:** `subscription-vnext-authority-registry` stopped at `cargo fmt -p subscriptions-program -- --check` because the newly edited instruction-30 Codama attribute used multi-line formatting. The CI log showed only this single formatting diff. Program Unit Tests, SBF build, LiteSVM, immutable Legacy tests and generated-vs-committed IDL comparison were therefore **not reached** in that attempt; no PASS is inherited for them.
+- Corrected the exact rustfmt-only line in Program commit `7d1cd6d109999c10585e5c617e1ed89c8294922c`; no account list, discriminator, payload, PDA seed or runtime logic was changed by this formatting commit.
+- Product CI pins the exact Program SHA `7d1cd6d109999c10585e5c617e1ed89c8294922c` for the next exact-source run.
+
+### Current disposition
+- **PASS:** product Quality; generated-client build; Squads unit/integration and Agave durable-nonce tests; pinned upstream reproducible build.
+- **PENDING:** next exact-source run of Program rustfmt, Program unit tests, deterministic SBF, VNext/Legacy LiteSVM, immutable Legacy isolation, and Codama generated-vs-committed IDL comparison.
+- **BLOCKED / NOT IMPLEMENTED:** generation-bound replacement routes for legacy Fixed/Recurring create and transfer remain unavailable; no capability-parity claim.
+- **BLOCKED:** archived/captured real v0.5.0 customer-account migration rehearsal and independent security audit.
+- **NOT IMPLEMENTED:** Subscription backend API, schema/RLS/grants, Billing Cycle/Attempt/atomic claim, isolated Collector, dedicated verifier/accounting adapter and real Subscription charge E2E.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grants, provider configuration, Secret/Key, signer, customer consent, accounting/ledger write, Devnet/Mainnet transaction, Program deployment/upgrade, or release was performed.
+- Product PR #366 and Program PR #1 remain OPEN / DRAFT / NOT MERGED; `main` remains unchanged.
