@@ -5684,3 +5684,34 @@ Only Product and Program feature branches were changed. No main/baseline branch,
 
 ### Mutation boundary
 Only Product and Program feature branches were changed. No Product main, Program baseline, Production DB/DDL/data/RLS/grants, API, Secret/Key/signer, customer consent, accounting ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed. Local Working Tree remains UNKNOWN through the remote GitHub connection.
+
+
+## 2026-11-20 — Current CI regression triage and bounded-deadline checkpoint
+
+### Exact repository identity
+- Product `azad2022/solsite`, branch `feat/pay-subscription-billing`; Product `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Program `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`; immutable baseline remains `364a41976c33347d092902443bbec2def9227e75`.
+- Product PR #366 and Program PR #1 remain OPEN / DRAFT / NOT MERGED.
+
+### CI evidence and corrections
+- Product CI run `44754893723` on Product HEAD `63ea147...` had two failed jobs:
+  1. `subscription-vnext-authority-registry`: `cargo fmt -p subscriptions-program -- --check` failed on seven exact formatting blocks in the deadline-bound lifecycle tests. Program commit `fa8af00e5d0388d6ec8d14b9189efa7046994bf6` applies the Rustfmt layout shown by the CI diff; no test semantics were changed.
+  2. `subscription-vnext-squads-sdk`: real delayed Squads proposal integration failed with `InstructionError [0, Custom 141]`; Program error 141 maps to `StaleAuthorityGeneration`. The other deadline-expiry test in the same suite passed. This is a protocol/integration failure, not a formatting issue.
+- Program commit `f143a3e1a16ddbcfcfc83863995a0b4779455b1d` improves the failing test's evidence: it asserts the Registry is absent before the tombstone revoke, submits the revoke with preflight skipped so a failed transaction is recorded, and reports confirmed on-chain logs. Expected revoke success and stale-proposal rejection remain unchanged.
+- Program design checkpoint `418a655f334e39d2989edf3355c1db4ba87ca201` records the bounded-deadline model and exact CI regression evidence.
+- Product CI commit `6e4f040c189a85675d66dec0296bb750fc8c0dfe` updates all four existing VNext Program pins to exact Program HEAD `418a655f334e39d2989edf3355c1db4ba87ca201`.
+
+### Additional implementation step completed
+- Fixed/Recurring lifecycle creation, transfer and terminal revoke now use the existing `AuthorityConsentRegistry::validate_action_deadline` with explicit `now_ts` / signed `not_after_ts`.
+- The shared deadline policy is inclusive at equality, rejects expired actions and caps the signed window at 24 hours. This was already implemented in Program commits `23586798...`, `2ad7567...` and is now documented against the exact source. No parallel policy was introduced.
+- Eleven model unit tests are present in source, including bounded-deadline boundary cases; they have not yet been claimed as executed on the current HEAD.
+
+### Current status
+- PASS: Rustfmt source correction committed; Squads integration test now captures the missing on-chain diagnostic evidence; Product workflow pins match exact Program HEAD; bounded deadline model uses the existing shared Registry rule.
+- BLOCKED: Squads tombstone-revoke integration root cause remains unresolved until the new run exposes the on-chain logs and the code path is corrected. Do not mark CI green.
+- UNKNOWN: Rustfmt/test/LiteSVM/CI results on latest Program/Product commits. The latest run was not awaited.
+- NOT IMPLEMENTED: persistent Fixed/Recurring lifecycle Registry, Create/Transfer/Revoke handlers, account layout/PDA contract, IDL/client and adversarial LiteSVM transition tests.
+- Program ID/key custody and permanent lifecycle Registry payer/sponsor/recovery policy remain OPEN.
+
+### Mutation boundary
+Only Product and Program feature branches changed. No `main`, immutable baseline, Production schema/data/RLS/grants, API, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed. Local Working Tree remains UNKNOWN via the remote GitHub connection.
