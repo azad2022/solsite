@@ -5429,3 +5429,30 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - UNKNOWN: local Rust/TypeScript test execution and current Program PR CI; neither was run in this session.
 - BLOCKED: Legacy Fixed/Recurring generation-bound parity, real-customer migration rehearsal, G2 backend contract freeze, production Subscription runtime and Production readiness.
 - No Production DDL/data/RLS/grant, provider configuration, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release was changed. No CI was dispatched or awaited.
+
+
+## 2026-11-20 — Legacy VNext discriminator isolation test boundary extension
+
+### Source identity
+- Product: `azad2022/solsite`, branch `feat/pay-subscription-billing`; current `main` remains `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Product PR #366 remains OPEN / DRAFT / NOT MERGED.
+- Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, immutable v0.5.0 baseline `364a41976c33347d092902443bbec2def9227e75`.
+- Program PR #1 remains OPEN / DRAFT / NOT MERGED; no Program change was made on its baseline branch.
+
+### Change
+- Extended the existing ignored immutable-v0.5.0 Legacy dispatcher rejection test in `tests/integration-tests/src/test_vnext_legacy_isolation.rs` from discriminators `18..=27` to `18..=30`.
+- The expanded range now explicitly covers the later VNext legacy-ATA Authority authorize/revoke routes (28/29) and generation/snapshot-bound legacy Subscription transfer route (30), in addition to the previously covered VNext instruction range.
+- This test loads the pinned immutable v0.5.0 binary and supplies no accounts; it asserts each additive discriminator is rejected before account processing. It is a compatibility/dispatch boundary test only, not proof of independent Program identity or complete Legacy Fixed/Recurring compatibility.
+- Program commit: `cbbe895d4900593e456b20f689244d117b632e5b`.
+- Product CI commit: `194c8a0e9be2eb2efbe671917e0655e5356aa596`; all four exact Program-source checkout/assertion references in `.github/workflows/ci.yml` now pin `cbbe895d4900593e456b20f689244d117b632e5b`.
+
+### Validation and interpretation
+- PASS — repository/branch/PR and exact source references were inspected; the targeted existing test text was unique and updated on the intended feature branches.
+- UNKNOWN — local Rust/LiteSVM test execution was not performed in this checkpoint.
+- UNKNOWN — CI result for the new Program/Product commits is not claimed. CI was not awaited; any resulting workflow must be inspected at exact HEAD before its executed jobs can be called PASS.
+- The broader Legacy Fixed/Recurring V2 instructions, ABI freeze, full adversarial suite, and real-account migration remain NOT IMPLEMENTED / BLOCKED. This test extension does not close those gates.
+
+### Mutation boundary
+- No Program runtime handler, instruction ABI, account layout, IDL, deployed Program, Program ID, key, signer, Production database/schema/RLS/grant, provider setting, customer consent, ledger, Devnet transaction, Mainnet transaction, deployment, merge or release was changed.
+- `main` was not modified. Both PRs remain Draft.
+- Local Working Tree remains UNKNOWN through the remote GitHub connection.
