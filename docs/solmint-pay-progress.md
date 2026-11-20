@@ -5313,3 +5313,42 @@ Both exact test names are reported **ok** by the complete LiteSVM run. These clo
 - **PASS:** workflow source now contains four matching VNext Program SHA references (two checkout refs and two exact-SHA assertions) and zero references to the previous Program SHA.
 - **PENDING:** a fresh exact-head Product CI run is required to validate source checkout, build, delayed-proposal integration and all other applicable gates. The failed intermediate run is not a validation of the code fix.
 - No Production/Devnet/Mainnet mutation, secret/key/signer change, customer consent, ledger posting, merge or release occurred.
+
+
+## 2026-11-20 — Squads delayed-revocation generation correction and exact-source CI PASS
+
+### Source identity
+- Product repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`, tested code/workflow HEAD `00d2d312216f8b9511d922a23138d47830cdc1a7`, PR #366 OPEN / DRAFT / NOT MERGED.
+- Program fork: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, exact source HEAD `a05353aac1b8847003231ec8772b57dcb9978f7e`, PR #1 OPEN / DRAFT / NOT MERGED.
+- Product PR base and `main` remained `514d3401d8d725be106ab0c83557f8e43cdff13e`; no main commit was made.
+
+### Corrected root cause — supersedes the earlier generation-0 revoke diagnosis
+- `AuthorityConsentRegistry::init` starts with `status=REVOKED` and `authority_generation=0`.
+- The held generation-0 Authorize proposal carries `expected_generation=0`; if it executes, it activates generation 1.
+- To pre-empt that pending first authorization while the Registry remains revoked at generation 0, Revoke must target the next generation: `expected_authority_generation=1`. The Registry revoke state machine then advances its persistent tombstone to generation 2 and increments the revoke nonce.
+- The prior checkpoint that changed Revoke from generation 1 to 0 and expected final generation 1 was incorrect: it caused the Revoke instruction itself to fail with custom error 141 (`StaleAuthorityGeneration`) before the delayed Authorize proposal was attempted.
+- The failure point in the integration test was `wallet.executeProposal(revokeProposal)`; it was not a failure of the later stale-proposal rejection assertion.
+
+### Changes
+- Program commit `a05353aac1b8847003231ec8772b57dcb9978f7e` changes only `clients/typescript/test/smart-wallets/squadsDelayedProposal.integration.test.ts`: Revoke expected generation is restored to 1, the expected persistent Registry generation is 2, and the scenario comment now describes pre-emption correctly. No Program runtime logic, instruction ABI, account ordering, discriminator, payload, PDA seed, IDL, or deployed Program was changed.
+- Product commit `00d2d312216f8b9511d922a23138d47830cdc1a7` updates all four exact Program-source references in `.github/workflows/ci.yml` (two checkout refs and two exact-SHA assertions) from `85bb5d317eee292f5625da00deefc94b67075c06` to `a05353aac1b8847003231ec8772b57dcb9978f7e`.
+- The Product workflow verified the exact fork SHA before building and testing it.
+
+### Exact-head CI evidence — Run [44699320060](https://github.com/azad2022/solsite/actions/runs/44699320060)
+- **PASS:** `quality` — TypeScript checks, Production Build, repository Unit Tests, fail-closed Production migration guards and source-tree checks.
+- **PASS:** `subscription-reproducible-build`.
+- **PASS:** `subscription-vnext-squads-sdk` — exact VNext build/generated clients, staged Squads SDK tests, real delayed-proposal integration (including the corrected revoke-before-delayed-authorize scenario), and Agave durable-nonce regression.
+- **PASS:** `subscription-vnext-authority-registry` — Rust formatting, Program Unit Tests, exact VNext SBF build, Token-2022 fixture, VNext/Legacy migration LiteSVM suites, immutable v0.5.0 Legacy SBF build and historical integration tests, Legacy-vs-VNext non-ATA isolation, Codama IDL regeneration and generated-vs-committed structural comparison.
+- **PASS:** Product CI workflow conclusion is `success` on tested HEAD `00d2d312216f8b9511d922a23138d47830cdc1a7`.
+- `subscription-tm06-sponsored-plan-refund`, `subscription-sdk-compat`, `subscription-atomic-split-transfer` and `subscription-mainnet-programdata` were skipped by the workflow's change-scope selection. The separate Production Build, Database Security, ordinary Pay Devnet E2E and Mainnet Read-only workflows were scope-filtered/skipped for this CI-only diff; do not interpret those skipped jobs as fresh standalone PASS evidence. The CI Quality job itself did execute and pass its Production Build step.
+
+### Remaining production gates — unchanged
+- **BLOCKED / NOT IMPLEMENTED:** generation-bound VNext replacements for Legacy Fixed/Recurring creation and transfer routes; no full Legacy capability-parity claim.
+- **BLOCKED:** migration rehearsal using verified captured real v0.5.0 customer on-chain account bytes.
+- **BLOCKED / UNKNOWN:** independent security audit of the new VNext Program delta and final Program identity/deployment/governance decision.
+- **NOT IMPLEMENTED:** Subscription application API/domain, database lifecycle schema/migrations/RLS/grants, Billing Cycle/Attempt uniqueness and atomic claim/recovery, isolated Collector/signing boundary, dedicated Subscription verification/accounting adapter, entitlement integration and real Subscription charge Devnet E2E.
+- Overall Subscription production readiness remains **BLOCKED**. Passing source/build/integration/IDL checks does not authorize production charging or customer consent.
+
+### Mutation boundary
+- No Production DDL/data/RLS/grants, provider configuration, Secret/Key/signer changes, customer consent, accounting/ledger writes, Devnet/Mainnet transactions, Program deployment/upgrade, merge, or release was performed.
+- Working Tree state cannot be read through the GitHub connector and remains **UNKNOWN**.
