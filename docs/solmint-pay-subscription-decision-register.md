@@ -1,11 +1,11 @@
 # SolMint Pay — Subscription Decision Register
 
-**Register version:** 1.1  
-**Decision date:** 2026-11-19  
+**Register version:** 1.2  
+**Decision date:** 2026-11-26  
 **Repository:** `azad2022/solsite`  
 **Branch:** `feat/pay-subscription-billing`  
-**Recorded from:** explicit owner selections submitted in ChatGPT on 2026-11-19  
-**Source HEAD reviewed for v1.1 amendment:** `962f532e254cb8d609a6c23916b8c6fa2283e3a2` (v1.0 was created from `1159454468e2b9c4b4aa940f22e314c9efc67816`)  
+**Recorded from:** explicit owner selections submitted on 2026-11-19 and 2026-11-26  
+**Source HEAD reviewed for v1.2 amendment:** `84caeaf6a9c5ab1289e489454b457cf26690ab92` (v1.1 was amended from `962f532e254cb8d609a6c23916b8c6fa2283e3a2`; v1.0 was created from `1159454468e2b9c4b4aa940f22e314c9efc67816`)  
 **PR:** #366 — OPEN / DRAFT / NOT MERGED  
 **Register status:** OWNER SELECTIONS RECORDED; CONTRACT FREEZE **BLOCKED**  
 **Scope:** design and product policy only. This register does not authorize runtime implementation, Production DDL/data changes, secrets/keys/signers, customer consent, Devnet mutation, Mainnet mutation or release.
@@ -40,6 +40,7 @@ A recorded product preference is not evidence that the feature exists or is safe
 | D-014 | Customer identity | SolMint account linked to the customer's own wallet. | CONDITIONALLY ACCEPTED; identity-link proof and wallet ownership contract OPEN |
 | D-015 | Wallet architecture | Preserve Smart Wallet and Multisig compatibility in the architecture. | RECORDED as an architectural requirement; actual support BLOCKED by protocol/approval-lifecycle gates |
 | D-016 | Plan retirement | Archive Plans permanently and preserve historical/financial records. | RECORDED; on-chain sunset and existing-subscription behavior must be separately modeled |
+| D-017 | VNext Program identity path | Select Path B: a new, independent SolMint-owned Program ID, with separate VNext PDAs/source-account lineage and fresh Merchant/Customer consent. | RECORDED 2026-11-26; Program ID/key custody, identity creation and deployment remain BLOCKED pending separate authorization and controlled custody |
 
 ## 3. Fee decisions — critical distinction
 
@@ -175,3 +176,30 @@ No Production database/schema/data/RLS/grant, Cloudflare/Supabase setting, secre
 - Important open audit item: Master Specification flags the hard-coded 100 bps in Payment Intent creation against the `gateway_fee_bps` domain concept. D-001 means reuse the currently approved Pay policy, not assert configurability or authorize changing that rate.
 - Subscription still requires a second transfer leg for the separate gateway-fee recipient, Plan destination allowlisting, dedicated finalized verifier and atomic accounting/outbox. The existing normal Pay verifier remains unchanged. Production Subscription fee collection remains BLOCKED.
 - No code, database, RLS/grants, secrets/keys/signers, customer consent, ledger, Devnet or Mainnet state was changed by this amendment.
+
+
+## 14. VNext Program identity path — owner decision 2026-11-26
+
+The owner selected the route that provides the shortest independently controllable path toward production: **Path B, VNext under a new independent SolMint-owned Program ID**.
+
+This selection resolves the architecture-path choice only. It does not establish a Program address, prove key custody, grant upgrade authority, or authorize a deployment.
+
+Required consequences:
+
+1. VNext uses a separate Program ID and PDA namespace. Existing v0.5.0 Program accounts, Plan/Authority/Subscription PDAs, consent, allowances and signed transactions remain legacy state; none is reinterpreted as VNext state.
+2. VNext permissions must bind to a dedicated customer-owned source token account whose identity and authority cannot be reached by accepted v0.5.0 account paths. A separate wallet is only a separately reviewed fallback. Source-account isolation must be proven against the exact immutable v0.5.0 binary and all relevant legacy instruction/account paths.
+3. Merchant Plans and customer Authority/Subscription/Fixed/Recurring permissions require fresh VNext creation and explicit signatures. Customer fund movement, when needed, must be an explicit customer-signed transaction; no automatic sweep or server custody.
+4. Legacy collection must be claim-protected and reconciled as part of any cohort cutover. The old Program remains independently callable; a new Program ID does not revoke old permissions or invalidate old signed transactions.
+
+**Authorization boundary:** this decision does not authorize generating a Program keypair/ID, selecting or changing key custody, assigning an upgrade authority, creating a persistent signer, submitting a Devnet/Mainnet transaction, deploying or upgrading a Program, or migrating customer funds/consent. Those require a separate explicit authorization and reviewed key-custody procedure.
+
+**Remaining blockers:** Program identity creation/custody and deployment preparation; full exact-binary legacy-to-VNext source-account isolation proof; the permanent Fixed/Recurring lifecycle Registry rent-payer/sponsorship/refund policy; versioned VNext account/dispatcher/revoke boundary; ABI golden tests and adversarial migration proof. G1-2 ABI freeze and Subscription Contract Freeze remain **BLOCKED**. No capability is permanently de-scoped.
+
+
+## 15. Version history
+
+### v1.2 — 2026-11-26
+- Owner selected Path B, the independent SolMint-owned VNext Program ID route, as the shortest independently controllable architecture path.
+- Recorded the fresh-consent, new-PDA namespace, dedicated source-token-account isolation and explicit customer-signed migration requirements.
+- Clarified that the route selection does not authorize Program ID/keypair generation, custody changes, signer creation, deployment, customer consent or fund movement.
+- Existing D-001 through D-016 remain unchanged. Contract Freeze and Subscription Production readiness remain BLOCKED.
