@@ -5745,3 +5745,35 @@ Only the Program feature branch and Product Subscription feature branch were cha
 - Program design checkpoint commit `c70424da57f0f1a2f5238a6a8025b89f3f03812e` records this additional evidence requirement. Current Program PR #1 HEAD is `c70424da57f0f1a2f5238a6a8025b89f3f03812e`.
 - Product CI commit `a3d4fda6dbe6710c5d42119f9be9c27ec8c45ef2` updates the same four existing VNext source pins from the intermediate checkpoint to the final Program HEAD above. The four-pin count was checked before the replacement; no new source pin or workflow job was introduced.
 - The new exact-head run is not available in the workflow-run lookup at this checkpoint. The prior failure is not relabeled as fixed; new test execution and the actual on-chain failure cause remain UNKNOWN until the CI run reports.
+
+
+## 2026-11-20 — Exact-head Squads tombstone and VNext CI closure
+
+### Repository / PR identity
+- Product branch `feat/pay-subscription-billing`, Product PR #366, exact tested Product HEAD `0e5369c86a787e257bb76512479eac597111d06b`.
+- Program branch `feat/solmint-g1-authority-vnext`, Program PR #1. The VNext executable source checked by Product CI was `c70424da57f0f1a2f5238a6a8025b89f3f03812e`; the subsequent Program PR HEAD `f13f15be38a6a04b510516f67035238b10b46ec4` adds only the evidence checkpoint document, not runtime/test code.
+- Both PRs remain OPEN / DRAFT / NOT MERGED. Product `main` and the immutable Program v0.5.0 baseline were not changed.
+
+### Exact-head CI result
+- Product CI run [44758480405](https://github.com/azad2022/solsite/actions/runs/44758480405) on Product HEAD `0e5369c...`: **SUCCESS**.
+- The initially cancelled `subscription-production-migration-cli` job was the sole incomplete job; it had reached its 10-minute limit while the pinned Supabase CLI setup action ran. Only that cancelled job was rerun (first cancelled job `136364553303`, successful retry job `140058596959`). The retry completed exact CLI v2.122.1 installation/version verification. Successful jobs were not repeated.
+- Companion workflows on that exact Product HEAD:
+  - Production Build [44758480397] — SUCCESS.
+  - Database Security [44758480616] — SUCCESS.
+  - Devnet E2E [44758480443] — SUCCESS.
+  - Mainnet Read-only [44758480315] — SUCCESS.
+
+### Focused exact-source test evidence
+- `subscription-vnext-squads-sdk`, job `140058649602`: staged Squads wallet SDK 6/6; delayed proposal integration 2/2; Agave durable-nonce rollback regression 1/1. The tombstone revoke succeeded before the previously approved stale authorization was submitted; that stale proposal was rejected as expected. The approved deadline-expired authorization was also rejected.
+- `subscription-vnext-authority-registry`, job `140058600997`: both Rust formatting checks passed; Program unit tests 109/109; VNext integration selection 26 passed / 0 failed / 5 ignored in that selection; separate Legacy authority-generation selection 3/3; immutable v0.5.0 historical integration suite 274/274; dedicated immutable-v0.5.0 Legacy isolation run 5/5. The five Legacy tests cover the non-ATA boundary, Authority/Fixed/Recurring paths, Plan/Subscription account isolation, additive VNext discriminator rejection and Token-2022 TransferHook behavior. Exact VNext SBF build and generated-vs-committed Codama IDL structural comparison passed.
+- These Legacy isolation tests already existed in Program source. They are recorded as executed; no duplicate tests were added.
+- Specialized atomic split-transfer and TM-06 jobs were skipped by the current changed-path scope. This checkpoint does not claim they were re-executed in run 44758480405.
+
+### Stage disposition
+- **PASS:** prior diagnostic/test-harness stage; exact-source Squads tombstone ordering test now passes with preserved security assertions; exact Product CI and all five Product workflow wrappers pass.
+- **BLOCKED:** next Fixed/Recurring ABI/runtime stage cannot be frozen until the explicit Program identity/deployment path and persistent per-delegation tombstone/account-version/revoke plus permanent Registry rent-payer/sponsorship contract are resolved. The architecture plan states a new SolMint-owned Program ID as the default independent path, but the dedicated Program design review still records the actual path as OPEN. Do not infer approval or generate a key.
+- **NOT IMPLEMENTED:** persistent Fixed/Recurring Registry account serialization/PDA/discriminator, VNext Create/Transfer/Revoke handlers, dispatcher/IDL/client and exact-source adversarial state-transition suite.
+- **UNKNOWN:** local Working Tree; real-world custody/identity of any future independent Program ID.
+
+### Mutation boundary
+No Product `main`, immutable Program baseline, Production DB/DDL/data/RLS/grants, API, Secret/Key, signer, Program ID/keypair, Devnet/Mainnet transaction/deployment, customer consent, accounting entry, customer funds, merge or release changed.
