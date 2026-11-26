@@ -407,3 +407,55 @@ No Program runtime, IDL, account data, migration, Production/Devnet/Mainnet stat
 - G1-2 Fixed/Recurring ABI freeze remains **BLOCKED**. The actual Program identity/deployment path is still marked OPEN in the Program design review, despite the Product plan naming a new SolMint-owned Program ID as the default independent route. Persistent per-delegation Registry account-version/revoke boundary and its permanent rent payer/sponsorship policy must be decided together before the ABI is frozen.
 - Fixed/Recurring persistent Registry, on-chain account layout, dispatcher/Create/Transfer/Revoke handlers, generated IDL/client and dedicated adversarial LiteSVM lifecycle suite remain **NOT IMPLEMENTED**.
 - No Program keypair/ID was generated or deployed. No Production database/configuration, signer, customer consent, ledger, Devnet/Mainnet state or funds changed. Both PRs remain OPEN / DRAFT / NOT MERGED.
+
+
+## 16. 2026-11-26 — Owner selects independent Path B
+
+### Decision and repository boundary
+
+The owner selected **Path B: VNext under a new independent SolMint-owned Program ID** as the fastest path that does not depend on proving control of the existing Mainnet Squads governance path.
+
+- Product repository: `azad2022/solsite`, branch `feat/pay-subscription-billing`, PR #366.
+- Product `main` at the decision checkpoint: `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Product feature HEAD before this documentation checkpoint: `84caeaf6a9c5ab1289e489454b457cf26690ab92`.
+- Program repository: `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, PR #1.
+- Program feature HEAD at the decision checkpoint: `f13f15be38a6a04b510516f67035238b10b46ec4`; the last executable-source checkpoint remains `c70424da57f0f1a2f5238a6a8025b89f3f03812e`, with the later Program commit being documentation-only.
+- Immutable Program baseline remains `364a41976c33347d092902443bbec2def9227e75`. It is not modified.
+- Both PRs remain OPEN / DRAFT / NOT MERGED. Product main and Program main are not work branches.
+
+This supersedes the earlier ambiguity that the Product plan named Path B as a default while the Program design review still left the architecture path unselected.
+
+### Consequences that are now fixed
+
+1. VNext will have a new Program ID and independent PDA namespace. No v0.5.0 account is owned by, reinterpreted as, or silently migrated into the new Program.
+2. VNext requires a dedicated customer-owned source token account. The exact account and its authority must be unreachable through every accepted old v0.5.0 instruction path, not merely different from a legacy PDA. A non-ATA account is the current candidate, not yet a proven isolation guarantee.
+3. The old Program remains independently callable. A new Program ID does not disable old instructions, revoke old delegation, cancel held signatures/proposals or make a legacy source account safe.
+4. Merchant Plans and every customer permission must be created under VNext with fresh, explicit Merchant/Customer signatures. Fund migration, if required, is an explicit customer-signed transfer; no server custody or automatic sweep.
+5. Any migration cohort must claim-protect old Billing work, reconcile all old authorized Pullers and pending approvals, preserve legacy evidence, avoid overlap/double collection, and only grant service from independently verified transfer/accounting evidence.
+
+### Authorization boundary
+
+Path B selection is **not** authorization to generate a Program keypair/ID, select or alter key custody, assign an upgrade authority, create a persistent signer, deploy to Devnet/Mainnet, submit a chain transaction, migrate customer funds, or issue fresh customer consent. Those operations remain separately gated by explicit authorization and a reviewed custody procedure. No such mutation was performed in this checkpoint.
+
+### Next technical work and remaining gates
+
+The selection resolves the path-choice item in Program design §8.4.3, but it does not freeze the Fixed/Recurring ABI or complete G1. The next narrow work item is to complete the independent-path contract before assigning public account bytes:
+
+- Specify the exact VNext Program identity/custody handoff without generating a key in this step.
+- Complete source-account isolation proof against the exact immutable v0.5.0 binary for Init, Close, Subscribe, Revoke, Fixed/Recurring Create/Transfer, arbitrary account substitutions and remaining-account paths. Existing non-ATA checks are partial evidence only.
+- Resolve the permanent per-delegation lifecycle Registry rent payer and sponsorship/refund economics. The tombstone must survive closure of the larger delegation account; do not silently charge a customer, let a sponsor control subscriber revocation, or promise recovery of permanently locked rent.
+- Only after those decisions, freeze the persistent Registry PDA/account version, old-versus-VNext revoke boundary, fixed account order, Create/Transfer/Revoke payloads, Codama IDL/client and golden byte tests.
+- Then implement callable VNext Fixed/Recurring handlers and exact-source LiteSVM adversarial lifecycle tests.
+
+### Status at this checkpoint
+
+- **PASS:** owner-selected architecture path is now explicit and recorded as Path B.
+- **BLOCKED:** actual Program ID/keypair creation and custody; full legacy source-account isolation; permanent Registry rent payer/sponsorship/recovery policy; Fixed/Recurring ABI freeze; G1 migration, independent audit and deployment gates.
+- **NOT IMPLEMENTED:** persistent Fixed/Recurring Registry account serialization/PDA, public VNext Create/Transfer/Revoke dispatcher routes, IDL/client generation and on-chain adversarial state-transition suite.
+- **UNKNOWN:** local Working Tree; future Program key custody; full legacy path isolation on the exact old binary. No evidence in this checkpoint upgrades those to PASS.
+
+### CI and mutation boundary
+
+At the preceding Product HEAD `84caeaf6a9c5ab1289e489454b457cf26690ab92`, all five Product workflow wrappers were successful: Mainnet Read-only run `45863690614`, Production Build `45863690647`, Database Security `45863690796`, ordinary Pay Devnet E2E `45863690640`, and CI `45863690702`. However, the latest CI run executed only the generic quality/CLI/change-scope checks; its specialized Subscription Program/SDK/reproducible-build/split-transfer/TM-06/ProgramData jobs were SKIPPED by changed-path scope. This is not new exact-source Subscription suite evidence. The separate earlier exact-source run `44758480405` on Product code HEAD `0e5369c86a787e257bb76512479eac597111d06b` remains the focused PASS evidence recorded in §15; it is not a test of this architecture decision.
+
+No Product `main`, Program `main`, immutable Program baseline, Production database/DDL/data/RLS/grants, API/runtime, Secret/Key, signer, customer consent, ledger, Devnet/Mainnet transaction, Program deployment/upgrade, merge or release changed. Local Working Tree is not readable through the remote GitHub connection and remains UNKNOWN.
