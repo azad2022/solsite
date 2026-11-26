@@ -5838,3 +5838,18 @@ Prepare the final independent-identity and per-delegation Registry funding contr
 ### Mutation boundary
 
 No Product `main`, Program `main`, immutable Program baseline, Production DB/DDL/data/RLS/grants, API/runtime, Secret/Key, signer, customer consent, ledger, Devnet/Mainnet state, Program deployment/upgrade, transaction, customer funds, merge or release changed. Only the Product and Program feature branches' documentation files changed. Local Working Tree remains UNKNOWN through the remote connection.
+
+
+### Follow-up — exact workflow completion after the Path B checkpoint was recorded
+
+The earlier status above correctly reported Product CI run `45867562246` as in progress at the time of the first read. A subsequent read of the same run confirms it completed:
+
+- `subscription-change-scope`: SUCCESS.
+- `quality`: SUCCESS.
+- `subscription-production-migration-cli`: SUCCESS.
+- `production-migration-cli`: SUCCESS.
+- `subscription-vnext-squads-sdk`, `subscription-vnext-authority-registry`, `subscription-reproducible-build`, `subscription-atomic-split-transfer`, `subscription-tm06-sponsored-plan-refund`, `subscription-mainnet-programdata` and `subscription-sdk-compat`: SKIPPED.
+
+Companion workflows on Product HEAD `a57819c7...` also completed: Production Build `45867562356`, Database Security `45867562296`, Mainnet Read-only `45867562313` and ordinary Pay Devnet E2E `45867562480` — all SUCCESS. This confirms the wrappers and generic jobs only; specialized Subscription jobs were skipped and must not be reported as freshly tested.
+
+The subsequent progress-ledger-only Product commit `d118c6d4b5345491451786c0e6c068ebcd226c28` has no associated workflow run returned by the exact-commit workflow lookup. Therefore exact-head CI for `d118c6d4...` is **UNKNOWN / no run evidenced**, not PASS. No executable source changed in the commits after the focused exact-source Program run.
