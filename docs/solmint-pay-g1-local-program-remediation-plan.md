@@ -384,3 +384,26 @@ The Program design §8.4 records candidate packed payloads for Fixed Create (40 
 
 ### Mutation boundary
 No Program runtime, IDL, account data, migration, Production/Devnet/Mainnet state, Program ID/key, signer, customer consent, ledger, deployment, merge or release changed. Both feature PRs remain Draft; local Working Tree remains UNKNOWN.
+
+
+## 15. 2026-11-20 — Exact-source VNext / Squads CI closure
+
+### Exact tested identities
+- Product repository `azad2022/solsite`, branch `feat/pay-subscription-billing`, PR #366, exact tested HEAD `0e5369c86a787e257bb76512479eac597111d06b`.
+- Program repository `azad2022/solmint-subscriptions-program`, branch `feat/solmint-g1-authority-vnext`, PR #1. Product CI pinned and checked executable/test source `c70424da57f0f1a2f5238a6a8025b89f3f03812e`. The subsequent Program PR HEAD `f13f15be38a6a04b510516f67035238b10b46ec4` is a documentation-only evidence checkpoint.
+- Product CI run `44758480405`: **SUCCESS**. The only cancelled job was the exact-branch Supabase CLI installation check; rerunning only that job completed successfully with CLI v2.122.1. No already-successful job was repeated.
+
+### Verified test results
+- **PASS:** `subscription-vnext-squads-sdk` (job `140058649602`): Squads wallet unit tests 6/6; delayed proposal integration 2/2; Agave durable-nonce rollback integration 1/1.
+- **PASS:** the formerly failing tombstone-revoke test now executes the Vault revocation first, confirms success, then submits the previously approved authorization and proves that stale execution is rejected. The deadline-expired approval test also passes. Its expected assertions were not weakened.
+- **PASS:** `subscription-vnext-authority-registry` (job `140058600997`): Rust formatting; 109 Program unit tests; VNext integration selection (26 passed, 5 ignored in that selection); 3 legacy-authority generation tests; immutable v0.5.0 historical integration suite (274 passed); and all 5 dedicated immutable-legacy isolation tests. The five isolation cases include Fixed/Recurring create, transfer and revoke boundaries; Plan/Subscription account boundaries; non-ATA source protection; additive discriminator rejection; and Token-2022 TransferHook positive control.
+- **PASS:** exact VNext SBF build and generated-vs-committed Codama IDL structural comparison.
+- **PASS:** Product Production Build, Database Security, ordinary Pay Devnet E2E and Mainnet Read-only workflows on the same tested Product HEAD.
+- **SKIPPED:** atomic split-transfer and TM-06 specialized workflows under the current changed-path scope. This run does not claim those suites were re-executed.
+
+### Superseding disposition
+- G1-3 tested VNext Authority/Plan/Subscription source slice and the Squads stale-approval regression retain their previously evidenced PASS results; the current exact-source CI refresh is now **PASS**.
+- The diagnostic test-harness correction is **PASS**. The tested Program behavior succeeded; this does not prove a new Program ID, Mainnet/Devnet deployment, customer migration or arbitrary smart-wallet provider support.
+- G1-2 Fixed/Recurring ABI freeze remains **BLOCKED**. The actual Program identity/deployment path is still marked OPEN in the Program design review, despite the Product plan naming a new SolMint-owned Program ID as the default independent route. Persistent per-delegation Registry account-version/revoke boundary and its permanent rent payer/sponsorship policy must be decided together before the ABI is frozen.
+- Fixed/Recurring persistent Registry, on-chain account layout, dispatcher/Create/Transfer/Revoke handlers, generated IDL/client and dedicated adversarial LiteSVM lifecycle suite remain **NOT IMPLEMENTED**.
+- No Program keypair/ID was generated or deployed. No Production database/configuration, signer, customer consent, ledger, Devnet/Mainnet state or funds changed. Both PRs remain OPEN / DRAFT / NOT MERGED.
