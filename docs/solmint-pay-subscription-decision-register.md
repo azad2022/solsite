@@ -1,12 +1,12 @@
 # SolMint Pay — Subscription Decision Register
 
-**Register version:** 1.3  
-**Owner decision dates:** 2026-11-19, 2026-11-26  
+**Register version:** 1.4  
+**Owner decision dates:** 2026-11-19, 2026-11-26, 2026-11-27 (delegated engineering selection)  
 **Technical review:** 2026-11-27  
 **Repository:** `azad2022/solsite`  
 **Branch:** `feat/pay-subscription-billing`  
-**Recorded from:** explicit owner selections submitted on 2026-11-19 and 2026-11-26  
-**Source HEADs reviewed for v1.3 evidence-only clarification:** Product `75e09d6db99adfae41c095cd80deeb3364e9083d`; Program `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`. The v1.2 owner decision was reviewed from Product `84caeaf6a9c5ab1289e489454b457cf26690ab92`; v1.1 from `962f532e254cb8d609a6c23916b8c6fa2283e3a2`; v1.0 from `1159454468e2b9c4b4aa940f22e314c9efc67816`.  
+**Recorded from:** explicit owner selections on 2026-11-19 and 2026-11-26; on 2026-11-27 the owner explicitly delegated the Fixed/Recurring Registry rent-model choice to engineering discretion, and this version records the selected conservative policy  
+**Source HEADs reviewed for v1.4 policy decision:** Product `06d75cfa71e2ebf28917639f479931dafc6eb65d`; Program `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`. The v1.2 owner decision was reviewed from Product `84caeaf6a9c5ab1289e489454b457cf26690ab92`; v1.1 from `962f532e254cb8d609a6c23916b8c6fa2283e3a2`; v1.0 from `1159454468e2b9c4b4aa940f22e314c9efc67816`.  
 **PR:** #366 — OPEN / DRAFT / NOT MERGED  
 **Register status:** OWNER SELECTIONS RECORDED; CONTRACT FREEZE **BLOCKED**  
 **Scope:** design and product policy only. This register does not authorize runtime implementation, Production DDL/data changes, secrets/keys/signers, customer consent, Devnet mutation, Mainnet mutation or release.
@@ -150,38 +150,32 @@ The following remain OPEN or BLOCKED and prevent G2 Contract Freeze:
 9. Define operational finality/RPC freshness, Program drift monitoring, kill switch and all-Puller discovery/reconciliation.
 10. Complete typed Subscription accounting origin, atomic commit, outbox and reconciliation contract.
 11. Resolve the upstream G1 protocol/audit blockers. The previously rejected High TM-01 residual risk remains NOT ACCEPTED; no owner decision here overrides that rejection.
-12. **Permanent Fixed/Recurring Lifecycle Registry rent funding and recovery — OPEN; no payer model selected.** The exact VNext lifecycle record must remain non-closeable and preserve its terminal tombstone after the separate closeable delegation account is closed. Its rent payer, any optional third-party sponsorship, excess-lamport handling, and the separate delegation-account refund policy must be decided before account metas or ABI are frozen. This item is a design gate, not authorization to charge or sponsor rent.
+12. **Permanent Fixed/Recurring Lifecycle Registry rent policy — SELECTED; implementation and account ABI remain BLOCKED.** The permanent tombstone is subscriber-funded, its rent-exempt principal stays locked, and it is never closed or refunded. Excess-lamport recovery is excluded from the initial implementation. The separately closeable delegation account keeps an independently recorded payer and a refund only to that exact payer under reviewed VNext terminal/recovery rules. Optional third-party rent sponsorship remains in product scope but cannot be enabled until exposure controls, consent/disclosure, recorded payer facts and recovery tests exist.
 
-### 10.1 Fixed/Recurring Lifecycle Registry rent decision worksheet — OPEN
+### 10.1 Fixed/Recurring Lifecycle Registry rent policy — SELECTED (2026-11-27)
 
-**Verified source constraints**
-- Program design §8.4.4 requires a persistent per-logical-delegation lifecycle record that survives closure and rent recovery of the larger Fixed/Recurring account. The record is non-closeable; the payer/sponsorship/recovery policy is explicitly unresolved.
-- The existing Authority Consent Registry is a distinct precedent, not an automatic policy for this new record: its v1 account is permanently retained, records the rent payer, and its current Program path initializes it with subscriber-funded rent. A separately funded VNext Authority is closeable and its recorded payer receives that Authority account's rent on a valid subscriber revoke. These rules must not be silently copied to a different lifecycle account.
-- The Subscription Skill's conservative operating boundary is that SolMint does not sponsor account rent or network fees. User-owned Authority/Subscription/delegation accounts use the Customer as instruction-level rent payer; Merchant-owned Plan uses the Merchant. Any future external sponsorship requires explicit approval, exposure quotas, recorded payer/account/refund facts and an enforceable recovery path before the first sponsored transaction.
-- Account rent payer, transaction network-fee payer, subscriber/revoker, permission owner and any sponsor are separate roles. A payer must not acquire the ability to delay, veto or prevent subscriber revocation.
+**Selected policy (owner-delegated engineering choice, 2026-11-27)**
+1. **Permanent lifecycle Registry:** the subscriber pays its creation Rent. The actual Rent-exempt minimum is derived at runtime from the finalized serialized account length using the cluster Rent sysvar; never hard-code a lamport amount or estimate it before the layout is frozen. Record the exact payer in the persistent Registry for audit. The Registry is non-closeable; its required Rent-exempt principal is permanently locked for as long as the tombstone is required. No refund, close, sweep or excess-lamport recovery is included in the initial design.
+2. **Separate closeable Fixed/Recurring delegation:** the baseline payer is the Customer. A separately approved external sponsor may become the instruction-level rent payer only after the sponsorship controls below exist. The closeable account must retain the exact payer identity and refund only that recorded payer when a valid customer terminal-revoke or exact protocol recovery condition permits closure. A sponsor cannot force-close a healthy account or delay customer revoke. Preserve the reviewed v0.5.0 recovery boundaries where applicable to VNext: Fixed recovery only after expiry or fully spent (`amount == 0`); Recurring sponsor recovery only for finite elapsed expiry; non-expiring cases require the related Authority to be terminal before abandoned recovery. Do not assume this wording authorizes a new VNext handler before its exact account/identity rules are tested.
+3. **Sponsorship scope:** optional third-party rent sponsorship remains a product requirement and is not permanently de-scoped. It is not enabled by this decision. Before the first sponsored transaction, require explicit payer consent/disclosure, per-account and aggregate exposure limits, durable payer/account/refund audit facts, atomic quota reservation/release, and tested recovery enforcement. No SolMint treasury, Collector or Relayer may silently fund rent or network fees.
+4. **Network fee:** transaction fee payer remains a separate role and follows the existing operation-specific rule (Customer for customer setup/control, Merchant for Plan operations and Merchant billing pulls). Collector may be the authorized Puller signer, but must not spend SolMint-funded SOL.
+5. **No ABI invention:** this choice does not assign a Program field, payer account-meta position, discriminator, PDA seed, account size, rent amount, API, DB object or refund instruction. Excess-rent recovery is deliberately absent from the initial design.
 
-**Candidate funding models — neither selected**
-- **Subscriber-funded permanent record:** the subscriber funds allocation of the non-closeable Lifecycle Registry. The rent-exempt principal remains locked while the tombstone must exist; it must not be described as refundable or recoverable on ordinary revoke. Any optional excess recovery would be a separate, explicitly approved capability and could return only excess above the required rent-exempt floor to the recorded payer.
-- **Approved external sponsor-funded permanent record:** a non-SolMint third party funds allocation under an explicit sponsorship contract. The permanent rent-exempt principal remains locked for the lifetime of the tombstone; closing the larger delegation account does not refund that principal. Sponsorship would require explicit disclosure/consent, per-account and aggregate exposure limits, an auditable payer-to-account record and a tested recovery policy for the separate closeable account. The sponsor must have no authority over subscriber revoke and no right to close/reset the permanent record.
-- **SolMint/platform-funded rent:** not an available default under the current project security/operating policy. Do not introduce it as a workaround or infer approval from the existence of an optional payer account in another instruction.
-
-**Decisions required before ABI freeze**
-1. Who funds the permanent Lifecycle Registry: subscriber, or an explicitly approved external sponsor?
-2. Is external sponsorship enabled for this capability at all, and what disclosure, opt-in, per-customer/global exposure caps and audit facts are required?
-3. Is excess-lamport recovery supported? If so, the exact rent-floor calculation, trigger, authorized caller, refund destination and atomicity must be specified. The tombstone and its required rent-exempt principal remain intact.
-4. Who funds the separate closeable Fixed/Recurring delegation account, and what exact VNext terminal/expiry/fully-spent conditions permit its closure and rent return? Do not assume the legacy v0.5.0 recovery behavior automatically applies to Path B.
-5. Confirm independently funded transaction network fees; rent sponsorship must not silently become SolMint gas sponsorship.
+**Implementation and release gates still OPEN/BLOCKED**
+- Exact sponsorship exposure caps, quota lifecycle, UI disclosure and durable audit implementation remain to be specified and adversarially tested; until then sponsorship must remain disabled at runtime.
+- Persistent Registry serialization/PDA, exact payer account position, rent allocation/atomic close boundary, VNext account layout and the Program identity/deployment path must be reviewed together before ABI freeze.
+- The actual rent-exempt amount must be calculated from the final account size and target cluster at execution time, not copied from a document.
+- Required tests: wrong payer substitution, sponsor/revoker separation, exact refund destination, no refund to sponsor on a customer-owned account, permanent tombstone after close, rent-floor preservation, failed CPI/close rollback, and no account-position/TransferHook aliasing.
 
 **Non-negotiable acceptance conditions**
-- Subscriber revoke/terminalization succeeds without sponsor signature, sponsor availability or sponsor approval.
-- Registry state, owner and rent-exempt floor survive delegation closure, sponsor recovery and retries; no generation/revision reset.
-- Any allowed excess recovery returns only to the exact recorded payer and cannot change Registry bytes, owner or lifecycle state.
-- Failed close/refund/CPI paths roll back atomically and cannot strand a live delegation with a missing tombstone.
-- Closeable delegation-account recovery cannot close, reclaim or mutate the permanent lifecycle record.
-- Customer-facing consent must disclose the actual payer, locked rent principal, refundability limits and any sponsor role before signing.
-- No sponsor ledger/quota table, API, Program field, instruction account position, amount or fee is created by this worksheet.
+- Customer revoke/terminalization succeeds without sponsor signature, availability or approval.
+- The permanent Registry identity, owner/payer audit fact and rent-exempt principal survive delegation closure, sponsor recovery and retries; generation/revision never resets.
+- The permanent Registry cannot be closed, reclaimed or mutated by sponsor recovery. No excess sweep is permitted in this initial policy.
+- Failed close/refund/CPI paths roll back atomically and cannot strand an active delegation without its tombstone.
+- Any closeable-account refund goes only to its exact recorded payer under its independently validated terminal/recovery rule.
+- No sponsor quota/API/table/Program field/account position/amount is invented by this decision; those are future implementation deliverables after source review.
 
-**Disposition:** OPEN / BLOCKED for Fixed/Recurring account ABI and implementation. The product capability is retained; no payer, sponsorship model, rent amount, refund promise or account layout is selected by this amendment. Source references: Program design §§3.1, 8.4.4–8.4.7; Subscription Skill §12.9; Build Web Apps Skill §Subscription rent-payer boundary.
+**Disposition:** policy selected; permanent Registry payer model resolved. Persistent Registry, closeable account refund wiring, sponsor controls, ABI and runtime remain **NOT IMPLEMENTED / BLOCKED**. Sources: Product Project Instructions rent boundary; Subscription Skill §12.9; Program design §§3.1, 8.4.4–8.4.8; current Authority Registry implementation.
 
 ## 11. Current implementation and release status
 
@@ -226,7 +220,7 @@ Required consequences:
 
 **Authorization boundary:** this decision does not authorize generating a Program keypair/ID, selecting or changing key custody, assigning an upgrade authority, creating a persistent signer, submitting a Devnet/Mainnet transaction, deploying or upgrading a Program, or migrating customer funds/consent. Those require a separate explicit authorization and reviewed key-custody procedure.
 
-**Remaining blockers:** Program identity creation/custody and deployment preparation; full exact-binary legacy-to-VNext source-account isolation proof; the permanent Fixed/Recurring lifecycle Registry rent-payer/sponsorship/refund policy; versioned VNext account/dispatcher/revoke boundary; ABI golden tests and adversarial migration proof. G1-2 ABI freeze and Subscription Contract Freeze remain **BLOCKED**. No capability is permanently de-scoped.
+**Remaining blockers:** Program identity creation/custody and deployment preparation; full exact-binary legacy-to-VNext source-account isolation proof; persistent Registry serialization/PDA and the versioned VNext account/dispatcher/revoke boundary; optional sponsorship exposure/quota/disclosure/recovery implementation; ABI golden tests and adversarial migration proof. The permanent Registry payer decision is recorded but does not authorize ABI freeze. G1-2 ABI freeze and Subscription Contract Freeze remain **BLOCKED**. No capability is permanently de-scoped.
 
 
 ## 15. Version history
@@ -243,3 +237,9 @@ Required consequences:
 - Separated the non-closeable lifecycle tombstone from the separately closeable Fixed/Recurring delegation account and distinguished both from the already implemented Authority Consent Registry / closeable Authority rent behavior.
 - Recorded subscriber-funded and approved external-sponsor-funded models as unselected alternatives, plus the required excess-rent, separate fee-payer, refund, consent-disclosure and no-sponsor-control invariants.
 - No payer, sponsor model, rent amount, recovery promise, Program field, account-meta position, PDA seed or ABI was selected. This amendment does not authorize implementation, billing, DB/API work, Production mutation or any on-chain action.
+
+### v1.4 — 2026-11-27 (owner-delegated engineering policy selection)
+- The owner instructed engineering to select the most appropriate rent model and proceed. Recorded the subscriber-funded, permanently retained Lifecycle Registry principal; no excess-lamport recovery; and separate recorded-payer refund rules for the closeable delegation account.
+- Preserved optional external rent sponsorship as a product requirement, but kept it disabled until exposure quotas, consent/disclosure, durable payer/refund audit facts and exact recovery enforcement are implemented and tested.
+- Kept transaction network fees separate from account Rent and prohibited SolMint treasury/Collector funding.
+- No runtime code, API, database object, Program account/ABI/seed/discriminator, rent amount, key, signer, deployment or on-chain state was created or changed. This selection resolves the policy choice only; implementation and ABI freeze remain BLOCKED.
