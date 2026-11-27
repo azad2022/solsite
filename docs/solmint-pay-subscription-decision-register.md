@@ -149,6 +149,38 @@ The following remain OPEN or BLOCKED and prevent G2 Contract Freeze:
 9. Define operational finality/RPC freshness, Program drift monitoring, kill switch and all-Puller discovery/reconciliation.
 10. Complete typed Subscription accounting origin, atomic commit, outbox and reconciliation contract.
 11. Resolve the upstream G1 protocol/audit blockers. The previously rejected High TM-01 residual risk remains NOT ACCEPTED; no owner decision here overrides that rejection.
+12. **Permanent Fixed/Recurring Lifecycle Registry rent funding and recovery — OPEN; no payer model selected.** The exact VNext lifecycle record must remain non-closeable and preserve its terminal tombstone after the separate closeable delegation account is closed. Its rent payer, any optional third-party sponsorship, excess-lamport handling, and the separate delegation-account refund policy must be decided before account metas or ABI are frozen. This item is a design gate, not authorization to charge or sponsor rent.
+
+### 10.1 Fixed/Recurring Lifecycle Registry rent decision worksheet — OPEN
+
+**Verified source constraints**
+- Program design §8.4.4 requires a persistent per-logical-delegation lifecycle record that survives closure and rent recovery of the larger Fixed/Recurring account. The record is non-closeable; the payer/sponsorship/recovery policy is explicitly unresolved.
+- The existing Authority Consent Registry is a distinct precedent, not an automatic policy for this new record: its v1 account is permanently retained, records the rent payer, and its current Program path initializes it with subscriber-funded rent. A separately funded VNext Authority is closeable and its recorded payer receives that Authority account's rent on a valid subscriber revoke. These rules must not be silently copied to a different lifecycle account.
+- The Subscription Skill's conservative operating boundary is that SolMint does not sponsor account rent or network fees. User-owned Authority/Subscription/delegation accounts use the Customer as instruction-level rent payer; Merchant-owned Plan uses the Merchant. Any future external sponsorship requires explicit approval, exposure quotas, recorded payer/account/refund facts and an enforceable recovery path before the first sponsored transaction.
+- Account rent payer, transaction network-fee payer, subscriber/revoker, permission owner and any sponsor are separate roles. A payer must not acquire the ability to delay, veto or prevent subscriber revocation.
+
+**Candidate funding models — neither selected**
+- **Subscriber-funded permanent record:** the subscriber funds allocation of the non-closeable Lifecycle Registry. The rent-exempt principal remains locked while the tombstone must exist; it must not be described as refundable or recoverable on ordinary revoke. Any optional excess recovery would be a separate, explicitly approved capability and could return only excess above the required rent-exempt floor to the recorded payer.
+- **Approved external sponsor-funded permanent record:** a non-SolMint third party funds allocation under an explicit sponsorship contract. The permanent rent-exempt principal remains locked for the lifetime of the tombstone; closing the larger delegation account does not refund that principal. Sponsorship would require explicit disclosure/consent, per-account and aggregate exposure limits, an auditable payer-to-account record and a tested recovery policy for the separate closeable account. The sponsor must have no authority over subscriber revoke and no right to close/reset the permanent record.
+- **SolMint/platform-funded rent:** not an available default under the current project security/operating policy. Do not introduce it as a workaround or infer approval from the existence of an optional payer account in another instruction.
+
+**Decisions required before ABI freeze**
+1. Who funds the permanent Lifecycle Registry: subscriber, or an explicitly approved external sponsor?
+2. Is external sponsorship enabled for this capability at all, and what disclosure, opt-in, per-customer/global exposure caps and audit facts are required?
+3. Is excess-lamport recovery supported? If so, the exact rent-floor calculation, trigger, authorized caller, refund destination and atomicity must be specified. The tombstone and its required rent-exempt principal remain intact.
+4. Who funds the separate closeable Fixed/Recurring delegation account, and what exact VNext terminal/expiry/fully-spent conditions permit its closure and rent return? Do not assume the legacy v0.5.0 recovery behavior automatically applies to Path B.
+5. Confirm independently funded transaction network fees; rent sponsorship must not silently become SolMint gas sponsorship.
+
+**Non-negotiable acceptance conditions**
+- Subscriber revoke/terminalization succeeds without sponsor signature, sponsor availability or sponsor approval.
+- Registry state, owner and rent-exempt floor survive delegation closure, sponsor recovery and retries; no generation/revision reset.
+- Any allowed excess recovery returns only to the exact recorded payer and cannot change Registry bytes, owner or lifecycle state.
+- Failed close/refund/CPI paths roll back atomically and cannot strand a live delegation with a missing tombstone.
+- Closeable delegation-account recovery cannot close, reclaim or mutate the permanent lifecycle record.
+- Customer-facing consent must disclose the actual payer, locked rent principal, refundability limits and any sponsor role before signing.
+- No sponsor ledger/quota table, API, Program field, instruction account position, amount or fee is created by this worksheet.
+
+**Disposition:** OPEN / BLOCKED for Fixed/Recurring account ABI and implementation. The product capability is retained; no payer, sponsorship model, rent amount, refund promise or account layout is selected by this amendment. Source references: Program design §§3.1, 8.4.4–8.4.7; Subscription Skill §12.9; Build Web Apps Skill §Subscription rent-payer boundary.
 
 ## 11. Current implementation and release status
 
