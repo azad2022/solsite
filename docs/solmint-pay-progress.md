@@ -5925,5 +5925,39 @@ Review the existing G1 / Program design and decision-register rent sections, the
 ### Mutation boundary
 Only `docs/solmint-pay-subscription-decision-register.md` changed in the Product feature branch. No Program code/design, Product main, Program main, immutable baseline, Production DB/schema/data/RLS/grants, API/runtime, Secret/Key/signer, customer consent, accounting ledger, Devnet/Mainnet state, transaction, customer funds, deployment, merge or release changed.
 
-### Next owner decision needed
-Choose the funding model for the permanent Fixed/Recurring lifecycle tombstone: subscriber-funded with permanently locked rent-exempt principal, or an explicitly approved non-SolMint sponsor model with no revoke authority and separately specified exposure/recovery controls. Until that choice and the related refund/excess-rent policy are approved, do not freeze payer account metas or the public ABI.
+### Follow-up note
+This open owner-decision gate was superseded on 2026-11-27 when the owner delegated the choice to engineering discretion. The selected policy and remaining implementation gates are recorded in the next checkpoint.
+
+
+## 2026-11-27 — Fixed/Recurring Lifecycle Registry rent policy selected
+
+### Scope and source revalidation
+- Revalidated Product branch `feat/pay-subscription-billing`, source HEAD before this checkpoint: `06d75cfa71e2ebf28917639f479931dafc6eb65d`; PR #366 remains OPEN / DRAFT / NOT MERGED against main SHA `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Revalidated Program branch `feat/solmint-g1-authority-vnext`, source HEAD before this checkpoint: `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`; PR #1 remains OPEN / DRAFT / NOT MERGED against immutable baseline `364a41976c33347d092902443bbec2def9227e75`.
+- Re-read the Product Master Specification, Subscription Skill §12.9, Project Instructions rent/fee-payer constraints, Decision Register v1.3, Program protocol design §§3.1 and 8.4.4–8.4.8, current Authority Consent Registry serialized state, and the Fixed/Recurring in-memory transition model. The persistent Fixed/Recurring Registry and callable lifecycle handlers are still absent.
+- Latest Product HEAD CI before the policy commits: CI run `45978958779` SUCCESS; Production Build `45978958612`, Database Security `45978958533`, Devnet E2E `45978958514`, Mainnet Read-only `45978958490` all SUCCESS on exact Product commit `06d75cfa71e2ebf28917639f479931dafc6eb65d`. In CI, quality/scope/migration jobs passed but the specialised Subscription code jobs were SKIPPED by changed-path scope. These workflow wrappers do not prove Subscription runtime functionality.
+
+### Selected policy — owner delegated choice to engineering
+- **Permanent Fixed/Recurring Lifecycle Registry:** subscriber funds initial allocation. Record the exact payer for audit. Its required rent-exempt principal is permanently locked; it is never closed, refunded, swept or excess-recovered in the initial design. Rent-exempt lamports must be calculated at execution from the finalized account size and target cluster Rent sysvar, not hard-coded in code or docs.
+- **Separate closeable Fixed/Recurring delegation:** Customer is the default rent payer and the exact payer identity must be recorded. Optional external sponsorship remains a product requirement, not a de-scope, but is disabled until payer consent/disclosure, per-account and aggregate exposure limits, atomic quota accounting, durable payer/account/refund facts and tested recovery enforcement exist. Any valid refund returns only to that exact recorded payer.
+- Preserve the reviewed upstream recovery boundaries where compatible with the VNext state machine: Fixed recovery only after expiry or full spend; Recurring sponsor recovery only after finite elapsed expiry; non-expiring abandoned recovery requires terminal Authority. A sponsor cannot force-close a healthy permission or interfere with customer revoke.
+- Account Rent payer and transaction network-fee payer remain distinct. Follow the existing operation-specific Customer/Merchant funding policy; Collector may be Puller signer but never silently spends SolMint-funded SOL.
+- This policy does not assign a Program field, account-meta position, PDA seed, discriminator, account length, rent amount, API, DB object or ABI. Excess-lamport recovery is excluded from the initial design.
+
+### Documentation changes and read-back
+- Product Decision Register v1.4 committed: `a91ead1cb683697766e26b52cc959ba310c99ef8`; read-back blob `41e7eb86be784d67baf24342ba42b6dcaafe0b88`. Item 12 now records the selected funding policy and preserves sponsorship as a later gated capability.
+- Program protocol design updated in §8.4.4: commit `7d675fed5f5234534d8f26313c5e4465f5a5ab4d`; read-back blob `0a2df6e303f15049d1b321fb54988e228138a010`. ABI, serialized payer representation and implementation remain explicitly unassigned.
+- Product and Program feature branches now point to those documentation commits. Their PRs remain OPEN / DRAFT / NOT MERGED.
+
+### Stage disposition
+- PASS: the rent-policy decision is recorded in both source-of-truth documents and read back from the exact feature branches.
+- BLOCKED: ABI freeze and production sponsorship until Program identity/deployment boundary, Registry serialization/PDA, account-meta order, exact close/refund handlers and sponsor controls are reviewed and tested.
+- NOT IMPLEMENTED: persistent Fixed/Recurring lifecycle Registry, on-chain Create/Transfer/Revoke handlers, optional sponsorship quota/audit/recovery plane, Subscription API/DB/Collector/verifier/accounting production path.
+- UNKNOWN: local Working Tree cleanliness; the remote GitHub connector cannot inspect it.
+- No tests were run for this documentation-only checkpoint. Existing previous Program CI evidence is not relabelled as a new test result for these documentation commits. Exact-head CI for the two newly created documentation commits must be checked independently before any new CI PASS claim.
+
+### Mutation boundary
+Only `docs/solmint-pay-subscription-decision-register.md` in Product and `docs/solmint-vnext-protocol-design.md` in Program were changed. No Program runtime code, generated IDL/client, Product runtime/API, DB/schema/RLS/grants, Secret/Key/signer, customer consent, ledger, Devnet/Mainnet account or state, customer funds, Program ID, deployment/upgrade, merge or release was changed.
+
+### Next bounded step
+Continue G1 security evidence without freezing ABI: extend the exact immutable-v0.5.0 binary isolation matrix against the selected VNext source-account lineage across the remaining relevant Legacy instruction/account paths and adversarial account substitutions. Keep Program ID/key custody and deployment outside scope until their separate explicit authorization and custody procedure are in place.
