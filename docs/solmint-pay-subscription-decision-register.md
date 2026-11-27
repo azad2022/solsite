@@ -1,11 +1,12 @@
 # SolMint Pay — Subscription Decision Register
 
-**Register version:** 1.2  
-**Decision date:** 2026-11-26  
+**Register version:** 1.3  
+**Owner decision dates:** 2026-11-19, 2026-11-26  
+**Technical review:** 2026-11-27  
 **Repository:** `azad2022/solsite`  
 **Branch:** `feat/pay-subscription-billing`  
 **Recorded from:** explicit owner selections submitted on 2026-11-19 and 2026-11-26  
-**Source HEAD reviewed for v1.2 amendment:** `84caeaf6a9c5ab1289e489454b457cf26690ab92` (v1.1 was amended from `962f532e254cb8d609a6c23916b8c6fa2283e3a2`; v1.0 was created from `1159454468e2b9c4b4aa940f22e314c9efc67816`)  
+**Source HEADs reviewed for v1.3 evidence-only clarification:** Product `75e09d6db99adfae41c095cd80deeb3364e9083d`; Program `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`. The v1.2 owner decision was reviewed from Product `84caeaf6a9c5ab1289e489454b457cf26690ab92`; v1.1 from `962f532e254cb8d609a6c23916b8c6fa2283e3a2`; v1.0 from `1159454468e2b9c4b4aa940f22e314c9efc67816`.  
 **PR:** #366 — OPEN / DRAFT / NOT MERGED  
 **Register status:** OWNER SELECTIONS RECORDED; CONTRACT FREEZE **BLOCKED**  
 **Scope:** design and product policy only. This register does not authorize runtime implementation, Production DDL/data changes, secrets/keys/signers, customer consent, Devnet mutation, Mainnet mutation or release.
@@ -235,3 +236,10 @@ Required consequences:
 - Recorded the fresh-consent, new-PDA namespace, dedicated source-token-account isolation and explicit customer-signed migration requirements.
 - Clarified that the route selection does not authorize Program ID/keypair generation, custody changes, signer creation, deployment, customer consent or fund movement.
 - Existing D-001 through D-016 remain unchanged. Contract Freeze and Subscription Production readiness remain BLOCKED.
+
+
+### v1.3 — 2026-11-27 (evidence-only clarification; no new owner selection)
+- Added OPEN item 12 and a source-linked worksheet for the permanent Fixed/Recurring Lifecycle Registry rent funding and recovery decision.
+- Separated the non-closeable lifecycle tombstone from the separately closeable Fixed/Recurring delegation account and distinguished both from the already implemented Authority Consent Registry / closeable Authority rent behavior.
+- Recorded subscriber-funded and approved external-sponsor-funded models as unselected alternatives, plus the required excess-rent, separate fee-payer, refund, consent-disclosure and no-sponsor-control invariants.
+- No payer, sponsor model, rent amount, recovery promise, Program field, account-meta position, PDA seed or ABI was selected. This amendment does not authorize implementation, billing, DB/API work, Production mutation or any on-chain action.
