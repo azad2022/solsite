@@ -5900,3 +5900,30 @@ Only the Product feature-branch CI source pins and Program feature-branch integr
 
 ### Next bounded step
 Review the existing G1 / Program design and decision-register rent sections, then document the unresolved permanent Fixed/Recurring Registry payer, locked rent floor, excess-rent disposition and sponsor recovery alternatives without selecting a payer/charge or freezing an ABI without the owner's explicit business decision. Continue to keep Program ID/key generation and deployment outside scope.
+
+
+## 2026-11-27 — Fixed/Recurring permanent Registry Rent decision worksheet
+
+### Source review
+- Product source HEAD reviewed: `75e09d6db99adfae41c095cd80deeb3364e9083d`.
+- Program source HEAD reviewed: `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`.
+- Reviewed Product G1 remediation plan §4/§6 and 2026-11-26 Path-B checkpoint; Product Subscription Skill §12.9; Build Web Apps Skill rent-payer boundary; Decision Register v1.2; Program design §§3.1, 8.4.4–8.4.8 and §12; actual Authority Consent Registry, authorize/revoke handlers and Fixed/Recurring in-memory transition model.
+
+### Evidence-based clarification recorded
+- Decision Register updated to v1.3, commit `81de239a31cc0fe456c0bff8d020011afbd3049b`.
+- Added OPEN item 12 and §10.1 worksheet separating the non-closeable Fixed/Recurring lifecycle tombstone from the closeable delegation account and from the already implemented Authority Consent Registry / closeable Authority pair.
+- Recorded two funding models as unselected alternatives: subscriber-funded permanent record, or expressly approved non-SolMint third-party sponsorship. Captured locked rent-exempt principal, optional excess-only recovery, exact recorded payer, sponsor non-control of subscriber revoke, separate network fee payer, and separate closeable-delegation recovery as mandatory review dimensions.
+- The current Authority Consent Registry's subscriber-funded rent and closeable Authority's exact recorded-payer refund are source facts for those specific accounts; they were not generalized into a new Fixed/Recurring ABI.
+- No payer, sponsor model, rent amount, refund promise, API/table/field, Program account layout, PDA seed, instruction account position or ABI was selected or implemented.
+
+### Disposition
+- PASS: source-linked decision worksheet committed and read back; it records the open choice without presenting it as an owner decision.
+- OPEN / BLOCKED: permanent Fixed/Recurring Lifecycle Registry payer model, optional sponsor eligibility/quota/disclosure, excess-lamport policy, closeable delegation rent payer/refund triggers and the corresponding account-meta contract.
+- NOT IMPLEMENTED: persistent Fixed/Recurring Lifecycle Registry account/PDA/codec, callable VNext Fixed/Recurring Create/Transfer/Revoke handlers and rent recovery logic.
+- No tests were run for this documentation-only checkpoint. Local Working Tree remains UNKNOWN.
+
+### Mutation boundary
+Only `docs/solmint-pay-subscription-decision-register.md` changed in the Product feature branch. No Program code/design, Product main, Program main, immutable baseline, Production DB/schema/data/RLS/grants, API/runtime, Secret/Key/signer, customer consent, accounting ledger, Devnet/Mainnet state, transaction, customer funds, deployment, merge or release changed.
+
+### Next owner decision needed
+Choose the funding model for the permanent Fixed/Recurring lifecycle tombstone: subscriber-funded with permanently locked rent-exempt principal, or an explicitly approved non-SolMint sponsor model with no revoke authority and separately specified exposure/recovery controls. Until that choice and the related refund/excess-rent policy are approved, do not freeze payer account metas or the public ABI.
