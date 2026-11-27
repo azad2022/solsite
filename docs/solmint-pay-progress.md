@@ -5853,3 +5853,50 @@ The earlier status above correctly reported Product CI run `45867562246` as in p
 Companion workflows on Product HEAD `a57819c7...` also completed: Production Build `45867562356`, Database Security `45867562296`, Mainnet Read-only `45867562313` and ordinary Pay Devnet E2E `45867562480` — all SUCCESS. This confirms the wrappers and generic jobs only; specialized Subscription jobs were skipped and must not be reported as freshly tested.
 
 The subsequent progress-ledger-only Product commit `d118c6d4b5345491451786c0e6c068ebcd226c28` has no associated workflow run returned by the exact-commit workflow lookup. Therefore exact-head CI for `d118c6d4...` is **UNKNOWN / no run evidenced**, not PASS. No executable source changed in the commits after the focused exact-source Program run.
+
+
+## 2026-11-27 — Token-2022 non-ATA Legacy isolation exact-binary checkpoint
+
+### Repository / PR identity
+- Product repository: `azad2022/solsite`.
+- Product branch / exact checkpoint HEAD: `feat/pay-subscription-billing` / `ef8ee9897a08852863550409fb77efc9ddc702ad`.
+- Product PR #366: OPEN / DRAFT / NOT MERGED; base `main` SHA `514d3401d8d725be106ab0c83557f8e43cdff13e`.
+- Program repository: `azad2022/solmint-subscriptions-program`.
+- Program branch / exact source tested: `feat/solmint-g1-authority-vnext` / `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`.
+- Program PR #1: OPEN / DRAFT / NOT MERGED; base immutable `solmint/v0.5.0-baseline` SHA `364a41976c33347d092902443bbec2def9227e75`.
+- Local Working Tree remains UNKNOWN through the remote GitHub connection.
+
+### Scoped implementation
+- Updated only `tests/integration-tests/src/test_vnext_legacy_isolation.rs` in the Program feature branch.
+- The shared VNext lineage fixture now binds its stored token-program identity to the exact supplied Token Program and handles Token-2022 extension-bearing source accounts through `StateWithExtensionsMut`; the ordinary SPL Token path continues to use its existing base-account Pack handling.
+- Extended the existing Token-2022 TransferHook Legacy-isolation test with a distinct non-ATA VNext source, byte-valid VNext Registry/Authority fixtures, and an immutable-v0.5.0 `TransferSubscription` attempt carrying the exact TransferHook remaining accounts. The negative case asserts rejection and unchanged VNext Registry/Authority/source bytes and lamports, legacy Subscription state, legacy ATA/destination, and Hook counter. The positive control still executes the valid ATA-backed legacy TransferHook transfer and confirms the expected balances and exactly one Hook execution.
+- The shared lineage assertion now reads the base token-account bytes through the existing `fetch_account` helper, which slices the Token Account base length and supports extension-bearing Token-2022 accounts. This resolved the observed `InvalidAccountData` in the positive-control assertion; no security check or positive-control assertion was removed.
+- Product CI `.github/workflows/ci.yml` keeps the same four existing VNext source pins and points all four to Program SHA `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`.
+
+### Exact-source CI evidence
+- Product CI run [45977500434](https://github.com/azad2022/solsite/actions/runs/45977500434) on Product HEAD `ef8ee9897a08852863550409fb77efc9ddc702ad`: SUCCESS.
+- Exact job `subscription-vnext-authority-registry`, job ID `140433456112`: SUCCESS. It checked out and verified exact Program HEAD `5eded973c7c587e508e5fb12b5c0cfa2d2314c23`.
+- Program Rust formatting and LiteSVM test formatting: PASS.
+- Program unit tests: 109 passed / 0 failed.
+- Exact VNext SBF build in the deterministic container: PASS; executable SHA-256 `b177192f78afd4ada55c50c97af76c1055af81f02202741d815f425f7e160d6b`.
+- Token-2022 TransferHook fixture build: PASS.
+- VNext / migration LiteSVM selection: 26 passed / 0 failed / 5 ignored; separate legacy authority-generation selection: 3 passed / 0 failed.
+- Exact immutable upstream v0.5.0 source checkout and deterministic SBF build: PASS; source SHA `364a41976c33347d092902443bbec2def9227e75`.
+- Historical Legacy integration suite against that immutable v0.5.0 binary: 274 passed / 0 failed.
+- Focused immutable-Legacy isolation command `cargo test -p tests-subscriptions vnext_legacy_program_ -- --ignored`: **5 passed / 0 failed / 0 ignored**. This includes `vnext_legacy_program_cannot_delegate_a_non_ata_source`, the Token-2022 TransferHook positive/negative control, Authority/Fixed/Recurring lineage, Plan/Subscription lineage, and additive-discriminator rejection.
+- Codama IDL regeneration and structural comparison: PASS. Generated and committed IDL are structurally identical; canonical SHA-256 `4b9e4f1e560cb5b1f01117de2e9feef8bcbc7b99f6395d6ad71a2661571b925e`; 31 instructions, 12 accounts, 21 defined types, 12 PDAs.
+- Companion Product workflows on the same Product HEAD: Production Build, Database Security, Devnet E2E, Mainnet Read-only — all SUCCESS. Generic Quality and both pinned migration CLI jobs — SUCCESS. Squads SDK delayed-proposal job — SUCCESS in this run.
+- `subscription-sdk-compat`, `subscription-atomic-split-transfer`, `subscription-tm06-sponsored-plan-refund`, and `subscription-mainnet-programdata` were SKIPPED by changed-path scope in this run; this checkpoint does not claim fresh PASS evidence for them.
+
+### Stage disposition
+- PASS: the five-test immutable-v0.5.0 Legacy-isolation suite above, including the new Token-2022 non-ATA attempt and its preserved positive control, on the exact source and binary identities recorded here.
+- PASS: VNext/migration LiteSVM selection, historical Legacy suite, Program Unit Tests, deterministic VNext SBF build, and generated-vs-committed Codama IDL comparison as enumerated above.
+- BLOCKED: complete Path-B source-account isolation beyond the exact paths/accounts covered by this test matrix; independent Program ID/key custody and upgrade-authority procedure; persistent Fixed/Recurring lifecycle Registry rent-payer/sponsorship/refund policy; Fixed/Recurring serialized account/PDA/version/revoke ABI freeze.
+- NOT IMPLEMENTED: persistent Fixed/Recurring lifecycle Registry serialization/PDA, callable VNext Fixed/Recurring Create/Transfer/Revoke handlers and dispatch routes, generated client surface for those handlers, and full adversarial state-transition suite.
+- UNKNOWN: local Working Tree cleanliness; no local tests were run in this remote-only checkpoint.
+
+### Mutation boundary
+Only the Product feature-branch CI source pins and Program feature-branch integration-test file changed. Product `main`, immutable Program baseline, Production DB/schema/data/RLS/grants, APIs/runtime, Secrets/Keys/signers, customer consent, ledgers, Devnet/Mainnet accounts or state, customer funds, Program ID, deployment/upgrade, merge and release were not changed.
+
+### Next bounded step
+Review the existing G1 / Program design and decision-register rent sections, then document the unresolved permanent Fixed/Recurring Registry payer, locked rent floor, excess-rent disposition and sponsor recovery alternatives without selecting a payer/charge or freezing an ABI without the owner's explicit business decision. Continue to keep Program ID/key generation and deployment outside scope.
